@@ -2,7 +2,9 @@
 {% block title %}{{ show.name }} · Track{% endblock %}
 {% block content %}
 <header class="detail-app-bar">
-  <a class="icon-button" href="{{ url_for('my_shows') }}" aria-label="Back to My Shows">←</a>
+  <a class="icon-button" href="{{ url_for('my_shows') }}" aria-label="Back to My Shows">
+    <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+  </a>
   <span>Show details</span>
 </header>
 
@@ -26,7 +28,7 @@
   <div class="detail-progress" data-progress-summary>
     <div class="progress-copy">
       <strong>Your progress</strong>
-      <span data-progress-copy>{{ show.watched_count }} of {{ show.episode_count }} watched</span>
+      <span data-progress-copy>{{ show.watched_count }} of {{ show.episode_count }}</span>
     </div>
     <div class="progress-track" role="progressbar" aria-label="Show progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ percent }}">
       <span style="width: {{ percent }}%"></span>
@@ -49,25 +51,24 @@
           <span class="season-chevron" aria-hidden="true">›</span>
           <span class="season-title">
             <strong>{{ season.name }}</strong>
-            <small>{{ watched_in_season }} of {{ episodes|length }} watched</small>
+            <small>{{ watched_in_season }} of {{ episodes|length }}</small>
           </span>
         </summary>
         <div class="episode-list">
           {% for episode in episodes %}
             <article class="episode {{ 'is-watched' if episode.watch_count else '' }}" data-episode-id="{{ episode.id }}">
-              <label class="check-control">
-                <input type="checkbox" class="episode-checkbox" {% if episode.watch_count %}checked{% endif %}>
-                <span class="checkbox-visual" aria-hidden="true">✓</span>
-                <span class="sr-only">Mark episode {{ episode.episode_number }} {{ episode.name }} watched</span>
-              </label>
               <div class="episode-copy">
                 <div class="episode-title">
                   <span>{{ episode.episode_number }}</span>
                   <strong>{{ episode.name }}</strong>
                 </div>
-                <p>{{ episode.air_date }}</p>
-                <small class="watch-status" data-runtime="{{ episode.runtime_minutes }} min">{{ 'Watched' if episode.watch_count else episode.runtime_minutes ~ ' min' }}</small>
+                <p>{{ episode.air_date }} · {{ episode.runtime_minutes }} min</p>
               </div>
+              <label class="check-control">
+                <input type="checkbox" class="episode-checkbox" {% if episode.watch_count %}checked{% endif %}>
+                <span class="checkbox-visual" aria-hidden="true">✓</span>
+                <span class="sr-only">Mark episode {{ episode.episode_number }} {{ episode.name }} watched</span>
+              </label>
             </article>
           {% endfor %}
         </div>

@@ -42,6 +42,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.get("/")
     def my_shows():
+        query = request.args.get("q", "").strip()
         shows = get_db().execute(
             """
             SELECT s.*,
@@ -52,11 +53,15 @@ def create_app(test_config: dict | None = None) -> Flask:
             LEFT JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id AND wh.unwatched_at IS NULL
             WHERE s.state = 'ACTIVE'
+              AND (? = '' OR s.name LIKE '%' || ? || '%' COLLATE NOCASE)
             GROUP BY s.id
             ORDER BY s.name COLLATE NOCASE
-            """
+            """,
+            (query, query),
         ).fetchall()
-        return render_template("my_shows.html", shows=shows, active_nav="shows")
+        return render_template(
+            "my_shows.html", shows=shows, query=query, active_nav="shows"
+        )
 
     @app.get("/shows/<int:show_id>")
     def show_detail(show_id: int):
@@ -170,10 +175,13 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.get("/search")
     def search():
+        query = request.args.get("q", "").strip()
         popular = get_db().execute(
             "SELECT * FROM popular_show_stubs ORDER BY popularity_rank"
         ).fetchall()
-        return render_template("search.html", popular=popular, active_nav="search")
+        return render_template(
+            "search.html", popular=popular, query=query, active_nav="search"
+        )
 
     @app.errorhandler(404)
     def not_found(_error):

@@ -2,11 +2,10 @@
 {% block title %}My Shows · Track{% endblock %}
 {% block content %}
 <header class="top-app-bar">
-  <div>
-    <p class="eyebrow">YOUR LIBRARY</p>
-    <h1>My Shows</h1>
-  </div>
-  <div class="avatar" aria-label="Personal library">T</div>
+  <form class="app-bar-search" action="{{ url_for('my_shows') }}" method="get" role="search">
+    <span class="search-glyph" aria-hidden="true"></span>
+    <input type="search" name="q" value="{{ query }}" placeholder="Search your shows" aria-label="Search your shows" autocomplete="off" data-library-search>
+  </form>
 </header>
 
 <section class="page-section" aria-labelledby="watching-title">
@@ -20,7 +19,7 @@
 
   {% for show in shows %}
     {% set percent = ((show.watched_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
-    <a class="show-card" href="{{ url_for('show_detail', show_id=show.id) }}">
+    <a class="show-card" href="{{ url_for('show_detail', show_id=show.id) }}" data-show-name="{{ show.name|lower }}">
       <div class="poster poster-purple" aria-hidden="true">
         <span class="poster-mark">BB</span>
         <span class="poster-label">{{ show.name }}</span>
@@ -33,7 +32,7 @@
         </div>
         <div class="progress-block">
           <div class="progress-copy">
-            <span>{{ show.watched_count }} of {{ show.episode_count }} episodes</span>
+            <span>{{ show.watched_count }} of {{ show.episode_count }}</span>
             <strong>{{ percent }}%</strong>
           </div>
           <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ percent }}">
@@ -46,9 +45,8 @@
     <div class="empty-state">
       <div class="empty-icon">＋</div>
       <h3>Nothing active yet</h3>
-      <p>Find a show in Search to start your list.</p>
+      <p>{% if query %}No shows match “{{ query }}”.{% else %}Find a show in Discover to start your list.{% endif %}</p>
     </div>
   {% endfor %}
 </section>
 {% endblock %}
-

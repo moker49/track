@@ -16,14 +16,10 @@ document.addEventListener("change", async (event) => {
     const data = await response.json();
 
     episode.classList.toggle("is-watched", data.watched);
-    episode.querySelector(".watch-status").textContent = data.watched
-      ? "Watched"
-      : `${episode.querySelector(".watch-status").dataset.runtime || ""}`;
-
     const progress = document.querySelector("[data-progress-summary]");
     if (progress) {
       progress.querySelector("[data-progress-copy]").textContent =
-        `${data.watched_count} of ${data.episode_count} watched`;
+        `${data.watched_count} of ${data.episode_count}`;
       const bar = progress.querySelector(".progress-track");
       bar.setAttribute("aria-valuenow", data.percent);
       bar.querySelector("span").style.width = `${data.percent}%`;
@@ -32,7 +28,7 @@ document.addEventListener("change", async (event) => {
     const season = episode.closest(".season");
     const checked = season.querySelectorAll(".episode-checkbox:checked").length;
     const total = season.querySelectorAll(".episode-checkbox").length;
-    season.querySelector(".season-title small").textContent = `${checked} of ${total} watched`;
+    season.querySelector(".season-title small").textContent = `${checked} of ${total}`;
     showSnackbar(data.watched ? "Episode marked watched" : "Episode marked unwatched");
   } catch (_error) {
     checkbox.checked = !wantedState;
@@ -40,6 +36,13 @@ document.addEventListener("change", async (event) => {
   } finally {
     checkbox.disabled = false;
   }
+});
+
+document.querySelector("[data-library-search]")?.addEventListener("input", (event) => {
+  const query = event.target.value.trim().toLocaleLowerCase();
+  document.querySelectorAll(".show-card").forEach((card) => {
+    card.hidden = !card.dataset.showName.includes(query);
+  });
 });
 
 function showSnackbar(message) {

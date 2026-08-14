@@ -20,16 +20,35 @@ class TrackAppTest(unittest.TestCase):
         home = self.client.get("/")
         self.assertEqual(home.status_code, 200)
         self.assertIn(b"Breaking Bad", home.data)
-        self.assertIn(b"5 of 13 episodes", home.data)
+        self.assertIn(b"5 of 13", home.data)
+        self.assertIn(b"Search your shows", home.data)
+        self.assertNotIn(b"app-bar-title", home.data)
+        self.assertNotIn(b'class="avatar"', home.data)
 
         detail = self.client.get("/shows/1")
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b"Season 1", detail.data)
         self.assertIn(b"Seven Thirty-Seven", detail.data)
+        self.assertIn(b"arrow_back", detail.data)
 
         search = self.client.get("/search")
         self.assertEqual(search.status_code, 200)
         self.assertIn(b"Popular now", search.data)
+        self.assertIn(b"Discover", search.data)
+        self.assertIn(b"Search TMDB", search.data)
+
+    def test_my_shows_search_filters_local_library(self):
+        match = self.client.get("/?q=breaking")
+        self.assertIn(b"Breaking Bad", match.data)
+
+        no_match = self.client.get("/?q=severance")
+        self.assertNotIn(b'class="show-card"', no_match.data)
+        self.assertIn(b"No shows match", no_match.data)
+
+    def test_discover_query_stays_ready_for_tmdb(self):
+        response = self.client.get("/search?q=andor")
+        self.assertIn(b"Search ready for TMDB", response.data)
+        self.assertIn(b"andor", response.data)
 
     def test_watched_toggle_updates_progress_and_preserves_history(self):
         unwatch = self.client.post("/api/episodes/1/watched", json={"watched": False})
