@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}My Shows · Track{% endblock %}
+{% block content %}
+<header class="top-app-bar">
+  <div>
+    <p class="eyebrow">YOUR LIBRARY</p>
+    <h1>My Shows</h1>
+  </div>
+  <div class="avatar" aria-label="Personal library">T</div>
+</header>
+
+<section class="page-section" aria-labelledby="watching-title">
+  <div class="section-heading">
+    <div>
+      <h2 id="watching-title">Watching now</h2>
+      <p>Pick up where you left off</p>
+    </div>
+    <span class="count-badge">{{ shows|length }}</span>
+  </div>
+
+  {% for show in shows %}
+    {% set percent = ((show.watched_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
+    <a class="show-card" href="{{ url_for('show_detail', show_id=show.id) }}">
+      <div class="poster poster-purple" aria-hidden="true">
+        <span class="poster-mark">BB</span>
+        <span class="poster-label">{{ show.name }}</span>
+      </div>
+      <div class="show-card-body">
+        <div>
+          <span class="state-label">In progress</span>
+          <h3>{{ show.name }}</h3>
+          <p>{{ show.first_air_date[:4] }} · {{ show.genres }}</p>
+        </div>
+        <div class="progress-block">
+          <div class="progress-copy">
+            <span>{{ show.watched_count }} of {{ show.episode_count }} episodes</span>
+            <strong>{{ percent }}%</strong>
+          </div>
+          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ percent }}">
+            <span style="width: {{ percent }}%"></span>
+          </div>
+        </div>
+      </div>
+    </a>
+  {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">＋</div>
+      <h3>Nothing active yet</h3>
+      <p>Find a show in Search to start your list.</p>
+    </div>
+  {% endfor %}
+</section>
+{% endblock %}
+

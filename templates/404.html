@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Not found · Track{% endblock %}
+{% block content %}
+<section class="empty-state full-page">
+  <div class="empty-icon">?</div>
+  <h1>That show isn't here</h1>
+  <p>The page may have moved or never existed.</p>
+  <a class="filled-button" href="{{ url_for('my_shows') }}">Back to My Shows</a>
+</section>
+{% endblock %}
+
