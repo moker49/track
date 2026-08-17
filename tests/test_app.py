@@ -59,6 +59,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'class="detail-app-bar-title">Show details</span>', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
         self.assertIn(b"Added to My Shows", detail.data)
+        self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>In progress</span>', detail.data)
+        self.assertNotIn(b"data-show-state-label", detail.data)
         self.assertNotIn(b'<details class="activity-log" open', detail.data)
         self.assertIn(b"rewatch", detail.data)
         self.assertIn(b"unwatch", detail.data)
@@ -70,6 +72,7 @@ class TrackAppTest(unittest.TestCase):
         archived_detail = self.client.get("/api/shows/2")
         self.assertEqual(archived_detail.status_code, 200)
         self.assertIn(b"Game of Thrones", archived_detail.data)
+        self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Finished</span>', archived_detail.data)
         self.assertIn(b"Un-archive", archived_detail.data)
         self.assertIn(b"more_vert", archived_detail.data)
 

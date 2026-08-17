@@ -404,10 +404,6 @@ function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
       moveButton.querySelector("[data-move-label]").textContent = moveLabel;
       moveButton.querySelector(".material-symbols-rounded").textContent = moveIcon;
     });
-    const detailStateLabel = showElement.querySelector("[data-show-state-label]");
-    if (detailStateLabel) {
-      detailStateLabel.textContent = state === "ARCHIVED" ? "Archived" : "Watching";
-    }
     syncProgressState(showElement);
   });
 }

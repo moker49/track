@@ -3,12 +3,16 @@
 {% set move_icon = 'unarchive' if show.state == 'ARCHIVED' else 'archive' %}
 {% if show.watched_count == 0 %}
 {% set progress_state = 'not-started' %}
+{% set progress_tag = "Haven't started" %}
 {% elif show.episode_count and show.watched_count >= show.episode_count %}
 {% set progress_state = 'finished' %}
+{% set progress_tag = 'Finished' %}
 {% elif show.state == 'ARCHIVED' %}
 {% set progress_state = 'stopped' %}
+{% set progress_tag = 'Stopped' %}
 {% else %}
 {% set progress_state = 'in-progress' %}
+{% set progress_tag = 'In progress' %}
 {% endif %}
 <div data-detail-show data-detail-title="{{ show.name }}" data-show-id="{{ show.id }}"
   data-show-state="{{ show.state }}" data-watched-count="{{ show.watched_count }}"
@@ -42,8 +46,7 @@
       <span class="poster-label">{{ show.name }}</span>
     </div>
     <div class="hero-copy">
-      <span class="state-label" data-show-state-label>{{ 'Archived' if show.state == 'ARCHIVED' else 'Watching'
-        }}</span>
+      <span class="state-label progress-tag" data-progress-tag>{{ progress_tag }}</span>
       <h1>{{ show.name }}</h1>
       <p>{{ show.first_air_date[:4] }} · {{ show.status }}<br>{{ show.genres }}</p>
     </div>
