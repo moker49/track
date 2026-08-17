@@ -254,11 +254,9 @@ a { color: inherit; }
 .app-bar-search:focus-within { outline: 2px solid var(--primary); }
 .app-bar-search input { width: 100%; border: 0; outline: 0; color: var(--on-surface); background: transparent; }
 .app-bar-search input::placeholder { color: var(--on-surface-muted); opacity: 1; }
-.search-page { padding-top: 8px; }
 .search-notice { margin: 0 0 16px; padding: 16px; border-radius: var(--radius-md); color: var(--on-surface); background: var(--primary-light); }
 .search-notice strong { font-size: 0.9rem; font-weight: 500; }
 .search-notice p { margin: 5px 0 0; color: var(--on-surface-muted); font-size: 0.78rem; line-height: 1.4; }
-.popular-heading { margin-bottom: 4px; }
 .popular-grid { display: grid; gap: 12px; }
 .popular-card { min-height: 112px; padding: 12px; border-radius: var(--radius-md); display: grid; grid-template-columns: 72px 1fr; gap: 14px; background: var(--surface-card); box-shadow: 0 1px 4px var(--shadow); }
 .mini-poster { width: 72px; height: 96px; border-radius: var(--radius-sm); display: grid; place-items: center; color: var(--on-primary); font-size: 1.8rem; font-weight: 700; background: var(--primary-dark); }
