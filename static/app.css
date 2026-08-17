@@ -516,7 +516,9 @@ a {
 }
 
 .detail-content {
-  padding: 4px 16px 28px;
+  display: grid;
+  gap: 20px;
+  padding: 0 16px;
 }
 
 .tagline {
@@ -525,7 +527,7 @@ a {
 }
 
 .overview {
-  margin: 0 4px 20px;
+  margin: 0 4px;
   color: var(--on-surface-muted);
   font-size: 0.9rem;
   line-height: 1.55;
@@ -539,10 +541,6 @@ a {
 
 .detail-progress .progress-track {
   background: color-mix(in srgb, var(--progress-color, var(--progress-in-progress)) 28%, var(--surface-high));
-}
-
-.seasons-heading {
-  margin-top: 18px;
 }
 
 .season-list {
@@ -785,12 +783,7 @@ a {
   font-size: 1.15rem;
 }
 
-.episode-middle {
-  min-height: 32px;
-}
-
 .activity-log {
-  margin-top: 24px;
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--surface-card);

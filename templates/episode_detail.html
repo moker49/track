@@ -1,6 +1,8 @@
-<div data-detail-episode data-detail-title="{{ episode.name }}" data-episode-id="{{ episode.id }}" data-show-id="{{ episode.show_id }}">
+<div data-detail-episode data-detail-title="{{ episode.name }}" data-episode-id="{{ episode.id }}"
+  data-show-id="{{ episode.show_id }}">
   <header class="detail-app-bar">
-    <button class="icon-button" type="button" data-detail-back data-back-show-id="{{ episode.show_id }}" aria-label="Back to {{ episode.show_name }}">
+    <button class="icon-button" type="button" data-detail-back data-back-show-id="{{ episode.show_id }}"
+      aria-label="Back to {{ episode.show_name }}">
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
     <span class="detail-app-bar-title">Episode details</span>
@@ -14,7 +16,8 @@
     <div class="hero-copy">
       <span class="state-label">Episode {{ episode.episode_number }}</span>
       <h1>{{ episode.name }}</h1>
-      <p>{{ episode.season_name }}<br><time datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date }}</time> · {{ episode.runtime_minutes }} min</p>
+      <p>{{ episode.season_name }}<br><time datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date
+          }}</time> · {{ episode.runtime_minutes }} min</p>
     </div>
   </section>
 
@@ -25,8 +28,6 @@
       <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
       <span><strong>{{ episode.watch_count }}</strong> {{ 'watches' if episode.watch_count != 1 else 'watch' }}</span>
     </div>
-
-    <div class="episode-middle" aria-hidden="true"></div>
 
     {% set activity_title = 'Watch log' %}
     {% set activity_items = watch_log %}

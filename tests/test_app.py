@@ -251,7 +251,6 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'class="activity-log watch-log"', detail.data)
         self.assertNotIn(b'<details class="activity-log watch-log"', detail.data)
         self.assertIn(b'data-watch-log-entry', detail.data)
-        self.assertIn(b'class="episode-middle"', detail.data)
         self.assertNotIn(b"season-list", detail.data)
         self.assertNotIn(b"<!doctype html>", detail.data.lower())
 
