@@ -547,7 +547,7 @@ a {
 
 .season-list {
   display: grid;
-  gap: 10px;
+  gap: 4px;
 }
 
 .season {
@@ -556,6 +556,16 @@ a {
   overflow: visible;
   background: var(--surface-card);
   box-shadow: 0 1px 4px var(--shadow);
+}
+
+.season:not(:first-child) {
+  border-start-start-radius: 4px;
+  border-start-end-radius: 4px;
+}
+
+.season:not(:last-child) {
+  border-end-start-radius: 4px;
+  border-end-end-radius: 4px;
 }
 
 .season:has(.watch-menu:not([hidden])) {
@@ -891,7 +901,7 @@ a {
   font-size: 20px;
 }
 
-.activity-item + .activity-item {
+.activity-item+.activity-item {
   border-top: 1px solid var(--outline-soft);
 }
 
@@ -953,7 +963,7 @@ a {
   justify-content: space-between;
 }
 
-.date-picker-month-bar > strong {
+.date-picker-month-bar>strong {
   padding-left: 8px;
   font-size: 0.9rem;
   font-weight: 500;

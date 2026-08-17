@@ -103,6 +103,15 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('.season:has(.watch-menu:not([hidden]))', css)
         self.assertIn("z-index: 30", css)
 
+    def test_season_cards_form_an_attached_stack(self):
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(".season:not(:first-child)", css)
+        self.assertIn("border-start-start-radius: 4px", css)
+        self.assertIn(".season:not(:last-child)", css)
+        self.assertIn("border-end-end-radius: 4px", css)
+
     def test_episode_number_is_vertically_centered(self):
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
             encoding="utf-8"
