@@ -3,7 +3,7 @@
 {% block content %}
 <header class="top-app-bar">
   <form class="app-bar-search" action="{{ url_for('my_shows') }}" method="get" role="search">
-    <span class="search-glyph" aria-hidden="true"></span>
+    <span class="material-symbols-rounded" aria-hidden="true">search</span>
     <input type="search" name="q" value="{{ query }}" placeholder="Search your shows" aria-label="Search your shows" autocomplete="off" data-library-search>
   </form>
 </header>
@@ -43,7 +43,7 @@
     </a>
   {% else %}
     <div class="empty-state">
-      <div class="empty-icon">＋</div>
+      <span class="empty-icon material-symbols-rounded" aria-hidden="true">add</span>
       <h3>Nothing active yet</h3>
       <p>{% if query %}No shows match “{{ query }}”.{% else %}Find a show in Discover to start your list.{% endif %}</p>
     </div>

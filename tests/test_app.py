@@ -24,7 +24,15 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Search your shows", home.data)
         self.assertNotIn(b"app-bar-title", home.data)
         self.assertNotIn(b'class="avatar"', home.data)
-        self.assertIn(b'<span class="nav-icon" aria-hidden="true">\n          <span class="search-glyph"></span>', home.data)
+        self.assertIn(b'<span class="material-symbols-rounded">tv</span>', home.data)
+        self.assertIn(b'<span class="material-symbols-rounded">explore</span>', home.data)
+        self.assertNotIn(b"search-glyph", home.data)
+        self.assertNotIn(b"Material+Symbols", home.data)
+
+        icon_font = self.client.get("/static/fonts/material-symbols-rounded.ttf")
+        self.assertEqual(icon_font.status_code, 200)
+        self.assertGreater(len(icon_font.data), 1_000_000)
+        icon_font.close()
 
         detail = self.client.get("/shows/1")
         self.assertEqual(detail.status_code, 200)

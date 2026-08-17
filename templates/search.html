@@ -3,7 +3,7 @@
 {% block content %}
 <header class="top-app-bar search-header">
   <form class="app-bar-search" action="{{ url_for('search') }}" method="get" role="search">
-    <span class="search-glyph" aria-hidden="true"></span>
+    <span class="material-symbols-rounded" aria-hidden="true">search</span>
     <input type="search" name="q" value="{{ query }}" placeholder="Search TMDB" aria-label="Search TMDB" autocomplete="off">
   </form>
 </header>
