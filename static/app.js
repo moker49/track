@@ -29,7 +29,6 @@ document.addEventListener("change", async (event) => {
     const checked = season.querySelectorAll(".episode-checkbox:checked").length;
     const total = season.querySelectorAll(".episode-checkbox").length;
     season.querySelector(".season-title small").textContent = `${checked} of ${total}`;
-    showSnackbar(data.watched ? "Episode marked watched" : "Episode marked unwatched");
   } catch (_error) {
     checkbox.checked = !wantedState;
     showSnackbar("Couldn't save. Try again.");
