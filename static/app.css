@@ -24,6 +24,10 @@
   --accent-track: hsl(174 25% 29%);
   --accent-dark: hsl(174 42% 28%);
   --primary-mid: hsl(263 34% 44%);
+  --progress-in-progress: var(--primary);
+  --progress-complete: var(--accent);
+  --progress-not-started: hsl(45 88% 62%);
+  --progress-stopped: var(--error);
   --surface: hsl(260 12% 9%);
   --surface-low: hsl(260 10% 7%);
   --surface-high: hsl(260 10% 18%);
@@ -252,6 +256,27 @@ a {
   text-transform: uppercase;
 }
 
+[data-progress-state="in-progress"] {
+  --progress-color: var(--progress-in-progress);
+}
+
+[data-progress-state="finished"] {
+  --progress-color: var(--progress-complete);
+}
+
+[data-progress-state="not-started"] {
+  --progress-color: var(--progress-not-started);
+}
+
+[data-progress-state="stopped"] {
+  --progress-color: var(--progress-stopped);
+}
+
+.progress-tag {
+  color: var(--progress-color);
+  background: color-mix(in srgb, var(--progress-color) 18%, transparent);
+}
+
 .progress-copy {
   display: flex;
   justify-content: space-between;
@@ -278,7 +303,7 @@ a {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--accent);
+  background: var(--progress-color, var(--progress-in-progress));
   transition: width 240ms ease;
 }
 
@@ -289,11 +314,11 @@ a {
   left: 50%;
   width: min(100%, 520px);
   height: calc(72px + env(safe-area-inset-bottom));
-  padding: 8px 48px env(safe-area-inset-bottom);
+  padding: 8px 20px env(safe-area-inset-bottom);
   transform: translateX(-50%);
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 36px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
   border-top: 1px solid var(--outline-soft);
   background: var(--nav-surface);
   backdrop-filter: blur(14px);
@@ -507,11 +532,11 @@ a {
 .detail-progress {
   padding: 16px;
   border-radius: var(--radius-md);
-  background: var(--accent-light);
+  background: color-mix(in srgb, var(--progress-color, var(--progress-in-progress)) 14%, var(--surface-card));
 }
 
 .detail-progress .progress-track {
-  background: var(--accent-track);
+  background: color-mix(in srgb, var(--progress-color, var(--progress-in-progress)) 28%, var(--surface-high));
 }
 
 .seasons-heading {

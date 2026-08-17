@@ -2,16 +2,22 @@
   {% set percent = ((show.watched_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
   {% if show.watched_count == 0 %}
     {% set progress_tag = "Haven't started" %}
+    {% set progress_state = "not-started" %}
   {% elif show.episode_count and show.watched_count >= show.episode_count %}
     {% set progress_tag = "Finished" %}
+    {% set progress_state = "finished" %}
+  {% elif show.state == 'ARCHIVED' %}
+    {% set progress_tag = "Stopped" %}
+    {% set progress_state = "stopped" %}
   {% else %}
     {% set progress_tag = "In progress" %}
+    {% set progress_state = "in-progress" %}
   {% endif %}
   {% set target_state = 'ACTIVE' if show.state == 'ARCHIVED' else 'ARCHIVED' %}
   {% set move_label = 'Un-archive' if show.state == 'ARCHIVED' else 'Archive' %}
   {% set move_icon = 'unarchive' if show.state == 'ARCHIVED' else 'archive' %}
 
-  <article class="show-card" data-show-id="{{ show.id }}" data-show-name="{{ show.name|lower }}" data-show-state="{{ show.state }}">
+  <article class="show-card" data-show-id="{{ show.id }}" data-show-name="{{ show.name|lower }}" data-show-state="{{ show.state }}" data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}" data-progress-state="{{ progress_state }}">
     <button class="show-card-open" type="button" data-show-open aria-label="Open {{ show.name }}">
       <div class="poster poster-purple" aria-hidden="true">
         <span class="poster-mark">{{ 'GOT' if show.name == 'Game of Thrones' else 'BB' }}</span>
@@ -19,7 +25,7 @@
       </div>
       <div class="show-card-body">
         <div>
-          <span class="state-label" data-progress-tag>{{ progress_tag }}</span>
+          <span class="state-label progress-tag" data-progress-tag>{{ progress_tag }}</span>
           <h3>{{ show.name }}</h3>
           <p>{{ show.first_air_date[:4] }} · {{ show.genres }}</p>
         </div>
@@ -49,54 +55,3 @@
     </div>
   </article>
 {% endmacro %}
-
-<header class="top-app-bar">
-  <form class="app-bar-search" role="search" data-view-search>
-    <span class="material-symbols-rounded" aria-hidden="true">search</span>
-    <input type="search" placeholder="Search your shows" aria-label="Search your shows" autocomplete="off" data-library-search>
-    <button class="search-clear" type="button" data-clear-search aria-label="Clear search" hidden>
-      <span class="material-symbols-rounded" aria-hidden="true">close</span>
-    </button>
-  </form>
-</header>
-
-<section class="page-section" data-state-section="ACTIVE" aria-labelledby="watching-title">
-  <div class="section-heading">
-    <div>
-      <h2 id="watching-title">Watching now</h2>
-      <p>Pick up where you left off</p>
-    </div>
-    <span class="count-badge" data-state-count>{{ active_shows|length }}</span>
-  </div>
-  <div class="show-list" data-show-list="ACTIVE">
-    {% for show in active_shows %}{{ show_card(show) }}{% endfor %}
-  </div>
-  <div class="empty-state state-empty" data-state-empty {% if active_shows %}hidden{% endif %}>
-    <span class="empty-icon material-symbols-rounded" aria-hidden="true">tv_off</span>
-    <h3>Nothing active</h3>
-    <p>Un-archive a show when you're ready to continue.</p>
-  </div>
-</section>
-
-<section class="page-section archived-section" data-state-section="ARCHIVED" aria-labelledby="archived-title" {% if not archived_shows %}hidden{% endif %}>
-  <div class="section-heading">
-    <div>
-      <h2 id="archived-title">Archived</h2>
-      <p>Finished or paused shows</p>
-    </div>
-    <span class="count-badge" data-state-count>{{ archived_shows|length }}</span>
-  </div>
-  <div class="show-list" data-show-list="ARCHIVED">
-    {% for show in archived_shows %}{{ show_card(show) }}{% endfor %}
-  </div>
-  <div class="empty-state state-empty" data-state-empty {% if archived_shows %}hidden{% endif %}>
-    <span class="empty-icon material-symbols-rounded" aria-hidden="true">inventory_2</span>
-    <h3>No archived shows</h3>
-  </div>
-</section>
-
-<div class="empty-state" data-library-no-results hidden>
-  <span class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>
-  <h3>No matching shows</h3>
-  <p>Try a different title.</p>
-</div>

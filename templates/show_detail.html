@@ -1,9 +1,18 @@
 {% set target_state = 'ACTIVE' if show.state == 'ARCHIVED' else 'ARCHIVED' %}
 {% set move_label = 'Un-archive' if show.state == 'ARCHIVED' else 'Archive' %}
 {% set move_icon = 'unarchive' if show.state == 'ARCHIVED' else 'archive' %}
-<div data-detail-show data-show-id="{{ show.id }}" data-show-state="{{ show.state }}">
+{% if show.watched_count == 0 %}
+  {% set progress_state = 'not-started' %}
+{% elif show.episode_count and show.watched_count >= show.episode_count %}
+  {% set progress_state = 'finished' %}
+{% elif show.state == 'ARCHIVED' %}
+  {% set progress_state = 'stopped' %}
+{% else %}
+  {% set progress_state = 'in-progress' %}
+{% endif %}
+<div data-detail-show data-show-id="{{ show.id }}" data-show-state="{{ show.state }}" data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}" data-progress-state="{{ progress_state }}">
 <header class="detail-app-bar">
-  <button class="icon-button" type="button" data-detail-back aria-label="Back to My Shows">
+  <button class="icon-button" type="button" data-detail-back aria-label="Back">
     <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
   </button>
   <span class="detail-app-bar-title">Show details</span>

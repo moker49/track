@@ -1,0 +1,33 @@
+{% from "_show_card.html" import show_card %}
+<header class="top-app-bar">
+  <form class="app-bar-search" role="search" data-view-search>
+    <span class="material-symbols-rounded" aria-hidden="true">search</span>
+    <input type="search" placeholder="Search watching" aria-label="Search watching shows" autocomplete="off" data-show-search>
+    <button class="search-clear" type="button" data-clear-search aria-label="Clear search" hidden>
+      <span class="material-symbols-rounded" aria-hidden="true">close</span>
+    </button>
+  </form>
+</header>
+
+<section class="page-section" data-state-section="ACTIVE" aria-labelledby="watching-title">
+  <div class="section-heading">
+    <div>
+      <h2 id="watching-title">Watching now</h2>
+      <p>Pick up where you left off</p>
+    </div>
+    <span class="count-badge" data-state-count>{{ active_shows|length }}</span>
+  </div>
+  <div class="show-list" data-show-list="ACTIVE">
+    {% for show in active_shows %}{{ show_card(show) }}{% endfor %}
+  </div>
+  <div class="empty-state state-empty" data-state-empty {% if active_shows %}hidden{% endif %}>
+    <span class="empty-icon material-symbols-rounded" aria-hidden="true">tv_off</span>
+    <h3>Nothing active</h3>
+    <p>Un-archive a show when you're ready to continue.</p>
+  </div>
+  <div class="empty-state" data-library-no-results hidden>
+    <span class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>
+    <h3>No matching shows</h3>
+    <p>Try a different title.</p>
+  </div>
+</section>

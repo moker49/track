@@ -15,11 +15,17 @@
   <div class="app-shell">
     <main class="app-content">{% block content %}{% endblock %}</main>
     <nav class="bottom-nav" aria-label="Primary navigation">
-      <button class="nav-item active" type="button" data-nav-view="shows" aria-current="page">
+      <button class="nav-item active" type="button" data-nav-view="watching" aria-current="page">
         <span class="nav-icon" aria-hidden="true">
           <span class="material-symbols-rounded">tv</span>
         </span>
-        <span>My Shows</span>
+        <span>Watching</span>
+      </button>
+      <button class="nav-item" type="button" data-nav-view="archive">
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-rounded">inventory_2</span>
+        </span>
+        <span>Archive</span>
       </button>
       <button class="nav-item" type="button" data-nav-view="discover">
         <span class="nav-icon" aria-hidden="true">

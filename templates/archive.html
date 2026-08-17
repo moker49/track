@@ -1,0 +1,33 @@
+{% from "_show_card.html" import show_card %}
+<header class="top-app-bar">
+  <form class="app-bar-search" role="search" data-view-search>
+    <span class="material-symbols-rounded" aria-hidden="true">search</span>
+    <input type="search" placeholder="Search archive" aria-label="Search archived shows" autocomplete="off" data-show-search>
+    <button class="search-clear" type="button" data-clear-search aria-label="Clear search" hidden>
+      <span class="material-symbols-rounded" aria-hidden="true">close</span>
+    </button>
+  </form>
+</header>
+
+<section class="page-section" data-state-section="ARCHIVED" aria-labelledby="archived-title">
+  <div class="section-heading">
+    <div>
+      <h2 id="archived-title">Archived</h2>
+      <p>Finished or paused shows</p>
+    </div>
+    <span class="count-badge" data-state-count>{{ archived_shows|length }}</span>
+  </div>
+  <div class="show-list" data-show-list="ARCHIVED">
+    {% for show in archived_shows %}{{ show_card(show) }}{% endfor %}
+  </div>
+  <div class="empty-state state-empty" data-state-empty {% if archived_shows %}hidden{% endif %}>
+    <span class="empty-icon material-symbols-rounded" aria-hidden="true">inventory_2</span>
+    <h3>No archived shows</h3>
+    <p>Shows you archive will appear here.</p>
+  </div>
+  <div class="empty-state" data-library-no-results hidden>
+    <span class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>
+    <h3>No matching shows</h3>
+    <p>Try a different title.</p>
+  </div>
+</section>

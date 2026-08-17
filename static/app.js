@@ -2,11 +2,21 @@ const views = new Map(
   [...document.querySelectorAll("[data-view]")].map((view) => [view.dataset.view, view]),
 );
 const navButtons = [...document.querySelectorAll("[data-nav-view]")];
-const scrollPositions = { shows: 0, discover: 0, detail: 0 };
+const scrollPositions = { watching: 0, archive: 0, discover: 0, detail: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
-let currentView = "shows";
+let currentView = "watching";
+let detailParentView = "watching";
 let detailRequest = null;
 let pendingRemoveShowId = null;
+
+function updateActiveNav(navView) {
+  navButtons.forEach((button) => {
+    const active = button.dataset.navView === navView;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+}
 
 function showView(viewName) {
   if (!views.has(viewName) || viewName === currentView) return;
@@ -18,16 +28,15 @@ function showView(viewName) {
     view.classList.toggle("is-active", active);
   });
 
-  const navView = viewName === "detail" ? "shows" : viewName;
-  navButtons.forEach((button) => {
-    const active = button.dataset.navView === navView;
-    button.classList.toggle("active", active);
-    if (active) button.setAttribute("aria-current", "page");
-    else button.removeAttribute("aria-current");
-  });
-
+  updateActiveNav(viewName === "detail" ? detailParentView : viewName);
   currentView = viewName;
-  document.title = viewName === "discover" ? "Discover · Track" : "Track";
+  const titles = {
+    watching: "Watching · Track",
+    archive: "Archive · Track",
+    discover: "Discover · Track",
+    detail: "Track",
+  };
+  document.title = titles[viewName] || "Track";
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
 }
 
@@ -37,7 +46,8 @@ function renderDetailSkeleton() {
   detailView.replaceChildren(template.content.cloneNode(true));
 }
 
-async function openShow(showId) {
+async function openShow(showId, parentView = currentView) {
+  detailParentView = parentView === "archive" ? "archive" : "watching";
   if (detailRequest) detailRequest.abort();
   detailRequest = new AbortController();
 
@@ -56,7 +66,7 @@ async function openShow(showId) {
     if (error.name === "AbortError") return;
     views.get("detail").innerHTML = `
       <header class="detail-app-bar">
-        <button class="icon-button" type="button" data-detail-back aria-label="Back to My Shows">
+        <button class="icon-button" type="button" data-detail-back aria-label="Back">
           <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
         </button>
         <span>Show details</span>
@@ -89,6 +99,29 @@ function toggleShowMenu(button) {
   button.setAttribute("aria-expanded", String(willOpen));
 }
 
+function syncProgressState(showElement) {
+  const watchedCount = Number(showElement.dataset.watchedCount);
+  const episodeCount = Number(showElement.dataset.episodeCount);
+  if (!Number.isFinite(watchedCount) || !Number.isFinite(episodeCount)) return;
+
+  let progressState = "in-progress";
+  let progressLabel = "In progress";
+  if (watchedCount === 0) {
+    progressState = "not-started";
+    progressLabel = "Haven't started";
+  } else if (episodeCount > 0 && watchedCount >= episodeCount) {
+    progressState = "finished";
+    progressLabel = "Finished";
+  } else if (showElement.dataset.showState === "ARCHIVED") {
+    progressState = "stopped";
+    progressLabel = "Stopped";
+  }
+
+  showElement.dataset.progressState = progressState;
+  const tag = showElement.querySelector("[data-progress-tag]");
+  if (tag) tag.textContent = progressLabel;
+}
+
 function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
   document.querySelectorAll(`[data-show-id="${showId}"]`).forEach((showElement) => {
     showElement.dataset.showState = state;
@@ -101,16 +134,15 @@ function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
     if (detailStateLabel) {
       detailStateLabel.textContent = state === "ARCHIVED" ? "Archived" : "Watching";
     }
+    syncProgressState(showElement);
   });
 }
 
 function syncStateSections() {
   document.querySelectorAll("[data-state-section]").forEach((section) => {
-    const state = section.dataset.stateSection;
     const count = section.querySelectorAll(".show-card").length;
     section.querySelector("[data-state-count]").textContent = count;
     section.querySelector("[data-state-empty]").hidden = count > 0;
-    if (state === "ARCHIVED") section.hidden = count === 0;
   });
 }
 
@@ -129,8 +161,10 @@ async function moveShow(showElement, targetState, actionButton) {
     const card = document.querySelector(`.show-card[data-show-id="${showId}"]`);
     document.querySelector(`[data-show-list="${data.state}"]`)?.append(card);
     updateShowRepresentations(showId, data.state, data.move_label, data.move_icon);
+    detailParentView = data.state === "ARCHIVED" ? "archive" : "watching";
+    if (currentView === "detail") updateActiveNav(detailParentView);
     syncStateSections();
-    filterLibrary();
+    filterAllShowViews();
     showSnackbar(data.state === "ARCHIVED" ? "Show archived" : "Show returned to watching");
   } catch (_error) {
     showSnackbar("Couldn't move this show. Try again.");
@@ -156,11 +190,11 @@ async function confirmShowRemoval() {
     if (!response.ok) throw new Error("Could not remove show");
     document.querySelector(`.show-card[data-show-id="${showId}"]`)?.remove();
     if (views.get("detail").querySelector(`[data-show-id="${showId}"]`)) {
-      showView("shows");
+      showView(detailParentView);
       views.get("detail").replaceChildren();
     }
     syncStateSections();
-    filterLibrary();
+    filterAllShowViews();
     removeDialog.close();
     pendingRemoveShowId = null;
     showSnackbar("Show removed");
@@ -212,19 +246,21 @@ document.addEventListener("click", (event) => {
   if (event.target.closest("[data-detail-back]")) {
     closeShowMenus();
     if (detailRequest) detailRequest.abort();
-    showView("shows");
+    showView(detailParentView);
     return;
   }
 
   const retryButton = event.target.closest("[data-retry-show]");
   if (retryButton) {
-    openShow(retryButton.dataset.retryShow);
+    openShow(retryButton.dataset.retryShow, detailParentView);
     return;
   }
 
   const showOpenButton = event.target.closest("[data-show-open]");
   if (showOpenButton) {
-    openShow(showOpenButton.closest("[data-show-id]").dataset.showId);
+    const showCard = showOpenButton.closest("[data-show-id]");
+    const parentView = showCard.dataset.showState === "ARCHIVED" ? "archive" : "watching";
+    openShow(showCard.dataset.showId, parentView);
     return;
   }
 
@@ -252,6 +288,7 @@ document.addEventListener("change", async (event) => {
     if (!response.ok) throw new Error("Could not update episode");
     const data = await response.json();
 
+    episode.classList.toggle("is-watched", data.watched);
     updateProgress(document.querySelector("[data-progress-summary]"), data);
 
     const season = episode.closest(".season");
@@ -259,17 +296,24 @@ document.addEventListener("change", async (event) => {
     const total = season.querySelectorAll(".episode-checkbox").length;
     season.querySelector(".season-title small").textContent = `${checked} of ${total}`;
 
-    const showCard = document.querySelector(`[data-show-id="${data.show_id}"]`);
+    const showCard = document.querySelector(`.show-card[data-show-id="${data.show_id}"]`);
     if (showCard) {
+      showCard.dataset.watchedCount = data.watched_count;
+      showCard.dataset.episodeCount = data.episode_count;
       showCard.querySelector("[data-card-progress-copy]").textContent =
         `${data.watched_count} of ${data.episode_count}`;
       const cardProgress = showCard.querySelector("[data-card-progress]");
       cardProgress.setAttribute("aria-valuenow", data.percent);
       cardProgress.querySelector("span").style.width = `${data.percent}%`;
       showCard.querySelector(".progress-copy strong").textContent = `${data.percent}%`;
-      showCard.querySelector("[data-progress-tag]").textContent = data.watched_count === 0
-        ? "Haven't started"
-        : data.watched_count >= data.episode_count ? "Finished" : "In progress";
+      syncProgressState(showCard);
+    }
+
+    const detailShow = document.querySelector(`[data-detail-show][data-show-id="${data.show_id}"]`);
+    if (detailShow) {
+      detailShow.dataset.watchedCount = data.watched_count;
+      detailShow.dataset.episodeCount = data.episode_count;
+      syncProgressState(detailShow);
     }
   } catch (_error) {
     checkbox.checked = !wantedState;
@@ -288,21 +332,28 @@ function updateProgress(progress, data) {
   bar.querySelector("span").style.width = `${data.percent}%`;
 }
 
-function filterLibrary() {
-  const query = document.querySelector("[data-library-search]")
-    ?.value.trim().toLocaleLowerCase() || "";
-  const cards = [...document.querySelectorAll("[data-view='shows'] .show-card")];
+function filterShowView(input) {
+  const view = input?.closest("[data-view]");
+  if (!view) return;
+  const query = input.value.trim().toLocaleLowerCase();
+  const cards = [...view.querySelectorAll(".show-card")];
   let visibleCount = 0;
   cards.forEach((card) => {
     const visible = card.dataset.showName.includes(query);
     card.hidden = !visible;
     if (visible) visibleCount += 1;
   });
-  const noResults = document.querySelector("[data-library-no-results]");
+  const noResults = view.querySelector("[data-library-no-results]");
   if (noResults) noResults.hidden = visibleCount > 0 || cards.length === 0;
 }
 
-document.querySelector("[data-library-search]")?.addEventListener("input", filterLibrary);
+function filterAllShowViews() {
+  document.querySelectorAll("[data-show-search]").forEach(filterShowView);
+}
+
+document.querySelectorAll("[data-show-search]").forEach((input) => {
+  input.addEventListener("input", () => filterShowView(input));
+});
 
 document.querySelector("[data-discover-search]")?.addEventListener("input", (event) => {
   const query = event.target.value.trim();
@@ -329,6 +380,10 @@ document.querySelectorAll(".app-bar-search").forEach((searchForm) => {
     input.focus();
   });
   syncClearButton();
+});
+
+removeDialog?.addEventListener("close", () => {
+  pendingRemoveShowId = null;
 });
 
 function showSnackbar(message) {

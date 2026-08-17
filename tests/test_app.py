@@ -27,18 +27,23 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Un-archive", home.data)
         self.assertIn(b"Remove", home.data)
         self.assertIn(b"Popular now", home.data)
-        self.assertIn(b"Search your shows", home.data)
+        self.assertIn(b"Search watching", home.data)
+        self.assertIn(b"Search archive", home.data)
         self.assertIn(b"Search TMDB", home.data)
-        self.assertIn(b'data-view="shows"', home.data)
+        self.assertIn(b'data-view="watching"', home.data)
+        self.assertIn(b'data-view="archive"', home.data)
         self.assertIn(b'data-view="discover"', home.data)
         self.assertIn(b'data-view="detail"', home.data)
         self.assertIn(b'id="detail-skeleton-template"', home.data)
-        self.assertEqual(home.data.count(b"data-clear-search"), 2)
-        self.assertEqual(home.data.count(b">close</span>"), 2)
+        self.assertEqual(home.data.count(b"data-clear-search"), 3)
+        self.assertEqual(home.data.count(b">close</span>"), 3)
+        self.assertIn(b'data-progress-state="in-progress"', home.data)
+        self.assertIn(b'data-progress-state="finished"', home.data)
         self.assertIn(b'data-show-id="1"', home.data)
         self.assertNotIn(b'href="/search"', home.data)
         self.assertNotIn(b'href="/shows/1"', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">tv</span>', home.data)
+        self.assertIn(b'<span class="material-symbols-rounded">inventory_2</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">explore</span>', home.data)
 
     def test_show_details_are_a_fragment(self):
@@ -119,6 +124,27 @@ class TrackAppTest(unittest.TestCase):
 
         home = self.client.get("/")
         self.assertIn(b"Haven&#39;t started", home.data)
+        self.assertIn(b'data-progress-state="not-started"', home.data)
+
+    def test_partial_archived_show_is_stopped(self):
+        response = self.client.post(
+            "/api/episodes/14/watched", json={"watched": False}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["watched_count"], 11)
+
+        home = self.client.get("/")
+        self.assertIn(b">Stopped</span>", home.data)
+        self.assertIn(b'data-progress-state="stopped"', home.data)
+
+    def test_progress_colors_share_status_variables(self):
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("--progress-complete: var(--accent)", css)
+        self.assertIn("--progress-not-started:", css)
+        self.assertIn("--progress-stopped: var(--error)", css)
+        self.assertIn("background: var(--progress-color", css)
 
     def test_show_can_be_archived_and_unarchived_with_history(self):
         archive = self.client.post(

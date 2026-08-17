@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
-  <section class="app-view is-active" data-view="shows" aria-label="My Shows">
-    {% include "my_shows.html" %}
+  <section class="app-view is-active" data-view="watching" aria-label="Watching">
+    {% include "watching.html" %}
+  </section>
+
+  <section class="app-view" data-view="archive" aria-label="Archive" hidden>
+    {% include "archive.html" %}
   </section>
 
   <section class="app-view" data-view="discover" aria-label="Discover" hidden>
@@ -12,7 +16,7 @@
 
   <template id="detail-skeleton-template">
     <header class="detail-app-bar">
-      <button class="icon-button" type="button" data-detail-back aria-label="Back to My Shows">
+      <button class="icon-button" type="button" data-detail-back aria-label="Back to Watching">
         <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
       </button>
       <span>Show details</span>
