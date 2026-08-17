@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import json
+import os
 import sqlite3
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import Flask, abort, g, jsonify, redirect, render_template, request, url_for
+
+from migrations import migrate_database
+from tmdb import TMDBClient, TMDBError
+from tmdb_import import import_or_refresh_show
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -68,7 +74,13 @@ def migrate_watch_history_tables(db: sqlite3.Connection) -> None:
 
 def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__)
-    app.config.from_mapping(DATABASE=str(DATABASE))
+    app.config.from_mapping(
+        DATABASE=str(DATABASE),
+        SEED_DEMO_DATA=os.environ.get("TRACK_SEED_DEMO_DATA") == "1",
+        TMDB_READ_ACCESS_TOKEN=os.environ.get("TMDB_READ_ACCESS_TOKEN", ""),
+        TMDB_CACHE_TTL=timedelta(days=1),
+        TMDB_CLIENT_FACTORY=TMDBClient,
+    )
     if test_config:
         app.config.update(test_config)
 
@@ -100,7 +112,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
             LEFT JOIN episode_watch_history wh
               ON wh.episode_id = e.id
-            WHERE sn.show_id = ?
+            WHERE sn.show_id = ? AND sn.is_progress_counted = 1
             """,
             (show_id,),
         ).fetchone()
@@ -114,6 +126,29 @@ def create_app(test_config: dict | None = None) -> Flask:
             """,
             (episode_id,),
         ).fetchone()[0]
+
+    def get_tmdb_client() -> TMDBClient:
+        return app.config["TMDB_CLIENT_FACTORY"](
+            app.config["TMDB_READ_ACCESS_TOKEN"]
+        )
+
+    def catalog_results(payload: dict) -> list[dict]:
+        results = []
+        for item in payload.get("results", []):
+            tmdb_id = item.get("id")
+            if not isinstance(tmdb_id, int):
+                continue
+            results.append(
+                {
+                    "tmdb_id": tmdb_id,
+                    "name": item.get("name") or item.get("original_name") or "Untitled show",
+                    "overview": item.get("overview") or "No overview available.",
+                    "poster_path": item.get("poster_path"),
+                    "first_air_date": item.get("first_air_date"),
+                    "vote_average": item.get("vote_average"),
+                }
+            )
+        return results
 
     def watch_payload(
         db: sqlite3.Connection, show_id: int, episode_id: int | None = None
@@ -212,7 +247,9 @@ def create_app(test_config: dict | None = None) -> Flask:
                    COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
             FROM shows s
             LEFT JOIN seasons sn ON sn.show_id = s.id
-            LEFT JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
+            LEFT JOIN episodes e ON e.season_id = sn.id
+              AND sn.is_progress_counted = 1
+              AND e.air_date <= date('now')
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             WHERE s.state IN ('ACTIVE', 'ARCHIVED')
             GROUP BY s.id
@@ -220,17 +257,129 @@ def create_app(test_config: dict | None = None) -> Flask:
                      s.name COLLATE NOCASE ASC
             """
         ).fetchall()
-        popular = db.execute(
-            "SELECT * FROM popular_show_stubs ORDER BY popularity_rank"
-        ).fetchall()
         active_shows = [show for show in shows if show["state"] == "ACTIVE"]
         archived_shows = [show for show in shows if show["state"] == "ARCHIVED"]
         return render_template(
             "index.html",
             active_shows=active_shows,
             archived_shows=archived_shows,
-            popular=popular,
         )
+
+    @app.get("/api/discover/popular")
+    def discover_popular():
+        db = get_db()
+        cached = db.execute(
+            "SELECT payload, refreshed_at FROM tmdb_cache WHERE cache_key = 'popular'"
+        ).fetchone()
+        now = datetime.now(timezone.utc)
+        fresh = False
+        if cached is not None:
+            refreshed_at = datetime.fromisoformat(cached["refreshed_at"])
+            fresh = now - refreshed_at < app.config["TMDB_CACHE_TTL"]
+            if fresh:
+                return jsonify(
+                    results=catalog_results(json.loads(cached["payload"])),
+                    refreshed_at=cached["refreshed_at"],
+                    cached=True,
+                )
+
+        try:
+            payload = get_tmdb_client().popular_tv()
+        except TMDBError as error:
+            if cached is not None:
+                return jsonify(
+                    results=catalog_results(json.loads(cached["payload"])),
+                    refreshed_at=cached["refreshed_at"],
+                    cached=True,
+                    stale=True,
+                )
+            return jsonify(error=str(error), configured=bool(app.config["TMDB_READ_ACCESS_TOKEN"])), 503
+
+        refreshed_at = utc_now()
+        db.execute(
+            """
+            INSERT INTO tmdb_cache (cache_key, payload, refreshed_at)
+            VALUES ('popular', ?, ?)
+            ON CONFLICT(cache_key) DO UPDATE SET
+                payload = excluded.payload,
+                refreshed_at = excluded.refreshed_at
+            """,
+            (json.dumps(payload, separators=(",", ":")), refreshed_at),
+        )
+        db.commit()
+        return jsonify(
+            results=catalog_results(payload), refreshed_at=refreshed_at, cached=False
+        )
+
+    @app.get("/api/discover/search")
+    def discover_search():
+        query = request.args.get("q", "").strip()
+        if len(query) < 2:
+            return jsonify(error="Enter at least two characters"), 400
+        try:
+            payload = get_tmdb_client().search_tv(query)
+        except TMDBError as error:
+            return jsonify(error=str(error), configured=bool(app.config["TMDB_READ_ACCESS_TOKEN"])), 503
+        return jsonify(results=catalog_results(payload))
+
+    @app.post("/api/discover/shows/<int:tmdb_id>/import")
+    def import_discovered_show(tmdb_id: int):
+        payload = request.get_json(silent=True) or {}
+        target_state = payload.get("state")
+        if target_state not in {"ACTIVE", "ARCHIVED"}:
+            return jsonify(error="state must be ACTIVE or ARCHIVED"), 400
+        try:
+            show, seasons = get_tmdb_client().show_bundle(tmdb_id)
+            if show.get("id") != tmdb_id:
+                raise TMDBError("TMDB returned the wrong show")
+            show_id, created = import_or_refresh_show(
+                get_db(), show, seasons, target_state
+            )
+        except TMDBError as error:
+            return jsonify(error=str(error)), 503
+        except ValueError as error:
+            return jsonify(error=str(error)), 502
+        imported_show = get_db().execute(
+            """
+            SELECT s.*,
+                   COUNT(DISTINCT e.id) AS episode_count,
+                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
+            FROM shows s
+            LEFT JOIN seasons sn ON sn.show_id = s.id
+            LEFT JOIN episodes e ON e.season_id = sn.id
+              AND sn.is_progress_counted = 1
+              AND e.air_date <= date('now')
+            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+            WHERE s.id = ?
+            GROUP BY s.id
+            """,
+            (show_id,),
+        ).fetchone()
+        return jsonify(
+            show_id=show_id,
+            created=created,
+            state=imported_show["state"],
+            card_html=render_template("_show_card_fragment.html", show=imported_show),
+        )
+
+    @app.post("/api/shows/<int:show_id>/refresh")
+    def refresh_show(show_id: int):
+        db = get_db()
+        local_show = db.execute(
+            "SELECT tmdb_id, state FROM shows WHERE id = ?", (show_id,)
+        ).fetchone()
+        if local_show is None:
+            return jsonify(error="Show not found"), 404
+        try:
+            show, seasons = get_tmdb_client().show_bundle(local_show["tmdb_id"])
+            refreshed_id, _created = import_or_refresh_show(
+                db, show, seasons, local_show["state"]
+            )
+        except TMDBError as error:
+            return jsonify(error=str(error)), 503
+        except ValueError as error:
+            return jsonify(error=str(error)), 502
+        return jsonify(show_id=refreshed_id, refreshed=True)
 
     @app.get("/api/shows/<int:show_id>")
     def show_detail_fragment(show_id: int):
@@ -242,7 +391,9 @@ def create_app(test_config: dict | None = None) -> Flask:
                    COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
             FROM shows s
             LEFT JOIN seasons sn ON sn.show_id = s.id
-            LEFT JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
+            LEFT JOIN episodes e ON e.season_id = sn.id
+              AND sn.is_progress_counted = 1
+              AND e.air_date <= date('now')
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             WHERE s.id = ?
             GROUP BY s.id
@@ -640,7 +791,10 @@ def create_app(test_config: dict | None = None) -> Flask:
         migrate_watch_history_tables(db)
         schema = (BASE_DIR / "schema.sql").read_text(encoding="utf-8")
         db.executescript(schema)
-        seed_database(db)
+        migrate_database(db)
+        db.executescript(schema)
+        if app.config["SEED_DEMO_DATA"]:
+            seed_database(db)
         db.execute("PRAGMA optimize")
 
     return app
@@ -658,8 +812,8 @@ def seed_database(db: sqlite3.Connection) -> None:
         INSERT INTO shows (
             tmdb_id, name, original_name, overview, tagline, poster_path,
             backdrop_path, first_air_date, status, genres, original_language,
-            state, added_at, watchlist_at, active_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)
+            state, added_at, active_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)
         """,
         (
             1396,
@@ -674,7 +828,6 @@ def seed_database(db: sqlite3.Connection) -> None:
             "Drama, Crime",
             "en",
             added_at,
-            added_at,
             "2026-05-04T00:10:00+00:00",
         ),
     )
@@ -682,7 +835,6 @@ def seed_database(db: sqlite3.Connection) -> None:
     db.executemany(
         "INSERT INTO show_state_history (show_id, state, entered_at) VALUES (?, ?, ?)",
         [
-            (show_id, "WATCHLIST", added_at),
             (show_id, "ACTIVE", "2026-05-04T00:10:00+00:00"),
         ],
     )
@@ -737,18 +889,6 @@ def seed_database(db: sqlite3.Connection) -> None:
             (episode_id, f"2026-05-{index + 4:02d}T01:20:00+00:00"),
         )
 
-    db.executemany(
-        """
-        INSERT OR IGNORE INTO popular_show_stubs (tmdb_id, name, subtitle, popularity_rank)
-        VALUES (?, ?, ?, ?)
-        """,
-        [
-            (94997, "House of the Dragon", "Drama · Fantasy", 1),
-            (100088, "The Last of Us", "Drama · Sci-Fi", 2),
-            (95396, "Severance", "Drama · Mystery", 3),
-            (60625, "Rick and Morty", "Animation · Comedy", 4),
-        ],
-    )
     seed_game_of_thrones(db)
     db.commit()
 
@@ -765,8 +905,8 @@ def seed_game_of_thrones(db: sqlite3.Connection) -> None:
         INSERT INTO shows (
             tmdb_id, name, original_name, overview, tagline, poster_path,
             backdrop_path, first_air_date, status, genres, original_language,
-            state, added_at, watchlist_at, active_at, archived_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ARCHIVED', ?, ?, ?, ?)
+            state, added_at, active_at, archived_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ARCHIVED', ?, ?, ?)
         """,
         (
             1399,
@@ -781,7 +921,6 @@ def seed_game_of_thrones(db: sqlite3.Connection) -> None:
             "Drama, Fantasy, Action",
             "en",
             added_at,
-            added_at,
             active_at,
             archived_at,
         ),
@@ -790,7 +929,6 @@ def seed_game_of_thrones(db: sqlite3.Connection) -> None:
     db.executemany(
         "INSERT INTO show_state_history (show_id, state, entered_at) VALUES (?, ?, ?)",
         [
-            (show_id, "WATCHLIST", added_at),
             (show_id, "ACTIVE", active_at),
             (show_id, "ARCHIVED", archived_at),
         ],

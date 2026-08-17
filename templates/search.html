@@ -9,30 +9,31 @@
 </header>
 
 <section class="page-section search-page">
-  <div class="search-notice" role="status" data-discover-notice hidden>
-    <strong>Search ready for TMDB</strong>
-    <p data-discover-copy></p>
-  </div>
-
   <div class="section-heading popular-heading">
     <div>
-      <h2>Popular now</h2>
-      <p>Shows people are talking about</p>
+      <h2 data-discover-title>Popular now</h2>
+      <p data-discover-subtitle>Refreshed at most once each day</p>
     </div>
   </div>
 
-  <div class="popular-grid">
-    {% for show in popular %}
-      <article class="popular-card">
-        <div class="mini-poster poster-tone-{{ loop.index }}" aria-hidden="true">
-          <span>{{ show.name[0] }}</span>
-        </div>
-        <div>
-          <h3>{{ show.name }}</h3>
-          <p>{{ show.subtitle }}</p>
-          <button type="button" class="text-button" disabled>View show</button>
-        </div>
-      </article>
-    {% endfor %}
+  <div class="discover-loading" data-discover-loading aria-label="Loading popular shows" aria-busy="true">
+    <span class="discover-loading-bar"></span>
+    <span class="discover-loading-bar"></span>
+    <span class="discover-loading-bar"></span>
   </div>
+
+  <div class="empty-state" data-discover-error hidden>
+    <span class="empty-icon material-symbols-rounded" aria-hidden="true">cloud_off</span>
+    <h3>Discover is unavailable</h3>
+    <p data-discover-error-copy>Add your TMDB token to connect Discover.</p>
+    <button class="filled-button" type="button" data-discover-retry>Try again</button>
+  </div>
+
+  <div class="empty-state" data-discover-empty hidden>
+    <span class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>
+    <h3>No shows found</h3>
+    <p>Try another title.</p>
+  </div>
+
+  <div class="popular-grid" data-discover-results></div>
 </section>

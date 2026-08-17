@@ -1,6 +1,7 @@
 import sqlite3
 import tempfile
 import unittest
+import json
 from pathlib import Path
 
 from app import create_app
@@ -10,7 +11,9 @@ class TrackAppTest(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.database = Path(self.temp_dir.name) / "test.db"
-        self.app = create_app({"TESTING": True, "DATABASE": str(self.database)})
+        self.app = create_app(
+            {"TESTING": True, "DATABASE": str(self.database), "SEED_DEMO_DATA": True}
+        )
         self.client = self.app.test_client()
 
     def tearDown(self):
@@ -473,7 +476,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b">Un-archived</strong>", detail.data)
 
         invalid = self.client.post(
-            "/api/shows/1/state", json={"state": "WATCHLIST"}
+            "/api/shows/1/state", json={"state": "PAUSED"}
         )
         self.assertEqual(invalid.status_code, 400)
 
@@ -515,6 +518,177 @@ class TrackAppTest(unittest.TestCase):
             "/api/watch-history/show/1/date", json={"watch_date": None}
         )
         self.assertEqual(invalid_kind.status_code, 404)
+
+    def test_fresh_database_has_no_demo_data_or_watchlist_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "empty.db"
+            empty_app = create_app(
+                {"TESTING": True, "DATABASE": str(database), "SEED_DEMO_DATA": False}
+            )
+            with empty_app.app_context():
+                connection = sqlite3.connect(database)
+                show_count = connection.execute("SELECT COUNT(*) FROM shows").fetchone()[0]
+                show_sql = connection.execute(
+                    "SELECT sql FROM sqlite_schema WHERE name = 'shows'"
+                ).fetchone()[0]
+                columns = [
+                    row[1] for row in connection.execute("PRAGMA table_info(shows)")
+                ]
+                connection.close()
+            self.assertEqual(show_count, 0)
+            self.assertNotIn("WATCHLIST", show_sql)
+            self.assertNotIn("watchlist_at", columns)
+
+    def test_popular_results_are_cached_for_one_day_and_search_is_remote(self):
+        class FakeClient:
+            def __init__(self):
+                self.popular_calls = 0
+                self.search_calls = []
+
+            def popular_tv(self):
+                self.popular_calls += 1
+                return {"results": [{"id": 20, "name": "Popular Show"}]}
+
+            def search_tv(self, query):
+                self.search_calls.append(query)
+                return {"results": [{"id": 21, "name": f"Result {query}"}]}
+
+        fake = FakeClient()
+        self.app.config.update(
+            TMDB_READ_ACCESS_TOKEN="test-token",
+            TMDB_CLIENT_FACTORY=lambda _token: fake,
+        )
+        first = self.client.get("/api/discover/popular")
+        second = self.client.get("/api/discover/popular")
+        search = self.client.get("/api/discover/search?q=Severance")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertFalse(first.get_json()["cached"])
+        self.assertTrue(second.get_json()["cached"])
+        self.assertEqual(fake.popular_calls, 1)
+        self.assertEqual(search.status_code, 200)
+        self.assertEqual(fake.search_calls, ["Severance"])
+
+    def test_import_is_atomic_deduplicated_and_specials_do_not_count(self):
+        show_payload = {
+            "id": 900,
+            "name": "Imported Show",
+            "original_name": "Imported Show",
+            "overview": "Imported locally.",
+            "first_air_date": "2020-01-01",
+            "genres": [{"id": 18, "name": "Drama"}],
+            "networks": [{"id": 1, "name": "A Network"}],
+        }
+        seasons = [
+            {
+                "id": 901,
+                "season_number": 0,
+                "name": "Specials",
+                "episodes": [
+                    {"id": 902, "episode_number": 1, "name": "Extra", "air_date": "2020-01-01"}
+                ],
+            },
+            {
+                "id": 903,
+                "season_number": 1,
+                "name": "Season 1",
+                "episodes": [
+                    {"id": 904, "episode_number": 1, "name": "Pilot", "air_date": "2020-01-02"}
+                ],
+            },
+        ]
+
+        class FakeClient:
+            def show_bundle(self, tmdb_id):
+                self.last_id = tmdb_id
+                return show_payload, seasons
+
+        fake = FakeClient()
+        self.app.config.update(
+            TMDB_READ_ACCESS_TOKEN="test-token",
+            TMDB_CLIENT_FACTORY=lambda _token: fake,
+        )
+        imported = self.client.post(
+            "/api/discover/shows/900/import", json={"state": "ACTIVE"}
+        )
+        duplicate = self.client.post(
+            "/api/discover/shows/900/import", json={"state": "ARCHIVED"}
+        )
+
+        self.assertEqual(imported.status_code, 200)
+        self.assertTrue(imported.get_json()["created"])
+        self.assertIn("show-card", imported.get_json()["card_html"])
+        self.assertFalse(duplicate.get_json()["created"])
+        self.assertEqual(duplicate.get_json()["state"], "ACTIVE")
+
+        connection = sqlite3.connect(self.database)
+        connection.row_factory = sqlite3.Row
+        imported_show = connection.execute(
+            "SELECT * FROM shows WHERE tmdb_id = 900"
+        ).fetchone()
+        season_flags = connection.execute(
+            "SELECT season_number, is_progress_counted FROM seasons WHERE show_id = ? ORDER BY season_number",
+            (imported_show["id"],),
+        ).fetchall()
+        special_episode_id = connection.execute(
+            "SELECT id FROM episodes WHERE tmdb_id = 902"
+        ).fetchone()[0]
+        regular_episode_id = connection.execute(
+            "SELECT id FROM episodes WHERE tmdb_id = 904"
+        ).fetchone()[0]
+        connection.close()
+
+        self.assertEqual(json.loads(imported_show["tmdb_payload"])["networks"][0]["name"], "A Network")
+        self.assertEqual([tuple(row) for row in season_flags], [(0, 0), (1, 1)])
+        watched_special = self.client.post(
+            f"/api/episodes/{special_episode_id}/watched", json={"watched": True}
+        )
+        self.assertEqual(watched_special.get_json()["episode_count"], 1)
+        self.assertEqual(watched_special.get_json()["watched_count"], 0)
+
+        self.client.post(
+            f"/api/episodes/{regular_episode_id}/watched", json={"watched": True}
+        )
+        seasons[1]["episodes"][0]["name"] = "Updated Pilot"
+        refreshed = self.client.post(
+            f"/api/shows/{imported_show['id']}/refresh"
+        )
+        self.assertEqual(refreshed.status_code, 200)
+        connection = sqlite3.connect(self.database)
+        refreshed_episode = connection.execute(
+            "SELECT id, name FROM episodes WHERE tmdb_id = 904"
+        ).fetchone()
+        history_count = connection.execute(
+            "SELECT COUNT(*) FROM episode_watch_history WHERE episode_id = ?",
+            (regular_episode_id,),
+        ).fetchone()[0]
+        connection.close()
+        self.assertEqual(refreshed_episode, (regular_episode_id, "Updated Pilot"))
+        self.assertEqual(history_count, 1)
+
+    def test_failed_import_rolls_back_every_record(self):
+        class BrokenClient:
+            def show_bundle(self, _tmdb_id):
+                return (
+                    {"id": 910, "name": "Broken"},
+                    [{"id": 911, "season_number": 1, "episodes": [{"name": "No id"}]}],
+                )
+
+        self.app.config.update(
+            TMDB_READ_ACCESS_TOKEN="test-token",
+            TMDB_CLIENT_FACTORY=lambda _token: BrokenClient(),
+        )
+        response = self.client.post(
+            "/api/discover/shows/910/import", json={"state": "ACTIVE"}
+        )
+        self.assertEqual(response.status_code, 502)
+        connection = sqlite3.connect(self.database)
+        counts = connection.execute(
+            "SELECT (SELECT COUNT(*) FROM shows WHERE tmdb_id = 910), "
+            "(SELECT COUNT(*) FROM seasons WHERE tmdb_id = 911)"
+        ).fetchone()
+        connection.close()
+        self.assertEqual(counts, (0, 0))
 
 
 if __name__ == "__main__":

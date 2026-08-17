@@ -77,12 +77,13 @@
       {% set watch_counts = episodes|map(attribute='watch_count')|list %}
       {% set minimum_watch_count = watch_counts|min if watch_counts else 0 %}
       <details class="season" data-season-id="{{ season.id }}" data-episode-count="{{ episodes|length }}"
-        data-watched-count="{{ watched_in_season }}" data-min-watch-count="{{ minimum_watch_count }}">
+        data-watched-count="{{ watched_in_season }}" data-min-watch-count="{{ minimum_watch_count }}"
+        data-progress-counted="{{ 'true' if season.is_progress_counted else 'false' }}">
         <summary>
           <span class="season-chevron material-symbols-rounded" aria-hidden="true">expand_more</span>
           <span class="season-title">
             <strong>{{ season.name }}</strong>
-            <small>{{ watched_in_season }} of {{ episodes|length }}</small>
+            <small>{% if season.is_progress_counted %}{{ watched_in_season }} of {{ episodes|length }}{% else %}Not counted in progress{% endif %}</small>
           </span>
           <span class="season-watch-control watch-control-wrap">
             <button class="check-control" type="button" role="checkbox"

@@ -11,18 +11,19 @@ CREATE TABLE IF NOT EXISTS shows (
     status TEXT,
     genres TEXT,
     original_language TEXT,
-    state TEXT NOT NULL CHECK (state IN ('WATCHLIST', 'ACTIVE', 'ARCHIVED')),
+    state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
     added_at TEXT NOT NULL,
-    watchlist_at TEXT,
     active_at TEXT,
     archived_at TEXT,
-    updated_at TEXT
+    updated_at TEXT,
+    tmdb_refreshed_at TEXT,
+    tmdb_payload TEXT NOT NULL DEFAULT '{}'
 );
 
 CREATE TABLE IF NOT EXISTS show_state_history (
     id INTEGER PRIMARY KEY,
     show_id INTEGER NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
-    state TEXT NOT NULL CHECK (state IN ('WATCHLIST', 'ACTIVE', 'ARCHIVED')),
+    state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
     entered_at TEXT NOT NULL
 );
 
@@ -36,6 +37,8 @@ CREATE TABLE IF NOT EXISTS seasons (
     air_date TEXT,
     poster_path TEXT,
     episode_count INTEGER,
+    is_progress_counted INTEGER NOT NULL DEFAULT 1 CHECK (is_progress_counted IN (0, 1)),
+    tmdb_payload TEXT NOT NULL DEFAULT '{}',
     UNIQUE (show_id, season_number)
 );
 
@@ -49,6 +52,7 @@ CREATE TABLE IF NOT EXISTS episodes (
     air_date TEXT,
     runtime_minutes INTEGER,
     still_path TEXT,
+    tmdb_payload TEXT NOT NULL DEFAULT '{}',
     UNIQUE (season_id, episode_number)
 );
 
@@ -72,10 +76,13 @@ CREATE INDEX IF NOT EXISTS idx_watch_history_episode ON episode_watch_history(ep
 CREATE INDEX IF NOT EXISTS idx_season_watch_history_season ON season_watch_history(season_id);
 CREATE INDEX IF NOT EXISTS idx_show_state_history_show ON show_state_history(show_id);
 
-CREATE TABLE IF NOT EXISTS popular_show_stubs (
-    id INTEGER PRIMARY KEY,
-    tmdb_id INTEGER UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    subtitle TEXT,
-    popularity_rank INTEGER NOT NULL
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version INTEGER PRIMARY KEY,
+    applied_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tmdb_cache (
+    cache_key TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    refreshed_at TEXT NOT NULL
 );

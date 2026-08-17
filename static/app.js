@@ -19,6 +19,9 @@ let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
 let libraryFilterView = null;
 let libraryFilterDraft = null;
+let popularLoaded = false;
+let discoverSearchTimer = null;
+let discoverRequest = null;
 
 function updateActiveNav(navView) {
   navButtons.forEach((button) => {
@@ -49,6 +52,136 @@ function showView(viewName) {
   };
   document.title = titles[viewName] || "Track";
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
+  if (viewName === "discover" && !popularLoaded) loadPopularShows();
+}
+
+function setDiscoverState({ loading = false, error = "", empty = false } = {}) {
+  const view = views.get("discover");
+  view.querySelector("[data-discover-loading]").hidden = !loading;
+  view.querySelector("[data-discover-error]").hidden = !error;
+  view.querySelector("[data-discover-empty]").hidden = !empty;
+  if (error) view.querySelector("[data-discover-error-copy]").textContent = error;
+}
+
+function catalogCard(show) {
+  const article = document.createElement("article");
+  article.className = "popular-card";
+  article.dataset.tmdbId = show.tmdb_id;
+
+  const poster = document.createElement("div");
+  poster.className = "mini-poster";
+  if (show.poster_path) {
+    const image = document.createElement("img");
+    image.src = `https://image.tmdb.org/t/p/w185${show.poster_path}`;
+    image.alt = "";
+    image.loading = "lazy";
+    poster.append(image);
+  } else {
+    const initial = document.createElement("span");
+    initial.textContent = show.name.charAt(0);
+    poster.append(initial);
+  }
+
+  const copy = document.createElement("div");
+  copy.className = "popular-card-copy";
+  const title = document.createElement("h3");
+  title.textContent = show.name;
+  const meta = document.createElement("p");
+  meta.textContent = show.first_air_date?.slice(0, 4) || "Release date unknown";
+  const overview = document.createElement("p");
+  overview.className = "catalog-overview";
+  overview.textContent = show.overview;
+  const actions = document.createElement("div");
+  actions.className = "popular-card-actions";
+  [["ACTIVE", "Add to watching"], ["ARCHIVED", "Add to archive"]].forEach(([state, label]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "catalog-action";
+    button.dataset.importState = state;
+    button.textContent = label;
+    actions.append(button);
+  });
+  copy.append(title, meta, overview, actions);
+  article.append(poster, copy);
+  return article;
+}
+
+function renderCatalogResults(results, heading, subtitle) {
+  const view = views.get("discover");
+  view.querySelector("[data-discover-results]").replaceChildren(...results.map(catalogCard));
+  view.querySelector("[data-discover-title]").textContent = heading;
+  view.querySelector("[data-discover-subtitle]").textContent = subtitle;
+  setDiscoverState({ empty: results.length === 0 });
+}
+
+async function loadPopularShows() {
+  if (discoverRequest) discoverRequest.abort();
+  discoverRequest = new AbortController();
+  setDiscoverState({ loading: true });
+  try {
+    const response = await fetch("/api/discover/popular", { signal: discoverRequest.signal });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not load popular shows");
+    popularLoaded = true;
+    renderCatalogResults(
+      data.results,
+      "Popular now",
+      data.stale ? "Showing the latest saved results" : "Refreshed at most once each day",
+    );
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    setDiscoverState({ error: error.message });
+  }
+}
+
+async function searchDiscover(query) {
+  if (!query) {
+    loadPopularShows();
+    return;
+  }
+  if (query.length < 2) return;
+  if (discoverRequest) discoverRequest.abort();
+  discoverRequest = new AbortController();
+  setDiscoverState({ loading: true });
+  try {
+    const response = await fetch(`/api/discover/search?q=${encodeURIComponent(query)}`, {
+      signal: discoverRequest.signal,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not search TMDB");
+    renderCatalogResults(data.results, "Search results", `Results for “${query}”`);
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    setDiscoverState({ error: error.message });
+  }
+}
+
+async function importCatalogShow(card, state, trigger) {
+  const actions = card.querySelectorAll(".catalog-action");
+  actions.forEach((button) => { button.disabled = true; });
+  try {
+    const response = await fetch(`/api/discover/shows/${card.dataset.tmdbId}/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not add show");
+    trigger.textContent = data.created ? "Added" : "Already added";
+    if (data.created) {
+      const template = document.createElement("template");
+      template.innerHTML = data.card_html.trim();
+      document.querySelector(`[data-show-list="${data.state}"]`)?.append(template.content);
+      syncStateSections();
+      filterAllShowViews();
+    }
+    showSnackbar(data.created
+      ? `Added to ${data.state === "ACTIVE" ? "Watching" : "Archive"}.`
+      : "This show is already in your library.");
+  } catch (error) {
+    actions.forEach((button) => { button.disabled = false; });
+    showSnackbar(error.message);
+  }
 }
 
 function renderDetailSkeleton(title = "Show details") {
@@ -567,7 +700,9 @@ function syncSeasonFromEpisodes(season) {
   season.dataset.episodeCount = episodes.length;
   season.dataset.watchedCount = watchedCount;
   season.dataset.minWatchCount = minimumWatchCount;
-  season.querySelector(".season-title small").textContent = `${watchedCount} of ${episodes.length}`;
+  if (season.dataset.progressCounted !== "false") {
+    season.querySelector(".season-title small").textContent = `${watchedCount} of ${episodes.length}`;
+  }
   const mixed = watchedCount > 0 && watchedCount < episodes.length;
   const displayedCount = watchedCount === episodes.length ? minimumWatchCount : 0;
   setWatchControl(season.querySelector("[data-season-watch]"), displayedCount, mixed);
@@ -660,6 +795,23 @@ async function changeSeasonWatchCount(season, action, trigger) {
 }
 
 document.addEventListener("click", (event) => {
+  const importButton = event.target.closest("[data-import-state]");
+  if (importButton) {
+    importCatalogShow(
+      importButton.closest("[data-tmdb-id]"),
+      importButton.dataset.importState,
+      importButton,
+    );
+    return;
+  }
+
+  if (event.target.closest("[data-discover-retry]")) {
+    const query = document.querySelector("[data-discover-search]").value.trim();
+    if (query) searchDiscover(query);
+    else loadPopularShows();
+    return;
+  }
+
   const watchLogEntry = event.target.closest("[data-watch-log-entry]");
   if (watchLogEntry) {
     openWatchDatePicker(watchLogEntry.closest("[data-watch-record-id]"));
@@ -918,11 +1070,8 @@ filterAllShowViews();
 
 document.querySelector("[data-discover-search]")?.addEventListener("input", (event) => {
   const query = event.target.value.trim();
-  const notice = document.querySelector("[data-discover-notice]");
-  notice.hidden = !query;
-  notice.querySelector("[data-discover-copy]").textContent = query
-    ? `“${query}” will return remote results once the API is connected.`
-    : "";
+  clearTimeout(discoverSearchTimer);
+  discoverSearchTimer = setTimeout(() => searchDiscover(query), 350);
 });
 
 document.querySelectorAll(".app-bar-search").forEach((searchForm) => {

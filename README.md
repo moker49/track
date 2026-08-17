@@ -9,7 +9,20 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-Open `http://127.0.0.1:5050`. The SQLite database and realistic sample show are created automatically in `instance/track.db` on first run.
+Open `http://127.0.0.1:5050`. The SQLite database is created automatically in `instance/track.db` on first run.
+
+## TMDB configuration
+
+Set your TMDB API Read Access Token before starting the app. The token is used only by Flask and is never sent to the browser.
+
+```powershell
+$env:TMDB_READ_ACCESS_TOKEN="your-token"
+python app.py
+```
+
+Discover searches TMDB as you type. Popular shows are saved locally and refreshed no more than once every 24 hours. A stale saved response remains available if TMDB is temporarily unreachable.
+
+Demo data is off by default. To create the two sample shows in a new database, set `TRACK_SEED_DEMO_DATA=1` before the first run.
 
 ## Navigation
 
@@ -17,11 +30,13 @@ The browser loads one persistent application shell at `/`. Watching, Archive, an
 
 ## Data model
 
-- `shows` stores imported show metadata, the current state, and lifecycle timestamps.
+- `shows` stores imported show metadata, the current Watching/Archive state, lifecycle timestamps, the last TMDB refresh, and the complete source payload.
 - `show_state_history` retains every state entry for future transitions and reporting.
 - `seasons` and `episodes` store local TMDB-shaped metadata and IDs.
 - `episode_watch_history` stores one row per watch event with an immutable `added_at` timestamp and an optional user-selected `watch_date`.
 - `season_watch_history` uses the same two-date model for whole-season watch actions.
-- `popular_show_stubs` supplies placeholder Search content until TMDB integration.
+- `tmdb_cache` stores cacheable Discover responses such as the once-daily popular list.
+
+Schema changes are applied through the small versioned migration runner. TMDB refreshes update shows, seasons, and episodes in place by TMDB ID, preserving local row IDs and watch history. Season zero and any season marked special are imported and remain watchable, but are excluded from show and season progress.
 
 Episode and season controls support individual rewatches. Watch logs use the chosen watch date when present and otherwise fall back to the added date. Unwatching removes the latest effective entry. Tapping a watch-log entry opens the date picker without changing normal watch behavior.
