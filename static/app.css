@@ -388,7 +388,6 @@ a {
 .show-menu {
   position: absolute;
   z-index: 25;
-  width: 184px;
   padding: 8px 0;
   border: 1px solid var(--outline-soft);
   border-radius: var(--radius-sm);
@@ -410,7 +409,7 @@ a {
 .show-menu button {
   width: 100%;
   min-height: 48px;
-  padding: 0 16px;
+  padding: 0 32px 0 16px;
   border: 0;
   display: flex;
   align-items: center;
@@ -549,15 +548,20 @@ a {
 }
 
 .season {
+  position: relative;
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow: visible;
   background: var(--surface-card);
   box-shadow: 0 1px 4px var(--shadow);
 }
 
+.season:has(.watch-menu:not([hidden])) {
+  z-index: 30;
+}
+
 .season summary {
   min-height: 72px;
-  padding: 8px 16px 8px 10px;
+  padding: 8px 64px 8px 10px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -602,6 +606,7 @@ a {
 }
 
 .episode {
+  position: relative;
   min-height: 76px;
   padding: 10px 10px 10px 16px;
   display: grid;
@@ -646,16 +651,26 @@ a {
 .check-control {
   width: var(--touch);
   height: var(--touch);
+  padding: 0;
+  border: 0;
   display: grid;
   place-items: center;
+  color: var(--on-surface-muted);
+  background: transparent;
   cursor: pointer;
 }
 
-.check-control input {
+.watch-control-wrap {
+  position: relative;
+  width: var(--touch);
+  height: var(--touch);
+}
+
+.season-watch-control {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
+  z-index: 6;
+  top: 12px;
+  right: 8px;
 }
 
 .checkbox-visual {
@@ -670,19 +685,36 @@ a {
   transition: background 120ms ease, border 120ms ease;
 }
 
-.check-control input:checked+.checkbox-visual {
+.check-control[aria-checked="true"] .checkbox-visual,
+.check-control[aria-checked="mixed"] .checkbox-visual {
   color: var(--on-primary);
   border-color: var(--primary);
   background: var(--primary);
 }
 
-.check-control input:focus-visible+.checkbox-visual {
+.check-control:focus-visible .checkbox-visual {
   outline: 3px solid var(--primary-light);
   outline-offset: 3px;
 }
 
-.check-control input:disabled+.checkbox-visual {
+.check-control:disabled .checkbox-visual {
   opacity: 0.55;
+}
+
+.watch-check {
+  font-size: 18px;
+}
+
+.watch-counter {
+  color: var(--on-primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.watch-menu {
+  top: 44px;
+  right: 0;
 }
 
 .app-bar-search {

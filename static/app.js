@@ -94,9 +94,25 @@ function toggleShowMenu(button) {
     || button.closest("[data-show-id]")?.querySelector("[data-show-menu]");
   if (!menu) return;
   const willOpen = menu.hidden;
+  closeWatchMenus();
   closeShowMenus(menu);
   menu.hidden = !willOpen;
   button.setAttribute("aria-expanded", String(willOpen));
+}
+
+function closeWatchMenus(exceptMenu = null) {
+  document.querySelectorAll("[data-watch-menu]").forEach((menu) => {
+    if (menu !== exceptMenu) menu.hidden = true;
+  });
+}
+
+function toggleWatchMenu(control) {
+  const menu = control.parentElement.querySelector("[data-watch-menu]");
+  if (!menu) return;
+  const willOpen = menu.hidden;
+  closeShowMenus();
+  closeWatchMenus(menu);
+  menu.hidden = !willOpen;
 }
 
 function syncProgressState(showElement) {
@@ -205,12 +221,148 @@ async function confirmShowRemoval() {
   }
 }
 
+function setWatchControl(control, watchCount, mixed = false) {
+  control.dataset.watchCount = watchCount;
+  control.setAttribute("aria-checked", mixed ? "mixed" : String(watchCount > 0));
+  const check = control.querySelector("[data-watch-check]");
+  const mixedIcon = control.querySelector("[data-watch-mixed]");
+  const counter = control.querySelector("[data-watch-counter]");
+  if (check) check.hidden = mixed || watchCount > 1;
+  if (mixedIcon) mixedIcon.hidden = !mixed;
+  if (counter) {
+    counter.hidden = mixed || watchCount <= 1;
+    counter.textContent = watchCount;
+  }
+}
+
+function syncSeasonFromEpisodes(season) {
+  const episodes = [...season.querySelectorAll(".episode")];
+  const counts = episodes.map((episode) => Number(episode.dataset.watchCount));
+  const watchedCount = counts.filter((count) => count > 0).length;
+  const minimumWatchCount = counts.length ? Math.min(...counts) : 0;
+  season.dataset.episodeCount = episodes.length;
+  season.dataset.watchedCount = watchedCount;
+  season.dataset.minWatchCount = minimumWatchCount;
+  season.querySelector(".season-title small").textContent = `${watchedCount} of ${episodes.length}`;
+  const mixed = watchedCount > 0 && watchedCount < episodes.length;
+  const displayedCount = watchedCount === episodes.length ? minimumWatchCount : 0;
+  setWatchControl(season.querySelector("[data-season-watch]"), displayedCount, mixed);
+}
+
+function updateEpisodeWatchUi(episode, watchCount, syncSeason = true) {
+  episode.dataset.watchCount = watchCount;
+  episode.classList.toggle("is-watched", watchCount > 0);
+  setWatchControl(episode.querySelector("[data-episode-watch]"), watchCount);
+  if (syncSeason) syncSeasonFromEpisodes(episode.closest(".season"));
+}
+
+function applyShowProgress(data) {
+  updateProgress(document.querySelector("[data-progress-summary]"), data);
+  const showCard = document.querySelector(`.show-card[data-show-id="${data.show_id}"]`);
+  if (showCard) {
+    showCard.dataset.watchedCount = data.watched_count;
+    showCard.dataset.episodeCount = data.episode_count;
+    showCard.querySelector("[data-card-progress-copy]").textContent =
+      `${data.watched_count} of ${data.episode_count}`;
+    const cardProgress = showCard.querySelector("[data-card-progress]");
+    cardProgress.setAttribute("aria-valuenow", data.percent);
+    cardProgress.querySelector("span").style.width = `${data.percent}%`;
+    showCard.querySelector(".progress-copy strong").textContent = `${data.percent}%`;
+    syncProgressState(showCard);
+  }
+
+  const detailShow = document.querySelector(`[data-detail-show][data-show-id="${data.show_id}"]`);
+  if (detailShow) {
+    detailShow.dataset.watchedCount = data.watched_count;
+    detailShow.dataset.episodeCount = data.episode_count;
+    syncProgressState(detailShow);
+  }
+}
+
+async function changeEpisodeWatchCount(episode, action, trigger) {
+  trigger.disabled = true;
+  try {
+    const response = await fetch(`/api/episodes/${episode.dataset.episodeId}/watch-count`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    if (!response.ok) throw new Error("Could not update episode");
+    const data = await response.json();
+    updateEpisodeWatchUi(episode, data.watch_count);
+    applyShowProgress(data);
+  } catch (_error) {
+    showSnackbar("Couldn't update this episode. Try again.");
+  } finally {
+    trigger.disabled = false;
+  }
+}
+
+async function changeSeasonWatchCount(season, action, trigger) {
+  trigger.disabled = true;
+  try {
+    const response = await fetch(`/api/seasons/${season.dataset.seasonId}/watch-count`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    if (!response.ok) throw new Error("Could not update season");
+    const data = await response.json();
+    data.episodes.forEach((episodeData) => {
+      const episode = season.querySelector(`[data-episode-id="${episodeData.episode_id}"]`);
+      if (episode) updateEpisodeWatchUi(episode, episodeData.watch_count, false);
+    });
+    syncSeasonFromEpisodes(season);
+    applyShowProgress(data);
+  } catch (_error) {
+    showSnackbar("Couldn't update this season. Try again.");
+  } finally {
+    trigger.disabled = false;
+  }
+}
+
 document.addEventListener("click", (event) => {
   const navButton = event.target.closest("[data-nav-view]");
   if (navButton) {
     closeShowMenus();
+    closeWatchMenus();
     if (detailRequest) detailRequest.abort();
     showView(navButton.dataset.navView);
+    return;
+  }
+
+  const watchAction = event.target.closest("[data-watch-action]");
+  if (watchAction) {
+    if (watchAction.closest("summary")) event.preventDefault();
+    const wrapper = watchAction.closest(".watch-control-wrap");
+    const episode = wrapper.closest(".episode");
+    const season = wrapper.closest(".season");
+    closeWatchMenus();
+    if (episode) changeEpisodeWatchCount(episode, watchAction.dataset.watchAction, watchAction);
+    else changeSeasonWatchCount(season, watchAction.dataset.watchAction, watchAction);
+    return;
+  }
+
+  const episodeControl = event.target.closest("[data-episode-watch]");
+  if (episodeControl) {
+    const episode = episodeControl.closest(".episode");
+    if (Number(episode.dataset.watchCount) === 0) {
+      changeEpisodeWatchCount(episode, "increment", episodeControl);
+    } else {
+      toggleWatchMenu(episodeControl);
+    }
+    return;
+  }
+
+  const seasonControl = event.target.closest("[data-season-watch]");
+  if (seasonControl) {
+    event.preventDefault();
+    const season = seasonControl.closest(".season");
+    if (Number(season.dataset.watchedCount) === 0) {
+      changeSeasonWatchCount(season, "increment", seasonControl);
+    } else {
+      toggleWatchMenu(seasonControl);
+    }
     return;
   }
 
@@ -245,6 +397,7 @@ document.addEventListener("click", (event) => {
 
   if (event.target.closest("[data-detail-back]")) {
     closeShowMenus();
+    closeWatchMenus();
     if (detailRequest) detailRequest.abort();
     showView(detailParentView);
     return;
@@ -265,62 +418,11 @@ document.addEventListener("click", (event) => {
   }
 
   closeShowMenus();
+  closeWatchMenus();
 });
 
 document.addEventListener("submit", (event) => {
   if (event.target.matches("[data-view-search]")) event.preventDefault();
-});
-
-document.addEventListener("change", async (event) => {
-  const checkbox = event.target.closest(".episode-checkbox");
-  if (!checkbox) return;
-
-  const episode = checkbox.closest(".episode");
-  const wantedState = checkbox.checked;
-  checkbox.disabled = true;
-
-  try {
-    const response = await fetch(`/api/episodes/${episode.dataset.episodeId}/watched`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ watched: wantedState }),
-    });
-    if (!response.ok) throw new Error("Could not update episode");
-    const data = await response.json();
-
-    episode.classList.toggle("is-watched", data.watched);
-    updateProgress(document.querySelector("[data-progress-summary]"), data);
-
-    const season = episode.closest(".season");
-    const checked = season.querySelectorAll(".episode-checkbox:checked").length;
-    const total = season.querySelectorAll(".episode-checkbox").length;
-    season.querySelector(".season-title small").textContent = `${checked} of ${total}`;
-
-    const showCard = document.querySelector(`.show-card[data-show-id="${data.show_id}"]`);
-    if (showCard) {
-      showCard.dataset.watchedCount = data.watched_count;
-      showCard.dataset.episodeCount = data.episode_count;
-      showCard.querySelector("[data-card-progress-copy]").textContent =
-        `${data.watched_count} of ${data.episode_count}`;
-      const cardProgress = showCard.querySelector("[data-card-progress]");
-      cardProgress.setAttribute("aria-valuenow", data.percent);
-      cardProgress.querySelector("span").style.width = `${data.percent}%`;
-      showCard.querySelector(".progress-copy strong").textContent = `${data.percent}%`;
-      syncProgressState(showCard);
-    }
-
-    const detailShow = document.querySelector(`[data-detail-show][data-show-id="${data.show_id}"]`);
-    if (detailShow) {
-      detailShow.dataset.watchedCount = data.watched_count;
-      detailShow.dataset.episodeCount = data.episode_count;
-      syncProgressState(detailShow);
-    }
-  } catch (_error) {
-    checkbox.checked = !wantedState;
-    showSnackbar("Couldn't save. Try again.");
-  } finally {
-    checkbox.disabled = false;
-  }
 });
 
 function updateProgress(progress, data) {

@@ -2,48 +2,52 @@
 {% set move_label = 'Un-archive' if show.state == 'ARCHIVED' else 'Archive' %}
 {% set move_icon = 'unarchive' if show.state == 'ARCHIVED' else 'archive' %}
 {% if show.watched_count == 0 %}
-  {% set progress_state = 'not-started' %}
+{% set progress_state = 'not-started' %}
 {% elif show.episode_count and show.watched_count >= show.episode_count %}
-  {% set progress_state = 'finished' %}
+{% set progress_state = 'finished' %}
 {% elif show.state == 'ARCHIVED' %}
-  {% set progress_state = 'stopped' %}
+{% set progress_state = 'stopped' %}
 {% else %}
-  {% set progress_state = 'in-progress' %}
+{% set progress_state = 'in-progress' %}
 {% endif %}
-<div data-detail-show data-show-id="{{ show.id }}" data-show-state="{{ show.state }}" data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}" data-progress-state="{{ progress_state }}">
-<header class="detail-app-bar">
-  <button class="icon-button" type="button" data-detail-back aria-label="Back">
-    <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
-  </button>
-  <span class="detail-app-bar-title">Show details</span>
-  <div class="menu-anchor">
-    <button class="icon-button" type="button" data-show-menu-button aria-label="More options for {{ show.name }}" aria-expanded="false">
-      <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
+<div data-detail-show data-show-id="{{ show.id }}" data-show-state="{{ show.state }}"
+  data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
+  data-progress-state="{{ progress_state }}">
+  <header class="detail-app-bar">
+    <button class="icon-button" type="button" data-detail-back aria-label="Back">
+      <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
-    <div class="show-menu detail-show-menu" data-show-menu hidden>
-      <button type="button" data-show-action="move" data-target-state="{{ target_state }}">
-        <span class="material-symbols-rounded" aria-hidden="true">{{ move_icon }}</span>
-        <span data-move-label>{{ move_label }}</span>
+    <span class="detail-app-bar-title">Show details</span>
+    <div class="menu-anchor">
+      <button class="icon-button" type="button" data-show-menu-button aria-label="More options for {{ show.name }}"
+        aria-expanded="false">
+        <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
       </button>
-      <button class="danger-action" type="button" data-show-action="remove">
-        <span class="material-symbols-rounded" aria-hidden="true">delete</span>
-        <span>Remove</span>
-      </button>
+      <div class="show-menu detail-show-menu" data-show-menu hidden>
+        <button type="button" data-show-action="move" data-target-state="{{ target_state }}">
+          <span class="material-symbols-rounded" aria-hidden="true">{{ move_icon }}</span>
+          <span data-move-label>{{ move_label }}</span>
+        </button>
+        <button class="danger-action" type="button" data-show-action="remove">
+          <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          <span>Remove</span>
+        </button>
+      </div>
     </div>
-  </div>
-</header>
+  </header>
 
-<section class="hero">
-  <div class="hero-poster poster poster-purple" aria-hidden="true">
-    <span class="poster-mark">BB</span>
-    <span class="poster-label">{{ show.name }}</span>
-  </div>
-  <div class="hero-copy">
-    <span class="state-label" data-show-state-label>{{ 'Archived' if show.state == 'ARCHIVED' else 'Watching' }}</span>
-    <h1>{{ show.name }}</h1>
-    <p>{{ show.first_air_date[:4] }} · {{ show.status }}<br>{{ show.genres }}</p>
-  </div>
-</section>
+  <section class="hero">
+    <div class="hero-poster poster poster-purple" aria-hidden="true">
+      <span class="poster-mark">BB</span>
+      <span class="poster-label">{{ show.name }}</span>
+    </div>
+    <div class="hero-copy">
+      <span class="state-label" data-show-state-label>{{ 'Archived' if show.state == 'ARCHIVED' else 'Watching'
+        }}</span>
+      <h1>{{ show.name }}</h1>
+      <p>{{ show.first_air_date[:4] }} · {{ show.status }}<br>{{ show.genres }}</p>
+    </div>
+  </section>
 </div>
 
 <section class="detail-content">
@@ -73,17 +77,46 @@
     {% for season in seasons %}
     {% set episodes = episodes_by_season[season.id] %}
     {% set watched_in_season = episodes|selectattr('watch_count', 'gt', 0)|list|length %}
-    <details class="season">
+    {% set watch_counts = episodes|map(attribute='watch_count')|list %}
+    {% set minimum_watch_count = watch_counts|min if watch_counts else 0 %}
+    <details class="season" data-season-id="{{ season.id }}" data-episode-count="{{ episodes|length }}"
+      data-watched-count="{{ watched_in_season }}" data-min-watch-count="{{ minimum_watch_count }}">
       <summary>
         <span class="season-chevron material-symbols-rounded" aria-hidden="true">expand_more</span>
         <span class="season-title">
           <strong>{{ season.name }}</strong>
           <small>{{ watched_in_season }} of {{ episodes|length }}</small>
         </span>
+        <span class="season-watch-control watch-control-wrap">
+          <button class="check-control" type="button" role="checkbox"
+            aria-checked="{{ 'true' if watched_in_season == episodes|length and episodes else ('mixed' if watched_in_season else 'false') }}"
+            aria-label="Watch options for {{ season.name }}" data-season-watch
+            data-watch-count="{{ minimum_watch_count if watched_in_season == episodes|length else 0 }}">
+            <span class="checkbox-visual" aria-hidden="true">
+              <span class="material-symbols-rounded watch-check" data-watch-check {% if minimum_watch_count> 1 or
+                (watched_in_season and watched_in_season < episodes|length) %}hidden{% endif %}>check</span>
+              <span class="material-symbols-rounded watch-check" data-watch-mixed {% if not watched_in_season or
+                watched_in_season==episodes|length %}hidden{% endif %}>remove</span>
+              <span class="watch-counter" data-watch-counter {% if minimum_watch_count <=1 or watched_in_season <
+                episodes|length %}hidden{% endif %}>{{ minimum_watch_count }}</span>
+            </span>
+          </button>
+          <span class="show-menu watch-menu" data-watch-menu hidden>
+            <button type="button" data-watch-action="increment">
+              <span class="material-symbols-rounded" aria-hidden="true">add</span>
+              <span>rewatch</span>
+            </button>
+            <button type="button" data-watch-action="decrement">
+              <span class="material-symbols-rounded" aria-hidden="true">remove</span>
+              <span>unwatch</span>
+            </button>
+          </span>
+        </span>
       </summary>
       <div class="episode-list">
         {% for episode in episodes %}
-        <article class="episode" data-episode-id="{{ episode.id }}">
+        <article class="episode {{ 'is-watched' if episode.watch_count else '' }}" data-episode-id="{{ episode.id }}"
+          data-watch-count="{{ episode.watch_count }}">
           <div class="episode-copy">
             <div class="episode-title">
               <span>{{ episode.episode_number }}</span>
@@ -91,11 +124,29 @@
             </div>
             <p>{{ episode.air_date }} · {{ episode.runtime_minutes }} min</p>
           </div>
-          <label class="check-control">
-            <input type="checkbox" class="episode-checkbox" {% if episode.watch_count %}checked{% endif %}>
-            <span class="checkbox-visual material-symbols-rounded" aria-hidden="true">check</span>
-            <span class="sr-only">Mark episode {{ episode.episode_number }} {{ episode.name }} watched</span>
-          </label>
+          <div class="watch-control-wrap">
+            <button class="check-control" type="button" role="checkbox"
+              aria-checked="{{ 'true' if episode.watch_count else 'false' }}"
+              aria-label="Watch options for episode {{ episode.episode_number }} {{ episode.name }}" data-episode-watch
+              data-watch-count="{{ episode.watch_count }}">
+              <span class="checkbox-visual" aria-hidden="true">
+                <span class="material-symbols-rounded watch-check" data-watch-check {% if episode.watch_count> 1
+                  %}hidden{% endif %}>check</span>
+                <span class="watch-counter" data-watch-counter {% if episode.watch_count <=1 %}hidden{% endif %}>{{
+                  episode.watch_count }}</span>
+              </span>
+            </button>
+            <div class="show-menu watch-menu" data-watch-menu hidden>
+              <button type="button" data-watch-action="increment">
+                <span class="material-symbols-rounded" aria-hidden="true">add</span>
+                <span>rewatch</span>
+              </button>
+              <button type="button" data-watch-action="decrement">
+                <span class="material-symbols-rounded" aria-hidden="true">remove</span>
+                <span>unwatch</span>
+              </button>
+            </div>
+          </div>
         </article>
         {% endfor %}
       </div>
@@ -103,3 +154,4 @@
     {% endfor %}
   </div>
 </section>
+</div>

@@ -40,6 +40,53 @@ def create_app(test_config: dict | None = None) -> Flask:
     def inject_year() -> dict:
         return {"current_year": datetime.now().year}
 
+    def get_show_progress(db: sqlite3.Connection, show_id: int) -> sqlite3.Row:
+        return db.execute(
+            """
+            SELECT COUNT(DISTINCT e.id) AS episode_count,
+                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
+            FROM seasons sn
+            JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
+            LEFT JOIN episode_watch_history wh
+              ON wh.episode_id = e.id AND wh.unwatched_at IS NULL
+            WHERE sn.show_id = ?
+            """,
+            (show_id,),
+        ).fetchone()
+
+    def get_episode_watch_count(db: sqlite3.Connection, episode_id: int) -> int:
+        return db.execute(
+            """
+            SELECT COUNT(*)
+            FROM episode_watch_history
+            WHERE episode_id = ? AND unwatched_at IS NULL
+            """,
+            (episode_id,),
+        ).fetchone()[0]
+
+    def watch_payload(
+        db: sqlite3.Connection, show_id: int, episode_id: int | None = None
+    ) -> dict:
+        progress = get_show_progress(db, show_id)
+        episode_count = progress["episode_count"]
+        watched_count = progress["watched_count"]
+        payload = {
+            "show_id": show_id,
+            "watched_count": watched_count,
+            "episode_count": episode_count,
+            "percent": (
+                round(watched_count / episode_count * 100) if episode_count else 0
+            ),
+        }
+        if episode_id is not None:
+            episode_watch_count = get_episode_watch_count(db, episode_id)
+            payload.update(
+                episode_id=episode_id,
+                watched=episode_watch_count > 0,
+                watch_count=episode_watch_count,
+            )
+        return payload
+
     @app.get("/")
     def index():
         db = get_db()
@@ -214,28 +261,124 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
         db.commit()
 
-        progress = db.execute(
+        return jsonify(watch_payload(db, episode["show_id"], episode_id))
+
+    @app.post("/api/episodes/<int:episode_id>/watch-count")
+    def change_episode_watch_count(episode_id: int):
+        payload = request.get_json(silent=True) or {}
+        action = payload.get("action")
+        if action not in {"increment", "decrement"}:
+            return jsonify(error="action must be increment or decrement"), 400
+
+        db = get_db()
+        episode = db.execute(
             """
-            SELECT COUNT(DISTINCT e.id) AS episode_count,
-                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
-            FROM seasons sn
-            JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
-            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id AND wh.unwatched_at IS NULL
-            WHERE sn.show_id = ?
+            SELECT e.id, sn.show_id
+            FROM episodes e
+            JOIN seasons sn ON sn.id = e.season_id
+            WHERE e.id = ?
             """,
-            (episode["show_id"],),
+            (episode_id,),
         ).fetchone()
-        episode_count = progress["episode_count"]
-        watched_count = progress["watched_count"]
-        percent = round(watched_count / episode_count * 100) if episode_count else 0
-        return jsonify(
-            show_id=episode["show_id"],
-            watched=payload["watched"],
-            watch_count=(1 if payload["watched"] else 0),
-            watched_count=watched_count,
-            episode_count=episode_count,
-            percent=percent,
+        if episode is None:
+            return jsonify(error="Episode not found"), 404
+
+        changed_at = utc_now()
+        if action == "increment":
+            db.execute(
+                """
+                INSERT INTO episode_watch_history (episode_id, watched_at)
+                VALUES (?, ?)
+                """,
+                (episode_id, changed_at),
+            )
+        else:
+            latest_watch = db.execute(
+                """
+                SELECT id
+                FROM episode_watch_history
+                WHERE episode_id = ? AND unwatched_at IS NULL
+                ORDER BY watched_at DESC, id DESC
+                LIMIT 1
+                """,
+                (episode_id,),
+            ).fetchone()
+            if latest_watch is not None:
+                db.execute(
+                    """
+                    UPDATE episode_watch_history
+                    SET unwatched_at = ?
+                    WHERE id = ?
+                    """,
+                    (changed_at, latest_watch["id"]),
+                )
+        db.commit()
+        return jsonify(watch_payload(db, episode["show_id"], episode_id))
+
+    @app.post("/api/seasons/<int:season_id>/watch-count")
+    def change_season_watch_count(season_id: int):
+        payload = request.get_json(silent=True) or {}
+        action = payload.get("action")
+        if action not in {"increment", "decrement"}:
+            return jsonify(error="action must be increment or decrement"), 400
+
+        db = get_db()
+        season = db.execute(
+            "SELECT id, show_id FROM seasons WHERE id = ?", (season_id,)
+        ).fetchone()
+        if season is None:
+            return jsonify(error="Season not found"), 404
+
+        episode_ids = [
+            row["id"]
+            for row in db.execute(
+                "SELECT id FROM episodes WHERE season_id = ? ORDER BY episode_number",
+                (season_id,),
+            ).fetchall()
+        ]
+        changed_at = utc_now()
+        if action == "increment":
+            db.executemany(
+                """
+                INSERT INTO episode_watch_history (episode_id, watched_at)
+                VALUES (?, ?)
+                """,
+                [(episode_id, changed_at) for episode_id in episode_ids],
+            )
+        else:
+            latest_watches = db.execute(
+                """
+                SELECT MAX(wh.id) AS id
+                FROM episode_watch_history wh
+                JOIN episodes e ON e.id = wh.episode_id
+                WHERE e.season_id = ? AND wh.unwatched_at IS NULL
+                GROUP BY wh.episode_id
+                """,
+                (season_id,),
+            ).fetchall()
+            db.executemany(
+                "UPDATE episode_watch_history SET unwatched_at = ? WHERE id = ?",
+                [(changed_at, row["id"]) for row in latest_watches],
+            )
+        db.commit()
+
+        episode_counts = [
+            {
+                "episode_id": episode_id,
+                "watch_count": get_episode_watch_count(db, episode_id),
+            }
+            for episode_id in episode_ids
+        ]
+        response = watch_payload(db, season["show_id"])
+        response.update(
+            season_id=season_id,
+            episodes=episode_counts,
+            season_episode_count=len(episode_counts),
+            season_watched_count=sum(
+                1 for episode in episode_counts if episode["watch_count"] > 0
+            ),
         )
+        return jsonify(response)
 
     @app.errorhandler(404)
     def not_found(_error):

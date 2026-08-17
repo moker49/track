@@ -53,6 +53,12 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Seven Thirty-Seven", detail.data)
         self.assertIn(b"arrow_back", detail.data)
         self.assertNotIn(b'<details class="season" open', detail.data)
+        self.assertIn(b"data-season-watch", detail.data)
+        self.assertIn(b"data-episode-watch", detail.data)
+        self.assertIn(b"rewatch", detail.data)
+        self.assertIn(b"unwatch", detail.data)
+        self.assertIn(b'aria-checked="mixed"', detail.data)
+        self.assertIn(b'aria-checked="false"', detail.data)
         self.assertNotIn(b"<!doctype html>", detail.data.lower())
         self.assertNotIn(b"bottom-nav", detail.data)
 
@@ -87,6 +93,11 @@ class TrackAppTest(unittest.TestCase):
         self.assertGreater(len(filled_font.data), 1_000_000)
         filled_font.close()
 
+    def test_open_watch_menu_elevates_its_season(self):
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text()
+        self.assertIn('.season:has(.watch-menu:not([hidden]))', css)
+        self.assertIn("z-index: 30", css)
+
     def test_watched_toggle_updates_progress_and_preserves_history(self):
         unwatch = self.client.post("/api/episodes/1/watched", json={"watched": False})
         self.assertEqual(unwatch.status_code, 200)
@@ -105,6 +116,84 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertIsNotNone(rows[0][1])
         self.assertIsNone(rows[1][1])
+
+    def test_episode_watch_count_increments_and_decrements_one_event(self):
+        increment = self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "increment"}
+        )
+        self.assertEqual(increment.status_code, 200)
+        self.assertEqual(increment.get_json()["watch_count"], 2)
+        self.assertEqual(increment.get_json()["watched_count"], 5)
+
+        decrement = self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "decrement"}
+        )
+        self.assertEqual(decrement.status_code, 200)
+        self.assertEqual(decrement.get_json()["watch_count"], 1)
+        self.assertEqual(decrement.get_json()["watched_count"], 5)
+
+        final_decrement = self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "decrement"}
+        )
+        self.assertEqual(final_decrement.get_json()["watch_count"], 0)
+        self.assertEqual(final_decrement.get_json()["watched_count"], 4)
+
+        db = sqlite3.connect(self.database)
+        history = db.execute(
+            "SELECT watched_at, unwatched_at FROM episode_watch_history WHERE episode_id = 1 ORDER BY id"
+        ).fetchall()
+        db.close()
+        self.assertEqual(len(history), 2)
+        self.assertTrue(all(row[1] is not None for row in history))
+
+    def test_season_watch_count_is_atomic_and_progress_counts_distinct_episodes(self):
+        first_watch = self.client.post(
+            "/api/seasons/2/watch-count", json={"action": "increment"}
+        )
+        self.assertEqual(first_watch.status_code, 200)
+        first_data = first_watch.get_json()
+        self.assertEqual(first_data["season_watched_count"], 6)
+        self.assertEqual(first_data["watched_count"], 11)
+        self.assertTrue(all(item["watch_count"] == 1 for item in first_data["episodes"]))
+
+        rewatch = self.client.post(
+            "/api/seasons/2/watch-count", json={"action": "increment"}
+        )
+        rewatch_data = rewatch.get_json()
+        self.assertEqual(rewatch_data["watched_count"], 11)
+        self.assertTrue(all(item["watch_count"] == 2 for item in rewatch_data["episodes"]))
+
+        unwatch = self.client.post(
+            "/api/seasons/2/watch-count", json={"action": "decrement"}
+        )
+        self.assertTrue(
+            all(item["watch_count"] == 1 for item in unwatch.get_json()["episodes"])
+        )
+
+        fully_unwatched = self.client.post(
+            "/api/seasons/2/watch-count", json={"action": "decrement"}
+        )
+        fully_unwatched_data = fully_unwatched.get_json()
+        self.assertEqual(fully_unwatched_data["season_watched_count"], 0)
+        self.assertEqual(fully_unwatched_data["watched_count"], 5)
+        self.assertTrue(
+            all(
+                item["watch_count"] == 0
+                for item in fully_unwatched_data["episodes"]
+            )
+        )
+
+    def test_rewatch_count_is_rendered_in_checkbox_control(self):
+        self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "increment"}
+        )
+
+        detail = self.client.get("/api/shows/1")
+
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn(b'data-watch-count="2"', detail.data)
+        self.assertIn(b'data-watch-counter', detail.data)
+        self.assertIn(b'>2</span>', detail.data)
 
     def test_progress_tag_supports_not_started(self):
         db = sqlite3.connect(self.database)
@@ -195,6 +284,14 @@ class TrackAppTest(unittest.TestCase):
     def test_api_validates_input(self):
         response = self.client.post("/api/episodes/1/watched", json={"watched": "yes"})
         self.assertEqual(response.status_code, 400)
+        episode_action = self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "reset"}
+        )
+        self.assertEqual(episode_action.status_code, 400)
+        season_action = self.client.post(
+            "/api/seasons/1/watch-count", json={"action": "reset"}
+        )
+        self.assertEqual(season_action.status_code, 400)
 
 
 if __name__ == "__main__":
