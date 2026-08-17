@@ -1,8 +1,27 @@
+{% set target_state = 'ACTIVE' if show.state == 'ARCHIVED' else 'ARCHIVED' %}
+{% set move_label = 'Un-archive' if show.state == 'ARCHIVED' else 'Archive' %}
+{% set move_icon = 'unarchive' if show.state == 'ARCHIVED' else 'archive' %}
+<div data-detail-show data-show-id="{{ show.id }}" data-show-state="{{ show.state }}">
 <header class="detail-app-bar">
   <button class="icon-button" type="button" data-detail-back aria-label="Back to My Shows">
     <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
   </button>
-  <span>Show details</span>
+  <span class="detail-app-bar-title">Show details</span>
+  <div class="menu-anchor">
+    <button class="icon-button" type="button" data-show-menu-button aria-label="More options for {{ show.name }}" aria-expanded="false">
+      <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
+    </button>
+    <div class="show-menu detail-show-menu" data-show-menu hidden>
+      <button type="button" data-show-action="move" data-target-state="{{ target_state }}">
+        <span class="material-symbols-rounded" aria-hidden="true">{{ move_icon }}</span>
+        <span data-move-label>{{ move_label }}</span>
+      </button>
+      <button class="danger-action" type="button" data-show-action="remove">
+        <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+        <span>Remove</span>
+      </button>
+    </div>
+  </div>
 </header>
 
 <section class="hero">
@@ -11,11 +30,12 @@
     <span class="poster-label">{{ show.name }}</span>
   </div>
   <div class="hero-copy">
-    <span class="state-label">Watching</span>
+    <span class="state-label" data-show-state-label>{{ 'Archived' if show.state == 'ARCHIVED' else 'Watching' }}</span>
     <h1>{{ show.name }}</h1>
     <p>{{ show.first_air_date[:4] }} · {{ show.status }}<br>{{ show.genres }}</p>
   </div>
 </section>
+</div>
 
 <section class="detail-content">
   <p class="tagline">“{{ show.tagline }}”</p>

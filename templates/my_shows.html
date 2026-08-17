@@ -1,32 +1,25 @@
-<header class="top-app-bar">
-  <form class="app-bar-search" role="search" data-view-search>
-    <span class="material-symbols-rounded" aria-hidden="true">search</span>
-    <input type="search" placeholder="Search your shows" aria-label="Search your shows" autocomplete="off" data-library-search>
-    <button class="search-clear" type="button" data-clear-search aria-label="Clear search" hidden>
-      <span class="material-symbols-rounded" aria-hidden="true">close</span>
-    </button>
-  </form>
-</header>
+{% macro show_card(show) %}
+  {% set percent = ((show.watched_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
+  {% if show.watched_count == 0 %}
+    {% set progress_tag = "Haven't started" %}
+  {% elif show.episode_count and show.watched_count >= show.episode_count %}
+    {% set progress_tag = "Finished" %}
+  {% else %}
+    {% set progress_tag = "In progress" %}
+  {% endif %}
+  {% set target_state = 'ACTIVE' if show.state == 'ARCHIVED' else 'ARCHIVED' %}
+  {% set move_label = 'Un-archive' if show.state == 'ARCHIVED' else 'Archive' %}
+  {% set move_icon = 'unarchive' if show.state == 'ARCHIVED' else 'archive' %}
 
-<section class="page-section" aria-labelledby="watching-title">
-  <div class="section-heading">
-    <div>
-      <h2 id="watching-title">Watching now</h2>
-      <p>Pick up where you left off</p>
-    </div>
-    <span class="count-badge">{{ shows|length }}</span>
-  </div>
-
-  {% for show in shows %}
-    {% set percent = ((show.watched_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
-    <button class="show-card" type="button" data-show-id="{{ show.id }}" data-show-name="{{ show.name|lower }}">
+  <article class="show-card" data-show-id="{{ show.id }}" data-show-name="{{ show.name|lower }}" data-show-state="{{ show.state }}">
+    <button class="show-card-open" type="button" data-show-open aria-label="Open {{ show.name }}">
       <div class="poster poster-purple" aria-hidden="true">
-        <span class="poster-mark">BB</span>
+        <span class="poster-mark">{{ 'GOT' if show.name == 'Game of Thrones' else 'BB' }}</span>
         <span class="poster-label">{{ show.name }}</span>
       </div>
       <div class="show-card-body">
         <div>
-          <span class="state-label">In progress</span>
+          <span class="state-label" data-progress-tag>{{ progress_tag }}</span>
           <h3>{{ show.name }}</h3>
           <p>{{ show.first_air_date[:4] }} · {{ show.genres }}</p>
         </div>
@@ -41,18 +34,69 @@
         </div>
       </div>
     </button>
-  {% else %}
-    <div class="empty-state">
-      <span class="empty-icon material-symbols-rounded" aria-hidden="true">add</span>
-      <h3>Nothing active yet</h3>
-      <p>Find a show in Discover to start your list.</p>
+    <button class="icon-button card-menu-button" type="button" data-show-menu-button aria-label="More options for {{ show.name }}" aria-expanded="false">
+      <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
+    </button>
+    <div class="show-menu card-show-menu" data-show-menu hidden>
+      <button type="button" data-show-action="move" data-target-state="{{ target_state }}">
+        <span class="material-symbols-rounded" aria-hidden="true">{{ move_icon }}</span>
+        <span data-move-label>{{ move_label }}</span>
+      </button>
+      <button class="danger-action" type="button" data-show-action="remove">
+        <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+        <span>Remove</span>
+      </button>
     </div>
-  {% endfor %}
-  {% if shows %}
-    <div class="empty-state" data-library-no-results hidden>
-      <span class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>
-      <h3>No matching shows</h3>
-      <p>Try a different title.</p>
+  </article>
+{% endmacro %}
+
+<header class="top-app-bar">
+  <form class="app-bar-search" role="search" data-view-search>
+    <span class="material-symbols-rounded" aria-hidden="true">search</span>
+    <input type="search" placeholder="Search your shows" aria-label="Search your shows" autocomplete="off" data-library-search>
+    <button class="search-clear" type="button" data-clear-search aria-label="Clear search" hidden>
+      <span class="material-symbols-rounded" aria-hidden="true">close</span>
+    </button>
+  </form>
+</header>
+
+<section class="page-section" data-state-section="ACTIVE" aria-labelledby="watching-title">
+  <div class="section-heading">
+    <div>
+      <h2 id="watching-title">Watching now</h2>
+      <p>Pick up where you left off</p>
     </div>
-  {% endif %}
+    <span class="count-badge" data-state-count>{{ active_shows|length }}</span>
+  </div>
+  <div class="show-list" data-show-list="ACTIVE">
+    {% for show in active_shows %}{{ show_card(show) }}{% endfor %}
+  </div>
+  <div class="empty-state state-empty" data-state-empty {% if active_shows %}hidden{% endif %}>
+    <span class="empty-icon material-symbols-rounded" aria-hidden="true">tv_off</span>
+    <h3>Nothing active</h3>
+    <p>Un-archive a show when you're ready to continue.</p>
+  </div>
 </section>
+
+<section class="page-section archived-section" data-state-section="ARCHIVED" aria-labelledby="archived-title" {% if not archived_shows %}hidden{% endif %}>
+  <div class="section-heading">
+    <div>
+      <h2 id="archived-title">Archived</h2>
+      <p>Finished or paused shows</p>
+    </div>
+    <span class="count-badge" data-state-count>{{ archived_shows|length }}</span>
+  </div>
+  <div class="show-list" data-show-list="ARCHIVED">
+    {% for show in archived_shows %}{{ show_card(show) }}{% endfor %}
+  </div>
+  <div class="empty-state state-empty" data-state-empty {% if archived_shows %}hidden{% endif %}>
+    <span class="empty-icon material-symbols-rounded" aria-hidden="true">inventory_2</span>
+    <h3>No archived shows</h3>
+  </div>
+</section>
+
+<div class="empty-state" data-library-no-results hidden>
+  <span class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>
+  <h3>No matching shows</h3>
+  <p>Try a different title.</p>
+</div>

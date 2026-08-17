@@ -20,6 +20,12 @@ class TrackAppTest(unittest.TestCase):
         home = self.client.get("/")
         self.assertEqual(home.status_code, 200)
         self.assertIn(b"Breaking Bad", home.data)
+        self.assertIn(b"Game of Thrones", home.data)
+        self.assertIn(b"Archived", home.data)
+        self.assertIn(b"Finished", home.data)
+        self.assertIn(b"more_vert", home.data)
+        self.assertIn(b"Un-archive", home.data)
+        self.assertIn(b"Remove", home.data)
         self.assertIn(b"Popular now", home.data)
         self.assertIn(b"Search your shows", home.data)
         self.assertIn(b"Search TMDB", home.data)
@@ -44,6 +50,12 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'<details class="season" open', detail.data)
         self.assertNotIn(b"<!doctype html>", detail.data.lower())
         self.assertNotIn(b"bottom-nav", detail.data)
+
+        archived_detail = self.client.get("/api/shows/2")
+        self.assertEqual(archived_detail.status_code, 200)
+        self.assertIn(b"Game of Thrones", archived_detail.data)
+        self.assertIn(b"Un-archive", archived_detail.data)
+        self.assertIn(b"more_vert", archived_detail.data)
 
         missing = self.client.get("/api/shows/999")
         self.assertEqual(missing.status_code, 404)
@@ -88,6 +100,71 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertIsNotNone(rows[0][1])
         self.assertIsNone(rows[1][1])
+
+    def test_progress_tag_supports_not_started(self):
+        db = sqlite3.connect(self.database)
+        db.execute(
+            """
+            UPDATE episode_watch_history
+            SET unwatched_at = '2026-08-17T12:00:00+00:00'
+            WHERE episode_id IN (
+                SELECT e.id FROM episodes e
+                JOIN seasons s ON s.id = e.season_id
+                WHERE s.show_id = 1
+            )
+            """
+        )
+        db.commit()
+        db.close()
+
+        home = self.client.get("/")
+        self.assertIn(b"Haven&#39;t started", home.data)
+
+    def test_show_can_be_archived_and_unarchived_with_history(self):
+        archive = self.client.post(
+            "/api/shows/1/state", json={"state": "ARCHIVED"}
+        )
+        self.assertEqual(archive.status_code, 200)
+        self.assertEqual(archive.get_json()["move_label"], "Un-archive")
+
+        unarchive = self.client.post(
+            "/api/shows/1/state", json={"state": "ACTIVE"}
+        )
+        self.assertEqual(unarchive.status_code, 200)
+        self.assertEqual(unarchive.get_json()["move_label"], "Archive")
+
+        db = sqlite3.connect(self.database)
+        state = db.execute("SELECT state FROM shows WHERE id = 1").fetchone()[0]
+        transitions = db.execute(
+            "SELECT state FROM show_state_history WHERE show_id = 1 ORDER BY id DESC LIMIT 2"
+        ).fetchall()
+        db.close()
+        self.assertEqual(state, "ACTIVE")
+        self.assertEqual([row[0] for row in transitions], ["ACTIVE", "ARCHIVED"])
+
+        invalid = self.client.post(
+            "/api/shows/1/state", json={"state": "WATCHLIST"}
+        )
+        self.assertEqual(invalid.status_code, 400)
+
+    def test_removing_show_cascades_to_episodes_and_history(self):
+        remove = self.client.delete("/api/shows/2")
+        self.assertEqual(remove.status_code, 204)
+
+        db = sqlite3.connect(self.database)
+        show_count = db.execute("SELECT COUNT(*) FROM shows WHERE id = 2").fetchone()[0]
+        season_count = db.execute(
+            "SELECT COUNT(*) FROM seasons WHERE show_id = 2"
+        ).fetchone()[0]
+        episode_count = db.execute(
+            """
+            SELECT COUNT(*) FROM episodes e
+            JOIN seasons s ON s.id = e.season_id
+            WHERE s.show_id = 2
+            """
+        ).fetchone()[0]
+        db.close()
+        self.assertEqual((show_count, season_count, episode_count), (0, 0, 0))
 
     def test_api_validates_input(self):
         response = self.client.post("/api/episodes/1/watched", json={"watched": "yes"})

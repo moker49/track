@@ -52,15 +52,23 @@ def create_app(test_config: dict | None = None) -> Flask:
             LEFT JOIN seasons sn ON sn.show_id = s.id
             LEFT JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id AND wh.unwatched_at IS NULL
-            WHERE s.state = 'ACTIVE'
+            WHERE s.state IN ('ACTIVE', 'ARCHIVED')
             GROUP BY s.id
-            ORDER BY s.name COLLATE NOCASE
+            ORDER BY CASE s.state WHEN 'ACTIVE' THEN 0 ELSE 1 END,
+                     s.name COLLATE NOCASE
             """
         ).fetchall()
         popular = db.execute(
             "SELECT * FROM popular_show_stubs ORDER BY popularity_rank"
         ).fetchall()
-        return render_template("index.html", shows=shows, popular=popular)
+        active_shows = [show for show in shows if show["state"] == "ACTIVE"]
+        archived_shows = [show for show in shows if show["state"] == "ARCHIVED"]
+        return render_template(
+            "index.html",
+            active_shows=active_shows,
+            archived_shows=archived_shows,
+            popular=popular,
+        )
 
     @app.get("/api/shows/<int:show_id>")
     def show_detail_fragment(show_id: int):
@@ -112,6 +120,58 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.get("/search")
     def legacy_page_redirect(_show_id: int | None = None):
         return redirect(url_for("index"))
+
+    @app.post("/api/shows/<int:show_id>/state")
+    def set_show_state(show_id: int):
+        payload = request.get_json(silent=True) or {}
+        target_state = payload.get("state")
+        if target_state not in {"ACTIVE", "ARCHIVED"}:
+            return jsonify(error="state must be ACTIVE or ARCHIVED"), 400
+
+        db = get_db()
+        show = db.execute(
+            "SELECT id, state FROM shows WHERE id = ?", (show_id,)
+        ).fetchone()
+        if show is None:
+            return jsonify(error="Show not found"), 404
+
+        if show["state"] != target_state:
+            changed_at = utc_now()
+            timestamp_column = (
+                "archived_at" if target_state == "ARCHIVED" else "active_at"
+            )
+            db.execute(
+                f"""
+                UPDATE shows
+                SET state = ?, {timestamp_column} = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (target_state, changed_at, changed_at, show_id),
+            )
+            db.execute(
+                """
+                INSERT INTO show_state_history (show_id, state, entered_at)
+                VALUES (?, ?, ?)
+                """,
+                (show_id, target_state, changed_at),
+            )
+            db.commit()
+
+        return jsonify(
+            show_id=show_id,
+            state=target_state,
+            move_label=("Un-archive" if target_state == "ARCHIVED" else "Archive"),
+            move_icon=("unarchive" if target_state == "ARCHIVED" else "archive"),
+        )
+
+    @app.delete("/api/shows/<int:show_id>")
+    def remove_show(show_id: int):
+        db = get_db()
+        cursor = db.execute("DELETE FROM shows WHERE id = ?", (show_id,))
+        if cursor.rowcount == 0:
+            return jsonify(error="Show not found"), 404
+        db.commit()
+        return "", 204
 
     @app.post("/api/episodes/<int:episode_id>/watched")
     def set_episode_watched(episode_id: int):
@@ -196,7 +256,9 @@ def create_app(test_config: dict | None = None) -> Flask:
 
 
 def seed_database(db: sqlite3.Connection) -> None:
-    if db.execute("SELECT 1 FROM shows LIMIT 1").fetchone():
+    if db.execute("SELECT 1 FROM shows WHERE tmdb_id = 1396").fetchone():
+        seed_game_of_thrones(db)
+        db.commit()
         return
 
     added_at = "2026-05-02T19:15:00+00:00"
@@ -286,7 +348,7 @@ def seed_database(db: sqlite3.Connection) -> None:
 
     db.executemany(
         """
-        INSERT INTO popular_show_stubs (tmdb_id, name, subtitle, popularity_rank)
+        INSERT OR IGNORE INTO popular_show_stubs (tmdb_id, name, subtitle, popularity_rank)
         VALUES (?, ?, ?, ?)
         """,
         [
@@ -296,7 +358,124 @@ def seed_database(db: sqlite3.Connection) -> None:
             (60625, "Rick and Morty", "Animation · Comedy", 4),
         ],
     )
+    seed_game_of_thrones(db)
     db.commit()
+
+
+def seed_game_of_thrones(db: sqlite3.Connection) -> None:
+    if db.execute("SELECT 1 FROM shows WHERE tmdb_id = 1399").fetchone():
+        return
+
+    added_at = "2026-06-10T18:30:00+00:00"
+    active_at = "2026-06-12T00:15:00+00:00"
+    archived_at = "2026-07-01T02:40:00+00:00"
+    cursor = db.execute(
+        """
+        INSERT INTO shows (
+            tmdb_id, name, original_name, overview, tagline, poster_path,
+            backdrop_path, first_air_date, status, genres, original_language,
+            state, added_at, watchlist_at, active_at, archived_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ARCHIVED', ?, ?, ?, ?)
+        """,
+        (
+            1399,
+            "Game of Thrones",
+            "Game of Thrones",
+            "Nine noble families fight for control over the lands of Westeros while an ancient enemy returns after being dormant for millennia.",
+            "Winter is coming.",
+            None,
+            None,
+            "2011-04-17",
+            "Ended",
+            "Drama, Fantasy, Action",
+            "en",
+            added_at,
+            added_at,
+            active_at,
+            archived_at,
+        ),
+    )
+    show_id = cursor.lastrowid
+    db.executemany(
+        "INSERT INTO show_state_history (show_id, state, entered_at) VALUES (?, ?, ?)",
+        [
+            (show_id, "WATCHLIST", added_at),
+            (show_id, "ACTIVE", active_at),
+            (show_id, "ARCHIVED", archived_at),
+        ],
+    )
+
+    seasons = [
+        (
+            1,
+            3624,
+            "Season 1",
+            "The great houses of Westeros are drawn into a struggle for the Iron Throne.",
+            "2011-04-17",
+            [
+                (1, "Winter Is Coming", "2011-04-17", 62),
+                (2, "The Kingsroad", "2011-04-24", 56),
+                (3, "Lord Snow", "2011-05-01", 58),
+                (4, "Cripples, Bastards, and Broken Things", "2011-05-08", 56),
+                (5, "The Wolf and the Lion", "2011-05-15", 55),
+                (6, "A Golden Crown", "2011-05-22", 53),
+            ],
+        ),
+        (
+            2,
+            3625,
+            "Season 2",
+            "Kings across Westeros clash as threats gather beyond the Wall and across the sea.",
+            "2012-04-01",
+            [
+                (1, "The North Remembers", "2012-04-01", 53),
+                (2, "The Night Lands", "2012-04-08", 54),
+                (3, "What Is Dead May Never Die", "2012-04-15", 53),
+                (4, "Garden of Bones", "2012-04-22", 51),
+                (5, "The Ghost of Harrenhal", "2012-04-29", 55),
+                (6, "The Old Gods and the New", "2012-05-06", 54),
+            ],
+        ),
+    ]
+
+    watched_at_day = 13
+    for season_number, tmdb_id, name, overview, air_date, episodes in seasons:
+        season_cursor = db.execute(
+            """
+            INSERT INTO seasons (show_id, tmdb_id, season_number, name, overview, air_date)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (show_id, tmdb_id, season_number, name, overview, air_date),
+        )
+        for episode_number, title, episode_air_date, runtime in episodes:
+            episode_cursor = db.execute(
+                """
+                INSERT INTO episodes (
+                    season_id, tmdb_id, episode_number, name, overview,
+                    air_date, runtime_minutes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    season_cursor.lastrowid,
+                    64000 + season_number * 100 + episode_number,
+                    episode_number,
+                    title,
+                    "A chapter in the struggle for the future of Westeros.",
+                    episode_air_date,
+                    runtime,
+                ),
+            )
+            db.execute(
+                """
+                INSERT INTO episode_watch_history (episode_id, watched_at)
+                VALUES (?, ?)
+                """,
+                (
+                    episode_cursor.lastrowid,
+                    f"2026-06-{watched_at_day:02d}T01:10:00+00:00",
+                ),
+            )
+            watched_at_day += 1
 
 
 app = create_app()

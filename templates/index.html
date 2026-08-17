@@ -38,4 +38,14 @@
   </template>
 
   <div class="snackbar" role="status" aria-live="polite" hidden></div>
+
+  <dialog class="confirm-dialog" data-remove-dialog>
+    <div class="dialog-icon material-symbols-rounded" aria-hidden="true">delete</div>
+    <h2>Remove show?</h2>
+    <p>This removes the show, its episodes, and all watch history from this device.</p>
+    <div class="dialog-actions">
+      <button type="button" data-cancel-remove>Cancel</button>
+      <button class="danger-action" type="button" data-confirm-remove>Remove</button>
+    </div>
+  </dialog>
 {% endblock %}

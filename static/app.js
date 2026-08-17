@@ -3,8 +3,10 @@ const views = new Map(
 );
 const navButtons = [...document.querySelectorAll("[data-nav-view]")];
 const scrollPositions = { shows: 0, discover: 0, detail: 0 };
+const removeDialog = document.querySelector("[data-remove-dialog]");
 let currentView = "shows";
 let detailRequest = null;
+let pendingRemoveShowId = null;
 
 function showView(viewName) {
   if (!views.has(viewName) || viewName === currentView) return;
@@ -68,28 +70,165 @@ async function openShow(showId) {
   }
 }
 
+function closeShowMenus(exceptMenu = null) {
+  document.querySelectorAll("[data-show-menu]").forEach((menu) => {
+    if (menu === exceptMenu) return;
+    menu.hidden = true;
+    menu.parentElement.querySelector("[data-show-menu-button]")
+      ?.setAttribute("aria-expanded", "false");
+  });
+}
+
+function toggleShowMenu(button) {
+  const menu = button.parentElement.querySelector("[data-show-menu]")
+    || button.closest("[data-show-id]")?.querySelector("[data-show-menu]");
+  if (!menu) return;
+  const willOpen = menu.hidden;
+  closeShowMenus(menu);
+  menu.hidden = !willOpen;
+  button.setAttribute("aria-expanded", String(willOpen));
+}
+
+function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
+  document.querySelectorAll(`[data-show-id="${showId}"]`).forEach((showElement) => {
+    showElement.dataset.showState = state;
+    showElement.querySelectorAll('[data-show-action="move"]').forEach((moveButton) => {
+      moveButton.dataset.targetState = state === "ARCHIVED" ? "ACTIVE" : "ARCHIVED";
+      moveButton.querySelector("[data-move-label]").textContent = moveLabel;
+      moveButton.querySelector(".material-symbols-rounded").textContent = moveIcon;
+    });
+    const detailStateLabel = showElement.querySelector("[data-show-state-label]");
+    if (detailStateLabel) {
+      detailStateLabel.textContent = state === "ARCHIVED" ? "Archived" : "Watching";
+    }
+  });
+}
+
+function syncStateSections() {
+  document.querySelectorAll("[data-state-section]").forEach((section) => {
+    const state = section.dataset.stateSection;
+    const count = section.querySelectorAll(".show-card").length;
+    section.querySelector("[data-state-count]").textContent = count;
+    section.querySelector("[data-state-empty]").hidden = count > 0;
+    if (state === "ARCHIVED") section.hidden = count === 0;
+  });
+}
+
+async function moveShow(showElement, targetState, actionButton) {
+  const showId = showElement.dataset.showId;
+  actionButton.disabled = true;
+  try {
+    const response = await fetch(`/api/shows/${showId}/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: targetState }),
+    });
+    if (!response.ok) throw new Error("Could not move show");
+    const data = await response.json();
+
+    const card = document.querySelector(`.show-card[data-show-id="${showId}"]`);
+    document.querySelector(`[data-show-list="${data.state}"]`)?.append(card);
+    updateShowRepresentations(showId, data.state, data.move_label, data.move_icon);
+    syncStateSections();
+    filterLibrary();
+    showSnackbar(data.state === "ARCHIVED" ? "Show archived" : "Show returned to watching");
+  } catch (_error) {
+    showSnackbar("Couldn't move this show. Try again.");
+  } finally {
+    actionButton.disabled = false;
+  }
+}
+
+function requestShowRemoval(showElement) {
+  pendingRemoveShowId = showElement.dataset.showId;
+  const showName = showElement.querySelector("h1, h3")?.textContent.trim() || "this show";
+  removeDialog.querySelector("h2").textContent = `Remove ${showName}?`;
+  removeDialog.showModal();
+}
+
+async function confirmShowRemoval() {
+  if (!pendingRemoveShowId) return;
+  const showId = pendingRemoveShowId;
+  const confirmButton = removeDialog.querySelector("[data-confirm-remove]");
+  confirmButton.disabled = true;
+  try {
+    const response = await fetch(`/api/shows/${showId}`, { method: "DELETE" });
+    if (!response.ok) throw new Error("Could not remove show");
+    document.querySelector(`.show-card[data-show-id="${showId}"]`)?.remove();
+    if (views.get("detail").querySelector(`[data-show-id="${showId}"]`)) {
+      showView("shows");
+      views.get("detail").replaceChildren();
+    }
+    syncStateSections();
+    filterLibrary();
+    removeDialog.close();
+    pendingRemoveShowId = null;
+    showSnackbar("Show removed");
+  } catch (_error) {
+    showSnackbar("Couldn't remove this show. Try again.");
+  } finally {
+    confirmButton.disabled = false;
+  }
+}
+
 document.addEventListener("click", (event) => {
   const navButton = event.target.closest("[data-nav-view]");
   if (navButton) {
+    closeShowMenus();
     if (detailRequest) detailRequest.abort();
     showView(navButton.dataset.navView);
     return;
   }
 
-  const showCard = event.target.closest("[data-show-id]");
-  if (showCard) {
-    openShow(showCard.dataset.showId);
+  const menuButton = event.target.closest("[data-show-menu-button]");
+  if (menuButton) {
+    toggleShowMenu(menuButton);
+    return;
+  }
+
+  const showAction = event.target.closest("[data-show-action]");
+  if (showAction) {
+    const showElement = showAction.closest("[data-show-id]");
+    closeShowMenus();
+    if (showAction.dataset.showAction === "move") {
+      moveShow(showElement, showAction.dataset.targetState, showAction);
+    } else {
+      requestShowRemoval(showElement);
+    }
+    return;
+  }
+
+  if (event.target.closest("[data-cancel-remove]")) {
+    removeDialog.close();
+    pendingRemoveShowId = null;
+    return;
+  }
+
+  if (event.target.closest("[data-confirm-remove]")) {
+    confirmShowRemoval();
     return;
   }
 
   if (event.target.closest("[data-detail-back]")) {
+    closeShowMenus();
     if (detailRequest) detailRequest.abort();
     showView("shows");
     return;
   }
 
   const retryButton = event.target.closest("[data-retry-show]");
-  if (retryButton) openShow(retryButton.dataset.retryShow);
+  if (retryButton) {
+    openShow(retryButton.dataset.retryShow);
+    return;
+  }
+
+  const showOpenButton = event.target.closest("[data-show-open]");
+  if (showOpenButton) {
+    openShow(showOpenButton.closest("[data-show-id]").dataset.showId);
+    return;
+  }
+
+  closeShowMenus();
 });
 
 document.addEventListener("submit", (event) => {
@@ -128,6 +267,9 @@ document.addEventListener("change", async (event) => {
       cardProgress.setAttribute("aria-valuenow", data.percent);
       cardProgress.querySelector("span").style.width = `${data.percent}%`;
       showCard.querySelector(".progress-copy strong").textContent = `${data.percent}%`;
+      showCard.querySelector("[data-progress-tag]").textContent = data.watched_count === 0
+        ? "Haven't started"
+        : data.watched_count >= data.episode_count ? "Finished" : "In progress";
     }
   } catch (_error) {
     checkbox.checked = !wantedState;
@@ -146,8 +288,9 @@ function updateProgress(progress, data) {
   bar.querySelector("span").style.width = `${data.percent}%`;
 }
 
-document.querySelector("[data-library-search]")?.addEventListener("input", (event) => {
-  const query = event.target.value.trim().toLocaleLowerCase();
+function filterLibrary() {
+  const query = document.querySelector("[data-library-search]")
+    ?.value.trim().toLocaleLowerCase() || "";
   const cards = [...document.querySelectorAll("[data-view='shows'] .show-card")];
   let visibleCount = 0;
   cards.forEach((card) => {
@@ -156,8 +299,10 @@ document.querySelector("[data-library-search]")?.addEventListener("input", (even
     if (visible) visibleCount += 1;
   });
   const noResults = document.querySelector("[data-library-no-results]");
-  if (noResults) noResults.hidden = visibleCount > 0;
-});
+  if (noResults) noResults.hidden = visibleCount > 0 || cards.length === 0;
+}
+
+document.querySelector("[data-library-search]")?.addEventListener("input", filterLibrary);
 
 document.querySelector("[data-discover-search]")?.addEventListener("input", (event) => {
   const query = event.target.value.trim();

@@ -145,21 +145,29 @@ a {
 }
 
 .show-card {
+  position: relative;
+  width: 100%;
+  min-height: 180px;
+  margin-top: 12px;
+  border-radius: var(--radius-lg);
+  color: inherit;
+  background: var(--surface-card);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.show-card-open {
   width: 100%;
   min-height: 180px;
   padding: 0;
   border: 0;
-  margin-top: 12px;
-  border-radius: var(--radius-lg);
+  border-radius: inherit;
   display: grid;
   grid-template-columns: 116px 1fr;
   overflow: hidden;
   color: inherit;
-  background: var(--surface-card);
-  box-shadow: 0 2px 8px var(--shadow);
+  background: transparent;
   font: inherit;
   text-align: left;
-  text-decoration: none;
   cursor: pointer;
 }
 
@@ -213,7 +221,7 @@ a {
 }
 
 .show-card-body {
-  padding: 18px 16px 16px;
+  padding: 18px 52px 16px 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -325,6 +333,79 @@ a {
 
 .nav-item.active .nav-icon .material-symbols-rounded {
   font-family: "Material Symbols Rounded Filled";
+}
+
+.show-list {
+  display: grid;
+}
+
+.archived-section {
+  padding-top: 0;
+}
+
+.card-menu-button {
+  position: absolute;
+  z-index: 3;
+  top: 6px;
+  right: 6px;
+  color: var(--on-surface-muted);
+}
+
+.menu-anchor {
+  position: relative;
+  margin-left: auto;
+}
+
+.detail-app-bar-title {
+  flex: 1;
+}
+
+.show-menu {
+  position: absolute;
+  z-index: 25;
+  width: 184px;
+  padding: 8px 0;
+  border: 1px solid var(--outline-soft);
+  border-radius: var(--radius-sm);
+  color: var(--on-surface);
+  background: var(--surface-high);
+  box-shadow: 0 6px 18px var(--shadow);
+}
+
+.card-show-menu {
+  top: 54px;
+  right: 8px;
+}
+
+.detail-show-menu {
+  top: 48px;
+  right: 0;
+}
+
+.show-menu button {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.show-menu button:active {
+  background: var(--scrim);
+}
+
+.show-menu button:disabled {
+  opacity: 0.5;
+}
+
+.danger-action {
+  color: var(--error) !important;
 }
 
 .detail-app-bar {
@@ -794,6 +875,60 @@ a {
   text-decoration: none;
   font-weight: 500;
   cursor: pointer;
+}
+
+.confirm-dialog {
+  width: min(calc(100% - 48px), 360px);
+  padding: 24px;
+  border: 0;
+  border-radius: 28px;
+  color: var(--on-surface);
+  background: var(--surface-high);
+  box-shadow: 0 12px 36px var(--shadow);
+}
+
+.confirm-dialog::backdrop {
+  background: var(--shadow);
+  backdrop-filter: blur(2px);
+}
+
+.dialog-icon {
+  color: var(--error);
+}
+
+.confirm-dialog h2 {
+  margin: 16px 0 10px;
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+.confirm-dialog p {
+  margin: 0;
+  color: var(--on-surface-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.dialog-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialog-actions button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 20px;
+  color: var(--primary);
+  background: transparent;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dialog-actions button:active {
+  background: var(--scrim);
 }
 
 .detail-error {
