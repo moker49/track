@@ -113,7 +113,6 @@ document.addEventListener("change", async (event) => {
     if (!response.ok) throw new Error("Could not update episode");
     const data = await response.json();
 
-    episode.classList.toggle("is-watched", data.watched);
     updateProgress(document.querySelector("[data-progress-summary]"), data);
 
     const season = episode.closest(".season");

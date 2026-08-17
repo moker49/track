@@ -27,7 +27,8 @@
       <strong>Your progress</strong>
       <span data-progress-copy>{{ show.watched_count }} of {{ show.episode_count }}</span>
     </div>
-    <div class="progress-track" role="progressbar" aria-label="Show progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ percent }}">
+    <div class="progress-track" role="progressbar" aria-label="Show progress" aria-valuemin="0" aria-valuemax="100"
+      aria-valuenow="{{ percent }}">
       <span style="width: {{ percent }}%"></span>
     </div>
   </div>
@@ -41,35 +42,35 @@
 
   <div class="season-list">
     {% for season in seasons %}
-      {% set episodes = episodes_by_season[season.id] %}
-      {% set watched_in_season = episodes|selectattr('watch_count', 'gt', 0)|list|length %}
-      <details class="season" {% if loop.first %}open{% endif %}>
-        <summary>
-          <span class="season-chevron material-symbols-rounded" aria-hidden="true">expand_more</span>
-          <span class="season-title">
-            <strong>{{ season.name }}</strong>
-            <small>{{ watched_in_season }} of {{ episodes|length }}</small>
-          </span>
-        </summary>
-        <div class="episode-list">
-          {% for episode in episodes %}
-            <article class="episode {{ 'is-watched' if episode.watch_count else '' }}" data-episode-id="{{ episode.id }}">
-              <div class="episode-copy">
-                <div class="episode-title">
-                  <span>{{ episode.episode_number }}</span>
-                  <strong>{{ episode.name }}</strong>
-                </div>
-                <p>{{ episode.air_date }} · {{ episode.runtime_minutes }} min</p>
-              </div>
-              <label class="check-control">
-                <input type="checkbox" class="episode-checkbox" {% if episode.watch_count %}checked{% endif %}>
-                <span class="checkbox-visual material-symbols-rounded" aria-hidden="true">check</span>
-                <span class="sr-only">Mark episode {{ episode.episode_number }} {{ episode.name }} watched</span>
-              </label>
-            </article>
-          {% endfor %}
-        </div>
-      </details>
+    {% set episodes = episodes_by_season[season.id] %}
+    {% set watched_in_season = episodes|selectattr('watch_count', 'gt', 0)|list|length %}
+    <details class="season" {% if loop.first %}open{% endif %}>
+      <summary>
+        <span class="season-chevron material-symbols-rounded" aria-hidden="true">expand_more</span>
+        <span class="season-title">
+          <strong>{{ season.name }}</strong>
+          <small>{{ watched_in_season }} of {{ episodes|length }}</small>
+        </span>
+      </summary>
+      <div class="episode-list">
+        {% for episode in episodes %}
+        <article class="episode" data-episode-id="{{ episode.id }}">
+          <div class="episode-copy">
+            <div class="episode-title">
+              <span>{{ episode.episode_number }}</span>
+              <strong>{{ episode.name }}</strong>
+            </div>
+            <p>{{ episode.air_date }} · {{ episode.runtime_minutes }} min</p>
+          </div>
+          <label class="check-control">
+            <input type="checkbox" class="episode-checkbox" {% if episode.watch_count %}checked{% endif %}>
+            <span class="checkbox-visual material-symbols-rounded" aria-hidden="true">check</span>
+            <span class="sr-only">Mark episode {{ episode.episode_number }} {{ episode.name }} watched</span>
+          </label>
+        </article>
+        {% endfor %}
+      </div>
+    </details>
     {% endfor %}
   </div>
 </section>
