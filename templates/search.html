@@ -1,20 +1,15 @@
-{% extends "base.html" %}
-{% block title %}Discover · Track{% endblock %}
-{% block content %}
 <header class="top-app-bar search-header">
-  <form class="app-bar-search" action="{{ url_for('search') }}" method="get" role="search">
+  <form class="app-bar-search" role="search" data-view-search>
     <span class="material-symbols-rounded" aria-hidden="true">search</span>
-    <input type="search" name="q" value="{{ query }}" placeholder="Search TMDB" aria-label="Search TMDB" autocomplete="off">
+    <input type="search" placeholder="Search TMDB" aria-label="Search TMDB" autocomplete="off" data-discover-search>
   </form>
 </header>
 
 <section class="page-section search-page">
-  {% if query %}
-    <div class="search-notice" role="status">
-      <strong>Search ready for TMDB</strong>
-      <p>“{{ query }}” will return remote results once the API is connected.</p>
-    </div>
-  {% endif %}
+  <div class="search-notice" role="status" data-discover-notice hidden>
+    <strong>Search ready for TMDB</strong>
+    <p data-discover-copy></p>
+  </div>
 
   <div class="section-heading popular-heading">
     <div>
@@ -38,4 +33,3 @@
     {% endfor %}
   </div>
 </section>
-{% endblock %}

@@ -1,10 +1,7 @@
-{% extends "base.html" %}
-{% block title %}{{ show.name }} · Track{% endblock %}
-{% block content %}
 <header class="detail-app-bar">
-  <a class="icon-button" href="{{ url_for('my_shows') }}" aria-label="Back to My Shows">
+  <button class="icon-button" type="button" data-detail-back aria-label="Back to My Shows">
     <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
-  </a>
+  </button>
   <span>Show details</span>
 </header>
 
@@ -75,6 +72,4 @@
       </details>
     {% endfor %}
   </div>
-  <div class="snackbar" role="status" aria-live="polite" hidden></div>
 </section>
-{% endblock %}

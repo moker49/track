@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="app-view is-active" data-view="shows" aria-label="My Shows">
+    {% include "my_shows.html" %}
+  </section>
+
+  <section class="app-view" data-view="discover" aria-label="Discover" hidden>
+    {% include "search.html" %}
+  </section>
+
+  <section class="app-view" data-view="detail" aria-label="Show details" aria-live="polite" hidden></section>
+
+  <template id="detail-skeleton-template">
+    <header class="detail-app-bar">
+      <button class="icon-button" type="button" data-detail-back aria-label="Back to My Shows">
+        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+      </button>
+      <span>Show details</span>
+    </header>
+    <div class="detail-skeleton" aria-label="Loading show details" aria-busy="true">
+      <div class="skeleton-hero">
+        <span class="skeleton-block skeleton-poster"></span>
+        <div class="skeleton-copy">
+          <span class="skeleton-block skeleton-chip"></span>
+          <span class="skeleton-block skeleton-title"></span>
+          <span class="skeleton-block skeleton-line short"></span>
+        </div>
+      </div>
+      <div class="skeleton-body">
+        <span class="skeleton-block skeleton-line medium"></span>
+        <span class="skeleton-block skeleton-line"></span>
+        <span class="skeleton-block skeleton-line"></span>
+        <span class="skeleton-block skeleton-progress"></span>
+        <span class="skeleton-block skeleton-season"></span>
+        <span class="skeleton-block skeleton-season"></span>
+      </div>
+    </div>
+  </template>
+
+  <div class="snackbar" role="status" aria-live="polite" hidden></div>
+{% endblock %}

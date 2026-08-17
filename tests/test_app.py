@@ -16,17 +16,43 @@ class TrackAppTest(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    def test_primary_pages_render(self):
+    def test_single_page_shell_contains_primary_views(self):
         home = self.client.get("/")
         self.assertEqual(home.status_code, 200)
         self.assertIn(b"Breaking Bad", home.data)
-        self.assertIn(b"5 of 13", home.data)
+        self.assertIn(b"Popular now", home.data)
         self.assertIn(b"Search your shows", home.data)
-        self.assertNotIn(b"app-bar-title", home.data)
-        self.assertNotIn(b'class="avatar"', home.data)
+        self.assertIn(b"Search TMDB", home.data)
+        self.assertIn(b'data-view="shows"', home.data)
+        self.assertIn(b'data-view="discover"', home.data)
+        self.assertIn(b'data-view="detail"', home.data)
+        self.assertIn(b'id="detail-skeleton-template"', home.data)
+        self.assertIn(b'data-show-id="1"', home.data)
+        self.assertNotIn(b'href="/search"', home.data)
+        self.assertNotIn(b'href="/shows/1"', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">tv</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">explore</span>', home.data)
-        self.assertNotIn(b"search-glyph", home.data)
+
+    def test_show_details_are_a_fragment(self):
+        detail = self.client.get("/api/shows/1")
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn(b"Season 1", detail.data)
+        self.assertIn(b"Seven Thirty-Seven", detail.data)
+        self.assertIn(b"arrow_back", detail.data)
+        self.assertNotIn(b"<!doctype html>", detail.data.lower())
+        self.assertNotIn(b"bottom-nav", detail.data)
+
+        missing = self.client.get("/api/shows/999")
+        self.assertEqual(missing.status_code, 404)
+
+    def test_legacy_page_urls_redirect_to_shell(self):
+        for path in ("/search", "/search?q=andor", "/shows/1"):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(response.headers["Location"], "/")
+
+    def test_material_icon_font_is_local(self):
+        home = self.client.get("/")
         self.assertNotIn(b"Material+Symbols", home.data)
 
         icon_font = self.client.get("/static/fonts/material-symbols-rounded.ttf")
@@ -34,34 +60,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertGreater(len(icon_font.data), 1_000_000)
         icon_font.close()
 
-        detail = self.client.get("/shows/1")
-        self.assertEqual(detail.status_code, 200)
-        self.assertIn(b"Season 1", detail.data)
-        self.assertIn(b"Seven Thirty-Seven", detail.data)
-        self.assertIn(b"arrow_back", detail.data)
-
-        search = self.client.get("/search")
-        self.assertEqual(search.status_code, 200)
-        self.assertIn(b"Popular now", search.data)
-        self.assertIn(b"Discover", search.data)
-        self.assertIn(b"Search TMDB", search.data)
-
-    def test_my_shows_search_filters_local_library(self):
-        match = self.client.get("/?q=breaking")
-        self.assertIn(b"Breaking Bad", match.data)
-
-        no_match = self.client.get("/?q=severance")
-        self.assertNotIn(b'class="show-card"', no_match.data)
-        self.assertIn(b"No shows match", no_match.data)
-
-    def test_discover_query_stays_ready_for_tmdb(self):
-        response = self.client.get("/search?q=andor")
-        self.assertIn(b"Search ready for TMDB", response.data)
-        self.assertIn(b"andor", response.data)
-
     def test_watched_toggle_updates_progress_and_preserves_history(self):
         unwatch = self.client.post("/api/episodes/1/watched", json={"watched": False})
         self.assertEqual(unwatch.status_code, 200)
+        self.assertEqual(unwatch.get_json()["show_id"], 1)
         self.assertEqual(unwatch.get_json()["watched_count"], 4)
 
         rewatch = self.client.post("/api/episodes/1/watched", json={"watched": True})

@@ -1,10 +1,7 @@
-{% extends "base.html" %}
-{% block title %}My Shows · Track{% endblock %}
-{% block content %}
 <header class="top-app-bar">
-  <form class="app-bar-search" action="{{ url_for('my_shows') }}" method="get" role="search">
+  <form class="app-bar-search" role="search" data-view-search>
     <span class="material-symbols-rounded" aria-hidden="true">search</span>
-    <input type="search" name="q" value="{{ query }}" placeholder="Search your shows" aria-label="Search your shows" autocomplete="off" data-library-search>
+    <input type="search" placeholder="Search your shows" aria-label="Search your shows" autocomplete="off" data-library-search>
   </form>
 </header>
 
@@ -19,7 +16,7 @@
 
   {% for show in shows %}
     {% set percent = ((show.watched_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
-    <a class="show-card" href="{{ url_for('show_detail', show_id=show.id) }}" data-show-name="{{ show.name|lower }}">
+    <button class="show-card" type="button" data-show-id="{{ show.id }}" data-show-name="{{ show.name|lower }}">
       <div class="poster poster-purple" aria-hidden="true">
         <span class="poster-mark">BB</span>
         <span class="poster-label">{{ show.name }}</span>
@@ -32,21 +29,27 @@
         </div>
         <div class="progress-block">
           <div class="progress-copy">
-            <span>{{ show.watched_count }} of {{ show.episode_count }}</span>
+            <span data-card-progress-copy>{{ show.watched_count }} of {{ show.episode_count }}</span>
             <strong>{{ percent }}%</strong>
           </div>
-          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ percent }}">
+          <div class="progress-track" data-card-progress role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ percent }}">
             <span style="width: {{ percent }}%"></span>
           </div>
         </div>
       </div>
-    </a>
+    </button>
   {% else %}
     <div class="empty-state">
       <span class="empty-icon material-symbols-rounded" aria-hidden="true">add</span>
       <h3>Nothing active yet</h3>
-      <p>{% if query %}No shows match “{{ query }}”.{% else %}Find a show in Discover to start your list.{% endif %}</p>
+      <p>Find a show in Discover to start your list.</p>
     </div>
   {% endfor %}
+  {% if shows %}
+    <div class="empty-state" data-library-no-results hidden>
+      <span class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>
+      <h3>No matching shows</h3>
+      <p>Try a different title.</p>
+    </div>
+  {% endif %}
 </section>
-{% endblock %}

@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, abort, g, jsonify, render_template, request
+from flask import Flask, abort, g, jsonify, redirect, render_template, request, url_for
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -41,9 +41,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         return {"current_year": datetime.now().year}
 
     @app.get("/")
-    def my_shows():
-        query = request.args.get("q", "").strip()
-        shows = get_db().execute(
+    def index():
+        db = get_db()
+        shows = db.execute(
             """
             SELECT s.*,
                    COUNT(DISTINCT e.id) AS episode_count,
@@ -53,18 +53,17 @@ def create_app(test_config: dict | None = None) -> Flask:
             LEFT JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id AND wh.unwatched_at IS NULL
             WHERE s.state = 'ACTIVE'
-              AND (? = '' OR s.name LIKE '%' || ? || '%' COLLATE NOCASE)
             GROUP BY s.id
             ORDER BY s.name COLLATE NOCASE
-            """,
-            (query, query),
+            """
         ).fetchall()
-        return render_template(
-            "my_shows.html", shows=shows, query=query, active_nav="shows"
-        )
+        popular = db.execute(
+            "SELECT * FROM popular_show_stubs ORDER BY popularity_rank"
+        ).fetchall()
+        return render_template("index.html", shows=shows, popular=popular)
 
-    @app.get("/shows/<int:show_id>")
-    def show_detail(show_id: int):
+    @app.get("/api/shows/<int:show_id>")
+    def show_detail_fragment(show_id: int):
         db = get_db()
         show = db.execute(
             """
@@ -107,8 +106,12 @@ def create_app(test_config: dict | None = None) -> Flask:
             show=show,
             seasons=seasons,
             episodes_by_season=episodes_by_season,
-            active_nav="shows",
         )
+
+    @app.get("/shows/<int:_show_id>")
+    @app.get("/search")
+    def legacy_page_redirect(_show_id: int | None = None):
+        return redirect(url_for("index"))
 
     @app.post("/api/episodes/<int:episode_id>/watched")
     def set_episode_watched(episode_id: int):
@@ -166,21 +169,12 @@ def create_app(test_config: dict | None = None) -> Flask:
         watched_count = progress["watched_count"]
         percent = round(watched_count / episode_count * 100) if episode_count else 0
         return jsonify(
+            show_id=episode["show_id"],
             watched=payload["watched"],
             watch_count=(1 if payload["watched"] else 0),
             watched_count=watched_count,
             episode_count=episode_count,
             percent=percent,
-        )
-
-    @app.get("/search")
-    def search():
-        query = request.args.get("q", "").strip()
-        popular = get_db().execute(
-            "SELECT * FROM popular_show_stubs ORDER BY popularity_rank"
-        ).fetchall()
-        return render_template(
-            "search.html", popular=popular, query=query, active_nav="search"
         )
 
     @app.errorhandler(404)
