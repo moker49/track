@@ -438,10 +438,6 @@ a {
   cursor: pointer;
 }
 
-.show-menu button:active {
-  background: var(--scrim);
-}
-
 .show-menu button:disabled {
   opacity: 0.5;
 }
@@ -477,10 +473,6 @@ a {
   background: transparent;
   text-decoration: none;
   cursor: pointer;
-}
-
-.icon-button:active {
-  background: var(--scrim);
 }
 
 .material-symbols-rounded {
@@ -662,10 +654,6 @@ a {
   font: inherit;
   text-align: left;
   cursor: pointer;
-}
-
-.episode-open:active {
-  background: var(--scrim);
 }
 
 .episode-open:focus-visible {
@@ -894,10 +882,6 @@ a {
   cursor: pointer;
 }
 
-.activity-item-button:active {
-  background: var(--scrim);
-}
-
 .activity-item-button:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: -3px;
@@ -1011,10 +995,6 @@ a {
   cursor: pointer;
 }
 
-.date-picker-day:active {
-  background: var(--scrim);
-}
-
 .date-picker-day.is-today {
   border: 1px solid var(--primary);
 }
@@ -1044,10 +1024,6 @@ a {
   background: transparent;
   font-weight: 500;
   cursor: pointer;
-}
-
-.date-picker-actions button:active {
-  background: var(--scrim);
 }
 
 .date-picker-actions button:disabled {
@@ -1109,10 +1085,6 @@ a {
   cursor: pointer;
 }
 
-.filter-done-button:active {
-  background: var(--scrim);
-}
-
 .filter-dialog-content {
   padding: 12px 24px calc(40px + env(safe-area-inset-bottom));
 }
@@ -1166,7 +1138,7 @@ a {
   border-end-end-radius: 24px;
 }
 
-.md-button-group button > .material-symbols-rounded {
+.md-button-group button>.material-symbols-rounded {
   display: none;
   flex: 0 0 auto;
   font-size: 17px;
@@ -1178,12 +1150,8 @@ a {
   background: var(--primary);
 }
 
-.md-button-group button[aria-pressed="true"] > .material-symbols-rounded {
+.md-button-group button[aria-pressed="true"]>.material-symbols-rounded {
   display: inline-block;
-}
-
-.md-button-group button:active {
-  box-shadow: inset 0 0 0 40px var(--scrim);
 }
 
 .status-button-group {
@@ -1254,10 +1222,6 @@ a {
   color: var(--on-surface-muted);
   background: transparent;
   cursor: pointer;
-}
-
-.search-clear:active {
-  background: var(--scrim);
 }
 
 .search-clear:focus-visible {
@@ -1467,10 +1431,6 @@ a {
   background: transparent;
   font-weight: 500;
   cursor: pointer;
-}
-
-.dialog-actions button:active {
-  background: var(--scrim);
 }
 
 .detail-error {
