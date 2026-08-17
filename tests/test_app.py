@@ -24,6 +24,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Search your shows", home.data)
         self.assertNotIn(b"app-bar-title", home.data)
         self.assertNotIn(b'class="avatar"', home.data)
+        self.assertIn(b'<span class="nav-icon" aria-hidden="true">\n          <span class="search-glyph"></span>', home.data)
 
         detail = self.client.get("/shows/1")
         self.assertEqual(detail.status_code, 200)

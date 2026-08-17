@@ -21,7 +21,9 @@
         <span>My Shows</span>
       </a>
       <a class="nav-item {{ 'active' if active_nav == 'search' else '' }}" href="{{ url_for('search') }}" {% if active_nav == 'search' %}aria-current="page"{% endif %}>
-        <span class="nav-icon search-glyph" aria-hidden="true"></span>
+        <span class="nav-icon" aria-hidden="true">
+          <span class="search-glyph"></span>
+        </span>
         <span>Discover</span>
       </a>
     </nav>
