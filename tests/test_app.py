@@ -36,7 +36,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-view="detail"', home.data)
         self.assertIn(b'id="detail-skeleton-template"', home.data)
         self.assertEqual(home.data.count(b"data-clear-search"), 3)
-        self.assertEqual(home.data.count(b">close</span>"), 3)
+        self.assertEqual(home.data.count(b">close</span>"), 4)
         self.assertIn(b'data-progress-state="in-progress"', home.data)
         self.assertIn(b'data-progress-state="finished"', home.data)
         self.assertIn(b'data-show-id="1"', home.data)
@@ -45,6 +45,46 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'<span class="material-symbols-rounded">tv</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">inventory_2</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">explore</span>', home.data)
+
+    def test_library_filter_and_sort_dialog_is_in_the_shell(self):
+        home = self.client.get("/")
+        self.assertEqual(home.data.count(b"data-open-library-filter"), 2)
+        self.assertIn(b'data-library-filter-dialog', home.data)
+        self.assertEqual(home.data.count(b"data-filter-tag="), 4)
+        self.assertIn(b'data-sort-field="name" aria-pressed="true"', home.data)
+        self.assertIn(b'data-sort-field="dateAdded"', home.data)
+        self.assertIn(b'data-sort-field="releaseDate"', home.data)
+        self.assertIn(b'data-sort-direction="asc" aria-pressed="true"', home.data)
+        self.assertIn(b'data-date-added=', home.data)
+        self.assertIn(b'data-release-date=', home.data)
+        self.assertEqual(home.data.count(b'class="md-button-group'), 3)
+        self.assertIn(b'class="filter-fullscreen-app-bar"', home.data)
+        self.assertIn(b">Done</button>", home.data)
+        self.assertIn(b"<span>New</span>", home.data)
+        self.assertIn(b"<span>Watching</span>", home.data)
+        self.assertNotIn(b"Haven&#39;t started", home.data)
+        self.assertNotIn(b"In progress", home.data)
+
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('sortField: "name", sortDirection: "asc"', javascript)
+        self.assertIn("preferences.tags.size === 0", javascript)
+        self.assertIn("const customized = preferences.tags.size > 0;", javascript)
+        self.assertNotIn("preferences.sortField !==", javascript)
+        self.assertNotIn("preferences.sortDirection !==", javascript)
+
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("height: 100dvh", css)
+        self.assertIn("grid-template-columns: repeat(4, minmax(0, 1fr))", css)
+        self.assertIn('.md-button-group button[aria-pressed="true"] {\n  border-radius: 24px;', css)
+        self.assertIn("color: var(--progress-not-started);", css)
+        self.assertIn(
+            "background: color-mix(in srgb, var(--progress-not-started) 18%, transparent);",
+            css,
+        )
 
     def test_show_details_are_a_fragment(self):
         detail = self.client.get("/api/shows/1")
@@ -59,7 +99,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'class="detail-app-bar-title">Show details</span>', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
         self.assertIn(b"Added to My Shows", detail.data)
-        self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>In progress</span>', detail.data)
+        self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Watching</span>', detail.data)
         self.assertNotIn(b"data-show-state-label", detail.data)
         self.assertNotIn(b'<details class="activity-log" open', detail.data)
         self.assertIn(b"rewatch", detail.data)
@@ -288,7 +328,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-watch-counter', detail.data)
         self.assertIn(b'>2</span>', detail.data)
 
-    def test_progress_tag_supports_not_started(self):
+    def test_progress_tag_supports_new(self):
         db = sqlite3.connect(self.database)
         db.execute(
             """
@@ -304,7 +344,7 @@ class TrackAppTest(unittest.TestCase):
         db.close()
 
         home = self.client.get("/")
-        self.assertIn(b"Haven&#39;t started", home.data)
+        self.assertIn(b">New</span>", home.data)
         self.assertIn(b'data-progress-state="not-started"', home.data)
 
     def test_partial_archived_show_is_stopped(self):

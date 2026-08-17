@@ -3,7 +3,7 @@
 {% set move_icon = 'unarchive' if show.state == 'ARCHIVED' else 'archive' %}
 {% if show.watched_count == 0 %}
 {% set progress_state = 'not-started' %}
-{% set progress_tag = "Haven't started" %}
+{% set progress_tag = "New" %}
 {% elif show.episode_count and show.watched_count >= show.episode_count %}
 {% set progress_state = 'finished' %}
 {% set progress_tag = 'Finished' %}
@@ -12,7 +12,7 @@
 {% set progress_tag = 'Stopped' %}
 {% else %}
 {% set progress_state = 'in-progress' %}
-{% set progress_tag = 'In progress' %}
+{% set progress_tag = 'Watching' %}
 {% endif %}
 <div data-detail-show data-detail-title="{{ show.name }}" data-show-id="{{ show.id }}"
   data-show-state="{{ show.state }}" data-watched-count="{{ show.watched_count }}"

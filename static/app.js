@@ -5,6 +5,11 @@ const navButtons = [...document.querySelectorAll("[data-nav-view]")];
 const scrollPositions = { watching: 0, archive: 0, discover: 0, detail: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
+const libraryFilterDialog = document.querySelector("[data-library-filter-dialog]");
+const libraryViewPreferences = {
+  watching: { tags: new Set(), sortField: "name", sortDirection: "asc" },
+  archive: { tags: new Set(), sortField: "name", sortDirection: "asc" },
+};
 let currentView = "watching";
 let detailParentView = "watching";
 let detailRequest = null;
@@ -12,6 +17,8 @@ let pendingRemoveShowId = null;
 let datePickerTarget = null;
 let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
+let libraryFilterView = null;
+let libraryFilterDraft = null;
 
 function updateActiveNav(navView) {
   navButtons.forEach((button) => {
@@ -338,6 +345,61 @@ async function saveWatchDate() {
   }
 }
 
+function syncLibraryFilterDialog() {
+  if (!libraryFilterDialog || !libraryFilterDraft) return;
+  libraryFilterDialog.querySelectorAll("[data-filter-tag]").forEach((button) => {
+    button.setAttribute(
+      "aria-pressed",
+      String(libraryFilterDraft.tags.has(button.dataset.filterTag)),
+    );
+  });
+  libraryFilterDialog.querySelectorAll("[data-sort-field]").forEach((button) => {
+    button.setAttribute(
+      "aria-pressed",
+      String(button.dataset.sortField === libraryFilterDraft.sortField),
+    );
+  });
+  libraryFilterDialog.querySelectorAll("[data-sort-direction]").forEach((button) => {
+    button.setAttribute(
+      "aria-pressed",
+      String(button.dataset.sortDirection === libraryFilterDraft.sortDirection),
+    );
+  });
+}
+
+function openLibraryFilter(viewName) {
+  const preferences = libraryViewPreferences[viewName];
+  if (!libraryFilterDialog || !preferences) return;
+  libraryFilterView = viewName;
+  libraryFilterDraft = {
+    tags: new Set(preferences.tags),
+    sortField: preferences.sortField,
+    sortDirection: preferences.sortDirection,
+  };
+  syncLibraryFilterDialog();
+  libraryFilterDialog.showModal();
+}
+
+function updateLibraryFilterButton(viewName) {
+  const preferences = libraryViewPreferences[viewName];
+  const button = document.querySelector(`[data-open-library-filter="${viewName}"]`);
+  if (!preferences || !button) return;
+  const customized = preferences.tags.size > 0;
+  button.classList.toggle("has-active-filter", customized);
+}
+
+function applyLibraryFilterDraft() {
+  if (!libraryFilterView || !libraryFilterDraft) return;
+  libraryViewPreferences[libraryFilterView] = {
+    tags: new Set(libraryFilterDraft.tags),
+    sortField: libraryFilterDraft.sortField,
+    sortDirection: libraryFilterDraft.sortDirection,
+  };
+  updateLibraryFilterButton(libraryFilterView);
+  filterShowView(views.get(libraryFilterView));
+  libraryFilterDialog.close();
+}
+
 function closeShowMenus(exceptMenu = null) {
   document.querySelectorAll("[data-show-menu]").forEach((menu) => {
     if (menu === exceptMenu) return;
@@ -379,10 +441,10 @@ function syncProgressState(showElement) {
   if (!Number.isFinite(watchedCount) || !Number.isFinite(episodeCount)) return;
 
   let progressState = "in-progress";
-  let progressLabel = "In progress";
+  let progressLabel = "Watching";
   if (watchedCount === 0) {
     progressState = "not-started";
-    progressLabel = "Haven't started";
+    progressLabel = "New";
   } else if (episodeCount > 0 && watchedCount >= episodeCount) {
     progressState = "finished";
     progressLabel = "Finished";
@@ -432,7 +494,7 @@ async function moveShow(showElement, targetState, actionButton) {
     document.querySelector(`[data-show-list="${data.state}"]`)?.append(card);
     updateShowRepresentations(showId, data.state, data.move_label, data.move_icon);
     if (currentView === "detail"
-        && views.get("detail").querySelector(`[data-detail-show][data-show-id="${showId}"]`)) {
+      && views.get("detail").querySelector(`[data-detail-show][data-show-id="${showId}"]`)) {
       addActivityItem({
         type: data.activity_type,
         title: data.activity_title,
@@ -539,6 +601,7 @@ function applyShowProgress(data) {
     detailShow.dataset.episodeCount = data.episode_count;
     syncProgressState(detailShow);
   }
+  filterAllShowViews();
 }
 
 async function changeEpisodeWatchCount(episode, action, trigger) {
@@ -633,6 +696,45 @@ document.addEventListener("click", (event) => {
 
   if (event.target.closest("[data-date-picker-save]")) {
     saveWatchDate();
+    return;
+  }
+
+  const openFilterButton = event.target.closest("[data-open-library-filter]");
+  if (openFilterButton) {
+    openLibraryFilter(openFilterButton.dataset.openLibraryFilter);
+    return;
+  }
+
+  const filterTagButton = event.target.closest("[data-filter-tag]");
+  if (filterTagButton && libraryFilterDraft) {
+    const tag = filterTagButton.dataset.filterTag;
+    if (libraryFilterDraft.tags.has(tag)) libraryFilterDraft.tags.delete(tag);
+    else libraryFilterDraft.tags.add(tag);
+    syncLibraryFilterDialog();
+    return;
+  }
+
+  const sortFieldButton = event.target.closest("[data-sort-field]");
+  if (sortFieldButton && libraryFilterDraft) {
+    libraryFilterDraft.sortField = sortFieldButton.dataset.sortField;
+    syncLibraryFilterDialog();
+    return;
+  }
+
+  const sortDirectionButton = event.target.closest("[data-sort-direction]");
+  if (sortDirectionButton && libraryFilterDraft) {
+    libraryFilterDraft.sortDirection = sortDirectionButton.dataset.sortDirection;
+    syncLibraryFilterDialog();
+    return;
+  }
+
+  if (event.target.closest("[data-library-filter-cancel]")) {
+    libraryFilterDialog.close();
+    return;
+  }
+
+  if (event.target.closest("[data-library-filter-apply]")) {
+    applyLibraryFilterDraft();
     return;
   }
 
@@ -765,14 +867,38 @@ function updateProgress(progress, data) {
   bar.querySelector("span").style.width = `${data.percent}%`;
 }
 
-function filterShowView(input) {
-  const view = input?.closest("[data-view]");
+function filterShowView(viewOrInput) {
+  const view = viewOrInput?.matches?.("[data-view]")
+    ? viewOrInput
+    : viewOrInput?.closest("[data-view]");
   if (!view) return;
+  const preferences = libraryViewPreferences[view.dataset.view];
+  if (!preferences) return;
+  const input = view.querySelector("[data-show-search]");
   const query = input.value.trim().toLocaleLowerCase();
   const cards = [...view.querySelectorAll(".show-card")];
+  const list = view.querySelector(".show-list");
+
+  cards.sort((first, second) => {
+    const firstValue = first.dataset[preferences.sortField] || "";
+    const secondValue = second.dataset[preferences.sortField] || "";
+    const comparison = firstValue.localeCompare(secondValue, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    if (comparison !== 0) {
+      return preferences.sortDirection === "asc" ? comparison : -comparison;
+    }
+    return second.dataset.showName.localeCompare(first.dataset.showName);
+  });
+  cards.forEach((card) => list.append(card));
+
   let visibleCount = 0;
   cards.forEach((card) => {
-    const visible = card.dataset.showName.includes(query);
+    const matchesSearch = card.dataset.showName.includes(query);
+    const matchesTags = preferences.tags.size === 0
+      || preferences.tags.has(card.dataset.progressState);
+    const visible = matchesSearch && matchesTags;
     card.hidden = !visible;
     if (visible) visibleCount += 1;
   });
@@ -781,12 +907,14 @@ function filterShowView(input) {
 }
 
 function filterAllShowViews() {
-  document.querySelectorAll("[data-show-search]").forEach(filterShowView);
+  ["watching", "archive"].forEach((viewName) => filterShowView(views.get(viewName)));
 }
 
 document.querySelectorAll("[data-show-search]").forEach((input) => {
   input.addEventListener("input", () => filterShowView(input));
 });
+
+filterAllShowViews();
 
 document.querySelector("[data-discover-search]")?.addEventListener("input", (event) => {
   const query = event.target.value.trim();
@@ -822,6 +950,11 @@ removeDialog?.addEventListener("close", () => {
 datePicker?.addEventListener("close", () => {
   datePickerTarget = null;
   datePickerSelectedDate = null;
+});
+
+libraryFilterDialog?.addEventListener("close", () => {
+  libraryFilterView = null;
+  libraryFilterDraft = null;
 });
 
 function showSnackbar(message) {

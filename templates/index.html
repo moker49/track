@@ -1,85 +1,153 @@
 {% extends "base.html" %}
 {% block content %}
-  <section class="app-view is-active" data-view="watching" aria-label="Watching">
-    {% include "watching.html" %}
-  </section>
+<section class="app-view is-active" data-view="watching" aria-label="Watching">
+  {% include "watching.html" %}
+</section>
 
-  <section class="app-view" data-view="archive" aria-label="Archive" hidden>
-    {% include "archive.html" %}
-  </section>
+<section class="app-view" data-view="archive" aria-label="Archive" hidden>
+  {% include "archive.html" %}
+</section>
 
-  <section class="app-view" data-view="discover" aria-label="Discover" hidden>
-    {% include "search.html" %}
-  </section>
+<section class="app-view" data-view="discover" aria-label="Discover" hidden>
+  {% include "search.html" %}
+</section>
 
-  <section class="app-view" data-view="detail" aria-label="Show details" aria-live="polite" hidden></section>
+<section class="app-view" data-view="detail" aria-label="Show details" aria-live="polite" hidden></section>
 
-  <template id="detail-skeleton-template">
-    <header class="detail-app-bar">
-      <button class="icon-button" type="button" data-detail-back aria-label="Back to Watching">
-        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+<template id="detail-skeleton-template">
+  <header class="detail-app-bar">
+    <button class="icon-button" type="button" data-detail-back aria-label="Back to Watching">
+      <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+    </button>
+    <span data-detail-skeleton-title>Show details</span>
+  </header>
+  <div class="detail-skeleton" aria-label="Loading show details" aria-busy="true">
+    <div class="skeleton-hero">
+      <span class="skeleton-block skeleton-poster"></span>
+      <div class="skeleton-copy">
+        <span class="skeleton-block skeleton-chip"></span>
+        <span class="skeleton-block skeleton-title"></span>
+        <span class="skeleton-block skeleton-line short"></span>
+      </div>
+    </div>
+    <div class="skeleton-body">
+      <span class="skeleton-block skeleton-line medium"></span>
+      <span class="skeleton-block skeleton-line"></span>
+      <span class="skeleton-block skeleton-line"></span>
+      <span class="skeleton-block skeleton-progress"></span>
+      <span class="skeleton-block skeleton-season"></span>
+      <span class="skeleton-block skeleton-season"></span>
+    </div>
+  </div>
+</template>
+
+<div class="snackbar" role="status" aria-live="polite" hidden></div>
+
+<dialog class="confirm-dialog" data-remove-dialog>
+  <div class="dialog-icon material-symbols-rounded" aria-hidden="true">delete</div>
+  <h2>Remove show?</h2>
+  <p>This removes the show, its episodes, and all watch history from this device.</p>
+  <div class="dialog-actions">
+    <button type="button" data-cancel-remove>Cancel</button>
+    <button class="danger-action" type="button" data-confirm-remove>Remove</button>
+  </div>
+</dialog>
+
+<dialog class="date-picker" data-date-picker aria-labelledby="date-picker-title">
+  <div class="date-picker-header">
+    <span id="date-picker-title">Select watch date</span>
+    <strong data-date-picker-selection>No date set</strong>
+  </div>
+  <div class="date-picker-calendar">
+    <div class="date-picker-month-bar">
+      <strong data-date-picker-month></strong>
+      <span class="date-picker-month-actions">
+        <button class="icon-button" type="button" data-date-picker-previous aria-label="Previous month">
+          <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
+        </button>
+        <button class="icon-button" type="button" data-date-picker-next aria-label="Next month">
+          <span class="material-symbols-rounded" aria-hidden="true">chevron_right</span>
+        </button>
+      </span>
+    </div>
+    <div class="date-picker-weekdays" aria-hidden="true">
+      <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+    </div>
+    <div class="date-picker-grid" role="grid" data-date-picker-grid></div>
+  </div>
+  <div class="date-picker-actions">
+    <button type="button" data-date-picker-clear>Clear</button>
+    <span></span>
+    <button type="button" data-date-picker-cancel>Cancel</button>
+    <button type="button" data-date-picker-save>OK</button>
+  </div>
+</dialog>
+
+<dialog class="library-filter-dialog" data-library-filter-dialog aria-labelledby="library-filter-title">
+  <div class="filter-dialog-shell">
+    <header class="filter-fullscreen-app-bar">
+      <button class="icon-button" type="button" data-library-filter-cancel aria-label="Close filters">
+        <span class="material-symbols-rounded" aria-hidden="true">close</span>
       </button>
-      <span data-detail-skeleton-title>Show details</span>
+      <h2 id="library-filter-title">Filters</h2>
+      <button class="filter-done-button" type="button" data-library-filter-apply>Done</button>
     </header>
-    <div class="detail-skeleton" aria-label="Loading show details" aria-busy="true">
-      <div class="skeleton-hero">
-        <span class="skeleton-block skeleton-poster"></span>
-        <div class="skeleton-copy">
-          <span class="skeleton-block skeleton-chip"></span>
-          <span class="skeleton-block skeleton-title"></span>
-          <span class="skeleton-block skeleton-line short"></span>
+
+    <div class="filter-dialog-content">
+      <section class="filter-dialog-section" aria-labelledby="filter-status-title">
+        <h3 id="filter-status-title">Status</h3>
+        <div class="md-button-group status-button-group" data-filter-tag-group>
+          <button type="button" data-filter-tag="not-started" aria-pressed="false">
+            <span class="material-symbols-rounded" aria-hidden="true">check</span>
+            <span>New</span>
+          </button>
+          <button type="button" data-filter-tag="in-progress" aria-pressed="false">
+            <span class="material-symbols-rounded" aria-hidden="true">check</span>
+            <span>Watching</span>
+          </button>
+          <button type="button" data-filter-tag="finished" aria-pressed="false">
+            <span class="material-symbols-rounded" aria-hidden="true">check</span>
+            <span>Finished</span>
+          </button>
+          <button type="button" data-filter-tag="stopped" aria-pressed="false">
+            <span class="material-symbols-rounded" aria-hidden="true">check</span>
+            <span>Stopped</span>
+          </button>
         </div>
-      </div>
-      <div class="skeleton-body">
-        <span class="skeleton-block skeleton-line medium"></span>
-        <span class="skeleton-block skeleton-line"></span>
-        <span class="skeleton-block skeleton-line"></span>
-        <span class="skeleton-block skeleton-progress"></span>
-        <span class="skeleton-block skeleton-season"></span>
-        <span class="skeleton-block skeleton-season"></span>
-      </div>
-    </div>
-  </template>
+      </section>
 
-  <div class="snackbar" role="status" aria-live="polite" hidden></div>
+      <div class="filter-dialog-divider"></div>
 
-  <dialog class="confirm-dialog" data-remove-dialog>
-    <div class="dialog-icon material-symbols-rounded" aria-hidden="true">delete</div>
-    <h2>Remove show?</h2>
-    <p>This removes the show, its episodes, and all watch history from this device.</p>
-    <div class="dialog-actions">
-      <button type="button" data-cancel-remove>Cancel</button>
-      <button class="danger-action" type="button" data-confirm-remove>Remove</button>
-    </div>
-  </dialog>
-
-  <dialog class="date-picker" data-date-picker aria-labelledby="date-picker-title">
-    <div class="date-picker-header">
-      <span id="date-picker-title">Select watch date</span>
-      <strong data-date-picker-selection>No date set</strong>
-    </div>
-    <div class="date-picker-calendar">
-      <div class="date-picker-month-bar">
-        <strong data-date-picker-month></strong>
-        <span class="date-picker-month-actions">
-          <button class="icon-button" type="button" data-date-picker-previous aria-label="Previous month">
-            <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
+      <section class="filter-dialog-section" aria-labelledby="filter-sort-title">
+        <h3 id="filter-sort-title">Sort by</h3>
+        <div class="md-button-group sort-field-button-group" data-sort-field-group aria-label="Sort field">
+          <button type="button" data-sort-field="name" aria-pressed="true">
+            <span class="material-symbols-rounded" aria-hidden="true">check</span>
+            <span>Name</span>
           </button>
-          <button class="icon-button" type="button" data-date-picker-next aria-label="Next month">
-            <span class="material-symbols-rounded" aria-hidden="true">chevron_right</span>
+          <button type="button" data-sort-field="dateAdded" aria-pressed="false">
+            <span class="material-symbols-rounded" aria-hidden="true">check</span>
+            <span>Date added</span>
           </button>
-        </span>
-      </div>
-      <div class="date-picker-weekdays" aria-hidden="true">
-        <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
-      </div>
-      <div class="date-picker-grid" role="grid" data-date-picker-grid></div>
+          <button type="button" data-sort-field="releaseDate" aria-pressed="false">
+            <span class="material-symbols-rounded" aria-hidden="true">check</span>
+            <span>Release date</span>
+          </button>
+        </div>
+
+        <h3 class="direction-heading">Direction</h3>
+        <div class="md-button-group direction-button-group" data-sort-direction-group aria-label="Sort direction">
+          <button type="button" data-sort-direction="asc" aria-pressed="true">
+            <span class="material-symbols-rounded" aria-hidden="true">check</span>
+            <span>Ascending</span>
+          </button>
+          <button type="button" data-sort-direction="desc" aria-pressed="false">
+            <span class="material-symbols-rounded" aria-hidden="true">check</span>
+            <span>Descending</span>
+          </button>
+        </div>
+      </section>
     </div>
-    <div class="date-picker-actions">
-      <button type="button" data-date-picker-clear>Clear</button>
-      <span></span>
-      <button type="button" data-date-picker-cancel>Cancel</button>
-      <button type="button" data-date-picker-save>OK</button>
-    </div>
-  </dialog>
+  </div>
+</dialog>
 {% endblock %}

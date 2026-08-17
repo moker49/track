@@ -1,7 +1,7 @@
 {% macro show_card(show) %}
   {% set percent = ((show.watched_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
   {% if show.watched_count == 0 %}
-    {% set progress_tag = "Haven't started" %}
+    {% set progress_tag = "New" %}
     {% set progress_state = "not-started" %}
   {% elif show.episode_count and show.watched_count >= show.episode_count %}
     {% set progress_tag = "Finished" %}
@@ -10,14 +10,14 @@
     {% set progress_tag = "Stopped" %}
     {% set progress_state = "stopped" %}
   {% else %}
-    {% set progress_tag = "In progress" %}
+    {% set progress_tag = "Watching" %}
     {% set progress_state = "in-progress" %}
   {% endif %}
   {% set target_state = 'ACTIVE' if show.state == 'ARCHIVED' else 'ARCHIVED' %}
   {% set move_label = 'Un-archive' if show.state == 'ARCHIVED' else 'Archive' %}
   {% set move_icon = 'unarchive' if show.state == 'ARCHIVED' else 'archive' %}
 
-  <article class="show-card" data-show-id="{{ show.id }}" data-show-name="{{ show.name|lower }}" data-show-state="{{ show.state }}" data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}" data-progress-state="{{ progress_state }}">
+  <article class="show-card" data-show-id="{{ show.id }}" data-show-name="{{ show.name|lower }}" data-date-added="{{ show.added_at }}" data-release-date="{{ show.first_air_date }}" data-show-state="{{ show.state }}" data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}" data-progress-state="{{ progress_state }}">
     <button class="show-card-open" type="button" data-show-open aria-label="Open {{ show.name }}">
       <div class="poster poster-purple" aria-hidden="true">
         <span class="poster-mark">{{ 'GOT' if show.name == 'Game of Thrones' else 'BB' }}</span>

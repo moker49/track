@@ -217,7 +217,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             WHERE s.state IN ('ACTIVE', 'ARCHIVED')
             GROUP BY s.id
             ORDER BY CASE s.state WHEN 'ACTIVE' THEN 0 ELSE 1 END,
-                     s.name COLLATE NOCASE
+                     s.name COLLATE NOCASE ASC
             """
         ).fetchall()
         popular = db.execute(
