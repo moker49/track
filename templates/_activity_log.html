@@ -1,0 +1,33 @@
+<details class="activity-log" data-activity-log>
+  <summary>
+    <span class="material-symbols-rounded activity-heading-icon" aria-hidden="true">history</span>
+    <span class="activity-heading-copy">
+      <strong>{{ activity_title }}</strong>
+      <small><span data-activity-count>{{ activity_items|length }}</span> <span data-activity-count-label>{{ 'entries' if activity_items|length != 1 else 'entry' }}</span></small>
+    </span>
+    <span class="material-symbols-rounded activity-chevron" aria-hidden="true">expand_more</span>
+  </summary>
+  <ol class="activity-list" data-activity-list>
+    {% for item in activity_items %}
+    {% set event_type = item.event_type if activity_mode == 'show' else 'watched' %}
+    {% set event_title = item.title if activity_mode == 'show' else 'Watched' %}
+    {% set event_time = item.occurred_at if activity_mode == 'show' else item.watched_at %}
+    <li class="activity-item" data-activity-type="{{ event_type }}"{% if activity_mode == 'show' and item.season_id %} data-season-id="{{ item.season_id }}"{% endif %}>
+      <span class="material-symbols-rounded activity-icon" aria-hidden="true">
+        {%- if event_type == 'added' -%}add_circle
+        {%- elif event_type == 'archived' -%}archive
+        {%- elif event_type == 'unarchived' -%}unarchive
+        {%- elif event_type == 'season_watched' -%}done_all
+        {%- else -%}check_circle
+        {%- endif -%}
+      </span>
+      <span class="activity-copy">
+        <strong>{{ event_title }}</strong>
+        <time datetime="{{ event_time }}" data-local-datetime>{{ event_time }}</time>
+      </span>
+    </li>
+    {% else %}
+    <li class="activity-empty" data-activity-empty>{{ activity_empty }}</li>
+    {% endfor %}
+  </ol>
+</details>

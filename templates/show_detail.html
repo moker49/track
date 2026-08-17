@@ -10,14 +10,14 @@
 {% else %}
 {% set progress_state = 'in-progress' %}
 {% endif %}
-<div data-detail-show data-show-id="{{ show.id }}" data-show-state="{{ show.state }}"
+<div data-detail-show data-detail-title="{{ show.name }}" data-show-id="{{ show.id }}" data-show-state="{{ show.state }}"
   data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
   data-progress-state="{{ progress_state }}">
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back aria-label="Back">
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
-    <span class="detail-app-bar-title">Show details</span>
+    <span class="detail-app-bar-title">{{ show.name }}</span>
     <div class="menu-anchor">
       <button class="icon-button" type="button" data-show-menu-button aria-label="More options for {{ show.name }}"
         aria-expanded="false">
@@ -48,7 +48,6 @@
       <p>{{ show.first_air_date[:4] }} · {{ show.status }}<br>{{ show.genres }}</p>
     </div>
   </section>
-</div>
 
 <section class="detail-content">
   <p class="tagline">“{{ show.tagline }}”</p>
@@ -117,13 +116,13 @@
         {% for episode in episodes %}
         <article class="episode {{ 'is-watched' if episode.watch_count else '' }}" data-episode-id="{{ episode.id }}"
           data-watch-count="{{ episode.watch_count }}">
-          <div class="episode-copy">
+          <button class="episode-copy episode-open" type="button" data-open-episode aria-label="Open {{ episode.name }} details">
             <div class="episode-title">
               <span>{{ episode.episode_number }}</span>
               <strong>{{ episode.name }}</strong>
             </div>
             <p>{{ episode.air_date }} · {{ episode.runtime_minutes }} min</p>
-          </div>
+          </button>
           <div class="watch-control-wrap">
             <button class="check-control" type="button" role="checkbox"
               aria-checked="{{ 'true' if episode.watch_count else 'false' }}"
@@ -153,5 +152,11 @@
     </details>
     {% endfor %}
   </div>
+
+  {% set activity_title = 'Activity' %}
+  {% set activity_items = activity %}
+  {% set activity_mode = 'show' %}
+  {% set activity_empty = 'No activity yet.' %}
+  {% include '_activity_log.html' %}
 </section>
 </div>

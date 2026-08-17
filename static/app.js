@@ -46,14 +46,37 @@ function renderDetailSkeleton() {
   detailView.replaceChildren(template.content.cloneNode(true));
 }
 
-async function openShow(showId, parentView = currentView) {
-  detailParentView = parentView === "archive" ? "archive" : "watching";
+function formatLocalTimes(root = document) {
+  root.querySelectorAll("[data-local-datetime]").forEach((time) => {
+    const date = new Date(time.dateTime);
+    if (Number.isNaN(date.getTime())) return;
+    time.textContent = new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(date);
+  });
+}
+
+function finishDetailLoad() {
+  const detailView = views.get("detail");
+  formatLocalTimes(detailView);
+  const title = detailView.querySelector("[data-detail-title]")?.dataset.detailTitle;
+  if (title) document.title = `${title} \u00B7 Track`;
+  window.scrollTo({ top: 0, behavior: "auto" });
+}
+
+function prepareDetailLoad() {
   if (detailRequest) detailRequest.abort();
   detailRequest = new AbortController();
-
   renderDetailSkeleton();
   scrollPositions.detail = 0;
-  showView("detail");
+  if (currentView === "detail") window.scrollTo({ top: 0, behavior: "auto" });
+  else showView("detail");
+}
+
+async function openShow(showId, parentView = currentView) {
+  detailParentView = parentView === "archive" ? "archive" : "watching";
+  prepareDetailLoad();
 
   try {
     const response = await fetch(`/api/shows/${showId}`, {
@@ -62,6 +85,7 @@ async function openShow(showId, parentView = currentView) {
     });
     if (!response.ok) throw new Error("Could not load show");
     views.get("detail").innerHTML = await response.text();
+    finishDetailLoad();
   } catch (error) {
     if (error.name === "AbortError") return;
     views.get("detail").innerHTML = `
@@ -78,6 +102,83 @@ async function openShow(showId, parentView = currentView) {
         <button class="filled-button" type="button" data-retry-show="${showId}">Try again</button>
       </div>`;
   }
+}
+
+async function openEpisode(episodeId) {
+  prepareDetailLoad();
+
+  try {
+    const response = await fetch(`/api/episodes/${episodeId}`, {
+      headers: { "X-Requested-With": "Track" },
+      signal: detailRequest.signal,
+    });
+    if (!response.ok) throw new Error("Could not load episode");
+    views.get("detail").innerHTML = await response.text();
+    finishDetailLoad();
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    views.get("detail").innerHTML = `
+      <header class="detail-app-bar">
+        <button class="icon-button" type="button" data-detail-back aria-label="Back">
+          <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+        </button>
+        <span>Episode</span>
+      </header>
+      <div class="empty-state detail-error">
+        <span class="empty-icon material-symbols-rounded" aria-hidden="true">cloud_off</span>
+        <h2>Couldn't load this episode</h2>
+        <p>Check the connection and try again.</p>
+        <button class="filled-button" type="button" data-retry-episode="${episodeId}">Try again</button>
+      </div>`;
+  }
+}
+
+function syncActivityCount(log) {
+  if (!log) return;
+  const count = log.querySelectorAll(".activity-item").length;
+  log.querySelector("[data-activity-count]").textContent = count;
+  log.querySelector("[data-activity-count-label]").textContent = count === 1 ? "entry" : "entries";
+}
+
+function addActivityItem({ type, title, occurredAt, seasonId = null }) {
+  const log = views.get("detail").querySelector("[data-activity-log]");
+  const list = log?.querySelector("[data-activity-list]");
+  if (!list || !occurredAt) return;
+
+  list.querySelector("[data-activity-empty]")?.remove();
+  const item = document.createElement("li");
+  item.className = "activity-item";
+  item.dataset.activityType = type;
+  if (seasonId) item.dataset.seasonId = seasonId;
+
+  const icon = document.createElement("span");
+  icon.className = "material-symbols-rounded activity-icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.textContent = {
+    archived: "archive",
+    unarchived: "unarchive",
+    season_watched: "done_all",
+  }[type] || "history";
+
+  const copy = document.createElement("span");
+  copy.className = "activity-copy";
+  const heading = document.createElement("strong");
+  heading.textContent = title;
+  const time = document.createElement("time");
+  time.dateTime = occurredAt;
+  time.dataset.localDatetime = "";
+  time.textContent = occurredAt;
+  copy.append(heading, time);
+  item.append(icon, copy);
+  list.prepend(item);
+  formatLocalTimes(item);
+  syncActivityCount(log);
+}
+
+function removeLatestSeasonActivity(seasonId) {
+  const log = views.get("detail").querySelector("[data-activity-log]");
+  log?.querySelector(`.activity-item[data-activity-type="season_watched"][data-season-id="${seasonId}"]`)?.remove();
+  syncActivityCount(log);
 }
 
 function closeShowMenus(exceptMenu = null) {
@@ -177,6 +278,14 @@ async function moveShow(showElement, targetState, actionButton) {
     const card = document.querySelector(`.show-card[data-show-id="${showId}"]`);
     document.querySelector(`[data-show-list="${data.state}"]`)?.append(card);
     updateShowRepresentations(showId, data.state, data.move_label, data.move_icon);
+    if (currentView === "detail"
+        && views.get("detail").querySelector(`[data-detail-show][data-show-id="${showId}"]`)) {
+      addActivityItem({
+        type: data.activity_type,
+        title: data.activity_title,
+        occurredAt: data.changed_at,
+      });
+    }
     detailParentView = data.state === "ARCHIVED" ? "archive" : "watching";
     if (currentView === "detail") updateActiveNav(detailParentView);
     syncStateSections();
@@ -314,6 +423,16 @@ async function changeSeasonWatchCount(season, action, trigger) {
     });
     syncSeasonFromEpisodes(season);
     applyShowProgress(data);
+    if (action === "increment") {
+      addActivityItem({
+        type: "season_watched",
+        title: `${data.season_name} watched`,
+        occurredAt: data.season_watched_at,
+        seasonId: String(data.season_id),
+      });
+    } else {
+      removeLatestSeasonActivity(String(data.season_id));
+    }
   } catch (_error) {
     showSnackbar("Couldn't update this season. Try again.");
   } finally {
@@ -395,17 +514,34 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  if (event.target.closest("[data-detail-back]")) {
+  const detailBackButton = event.target.closest("[data-detail-back]");
+  if (detailBackButton) {
     closeShowMenus();
     closeWatchMenus();
     if (detailRequest) detailRequest.abort();
-    showView(detailParentView);
+    if (detailBackButton.dataset.backShowId) {
+      openShow(detailBackButton.dataset.backShowId, detailParentView);
+    } else {
+      showView(detailParentView);
+    }
     return;
   }
 
   const retryButton = event.target.closest("[data-retry-show]");
   if (retryButton) {
     openShow(retryButton.dataset.retryShow, detailParentView);
+    return;
+  }
+
+  const retryEpisodeButton = event.target.closest("[data-retry-episode]");
+  if (retryEpisodeButton) {
+    openEpisode(retryEpisodeButton.dataset.retryEpisode);
+    return;
+  }
+
+  const episodeOpenButton = event.target.closest("[data-open-episode]");
+  if (episodeOpenButton) {
+    openEpisode(episodeOpenButton.closest("[data-episode-id]").dataset.episodeId);
     return;
   }
 

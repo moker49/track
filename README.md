@@ -13,7 +13,7 @@ Open `http://127.0.0.1:5050`. The SQLite database and realistic sample show are 
 
 ## Navigation
 
-The browser loads one persistent application shell at `/`. Watching, Archive, and Discover are included in the initial HTML and switch in place without changing the URL. Selecting a show renders an immediate skeleton and fetches only the show-detail fragment from `/api/shows/<id>`; the outer app bar and navigation are never replaced.
+The browser loads one persistent application shell at `/`. Watching, Archive, and Discover are included in the initial HTML and switch in place without changing the URL. Selecting a show or episode renders an immediate skeleton and fetches only its detail fragment; the outer app shell and navigation are never replaced.
 
 ## Data model
 
@@ -21,6 +21,7 @@ The browser loads one persistent application shell at `/`. Watching, Archive, an
 - `show_state_history` retains every state entry for future transitions and reporting.
 - `seasons` and `episodes` store local TMDB-shaped metadata and IDs.
 - `episode_watch_history` stores one timestamped row per watch event, supporting rewatches. Unchecking retires active events without deleting their original watch dates.
+- `season_watch_history` records whole-season watch actions. Unwatching retires the latest visible season entry while preserving its original timestamp.
 - `popular_show_stubs` supplies placeholder Search content until TMDB integration.
 
-The current checkbox represents the episode's current watched state. Checking adds a watch event; unchecking timestamps that event as inactive while retaining its history. The schema supports adding individual rewatch events later.
+Episode and season controls support individual rewatches. Their collapsible activity logs show active watch entries; unwatching removes the latest entry from the visible log while retaining the underlying historical row.

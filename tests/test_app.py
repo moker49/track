@@ -55,6 +55,11 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'<details class="season" open', detail.data)
         self.assertIn(b"data-season-watch", detail.data)
         self.assertIn(b"data-episode-watch", detail.data)
+        self.assertIn(b'data-detail-title="Breaking Bad"', detail.data)
+        self.assertIn(b'class="detail-app-bar-title">Breaking Bad</span>', detail.data)
+        self.assertIn(b'data-activity-log', detail.data)
+        self.assertIn(b"Added to My Shows", detail.data)
+        self.assertNotIn(b'<details class="activity-log" open', detail.data)
         self.assertIn(b"rewatch", detail.data)
         self.assertIn(b"unwatch", detail.data)
         self.assertIn(b'aria-checked="mixed"', detail.data)
@@ -72,7 +77,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(missing.status_code, 404)
 
     def test_legacy_page_urls_redirect_to_shell(self):
-        for path in ("/search", "/search?q=andor", "/shows/1"):
+        for path in ("/search", "/search?q=andor", "/shows/1", "/episodes/1"):
             response = self.client.get(path)
             self.assertEqual(response.status_code, 302)
             self.assertEqual(response.headers["Location"], "/")
@@ -183,6 +188,65 @@ class TrackAppTest(unittest.TestCase):
             )
         )
 
+    def test_season_watch_activity_is_retired_by_unwatch(self):
+        watched = self.client.post(
+            "/api/seasons/2/watch-count", json={"action": "increment"}
+        )
+        self.assertEqual(watched.status_code, 200)
+        self.assertIsNotNone(watched.get_json()["season_watched_at"])
+
+        detail = self.client.get("/api/shows/1")
+        self.assertIn(b"Season 2 watched", detail.data)
+        self.assertIn(b'data-season-id="2"', detail.data)
+
+        unwatched = self.client.post(
+            "/api/seasons/2/watch-count", json={"action": "decrement"}
+        )
+        self.assertEqual(unwatched.status_code, 200)
+        detail_after = self.client.get("/api/shows/1")
+        self.assertNotIn(b"Season 2 watched", detail_after.data)
+
+        db = sqlite3.connect(self.database)
+        rows = db.execute(
+            "SELECT watched_at, unwatched_at FROM season_watch_history WHERE season_id = 2"
+        ).fetchall()
+        db.close()
+        self.assertEqual(len(rows), 1)
+        self.assertIsNotNone(rows[0][0])
+        self.assertIsNotNone(rows[0][1])
+
+    def test_episode_detail_is_a_fragment_with_active_watch_log(self):
+        detail = self.client.get("/api/episodes/1")
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn(b'data-detail-episode', detail.data)
+        self.assertIn(b'data-detail-title="Pilot"', detail.data)
+        self.assertIn(b'class="detail-app-bar-title">Pilot</span>', detail.data)
+        self.assertIn(b'data-back-show-id="1"', detail.data)
+        self.assertIn(b"Watch log", detail.data)
+        self.assertIn(b'data-activity-type="watched"', detail.data)
+        self.assertIn(b'class="episode-middle"', detail.data)
+        self.assertNotIn(b"season-list", detail.data)
+        self.assertNotIn(b"<!doctype html>", detail.data.lower())
+
+        self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "increment"}
+        )
+        rewatched_detail = self.client.get("/api/episodes/1")
+        self.assertEqual(
+            rewatched_detail.data.count(b'data-activity-type="watched"'), 2
+        )
+
+        self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "decrement"}
+        )
+        unwatched_detail = self.client.get("/api/episodes/1")
+        self.assertEqual(
+            unwatched_detail.data.count(b'data-activity-type="watched"'), 1
+        )
+
+        missing = self.client.get("/api/episodes/999")
+        self.assertEqual(missing.status_code, 404)
+
     def test_rewatch_count_is_rendered_in_checkbox_control(self):
         self.client.post(
             "/api/episodes/1/watch-count", json={"action": "increment"}
@@ -256,6 +320,10 @@ class TrackAppTest(unittest.TestCase):
         db.close()
         self.assertEqual(state, "ACTIVE")
         self.assertEqual([row[0] for row in transitions], ["ACTIVE", "ARCHIVED"])
+
+        detail = self.client.get("/api/shows/1")
+        self.assertIn(b">Archived</strong>", detail.data)
+        self.assertIn(b">Un-archived</strong>", detail.data)
 
         invalid = self.client.post(
             "/api/shows/1/state", json={"state": "WATCHLIST"}

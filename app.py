@@ -87,6 +87,57 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
         return payload
 
+    def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]:
+        return db.execute(
+            """
+            WITH ordered_states AS (
+                SELECT state,
+                       entered_at,
+                       LAG(state) OVER (ORDER BY entered_at, id) AS previous_state
+                FROM show_state_history
+                WHERE show_id = ?
+            ),
+            activity AS (
+                SELECT 'added' AS event_type,
+                       'Added to My Shows' AS title,
+                       added_at AS occurred_at,
+                       NULL AS season_id
+                FROM shows
+                WHERE id = ?
+
+                UNION ALL
+
+                SELECT CASE state
+                           WHEN 'ARCHIVED' THEN 'archived'
+                           ELSE 'unarchived'
+                       END AS event_type,
+                       CASE state
+                           WHEN 'ARCHIVED' THEN 'Archived'
+                           ELSE 'Un-archived'
+                       END AS title,
+                       entered_at AS occurred_at,
+                       NULL AS season_id
+                FROM ordered_states
+                WHERE state = 'ARCHIVED'
+                   OR (state = 'ACTIVE' AND previous_state = 'ARCHIVED')
+
+                UNION ALL
+
+                SELECT 'season_watched' AS event_type,
+                       sn.name || ' watched' AS title,
+                       swh.watched_at AS occurred_at,
+                       sn.id AS season_id
+                FROM season_watch_history swh
+                JOIN seasons sn ON sn.id = swh.season_id
+                WHERE sn.show_id = ? AND swh.unwatched_at IS NULL
+            )
+            SELECT event_type, title, occurred_at, season_id
+            FROM activity
+            ORDER BY occurred_at DESC
+            """,
+            (show_id, show_id, show_id),
+        ).fetchall()
+
     @app.get("/")
     def index():
         db = get_db()
@@ -161,11 +212,54 @@ def create_app(test_config: dict | None = None) -> Flask:
             show=show,
             seasons=seasons,
             episodes_by_season=episodes_by_season,
+            activity=get_show_activity(db, show_id),
+        )
+
+    @app.get("/api/episodes/<int:episode_id>")
+    def episode_detail_fragment(episode_id: int):
+        db = get_db()
+        episode = db.execute(
+            """
+            SELECT e.*,
+                   sn.season_number,
+                   sn.name AS season_name,
+                   s.id AS show_id,
+                   s.name AS show_name,
+                   s.status AS show_status,
+                   s.genres AS show_genres,
+                   COUNT(wh.id) AS watch_count
+            FROM episodes e
+            JOIN seasons sn ON sn.id = e.season_id
+            JOIN shows s ON s.id = sn.show_id
+            LEFT JOIN episode_watch_history wh
+              ON wh.episode_id = e.id AND wh.unwatched_at IS NULL
+            WHERE e.id = ?
+            GROUP BY e.id
+            """,
+            (episode_id,),
+        ).fetchone()
+        if episode is None:
+            abort(404)
+
+        watch_log = db.execute(
+            """
+            SELECT watched_at
+            FROM episode_watch_history
+            WHERE episode_id = ? AND unwatched_at IS NULL
+            ORDER BY watched_at DESC, id DESC
+            """,
+            (episode_id,),
+        ).fetchall()
+        return render_template(
+            "episode_detail.html", episode=episode, watch_log=watch_log
         )
 
     @app.get("/shows/<int:_show_id>")
+    @app.get("/episodes/<int:_episode_id>")
     @app.get("/search")
-    def legacy_page_redirect(_show_id: int | None = None):
+    def legacy_page_redirect(
+        _show_id: int | None = None, _episode_id: int | None = None
+    ):
         return redirect(url_for("index"))
 
     @app.post("/api/shows/<int:show_id>/state")
@@ -182,6 +276,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if show is None:
             return jsonify(error="Show not found"), 404
 
+        changed_at = None
         if show["state"] != target_state:
             changed_at = utc_now()
             timestamp_column = (
@@ -209,6 +304,9 @@ def create_app(test_config: dict | None = None) -> Flask:
             state=target_state,
             move_label=("Un-archive" if target_state == "ARCHIVED" else "Archive"),
             move_icon=("unarchive" if target_state == "ARCHIVED" else "archive"),
+            activity_title=("Archived" if target_state == "ARCHIVED" else "Un-archived"),
+            activity_type=("archived" if target_state == "ARCHIVED" else "unarchived"),
+            changed_at=changed_at,
         )
 
     @app.delete("/api/shows/<int:show_id>")
@@ -324,7 +422,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         db = get_db()
         season = db.execute(
-            "SELECT id, show_id FROM seasons WHERE id = ?", (season_id,)
+            "SELECT id, show_id, name FROM seasons WHERE id = ?", (season_id,)
         ).fetchone()
         if season is None:
             return jsonify(error="Season not found"), 404
@@ -345,6 +443,14 @@ def create_app(test_config: dict | None = None) -> Flask:
                 """,
                 [(episode_id, changed_at) for episode_id in episode_ids],
             )
+            if episode_ids:
+                db.execute(
+                    """
+                    INSERT INTO season_watch_history (season_id, watched_at)
+                    VALUES (?, ?)
+                    """,
+                    (season_id, changed_at),
+                )
         else:
             latest_watches = db.execute(
                 """
@@ -360,6 +466,25 @@ def create_app(test_config: dict | None = None) -> Flask:
                 "UPDATE episode_watch_history SET unwatched_at = ? WHERE id = ?",
                 [(changed_at, row["id"]) for row in latest_watches],
             )
+            latest_season_watch = db.execute(
+                """
+                SELECT id
+                FROM season_watch_history
+                WHERE season_id = ? AND unwatched_at IS NULL
+                ORDER BY watched_at DESC, id DESC
+                LIMIT 1
+                """,
+                (season_id,),
+            ).fetchone()
+            if latest_season_watch is not None:
+                db.execute(
+                    """
+                    UPDATE season_watch_history
+                    SET unwatched_at = ?
+                    WHERE id = ?
+                    """,
+                    (changed_at, latest_season_watch["id"]),
+                )
         db.commit()
 
         episode_counts = [
@@ -372,11 +497,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         response = watch_payload(db, season["show_id"])
         response.update(
             season_id=season_id,
+            season_name=season["name"],
             episodes=episode_counts,
             season_episode_count=len(episode_counts),
             season_watched_count=sum(
                 1 for episode in episode_counts if episode["watch_count"] > 0
             ),
+            season_watched_at=(changed_at if action == "increment" and episode_ids else None),
         )
         return jsonify(response)
 
@@ -393,7 +520,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         }
         if "unwatched_at" not in watch_columns:
             db.execute("ALTER TABLE episode_watch_history ADD COLUMN unwatched_at TEXT")
+        season_watch_columns = {
+            row["name"] for row in db.execute("PRAGMA table_info(season_watch_history)")
+        }
+        if "unwatched_at" not in season_watch_columns:
+            db.execute("ALTER TABLE season_watch_history ADD COLUMN unwatched_at TEXT")
         seed_database(db)
+        db.execute("PRAGMA optimize")
 
     return app
 

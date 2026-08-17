@@ -59,9 +59,17 @@ CREATE TABLE IF NOT EXISTS episode_watch_history (
     unwatched_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS season_watch_history (
+    id INTEGER PRIMARY KEY,
+    season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+    watched_at TEXT NOT NULL,
+    unwatched_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_seasons_show ON seasons(show_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_season ON episodes(season_id);
 CREATE INDEX IF NOT EXISTS idx_watch_history_episode ON episode_watch_history(episode_id);
+CREATE INDEX IF NOT EXISTS idx_season_watch_history_season ON season_watch_history(season_id);
 CREATE INDEX IF NOT EXISTS idx_show_state_history_show ON show_state_history(show_id);
 
 CREATE TABLE IF NOT EXISTS popular_show_stubs (
