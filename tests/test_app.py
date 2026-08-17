@@ -27,6 +27,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-view="discover"', home.data)
         self.assertIn(b'data-view="detail"', home.data)
         self.assertIn(b'id="detail-skeleton-template"', home.data)
+        self.assertEqual(home.data.count(b"data-clear-search"), 2)
+        self.assertEqual(home.data.count(b">close</span>"), 2)
         self.assertIn(b'data-show-id="1"', home.data)
         self.assertNotIn(b'href="/search"', home.data)
         self.assertNotIn(b'href="/shows/1"', home.data)
@@ -39,6 +41,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Season 1", detail.data)
         self.assertIn(b"Seven Thirty-Seven", detail.data)
         self.assertIn(b"arrow_back", detail.data)
+        self.assertNotIn(b'<details class="season" open', detail.data)
         self.assertNotIn(b"<!doctype html>", detail.data.lower())
         self.assertNotIn(b"bottom-nav", detail.data)
 
@@ -59,6 +62,13 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(icon_font.status_code, 200)
         self.assertGreater(len(icon_font.data), 1_000_000)
         icon_font.close()
+
+        filled_font = self.client.get(
+            "/static/fonts/material-symbols-rounded-filled.ttf"
+        )
+        self.assertEqual(filled_font.status_code, 200)
+        self.assertGreater(len(filled_font.data), 1_000_000)
+        filled_font.close()
 
     def test_watched_toggle_updates_progress_and_preserves_history(self):
         unwatch = self.client.post("/api/episodes/1/watched", json={"watched": False})

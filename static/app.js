@@ -168,6 +168,24 @@ document.querySelector("[data-discover-search]")?.addEventListener("input", (eve
     : "";
 });
 
+document.querySelectorAll(".app-bar-search").forEach((searchForm) => {
+  const input = searchForm.querySelector('input[type="search"]');
+  const clearButton = searchForm.querySelector("[data-clear-search]");
+  if (!input || !clearButton) return;
+
+  const syncClearButton = () => {
+    clearButton.hidden = input.value.length === 0;
+  };
+
+  input.addEventListener("input", syncClearButton);
+  clearButton.addEventListener("click", () => {
+    input.value = "";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.focus();
+  });
+  syncClearButton();
+});
+
 function showSnackbar(message) {
   const snackbar = document.querySelector(".snackbar");
   if (!snackbar) return;

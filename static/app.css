@@ -6,6 +6,14 @@
   src: url("fonts/material-symbols-rounded.ttf") format("truetype");
 }
 
+@font-face {
+  font-family: "Material Symbols Rounded Filled";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("fonts/material-symbols-rounded-filled.ttf") format("truetype");
+}
+
 :root {
   --primary: hsl(263 70% 80%);
   --primary-dark: hsl(263 55% 72%);
@@ -315,6 +323,10 @@ a {
   background: var(--primary-light);
 }
 
+.nav-item.active .nav-icon .material-symbols-rounded {
+  font-family: "Material Symbols Rounded Filled";
+}
+
 .detail-app-bar {
   position: sticky;
   z-index: 10;
@@ -584,15 +596,50 @@ a {
 
 .app-bar-search input {
   width: 100%;
+  min-width: 0;
   border: 0;
   outline: 0;
   color: var(--on-surface);
   background: transparent;
+  appearance: none;
 }
 
 .app-bar-search input::placeholder {
   color: var(--on-surface-muted);
   opacity: 1;
+}
+
+.app-bar-search input::-webkit-search-cancel-button {
+  display: none;
+  appearance: none;
+}
+
+.app-bar-search input::-ms-clear {
+  display: none;
+}
+
+.search-clear {
+  width: 40px;
+  height: 40px;
+  margin-right: -12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  flex: 0 0 40px;
+  place-items: center;
+  color: var(--on-surface-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.search-clear:active {
+  background: var(--scrim);
+}
+
+.search-clear:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .search-notice {

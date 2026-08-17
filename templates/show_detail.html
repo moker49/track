@@ -44,7 +44,7 @@
     {% for season in seasons %}
     {% set episodes = episodes_by_season[season.id] %}
     {% set watched_in_season = episodes|selectattr('watch_count', 'gt', 0)|list|length %}
-    <details class="season" {% if loop.first %}open{% endif %}>
+    <details class="season">
       <summary>
         <span class="season-chevron material-symbols-rounded" aria-hidden="true">expand_more</span>
         <span class="season-title">
