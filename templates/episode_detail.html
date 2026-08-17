@@ -3,7 +3,7 @@
     <button class="icon-button" type="button" data-detail-back data-back-show-id="{{ episode.show_id }}" aria-label="Back to {{ episode.show_name }}">
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
-    <span class="detail-app-bar-title">{{ episode.name }}</span>
+    <span class="detail-app-bar-title">Episode details</span>
   </header>
 
   <section class="hero episode-hero">
@@ -14,7 +14,7 @@
     <div class="hero-copy">
       <span class="state-label">Episode {{ episode.episode_number }}</span>
       <h1>{{ episode.name }}</h1>
-      <p>{{ episode.season_name }}<br>{{ episode.air_date }} · {{ episode.runtime_minutes }} min</p>
+      <p>{{ episode.season_name }}<br><time datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date }}</time> · {{ episode.runtime_minutes }} min</p>
     </div>
   </section>
 

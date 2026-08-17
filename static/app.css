@@ -626,10 +626,14 @@ a {
 }
 
 .episode-open {
+  position: relative;
+  align-self: stretch;
   width: 100%;
   padding: 8px 6px 8px 0;
   border: 0;
   border-radius: var(--radius-sm);
+  display: grid;
+  align-content: center;
   color: inherit;
   background: transparent;
   font: inherit;
@@ -648,14 +652,19 @@ a {
 
 .episode-title {
   display: flex;
-  gap: 9px;
   align-items: baseline;
+  padding-left: 27px;
 }
 
 .episode-title span {
-  flex: 0 0 18px;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 18px;
+  transform: translateY(-50%);
   color: var(--on-surface-muted);
   font-size: 0.76rem;
+  text-align: center;
 }
 
 .episode-title strong {
@@ -834,6 +843,10 @@ a {
   list-style: none;
 }
 
+.watch-log .activity-list {
+  border-top: 0;
+}
+
 .activity-item {
   min-height: 68px;
   padding: 10px 16px;
@@ -841,6 +854,41 @@ a {
   grid-template-columns: 32px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
+}
+
+.activity-item:has(.activity-item-button) {
+  padding: 0;
+  display: block;
+}
+
+.activity-item-button {
+  width: 100%;
+  min-height: 68px;
+  padding: 10px 12px 10px 16px;
+  border: 0;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.activity-item-button:active {
+  background: var(--scrim);
+}
+
+.activity-item-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -3px;
+}
+
+.activity-edit-icon {
+  place-self: center;
+  color: var(--on-surface-muted);
+  font-size: 20px;
 }
 
 .activity-item + .activity-item {
@@ -856,6 +904,136 @@ a {
   color: var(--on-surface-muted);
   font-size: 0.84rem;
   text-align: center;
+}
+
+.date-picker {
+  width: min(calc(100% - 32px), 360px);
+  padding: 0;
+  border: 0;
+  border-radius: 28px;
+  overflow: hidden;
+  color: var(--on-surface);
+  background: var(--surface-high);
+  box-shadow: 0 12px 36px var(--shadow);
+}
+
+.date-picker::backdrop {
+  background: var(--shadow);
+  backdrop-filter: blur(2px);
+}
+
+.date-picker-header {
+  min-height: 104px;
+  padding: 18px 24px;
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  color: var(--on-primary);
+  background: var(--primary);
+}
+
+.date-picker-header span {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.date-picker-header strong {
+  font-size: 1.75rem;
+  font-weight: 400;
+}
+
+.date-picker-calendar {
+  padding: 8px 16px 0;
+}
+
+.date-picker-month-bar {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.date-picker-month-bar > strong {
+  padding-left: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.date-picker-month-actions {
+  display: flex;
+}
+
+.date-picker-weekdays,
+.date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  place-items: center;
+}
+
+.date-picker-weekdays {
+  height: 32px;
+  color: var(--on-surface-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.date-picker-grid {
+  min-height: 240px;
+  grid-auto-rows: 40px;
+}
+
+.date-picker-day {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--on-surface);
+  background: transparent;
+  cursor: pointer;
+}
+
+.date-picker-day:active {
+  background: var(--scrim);
+}
+
+.date-picker-day.is-today {
+  border: 1px solid var(--primary);
+}
+
+.date-picker-day.is-selected {
+  border-color: var(--primary);
+  color: var(--on-primary);
+  background: var(--primary);
+}
+
+.date-picker-actions {
+  min-height: 64px;
+  padding: 8px 12px 12px;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.date-picker-actions button {
+  min-width: 64px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 20px;
+  color: var(--primary);
+  background: transparent;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.date-picker-actions button:active {
+  background: var(--scrim);
+}
+
+.date-picker-actions button:disabled {
+  opacity: 0.5;
 }
 
 .app-bar-search {

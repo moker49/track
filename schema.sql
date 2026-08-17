@@ -55,15 +55,15 @@ CREATE TABLE IF NOT EXISTS episodes (
 CREATE TABLE IF NOT EXISTS episode_watch_history (
     id INTEGER PRIMARY KEY,
     episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
-    watched_at TEXT NOT NULL,
-    unwatched_at TEXT
+    added_at TEXT NOT NULL,
+    watch_date TEXT
 );
 
 CREATE TABLE IF NOT EXISTS season_watch_history (
     id INTEGER PRIMARY KEY,
     season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
-    watched_at TEXT NOT NULL,
-    unwatched_at TEXT
+    added_at TEXT NOT NULL,
+    watch_date TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_seasons_show ON seasons(show_id);

@@ -20,8 +20,8 @@ The browser loads one persistent application shell at `/`. Watching, Archive, an
 - `shows` stores imported show metadata, the current state, and lifecycle timestamps.
 - `show_state_history` retains every state entry for future transitions and reporting.
 - `seasons` and `episodes` store local TMDB-shaped metadata and IDs.
-- `episode_watch_history` stores one timestamped row per watch event, supporting rewatches. Unchecking retires active events without deleting their original watch dates.
-- `season_watch_history` records whole-season watch actions. Unwatching retires the latest visible season entry while preserving its original timestamp.
+- `episode_watch_history` stores one row per watch event with an immutable `added_at` timestamp and an optional user-selected `watch_date`.
+- `season_watch_history` uses the same two-date model for whole-season watch actions.
 - `popular_show_stubs` supplies placeholder Search content until TMDB integration.
 
-Episode and season controls support individual rewatches. Their collapsible activity logs show active watch entries; unwatching removes the latest entry from the visible log while retaining the underlying historical row.
+Episode and season controls support individual rewatches. Watch logs use the chosen watch date when present and otherwise fall back to the added date. Unwatching removes the latest effective entry. Tapping a watch-log entry opens the date picker without changing normal watch behavior.

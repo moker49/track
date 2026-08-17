@@ -56,7 +56,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"data-season-watch", detail.data)
         self.assertIn(b"data-episode-watch", detail.data)
         self.assertIn(b'data-detail-title="Breaking Bad"', detail.data)
-        self.assertIn(b'class="detail-app-bar-title">Breaking Bad</span>', detail.data)
+        self.assertIn(b'class="detail-app-bar-title">Show details</span>', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
         self.assertIn(b"Added to My Shows", detail.data)
         self.assertNotIn(b'<details class="activity-log" open', detail.data)
@@ -103,6 +103,14 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('.season:has(.watch-menu:not([hidden]))', css)
         self.assertIn("z-index: 30", css)
 
+    def test_episode_number_is_vertically_centered(self):
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(".episode-title span", css)
+        self.assertIn("top: 50%", css)
+        self.assertIn("transform: translateY(-50%)", css)
+
     def test_watched_toggle_updates_progress_and_preserves_history(self):
         unwatch = self.client.post("/api/episodes/1/watched", json={"watched": False})
         self.assertEqual(unwatch.status_code, 200)
@@ -115,12 +123,12 @@ class TrackAppTest(unittest.TestCase):
 
         db = sqlite3.connect(self.database)
         rows = db.execute(
-            "SELECT watched_at, unwatched_at FROM episode_watch_history WHERE episode_id = 1 ORDER BY id"
+            "SELECT added_at, watch_date FROM episode_watch_history WHERE episode_id = 1 ORDER BY id"
         ).fetchall()
         db.close()
-        self.assertEqual(len(rows), 2)
-        self.assertIsNotNone(rows[0][1])
-        self.assertIsNone(rows[1][1])
+        self.assertEqual(len(rows), 1)
+        self.assertIsNotNone(rows[0][0])
+        self.assertIsNone(rows[0][1])
 
     def test_episode_watch_count_increments_and_decrements_one_event(self):
         increment = self.client.post(
@@ -145,11 +153,10 @@ class TrackAppTest(unittest.TestCase):
 
         db = sqlite3.connect(self.database)
         history = db.execute(
-            "SELECT watched_at, unwatched_at FROM episode_watch_history WHERE episode_id = 1 ORDER BY id"
+            "SELECT added_at, watch_date FROM episode_watch_history WHERE episode_id = 1 ORDER BY id"
         ).fetchall()
         db.close()
-        self.assertEqual(len(history), 2)
-        self.assertTrue(all(row[1] is not None for row in history))
+        self.assertEqual(history, [])
 
     def test_season_watch_count_is_atomic_and_progress_counts_distinct_episodes(self):
         first_watch = self.client.post(
@@ -194,36 +201,47 @@ class TrackAppTest(unittest.TestCase):
         )
         self.assertEqual(watched.status_code, 200)
         self.assertIsNotNone(watched.get_json()["season_watched_at"])
+        season_record_id = watched.get_json()["season_watch_record_id"]
+        dated = self.client.patch(
+            f"/api/watch-history/season/{season_record_id}/date",
+            json={"watch_date": "2025-05-15"},
+        )
+        self.assertEqual(dated.status_code, 200)
 
         detail = self.client.get("/api/shows/1")
         self.assertIn(b"Season 2 watched", detail.data)
         self.assertIn(b'data-season-id="2"', detail.data)
+        self.assertIn(b'data-watch-date="2025-05-15"', detail.data)
 
         unwatched = self.client.post(
             "/api/seasons/2/watch-count", json={"action": "decrement"}
         )
         self.assertEqual(unwatched.status_code, 200)
+        self.assertEqual(
+            unwatched.get_json()["season_watch_record_id"], season_record_id
+        )
         detail_after = self.client.get("/api/shows/1")
         self.assertNotIn(b"Season 2 watched", detail_after.data)
 
         db = sqlite3.connect(self.database)
         rows = db.execute(
-            "SELECT watched_at, unwatched_at FROM season_watch_history WHERE season_id = 2"
+            "SELECT added_at, watch_date FROM season_watch_history WHERE season_id = 2"
         ).fetchall()
         db.close()
-        self.assertEqual(len(rows), 1)
-        self.assertIsNotNone(rows[0][0])
-        self.assertIsNotNone(rows[0][1])
+        self.assertEqual(rows, [])
 
     def test_episode_detail_is_a_fragment_with_active_watch_log(self):
         detail = self.client.get("/api/episodes/1")
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b'data-detail-episode', detail.data)
         self.assertIn(b'data-detail-title="Pilot"', detail.data)
-        self.assertIn(b'class="detail-app-bar-title">Pilot</span>', detail.data)
+        self.assertIn(b'class="detail-app-bar-title">Episode details</span>', detail.data)
         self.assertIn(b'data-back-show-id="1"', detail.data)
         self.assertIn(b"Watch log", detail.data)
         self.assertIn(b'data-activity-type="watched"', detail.data)
+        self.assertIn(b'class="activity-log watch-log"', detail.data)
+        self.assertNotIn(b'<details class="activity-log watch-log"', detail.data)
+        self.assertIn(b'data-watch-log-entry', detail.data)
         self.assertIn(b'class="episode-middle"', detail.data)
         self.assertNotIn(b"season-list", detail.data)
         self.assertNotIn(b"<!doctype html>", detail.data.lower())
@@ -263,8 +281,7 @@ class TrackAppTest(unittest.TestCase):
         db = sqlite3.connect(self.database)
         db.execute(
             """
-            UPDATE episode_watch_history
-            SET unwatched_at = '2026-08-17T12:00:00+00:00'
+            DELETE FROM episode_watch_history
             WHERE episode_id IN (
                 SELECT e.id FROM episodes e
                 JOIN seasons s ON s.id = e.season_id
@@ -298,6 +315,85 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("--progress-not-started:", css)
         self.assertIn("--progress-stopped: var(--error)", css)
         self.assertIn("background: var(--progress-color", css)
+
+    def test_watch_records_have_added_and_optional_user_dates(self):
+        db = sqlite3.connect(self.database)
+        episode_columns = [
+            row[1] for row in db.execute("PRAGMA table_info(episode_watch_history)")
+        ]
+        season_columns = [
+            row[1] for row in db.execute("PRAGMA table_info(season_watch_history)")
+        ]
+        db.close()
+        self.assertEqual(
+            episode_columns, ["id", "episode_id", "added_at", "watch_date"]
+        )
+        self.assertEqual(
+            season_columns, ["id", "season_id", "added_at", "watch_date"]
+        )
+
+    def test_watch_date_can_be_set_cleared_sorted_and_controls_unwatch_order(self):
+        self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "increment"}
+        )
+        db = sqlite3.connect(self.database)
+        record_ids = [
+            row[0]
+            for row in db.execute(
+                "SELECT id FROM episode_watch_history WHERE episode_id = 1 ORDER BY id"
+            )
+        ]
+        db.close()
+        self.assertEqual(len(record_ids), 2)
+
+        chosen = self.client.patch(
+            f"/api/watch-history/episode/{record_ids[0]}/date",
+            json={"watch_date": "2030-05-15"},
+        )
+        self.assertEqual(chosen.status_code, 200)
+        self.assertEqual(chosen.get_json()["display_date"], "2030-05-15")
+
+        detail = self.client.get("/api/episodes/1")
+        first_position = detail.data.index(
+            f'data-watch-record-id="{record_ids[0]}"'.encode()
+        )
+        second_position = detail.data.index(
+            f'data-watch-record-id="{record_ids[1]}"'.encode()
+        )
+        self.assertLess(first_position, second_position)
+
+        decrement = self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "decrement"}
+        )
+        self.assertEqual(decrement.get_json()["watch_count"], 1)
+        db = sqlite3.connect(self.database)
+        remaining_ids = [
+            row[0]
+            for row in db.execute(
+                "SELECT id FROM episode_watch_history WHERE episode_id = 1"
+            )
+        ]
+        db.close()
+        self.assertEqual(remaining_ids, [record_ids[1]])
+
+        cleared = self.client.patch(
+            f"/api/watch-history/episode/{record_ids[1]}/date",
+            json={"watch_date": None},
+        )
+        self.assertEqual(cleared.status_code, 200)
+        self.assertIsNone(cleared.get_json()["watch_date"])
+
+    def test_date_picker_and_compact_date_formatter_are_in_the_shell(self):
+        home = self.client.get("/")
+        self.assertIn(b'data-date-picker', home.data)
+        self.assertIn(b"Select watch date", home.data)
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("function formatDisplayDate", javascript)
+        self.assertIn('month: "short"', javascript)
+        self.assertNotIn("ordinalSuffix", javascript)
+        self.assertNotIn("timeStyle", javascript)
 
     def test_show_can_be_archived_and_unarchived_with_history(self):
         archive = self.client.post(
@@ -360,6 +456,14 @@ class TrackAppTest(unittest.TestCase):
             "/api/seasons/1/watch-count", json={"action": "reset"}
         )
         self.assertEqual(season_action.status_code, 400)
+        invalid_date = self.client.patch(
+            "/api/watch-history/episode/1/date", json={"watch_date": "May 15"}
+        )
+        self.assertEqual(invalid_date.status_code, 400)
+        invalid_kind = self.client.patch(
+            "/api/watch-history/show/1/date", json={"watch_date": None}
+        )
+        self.assertEqual(invalid_kind.status_code, 404)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from flask import Flask, abort, g, jsonify, redirect, render_template, request, url_for
@@ -13,6 +13,57 @@ DATABASE = BASE_DIR / "instance" / "track.db"
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def migrate_watch_history_tables(db: sqlite3.Connection) -> None:
+    table_definitions = {
+        "episode_watch_history": ("episode_id", "episodes"),
+        "season_watch_history": ("season_id", "seasons"),
+    }
+    for table, (parent_column, parent_table) in table_definitions.items():
+        exists = db.execute(
+            "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?",
+            (table,),
+        ).fetchone()
+        if exists is None:
+            continue
+
+        columns = {
+            row["name"] for row in db.execute(f"PRAGMA table_info({table})")
+        }
+        if {"added_at", "watch_date"}.issubset(columns) and not {
+            "watched_at",
+            "unwatched_at",
+        }.intersection(columns):
+            continue
+
+        legacy_table = f"{table}_legacy"
+        db.execute(f"ALTER TABLE {table} RENAME TO {legacy_table}")
+        db.execute(
+            f"""
+            CREATE TABLE {table} (
+                id INTEGER PRIMARY KEY,
+                {parent_column} INTEGER NOT NULL
+                    REFERENCES {parent_table}(id) ON DELETE CASCADE,
+                added_at TEXT NOT NULL,
+                watch_date TEXT
+            )
+            """
+        )
+        added_source = "added_at" if "added_at" in columns else "watched_at"
+        date_source = "watch_date" if "watch_date" in columns else "NULL"
+        active_filter = (
+            "WHERE unwatched_at IS NULL" if "unwatched_at" in columns else ""
+        )
+        db.execute(
+            f"""
+            INSERT INTO {table} (id, {parent_column}, added_at, watch_date)
+            SELECT id, {parent_column}, {added_source}, {date_source}
+            FROM {legacy_table}
+            {active_filter}
+            """
+        )
+        db.execute(f"DROP TABLE {legacy_table}")
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -48,7 +99,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             FROM seasons sn
             JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
             LEFT JOIN episode_watch_history wh
-              ON wh.episode_id = e.id AND wh.unwatched_at IS NULL
+              ON wh.episode_id = e.id
             WHERE sn.show_id = ?
             """,
             (show_id,),
@@ -59,7 +110,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             """
             SELECT COUNT(*)
             FROM episode_watch_history
-            WHERE episode_id = ? AND unwatched_at IS NULL
+            WHERE episode_id = ?
             """,
             (episode_id,),
         ).fetchone()[0]
@@ -101,7 +152,11 @@ def create_app(test_config: dict | None = None) -> Flask:
                 SELECT 'added' AS event_type,
                        'Added to My Shows' AS title,
                        added_at AS occurred_at,
-                       NULL AS season_id
+                       NULL AS season_id,
+                       NULL AS watch_record_id,
+                       NULL AS watch_kind,
+                       NULL AS watch_added_at,
+                       NULL AS watch_date
                 FROM shows
                 WHERE id = ?
 
@@ -116,7 +171,11 @@ def create_app(test_config: dict | None = None) -> Flask:
                            ELSE 'Un-archived'
                        END AS title,
                        entered_at AS occurred_at,
-                       NULL AS season_id
+                       NULL AS season_id,
+                       NULL AS watch_record_id,
+                       NULL AS watch_kind,
+                       NULL AS watch_added_at,
+                       NULL AS watch_date
                 FROM ordered_states
                 WHERE state = 'ARCHIVED'
                    OR (state = 'ACTIVE' AND previous_state = 'ARCHIVED')
@@ -125,15 +184,20 @@ def create_app(test_config: dict | None = None) -> Flask:
 
                 SELECT 'season_watched' AS event_type,
                        sn.name || ' watched' AS title,
-                       swh.watched_at AS occurred_at,
-                       sn.id AS season_id
+                       COALESCE(swh.watch_date, substr(swh.added_at, 1, 10)) AS occurred_at,
+                       sn.id AS season_id,
+                       swh.id AS watch_record_id,
+                       'season' AS watch_kind,
+                       swh.added_at AS watch_added_at,
+                       swh.watch_date AS watch_date
                 FROM season_watch_history swh
                 JOIN seasons sn ON sn.id = swh.season_id
-                WHERE sn.show_id = ? AND swh.unwatched_at IS NULL
+                WHERE sn.show_id = ?
             )
-            SELECT event_type, title, occurred_at, season_id
+            SELECT event_type, title, occurred_at, season_id,
+                   watch_record_id, watch_kind, watch_added_at, watch_date
             FROM activity
-            ORDER BY occurred_at DESC
+            ORDER BY occurred_at DESC, watch_added_at DESC
             """,
             (show_id, show_id, show_id),
         ).fetchall()
@@ -149,7 +213,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             FROM shows s
             LEFT JOIN seasons sn ON sn.show_id = s.id
             LEFT JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
-            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id AND wh.unwatched_at IS NULL
+            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             WHERE s.state IN ('ACTIVE', 'ARCHIVED')
             GROUP BY s.id
             ORDER BY CASE s.state WHEN 'ACTIVE' THEN 0 ELSE 1 END,
@@ -179,7 +243,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             FROM shows s
             LEFT JOIN seasons sn ON sn.show_id = s.id
             LEFT JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
-            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id AND wh.unwatched_at IS NULL
+            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             WHERE s.id = ?
             GROUP BY s.id
             """,
@@ -198,9 +262,9 @@ def create_app(test_config: dict | None = None) -> Flask:
                 """
                 SELECT e.*,
                        COUNT(wh.id) AS watch_count,
-                       MAX(wh.watched_at) AS last_watched_at
+                       MAX(wh.added_at) AS last_watched_at
                 FROM episodes e
-                LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id AND wh.unwatched_at IS NULL
+                LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
                 WHERE e.season_id = ?
                 GROUP BY e.id
                 ORDER BY e.episode_number
@@ -232,7 +296,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             JOIN seasons sn ON sn.id = e.season_id
             JOIN shows s ON s.id = sn.show_id
             LEFT JOIN episode_watch_history wh
-              ON wh.episode_id = e.id AND wh.unwatched_at IS NULL
+              ON wh.episode_id = e.id
             WHERE e.id = ?
             GROUP BY e.id
             """,
@@ -243,10 +307,13 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         watch_log = db.execute(
             """
-            SELECT watched_at
+            SELECT id AS watch_record_id,
+                   added_at,
+                   watch_date,
+                   COALESCE(watch_date, substr(added_at, 1, 10)) AS display_date
             FROM episode_watch_history
-            WHERE episode_id = ? AND unwatched_at IS NULL
-            ORDER BY watched_at DESC, id DESC
+            WHERE episode_id = ?
+            ORDER BY display_date DESC, added_at DESC, id DESC
             """,
             (episode_id,),
         ).fetchall()
@@ -338,24 +405,29 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         if payload["watched"]:
             watched = db.execute(
-                "SELECT 1 FROM episode_watch_history WHERE episode_id = ? AND unwatched_at IS NULL LIMIT 1",
+                "SELECT 1 FROM episode_watch_history WHERE episode_id = ? LIMIT 1",
                 (episode_id,),
             ).fetchone()
             if watched is None:
                 db.execute(
-                    "INSERT INTO episode_watch_history (episode_id, watched_at) VALUES (?, ?)",
+                    "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
                     (episode_id, utc_now()),
                 )
         else:
-            # Retire active watch events instead of deleting them so every
-            # historical watched_at timestamp remains available.
             db.execute(
                 """
-                UPDATE episode_watch_history
-                SET unwatched_at = ?
-                WHERE episode_id = ? AND unwatched_at IS NULL
+                DELETE FROM episode_watch_history
+                WHERE id = (
+                    SELECT id
+                    FROM episode_watch_history
+                    WHERE episode_id = ?
+                    ORDER BY COALESCE(watch_date, substr(added_at, 1, 10)) DESC,
+                             added_at DESC,
+                             id DESC
+                    LIMIT 1
+                )
                 """,
-                (utc_now(), episode_id),
+                (episode_id,),
             )
         db.commit()
 
@@ -385,7 +457,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if action == "increment":
             db.execute(
                 """
-                INSERT INTO episode_watch_history (episode_id, watched_at)
+                INSERT INTO episode_watch_history (episode_id, added_at)
                 VALUES (?, ?)
                 """,
                 (episode_id, changed_at),
@@ -395,21 +467,16 @@ def create_app(test_config: dict | None = None) -> Flask:
                 """
                 SELECT id
                 FROM episode_watch_history
-                WHERE episode_id = ? AND unwatched_at IS NULL
-                ORDER BY watched_at DESC, id DESC
+                WHERE episode_id = ?
+                ORDER BY COALESCE(watch_date, substr(added_at, 1, 10)) DESC,
+                         added_at DESC,
+                         id DESC
                 LIMIT 1
                 """,
                 (episode_id,),
             ).fetchone()
             if latest_watch is not None:
-                db.execute(
-                    """
-                    UPDATE episode_watch_history
-                    SET unwatched_at = ?
-                    WHERE id = ?
-                    """,
-                    (changed_at, latest_watch["id"]),
-                )
+                db.execute("DELETE FROM episode_watch_history WHERE id = ?", (latest_watch["id"],))
         db.commit()
         return jsonify(watch_payload(db, episode["show_id"], episode_id))
 
@@ -438,52 +505,63 @@ def create_app(test_config: dict | None = None) -> Flask:
         if action == "increment":
             db.executemany(
                 """
-                INSERT INTO episode_watch_history (episode_id, watched_at)
+                INSERT INTO episode_watch_history (episode_id, added_at)
                 VALUES (?, ?)
                 """,
                 [(episode_id, changed_at) for episode_id in episode_ids],
             )
+            season_watch_record_id = None
             if episode_ids:
-                db.execute(
+                season_watch_record_id = db.execute(
                     """
-                    INSERT INTO season_watch_history (season_id, watched_at)
+                    INSERT INTO season_watch_history (season_id, added_at)
                     VALUES (?, ?)
                     """,
                     (season_id, changed_at),
-                )
+                ).lastrowid
         else:
             latest_watches = db.execute(
                 """
-                SELECT MAX(wh.id) AS id
-                FROM episode_watch_history wh
-                JOIN episodes e ON e.id = wh.episode_id
-                WHERE e.season_id = ? AND wh.unwatched_at IS NULL
-                GROUP BY wh.episode_id
+                SELECT id
+                FROM (
+                    SELECT wh.id,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY wh.episode_id
+                               ORDER BY COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) DESC,
+                                        wh.added_at DESC,
+                                        wh.id DESC
+                           ) AS row_number
+                    FROM episode_watch_history wh
+                    JOIN episodes e ON e.id = wh.episode_id
+                    WHERE e.season_id = ?
+                )
+                WHERE row_number = 1
                 """,
                 (season_id,),
             ).fetchall()
             db.executemany(
-                "UPDATE episode_watch_history SET unwatched_at = ? WHERE id = ?",
-                [(changed_at, row["id"]) for row in latest_watches],
+                "DELETE FROM episode_watch_history WHERE id = ?",
+                [(row["id"],) for row in latest_watches],
             )
             latest_season_watch = db.execute(
                 """
                 SELECT id
                 FROM season_watch_history
-                WHERE season_id = ? AND unwatched_at IS NULL
-                ORDER BY watched_at DESC, id DESC
+                WHERE season_id = ?
+                ORDER BY COALESCE(watch_date, substr(added_at, 1, 10)) DESC,
+                         added_at DESC,
+                         id DESC
                 LIMIT 1
                 """,
                 (season_id,),
             ).fetchone()
+            season_watch_record_id = (
+                latest_season_watch["id"] if latest_season_watch is not None else None
+            )
             if latest_season_watch is not None:
                 db.execute(
-                    """
-                    UPDATE season_watch_history
-                    SET unwatched_at = ?
-                    WHERE id = ?
-                    """,
-                    (changed_at, latest_season_watch["id"]),
+                    "DELETE FROM season_watch_history WHERE id = ?",
+                    (latest_season_watch["id"],),
                 )
         db.commit()
 
@@ -504,8 +582,54 @@ def create_app(test_config: dict | None = None) -> Flask:
                 1 for episode in episode_counts if episode["watch_count"] > 0
             ),
             season_watched_at=(changed_at if action == "increment" and episode_ids else None),
+            season_watch_record_id=season_watch_record_id,
         )
         return jsonify(response)
+
+    @app.patch("/api/watch-history/<string:watch_kind>/<int:record_id>/date")
+    def set_watch_history_date(watch_kind: str, record_id: int):
+        table = {
+            "episode": "episode_watch_history",
+            "season": "season_watch_history",
+        }.get(watch_kind)
+        if table is None:
+            return jsonify(error="Unknown watch history type"), 404
+
+        payload = request.get_json(silent=True) or {}
+        watch_date = payload.get("watch_date")
+        if watch_date is not None:
+            if not isinstance(watch_date, str):
+                return jsonify(error="watch_date must be an ISO date or null"), 400
+            try:
+                date.fromisoformat(watch_date)
+            except ValueError:
+                return jsonify(error="watch_date must be an ISO date or null"), 400
+
+        db = get_db()
+        cursor = db.execute(
+            f"UPDATE {table} SET watch_date = ? WHERE id = ?",
+            (watch_date, record_id),
+        )
+        if cursor.rowcount == 0:
+            return jsonify(error="Watch entry not found"), 404
+        row = db.execute(
+            f"""
+            SELECT added_at,
+                   watch_date,
+                   COALESCE(watch_date, substr(added_at, 1, 10)) AS display_date
+            FROM {table}
+            WHERE id = ?
+            """,
+            (record_id,),
+        ).fetchone()
+        db.commit()
+        return jsonify(
+            watch_kind=watch_kind,
+            record_id=record_id,
+            added_at=row["added_at"],
+            watch_date=row["watch_date"],
+            display_date=row["display_date"],
+        )
 
     @app.errorhandler(404)
     def not_found(_error):
@@ -513,18 +637,9 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     with app.app_context():
         db = get_db()
+        migrate_watch_history_tables(db)
         schema = (BASE_DIR / "schema.sql").read_text(encoding="utf-8")
         db.executescript(schema)
-        watch_columns = {
-            row["name"] for row in db.execute("PRAGMA table_info(episode_watch_history)")
-        }
-        if "unwatched_at" not in watch_columns:
-            db.execute("ALTER TABLE episode_watch_history ADD COLUMN unwatched_at TEXT")
-        season_watch_columns = {
-            row["name"] for row in db.execute("PRAGMA table_info(season_watch_history)")
-        }
-        if "unwatched_at" not in season_watch_columns:
-            db.execute("ALTER TABLE season_watch_history ADD COLUMN unwatched_at TEXT")
         seed_database(db)
         db.execute("PRAGMA optimize")
 
@@ -618,7 +733,7 @@ def seed_database(db: sqlite3.Connection) -> None:
 
     for index, episode_id in enumerate(episode_ids[:5], start=1):
         db.execute(
-            "INSERT INTO episode_watch_history (episode_id, watched_at) VALUES (?, ?)",
+            "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
             (episode_id, f"2026-05-{index + 4:02d}T01:20:00+00:00"),
         )
 
@@ -743,7 +858,7 @@ def seed_game_of_thrones(db: sqlite3.Connection) -> None:
             )
             db.execute(
                 """
-                INSERT INTO episode_watch_history (episode_id, watched_at)
+                INSERT INTO episode_watch_history (episode_id, added_at)
                 VALUES (?, ?)
                 """,
                 (

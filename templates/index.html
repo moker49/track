@@ -19,7 +19,7 @@
       <button class="icon-button" type="button" data-detail-back aria-label="Back to Watching">
         <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
       </button>
-      <span>Show details</span>
+      <span data-detail-skeleton-title>Show details</span>
     </header>
     <div class="detail-skeleton" aria-label="Loading show details" aria-busy="true">
       <div class="skeleton-hero">
@@ -50,6 +50,36 @@
     <div class="dialog-actions">
       <button type="button" data-cancel-remove>Cancel</button>
       <button class="danger-action" type="button" data-confirm-remove>Remove</button>
+    </div>
+  </dialog>
+
+  <dialog class="date-picker" data-date-picker aria-labelledby="date-picker-title">
+    <div class="date-picker-header">
+      <span id="date-picker-title">Select watch date</span>
+      <strong data-date-picker-selection>No date set</strong>
+    </div>
+    <div class="date-picker-calendar">
+      <div class="date-picker-month-bar">
+        <strong data-date-picker-month></strong>
+        <span class="date-picker-month-actions">
+          <button class="icon-button" type="button" data-date-picker-previous aria-label="Previous month">
+            <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
+          </button>
+          <button class="icon-button" type="button" data-date-picker-next aria-label="Next month">
+            <span class="material-symbols-rounded" aria-hidden="true">chevron_right</span>
+          </button>
+        </span>
+      </div>
+      <div class="date-picker-weekdays" aria-hidden="true">
+        <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+      </div>
+      <div class="date-picker-grid" role="grid" data-date-picker-grid></div>
+    </div>
+    <div class="date-picker-actions">
+      <button type="button" data-date-picker-clear>Clear</button>
+      <span></span>
+      <button type="button" data-date-picker-cancel>Cancel</button>
+      <button type="button" data-date-picker-save>OK</button>
     </div>
   </dialog>
 {% endblock %}

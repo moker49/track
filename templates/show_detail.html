@@ -17,7 +17,7 @@
     <button class="icon-button" type="button" data-detail-back aria-label="Back">
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
-    <span class="detail-app-bar-title">{{ show.name }}</span>
+    <span class="detail-app-bar-title">Show details</span>
     <div class="menu-anchor">
       <button class="icon-button" type="button" data-show-menu-button aria-label="More options for {{ show.name }}"
         aria-expanded="false">
@@ -121,7 +121,7 @@
               <span>{{ episode.episode_number }}</span>
               <strong>{{ episode.name }}</strong>
             </div>
-            <p>{{ episode.air_date }} · {{ episode.runtime_minutes }} min</p>
+            <p><time datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date }}</time> · {{ episode.runtime_minutes }} min</p>
           </button>
           <div class="watch-control-wrap">
             <button class="check-control" type="button" role="checkbox"

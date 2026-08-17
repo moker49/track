@@ -1,3 +1,4 @@
+{% if activity_mode == 'show' %}
 <details class="activity-log" data-activity-log>
   <summary>
     <span class="material-symbols-rounded activity-heading-icon" aria-hidden="true">history</span>
@@ -7,12 +8,20 @@
     </span>
     <span class="material-symbols-rounded activity-chevron" aria-hidden="true">expand_more</span>
   </summary>
+{% else %}
+<section class="activity-log watch-log" data-activity-log aria-label="Watch log">
+{% endif %}
   <ol class="activity-list" data-activity-list>
     {% for item in activity_items %}
     {% set event_type = item.event_type if activity_mode == 'show' else 'watched' %}
     {% set event_title = item.title if activity_mode == 'show' else 'Watched' %}
-    {% set event_time = item.occurred_at if activity_mode == 'show' else item.watched_at %}
-    <li class="activity-item" data-activity-type="{{ event_type }}"{% if activity_mode == 'show' and item.season_id %} data-season-id="{{ item.season_id }}"{% endif %}>
+    {% set event_time = item.occurred_at if activity_mode == 'show' else item.display_date %}
+    {% set record_id = item.watch_record_id %}
+    {% set watch_kind = item.watch_kind if activity_mode == 'show' else 'episode' %}
+    {% set added_at = item.watch_added_at if activity_mode == 'show' else item.added_at %}
+    {% set watch_date = item.watch_date %}
+    <li class="activity-item" data-activity-type="{{ event_type }}" data-sort-date="{{ event_time }}"{% if activity_mode == 'show' and item.season_id %} data-season-id="{{ item.season_id }}"{% endif %}{% if record_id %} data-watch-record-id="{{ record_id }}" data-watch-kind="{{ watch_kind }}" data-added-at="{{ added_at }}" data-watch-date="{{ watch_date or '' }}"{% endif %}>
+      {% if record_id %}<button class="activity-item-button" type="button" data-watch-log-entry aria-label="Set date for {{ event_title }}">{% endif %}
       <span class="material-symbols-rounded activity-icon" aria-hidden="true">
         {%- if event_type == 'added' -%}add_circle
         {%- elif event_type == 'archived' -%}archive
@@ -23,11 +32,16 @@
       </span>
       <span class="activity-copy">
         <strong>{{ event_title }}</strong>
-        <time datetime="{{ event_time }}" data-local-datetime>{{ event_time }}</time>
+        <time datetime="{{ event_time }}" data-display-date>{{ event_time[:10] }}</time>
       </span>
+      {% if record_id %}<span class="material-symbols-rounded activity-edit-icon" aria-hidden="true">edit_calendar</span></button>{% endif %}
     </li>
     {% else %}
     <li class="activity-empty" data-activity-empty>{{ activity_empty }}</li>
     {% endfor %}
   </ol>
+{% if activity_mode == 'show' %}
 </details>
+{% else %}
+</section>
+{% endif %}
