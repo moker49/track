@@ -9,13 +9,83 @@ from unittest import mock
 from app import create_app
 
 
+def seed_test_library(database: Path) -> None:
+    connection = sqlite3.connect(database)
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.executemany(
+        """
+        INSERT INTO shows (
+            id, tmdb_id, name, original_name, overview, tagline,
+            first_air_date, status, genres, original_language, state,
+            added_at, watching_at, archived_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'en', ?, ?, ?, ?)
+        """,
+        [
+            (1, 900001, "Watching Test Show", "Watching Test Show", "Test overview.", "Test tagline.",
+             "2008-01-20", "Ended", "Drama, Crime", "WATCHING",
+             "2026-05-02T19:15:00+00:00", "2026-05-04T00:10:00+00:00", None),
+            (2, 900002, "Archived Test Show", "Archived Test Show", "Test overview.", "Test tagline.",
+             "2011-04-17", "Ended", "Drama, Fantasy", "ARCHIVED",
+             "2026-06-10T18:30:00+00:00", "2026-06-12T00:15:00+00:00", "2026-07-01T02:40:00+00:00"),
+        ],
+    )
+    connection.executemany(
+        "INSERT INTO show_state_history (show_id, state, entered_at) VALUES (?, ?, ?)",
+        [
+            (1, "WATCHING", "2026-05-04T00:10:00+00:00"),
+            (2, "WATCHING", "2026-06-12T00:15:00+00:00"),
+            (2, "ARCHIVED", "2026-07-01T02:40:00+00:00"),
+        ],
+    )
+    season_rows = [
+        (1, 1, 3573, 1, "Season 1", "2008-01-20", 7),
+        (2, 1, 3574, 2, "Season 2", "2009-03-08", 6),
+        (3, 2, 3624, 1, "Season 1", "2011-04-17", 6),
+        (4, 2, 3625, 2, "Season 2", "2012-04-01", 6),
+    ]
+    connection.executemany(
+        """
+        INSERT INTO seasons (id, show_id, tmdb_id, season_number, name, air_date, episode_count)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        season_rows,
+    )
+    episode_id = 1
+    episode_ids_by_show = {1: [], 2: []}
+    for season_id, show_id, _tmdb_id, _number, _name, air_date, count in season_rows:
+        for episode_number in range(1, count + 1):
+            title = "Episode " + str(episode_number)
+            if episode_id == 1:
+                title = "Opening Episode"
+            elif season_id == 2 and episode_number == 1:
+                title = "Season Two Premiere"
+            connection.execute(
+                """
+                INSERT INTO episodes (
+                    id, season_id, tmdb_id, episode_number, name, overview,
+                    air_date, runtime_minutes
+                ) VALUES (?, ?, ?, ?, ?, 'Test episode overview.', ?, 48)
+                """,
+                (episode_id, season_id, 62000 + episode_id, episode_number, title, air_date),
+            )
+            episode_ids_by_show[show_id].append(episode_id)
+            episode_id += 1
+    watched_episode_ids = episode_ids_by_show[1][:5] + episode_ids_by_show[2]
+    connection.executemany(
+        "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
+        [(episode_id, f"2026-05-{index + 4:02d}T01:20:00+00:00")
+         for index, episode_id in enumerate(watched_episode_ids)],
+    )
+    connection.commit()
+    connection.close()
+
+
 class TrackAppTest(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.database = Path(self.temp_dir.name) / "test.db"
-        self.app = create_app(
-            {"TESTING": True, "DATABASE": str(self.database), "SEED_DEMO_DATA": True}
-        )
+        self.app = create_app({"TESTING": True, "DATABASE": str(self.database)})
+        seed_test_library(self.database)
         self.client = self.app.test_client()
 
     def tearDown(self):
@@ -24,8 +94,8 @@ class TrackAppTest(unittest.TestCase):
     def test_single_page_shell_contains_primary_views(self):
         home = self.client.get("/")
         self.assertEqual(home.status_code, 200)
-        self.assertIn(b"Breaking Bad", home.data)
-        self.assertIn(b"Game of Thrones", home.data)
+        self.assertIn(b"Watching Test Show", home.data)
+        self.assertIn(b"Archived Test Show", home.data)
         self.assertIn(b"Archived", home.data)
         self.assertIn(b"Finished", home.data)
         self.assertIn(b"more_vert", home.data)
@@ -102,10 +172,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"data-season-list", detail.data)
         self.assertIn(b"data-season-loading", detail.data)
         self.assertNotIn(b"Season 1", detail.data)
-        self.assertNotIn(b"Seven Thirty-Seven", detail.data)
+        self.assertNotIn(b"Season Two Premiere", detail.data)
         self.assertNotIn(b"data-season-watch", detail.data)
         self.assertNotIn(b"data-episode-watch", detail.data)
-        self.assertIn(b'data-detail-title="Breaking Bad"', detail.data)
+        self.assertIn(b'data-detail-title="Watching Test Show"', detail.data)
         self.assertIn(b'class="detail-app-bar-title">Show details</span>', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
         self.assertIn(b"Added to My Shows", detail.data)
@@ -119,7 +189,7 @@ class TrackAppTest(unittest.TestCase):
         seasons = self.client.get("/api/shows/1/seasons")
         self.assertEqual(seasons.status_code, 200)
         self.assertIn(b"Season 1", seasons.data)
-        self.assertIn(b"Seven Thirty-Seven", seasons.data)
+        self.assertIn(b"Season Two Premiere", seasons.data)
         self.assertIn(b"data-season-watch", seasons.data)
         self.assertIn(b"data-episode-watch", seasons.data)
         self.assertIn(b"rewatch", seasons.data)
@@ -132,7 +202,7 @@ class TrackAppTest(unittest.TestCase):
 
         archived_detail = self.client.get("/api/shows/2")
         self.assertEqual(archived_detail.status_code, 200)
-        self.assertIn(b"Game of Thrones", archived_detail.data)
+        self.assertIn(b"Archived Test Show", archived_detail.data)
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Finished</span>', archived_detail.data)
         self.assertIn(b"Start watching", archived_detail.data)
         self.assertIn(b"more_vert", archived_detail.data)
@@ -309,7 +379,7 @@ class TrackAppTest(unittest.TestCase):
         detail = self.client.get("/api/episodes/1")
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b'data-detail-episode', detail.data)
-        self.assertIn(b'data-detail-title="Pilot"', detail.data)
+        self.assertIn(b'data-detail-title="Opening Episode"', detail.data)
         self.assertIn(b'class="detail-app-bar-title">Episode details</span>', detail.data)
         self.assertIn(b'data-back-show-id="1"', detail.data)
         self.assertIn(b"Watch log", detail.data)
@@ -539,7 +609,7 @@ class TrackAppTest(unittest.TestCase):
         db.close()
         self.assertEqual(tracked, 0)
         self.assertEqual((season_count, episode_count, history_count), before)
-        self.assertNotIn(b"Game of Thrones", self.client.get("/").data)
+        self.assertNotIn(b"Archived Test Show", self.client.get("/").data)
         detail = self.client.get("/api/shows/2")
         self.assertIn(b'data-track-show-state="WATCHING"', detail.data)
 
@@ -563,12 +633,10 @@ class TrackAppTest(unittest.TestCase):
         )
         self.assertEqual(invalid_kind.status_code, 404)
 
-    def test_fresh_database_has_no_demo_data_or_watchlist_state(self):
+    def test_fresh_database_has_no_shows_or_watchlist_state(self):
         with tempfile.TemporaryDirectory() as directory:
             database = Path(directory) / "empty.db"
-            empty_app = create_app(
-                {"TESTING": True, "DATABASE": str(database), "SEED_DEMO_DATA": False}
-            )
+            empty_app = create_app({"TESTING": True, "DATABASE": str(database)})
             with empty_app.app_context():
                 connection = sqlite3.connect(database)
                 show_count = connection.execute("SELECT COUNT(*) FROM shows").fetchone()[0]
@@ -599,7 +667,6 @@ class TrackAppTest(unittest.TestCase):
                         "TESTING": True,
                         "DATABASE": str(root / "dotenv.db"),
                         "DOTENV_PATH": dotenv_path,
-                        "SEED_DEMO_DATA": False,
                     }
                 )
                 self.assertEqual(
@@ -614,7 +681,6 @@ class TrackAppTest(unittest.TestCase):
                         "TESTING": True,
                         "DATABASE": str(root / "environment.db"),
                         "DOTENV_PATH": dotenv_path,
-                        "SEED_DEMO_DATA": False,
                     }
                 )
                 self.assertEqual(
