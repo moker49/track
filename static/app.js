@@ -12,6 +12,7 @@ const libraryViewPreferences = {
 };
 const showDetailCache = new Map();
 const showSeasonsCache = new Map();
+const showRefreshRequests = new Map();
 let currentView = "watching";
 let detailParentView = "watching";
 let detailRequest = null;
@@ -199,7 +200,11 @@ async function importCatalogShow(card, state, trigger) {
   const actions = card.querySelectorAll(".catalog-action");
   actions.forEach((button) => { button.disabled = true; });
   try {
-    const response = await fetch(`/api/discover/shows/${card.dataset.tmdbId}/import`, {
+    const hasLocalShow = Boolean(card.dataset.showId);
+    const url = hasLocalShow
+      ? `/api/shows/${card.dataset.showId}/state`
+      : `/api/discover/shows/${card.dataset.tmdbId}/import`;
+    const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ state }),
@@ -207,7 +212,7 @@ async function importCatalogShow(card, state, trigger) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add show");
     invalidateShowCache(data.show_id, true);
-    if (data.is_tracked) markCatalogTracked(card, data.state, data.show_id);
+    if (hasLocalShow || data.is_tracked) markCatalogTracked(card, data.state, data.show_id);
     if (data.newly_tracked) {
       const template = document.createElement("template");
       template.innerHTML = data.card_html.trim();
@@ -235,6 +240,12 @@ async function previewCatalogShow(card) {
   else {
     detailParentView = "discover";
     prepareDetailLoad("Show details");
+  }
+  if (hasCachedDetails) {
+    card.classList.remove("is-loading");
+    card.removeAttribute("aria-busy");
+    card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = false; });
+    return;
   }
   if (currentView !== "detail") {
     card.classList.remove("is-loading");
@@ -335,12 +346,12 @@ function formatDisplayDates(root = document) {
   });
 }
 
-function finishDetailLoad() {
+function finishDetailLoad({ resetScroll = true } = {}) {
   const detailView = views.get("detail");
   formatDisplayDates(detailView);
   const title = detailView.querySelector("[data-detail-title]")?.dataset.detailTitle;
   if (title) document.title = `${title} \u00B7 Track`;
-  window.scrollTo({ top: 0, behavior: "auto" });
+  if (resetScroll) window.scrollTo({ top: 0, behavior: "auto" });
 }
 
 function invalidateShowCache(showId, includeSeasons = false) {
@@ -353,6 +364,108 @@ function cacheCurrentSeasons(showId) {
   const seasonList = detailShow?.querySelector("[data-season-list]");
   if (seasonList && !seasonList.querySelector("[data-season-loading]")) {
     showSeasonsCache.set(String(showId), seasonList.innerHTML);
+  }
+}
+
+function replaceLibraryCard(showId, cardHtml) {
+  if (!cardHtml) return;
+  const currentCard = document.querySelector(`.show-card[data-show-id="${showId}"]`);
+  if (!currentCard) return;
+  const template = document.createElement("template");
+  template.innerHTML = cardHtml.trim();
+  currentCard.replaceWith(template.content);
+  syncStateSections();
+  filterAllShowViews();
+}
+
+async function fetchRefreshedShowFragments(showId) {
+  const overviewResponse = await fetch(`/api/shows/${showId}`, {
+    headers: { "X-Requested-With": "Track" },
+  });
+  if (!overviewResponse.ok) throw new Error("Could not load refreshed show");
+  const overviewHtml = await overviewResponse.text();
+
+  const seasonsResponse = await fetch(`/api/shows/${showId}/seasons`, {
+    headers: { "X-Requested-With": "Track" },
+  });
+  if (!seasonsResponse.ok) throw new Error("Could not load refreshed seasons");
+  const seasonsHtml = await seasonsResponse.text();
+
+  const cacheKey = String(showId);
+  showDetailCache.set(cacheKey, overviewHtml);
+  showSeasonsCache.set(cacheKey, seasonsHtml);
+
+  const currentShow = views.get("detail")
+    .querySelector(`[data-detail-show][data-show-id="${showId}"]`);
+  if (!currentShow) return;
+  const openSeasonIds = new Set(
+    [...currentShow.querySelectorAll("details.season[open]")]
+      .map((season) => season.dataset.seasonId),
+  );
+
+  const template = document.createElement("template");
+  template.innerHTML = overviewHtml.trim();
+  const nextSeasonList = template.content.querySelector("[data-season-list]");
+  nextSeasonList.innerHTML = seasonsHtml;
+  nextSeasonList.removeAttribute("aria-busy");
+  openSeasonIds.forEach((seasonId) => {
+    const season = nextSeasonList.querySelector(`[data-season-id="${seasonId}"]`);
+    if (season) season.open = true;
+  });
+  views.get("detail").replaceChildren(template.content);
+  finishDetailLoad({ resetScroll: false });
+}
+
+async function refreshShowMetadata(showId, { force = false, trigger = null } = {}) {
+  const cacheKey = String(showId);
+  if (showRefreshRequests.has(cacheKey)) return showRefreshRequests.get(cacheKey);
+  if (trigger) trigger.disabled = true;
+
+  const refreshRequest = (async () => {
+    const response = await fetch(`/api/shows/${showId}/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not refresh show");
+
+    if (data.refreshed) {
+      await fetchRefreshedShowFragments(showId);
+      replaceLibraryCard(showId, data.card_html);
+    } else {
+      const cachedOverview = showDetailCache.get(cacheKey);
+      if (cachedOverview) {
+        showDetailCache.set(
+          cacheKey,
+          cachedOverview.replace('data-metadata-refresh-due="true"', 'data-metadata-refresh-due="false"'),
+        );
+      }
+      const currentShow = views.get("detail")
+        .querySelector(`[data-detail-show][data-show-id="${showId}"]`);
+      if (currentShow) currentShow.dataset.metadataRefreshDue = "false";
+    }
+    if (force) showSnackbar(data.refreshed ? "Show refreshed" : "Show is up to date");
+    return data;
+  })();
+
+  showRefreshRequests.set(cacheKey, refreshRequest);
+  try {
+    return await refreshRequest;
+  } catch (error) {
+    if (force) showSnackbar(error.message);
+    return null;
+  } finally {
+    showRefreshRequests.delete(cacheKey);
+    if (trigger) trigger.disabled = false;
+  }
+}
+
+function refreshShowIfDue(showId) {
+  const currentShow = views.get("detail")
+    .querySelector(`[data-detail-show][data-show-id="${showId}"]`);
+  if (currentShow?.dataset.metadataRefreshDue === "true") {
+    refreshShowMetadata(showId);
   }
 }
 
@@ -420,7 +533,7 @@ async function openShow(showId, parentView = currentView, showSkeleton = true) {
   if (showDetailCache.has(cacheKey)) {
     views.get("detail").innerHTML = showDetailCache.get(cacheKey);
     finishDetailLoad();
-    loadShowSeasons(showId, detailRequest.signal);
+    loadShowSeasons(showId, detailRequest.signal).finally(() => refreshShowIfDue(showId));
     return;
   }
 
@@ -434,7 +547,7 @@ async function openShow(showId, parentView = currentView, showSkeleton = true) {
     showDetailCache.set(cacheKey, html);
     views.get("detail").innerHTML = html;
     finishDetailLoad();
-    loadShowSeasons(showId, detailRequest.signal);
+    loadShowSeasons(showId, detailRequest.signal).finally(() => refreshShowIfDue(showId));
   } catch (error) {
     if (error.name === "AbortError") return;
     views.get("detail").innerHTML = `
@@ -1159,6 +1272,8 @@ document.addEventListener("click", (event) => {
     closeShowMenus();
     if (showAction.dataset.showAction === "move") {
       moveShow(showElement, showAction.dataset.targetState, showAction);
+    } else if (showAction.dataset.showAction === "refresh") {
+      refreshShowMetadata(showElement.dataset.showId, { force: true, trigger: showAction });
     } else {
       requestShowRemoval(showElement);
     }

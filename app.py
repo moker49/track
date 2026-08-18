@@ -81,6 +81,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         DATABASE=str(DATABASE),
         TMDB_READ_ACCESS_TOKEN=os.environ.get("TMDB_READ_ACCESS_TOKEN", ""),
         TMDB_CACHE_TTL=timedelta(days=1),
+        SHOW_METADATA_TTL=timedelta(days=1),
         TMDB_CLIENT_FACTORY=TMDBClient,
     )
     if test_config:
@@ -133,6 +134,17 @@ def create_app(test_config: dict | None = None) -> Flask:
         return app.config["TMDB_CLIENT_FACTORY"](
             app.config["TMDB_READ_ACCESS_TOKEN"]
         )
+
+    def show_metadata_is_fresh(refreshed_at: str | None) -> bool:
+        if not refreshed_at:
+            return False
+        try:
+            refreshed = datetime.fromisoformat(refreshed_at.replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        if refreshed.tzinfo is None:
+            refreshed = refreshed.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) - refreshed < app.config["SHOW_METADATA_TTL"]
 
     def catalog_results(payload: dict) -> list[dict]:
         results = []
@@ -396,11 +408,22 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.post("/api/shows/<int:show_id>/refresh")
     def refresh_show(show_id: int):
         db = get_db()
+        payload = request.get_json(silent=True) or {}
+        force = payload.get("force", True)
+        if type(force) is not bool:
+            return jsonify(error="force must be a boolean"), 400
         local_show = db.execute(
-            "SELECT tmdb_id, state, is_tracked FROM shows WHERE id = ?", (show_id,)
+            "SELECT tmdb_id, state, is_tracked, tmdb_refreshed_at FROM shows WHERE id = ?",
+            (show_id,),
         ).fetchone()
         if local_show is None:
             return jsonify(error="Show not found"), 404
+        if not force and show_metadata_is_fresh(local_show["tmdb_refreshed_at"]):
+            return jsonify(
+                show_id=show_id,
+                refreshed=False,
+                refreshed_at=local_show["tmdb_refreshed_at"],
+            )
         try:
             show, seasons = get_tmdb_client().show_bundle(local_show["tmdb_id"])
             refreshed_id, _created, _newly_tracked = import_or_refresh_show(
@@ -413,7 +436,17 @@ def create_app(test_config: dict | None = None) -> Flask:
             return jsonify(error=str(error)), 503
         except ValueError as error:
             return jsonify(error=str(error)), 502
-        return jsonify(show_id=refreshed_id, refreshed=True)
+        refreshed_show = get_library_show(db, refreshed_id)
+        return jsonify(
+            show_id=refreshed_id,
+            refreshed=True,
+            refreshed_at=refreshed_show["tmdb_refreshed_at"],
+            card_html=(
+                render_template("_show_card_fragment.html", show=refreshed_show)
+                if refreshed_show["is_tracked"]
+                else None
+            ),
+        )
 
     @app.get("/api/shows/<int:show_id>")
     def show_detail_fragment(show_id: int):
@@ -441,6 +474,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "show_detail.html",
             show=show,
             activity=get_show_activity(db, show_id),
+            metadata_refresh_due=not show_metadata_is_fresh(show["tmdb_refreshed_at"]),
         )
 
     @app.get("/api/shows/<int:show_id>/seasons")

@@ -171,6 +171,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"arrow_back", detail.data)
         self.assertIn(b"data-season-list", detail.data)
         self.assertIn(b"data-season-loading", detail.data)
+        self.assertIn(b'data-tmdb-refreshed-at=""', detail.data)
+        self.assertIn(b'data-metadata-refresh-due="true"', detail.data)
         self.assertNotIn(b"Season 1", detail.data)
         self.assertNotIn(b"Season Two Premiere", detail.data)
         self.assertNotIn(b"data-season-watch", detail.data)
@@ -206,6 +208,12 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Finished</span>', archived_detail.data)
         self.assertIn(b"Start watching", archived_detail.data)
         self.assertIn(b"more_vert", archived_detail.data)
+        move_position = archived_detail.data.index(b'data-show-action="move"')
+        refresh_position = archived_detail.data.index(b'data-show-action="refresh"')
+        remove_position = archived_detail.data.index(b'data-show-action="remove"')
+        self.assertLess(move_position, refresh_position)
+        self.assertLess(refresh_position, remove_position)
+        self.assertIn(b">Refresh</span>", archived_detail.data)
 
         missing = self.client.get("/api/shows/999")
         self.assertEqual(missing.status_code, 404)
@@ -653,6 +661,7 @@ class TrackAppTest(unittest.TestCase):
             self.assertNotIn("watchlist_at", columns)
             self.assertNotIn("active_at", columns)
             self.assertIn("watching_at", columns)
+            self.assertIn("tmdb_refreshed_at", columns)
 
     def test_dotenv_token_is_loaded_without_overriding_environment(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -816,6 +825,54 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(refreshed_episode, (regular_episode_id, "Updated Pilot"))
         self.assertEqual(history_count, 1)
 
+    def test_show_metadata_refresh_respects_the_daily_ttl_and_manual_force(self):
+        class FakeClient:
+            def __init__(self):
+                self.calls = 0
+
+            def show_bundle(self, tmdb_id):
+                self.calls += 1
+                return (
+                    {
+                        "id": tmdb_id,
+                        "name": "Watching Test Show",
+                        "first_air_date": "2008-01-20",
+                        "genres": [{"id": 18, "name": "Drama"}],
+                    },
+                    [],
+                )
+
+        fake = FakeClient()
+        self.app.config.update(
+            TMDB_READ_ACCESS_TOKEN="test-token",
+            TMDB_CLIENT_FACTORY=lambda _token: fake,
+        )
+
+        stale_refresh = self.client.post(
+            "/api/shows/1/refresh", json={"force": False}
+        )
+        fresh_skip = self.client.post(
+            "/api/shows/1/refresh", json={"force": False}
+        )
+        manual_refresh = self.client.post(
+            "/api/shows/1/refresh", json={"force": True}
+        )
+
+        self.assertTrue(stale_refresh.get_json()["refreshed"])
+        self.assertFalse(fresh_skip.get_json()["refreshed"])
+        self.assertTrue(manual_refresh.get_json()["refreshed"])
+        self.assertEqual(fake.calls, 2)
+        self.assertIsNotNone(stale_refresh.get_json()["refreshed_at"])
+        self.assertIn("show-card", manual_refresh.get_json()["card_html"])
+
+        detail = self.client.get("/api/shows/1")
+        self.assertIn(b'data-metadata-refresh-due="false"', detail.data)
+
+        invalid = self.client.post(
+            "/api/shows/1/refresh", json={"force": "yes"}
+        )
+        self.assertEqual(invalid.status_code, 400)
+
     def test_discover_preview_stays_untracked_until_added(self):
         show_payload = {
             "id": 920,
@@ -903,6 +960,11 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('openShow(data.show_id, "discover", false)', javascript)
         self.assertIn("const cachedShowId = card.dataset.showId", javascript)
         self.assertIn('await openShow(cachedShowId, "discover")', javascript)
+        self.assertIn("if (hasCachedDetails) {", javascript)
+        self.assertIn("refreshShowMetadata(showId);", javascript)
+        seasons_ready = javascript.index("nextSeasonList.innerHTML = seasonsHtml")
+        detail_swap = javascript.index('views.get("detail").replaceChildren(template.content)')
+        self.assertLess(seasons_ready, detail_swap)
         self.assertIn("function markCatalogUntracked", javascript)
 
     def test_failed_import_rolls_back_every_record(self):

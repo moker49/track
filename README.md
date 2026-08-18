@@ -25,7 +25,7 @@ Discover searches TMDB as you type. Popular shows are saved locally and refreshe
 
 ## Navigation
 
-The browser loads one persistent application shell at `/`. Watching, Archive, and Discover are included in the initial HTML and switch in place without changing the URL. Selecting a show renders its compact overview first, then loads seasons and episodes in the background. Both fragments are cached in memory for seamless repeat visits during the current browser session. The outer app shell and navigation are never replaced.
+The browser loads one persistent application shell at `/`. Watching, Archive, and Discover are included in the initial HTML and switch in place without changing the URL. Selecting a show renders its compact overview first, then loads seasons and episodes in the background. Both fragments are cached in memory for seamless repeat visits during the current browser session. Stored TMDB metadata is refreshed in the background only when its last refresh is at least 24 hours old, or immediately when Refresh is chosen from the show-detail menu. Existing details stay visible until the refreshed overview and episode list are ready. The outer app shell and navigation are never replaced.
 
 ## Data model
 

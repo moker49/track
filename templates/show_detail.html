@@ -16,6 +16,8 @@
 {% endif %}
 <div data-detail-show data-detail-title="{{ show.name }}" data-show-id="{{ show.id }}" data-tmdb-id="{{ show.tmdb_id }}"
   data-show-state="{{ show.state }}" data-show-tracked="{{ 'true' if show.is_tracked else 'false' }}"
+  data-tmdb-refreshed-at="{{ show.tmdb_refreshed_at or '' }}"
+  data-metadata-refresh-due="{{ 'true' if metadata_refresh_due else 'false' }}"
   data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
   data-progress-state="{{ progress_state }}">
   <header class="detail-app-bar">
@@ -32,6 +34,10 @@
         <button type="button" data-show-action="move" data-target-state="{{ target_state }}">
           <span class="material-symbols-rounded" aria-hidden="true">{{ move_icon }}</span>
           <span data-move-label>{{ move_label }}</span>
+        </button>
+        <button type="button" data-show-action="refresh">
+          <span class="material-symbols-rounded" aria-hidden="true">refresh</span>
+          <span>Refresh</span>
         </button>
         <button class="danger-action" type="button" data-show-action="remove">
           <span class="material-symbols-rounded" aria-hidden="true">delete</span>
