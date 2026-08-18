@@ -661,6 +661,19 @@ a {
   align-items: center;
 }
 
+[data-detail-show][data-show-tracked="false"] .season-list .watch-control-wrap {
+  display: none;
+}
+
+[data-detail-show][data-show-tracked="false"] .season summary {
+  padding-right: 10px;
+}
+
+[data-detail-show][data-show-tracked="false"] .episode {
+  padding-right: 16px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .episode+.episode {
   border-top: 1px solid var(--outline-soft);
 }
@@ -1292,12 +1305,20 @@ a {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface-card));
 }
 
-.popular-card.is-added::after {
+.popular-card.is-added::after,
+.popular-card.is-cached::after {
   content: "";
   position: absolute;
   inset: 0 0 0 auto;
   width: 4px;
+}
+
+.popular-card.is-added::after {
   background: var(--accent);
+}
+
+.popular-card.is-cached::after {
+  background: var(--outline);
 }
 
 .popular-card:focus-visible {

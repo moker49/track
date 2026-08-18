@@ -921,8 +921,20 @@ class TrackAppTest(unittest.TestCase):
         detail = self.client.get(f"/api/shows/{preview_data['show_id']}")
         self.assertIn(b'data-track-show-state="WATCHING"', detail.data)
         self.assertIn(b'data-track-show-state="ARCHIVED"', detail.data)
+        self.assertIn(b'data-show-tracked="false"', detail.data)
         self.assertNotIn(b"data-progress-summary", detail.data)
         self.assertNotIn(b"data-show-menu-button", detail.data)
+
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '[data-detail-show][data-show-tracked="false"] .season-list .watch-control-wrap',
+            css,
+        )
+        self.assertIn(
+            '[data-detail-show][data-show-tracked="false"] .episode', css
+        )
 
         tracked = self.client.post(
             f"/api/shows/{preview_data['show_id']}/state",
@@ -954,9 +966,15 @@ class TrackAppTest(unittest.TestCase):
             css,
         )
         self.assertIn(".popular-card.is-added::after", css)
+        self.assertIn(".popular-card.is-cached::after", css)
+        self.assertIn("background: var(--outline);", css)
         self.assertIn("inset: 0 0 0 auto", css)
         self.assertNotIn("box-shadow: inset 0 0 0 2px var(--accent)", css)
         self.assertIn('card.querySelector(".popular-card-actions")?.remove()', javascript)
+        self.assertIn('if (show.show_id) article.classList.add("is-cached")', javascript)
+        self.assertIn('else card.classList.add("is-cached")', javascript)
+        self.assertIn('card.classList.remove("is-cached")', javascript)
+        self.assertIn('if (card.dataset.showId) card.classList.add("is-cached")', javascript)
         self.assertIn('openShow(data.show_id, "discover", false)', javascript)
         self.assertIn("const cachedShowId = card.dataset.showId", javascript)
         self.assertIn('await openShow(cachedShowId, "discover")', javascript)

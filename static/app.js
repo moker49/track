@@ -103,6 +103,7 @@ function catalogCard(show) {
   if (show.is_tracked) {
     markCatalogTracked(article, show.state, show.show_id);
   } else {
+    if (show.show_id) article.classList.add("is-cached");
     copy.append(catalogActions());
   }
   return article;
@@ -123,6 +124,7 @@ function catalogActions() {
 }
 
 function markCatalogTracked(card, state, showId) {
+  card.classList.remove("is-cached");
   card.classList.add("is-added");
   card.dataset.showId = showId;
   card.querySelector(".popular-card-actions")?.remove();
@@ -141,6 +143,7 @@ function markCatalogTracked(card, state, showId) {
 
 function markCatalogUntracked(card) {
   card.classList.remove("is-added");
+  if (card.dataset.showId) card.classList.add("is-cached");
   card.querySelector(".catalog-added-indicator")?.remove();
   const copy = card.querySelector(".popular-card-copy");
   if (copy && !copy.querySelector(".popular-card-actions")) copy.append(catalogActions());
@@ -264,6 +267,7 @@ async function previewCatalogShow(card) {
     if (!response.ok) throw new Error(data.error || "Could not open show");
     card.dataset.showId = data.show_id;
     if (data.is_tracked) markCatalogTracked(card, data.state, data.show_id);
+    else card.classList.add("is-cached");
     invalidateShowCache(data.show_id, true);
     openShow(data.show_id, "discover", false);
   } catch (error) {
