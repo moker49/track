@@ -13,12 +13,13 @@ Open `http://127.0.0.1:5050`. The SQLite database is created automatically in `i
 
 ## TMDB configuration
 
-Set your TMDB API Read Access Token before starting the app. The token is used only by Flask and is never sent to the browser.
+Copy `.env.example` to `.env`, then place your TMDB API Read Access Token in it. The token is used only by Flask and is never sent to the browser.
 
-```powershell
-$env:TMDB_READ_ACCESS_TOKEN="your-token"
-python app.py
+```dotenv
+TMDB_READ_ACCESS_TOKEN=your-token
 ```
+
+After that, start the app normally with `python app.py`. An already-defined system environment variable takes precedence over the value in `.env`.
 
 Discover searches TMDB as you type. Popular shows are saved locally and refreshed no more than once every 24 hours. A stale saved response remains available if TMDB is temporarily unreachable.
 

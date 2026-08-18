@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import Flask, abort, g, jsonify, redirect, render_template, request, url_for
+from dotenv import load_dotenv
 
 from migrations import migrate_database
 from tmdb import TMDBClient, TMDBError
@@ -73,6 +74,8 @@ def migrate_watch_history_tables(db: sqlite3.Connection) -> None:
 
 
 def create_app(test_config: dict | None = None) -> Flask:
+    dotenv_path = (test_config or {}).get("DOTENV_PATH", BASE_DIR / ".env")
+    load_dotenv(dotenv_path=dotenv_path, override=False)
     app = Flask(__name__)
     app.config.from_mapping(
         DATABASE=str(DATABASE),

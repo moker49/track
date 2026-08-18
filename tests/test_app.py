@@ -2,7 +2,9 @@ import sqlite3
 import tempfile
 import unittest
 import json
+import os
 from pathlib import Path
+from unittest import mock
 
 from app import create_app
 
@@ -538,6 +540,42 @@ class TrackAppTest(unittest.TestCase):
             self.assertEqual(show_count, 0)
             self.assertNotIn("WATCHLIST", show_sql)
             self.assertNotIn("watchlist_at", columns)
+
+    def test_dotenv_token_is_loaded_without_overriding_environment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dotenv_path = root / ".env"
+            dotenv_path.write_text(
+                "TMDB_READ_ACCESS_TOKEN=token-from-file\n", encoding="utf-8"
+            )
+            with mock.patch.dict(os.environ, {}, clear=True):
+                dotenv_app = create_app(
+                    {
+                        "TESTING": True,
+                        "DATABASE": str(root / "dotenv.db"),
+                        "DOTENV_PATH": dotenv_path,
+                        "SEED_DEMO_DATA": False,
+                    }
+                )
+                self.assertEqual(
+                    dotenv_app.config["TMDB_READ_ACCESS_TOKEN"], "token-from-file"
+                )
+
+            with mock.patch.dict(
+                os.environ, {"TMDB_READ_ACCESS_TOKEN": "token-from-environment"}, clear=True
+            ):
+                environment_app = create_app(
+                    {
+                        "TESTING": True,
+                        "DATABASE": str(root / "environment.db"),
+                        "DOTENV_PATH": dotenv_path,
+                        "SEED_DEMO_DATA": False,
+                    }
+                )
+                self.assertEqual(
+                    environment_app.config["TMDB_READ_ACCESS_TOKEN"],
+                    "token-from-environment",
+                )
 
     def test_popular_results_are_cached_for_one_day_and_search_is_remote(self):
         class FakeClient:
