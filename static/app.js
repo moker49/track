@@ -77,7 +77,15 @@ function catalogCard(show) {
 
   const poster = document.createElement("div");
   poster.className = "mini-poster";
+  const initial = document.createElement("span");
+  initial.textContent = show.name.charAt(0);
   if (show.poster_path) {
+    initial.hidden = true;
+    initial.dataset.mediaFallback = "";
+  }
+  poster.append(initial);
+  if (show.poster_path) {
+    poster.classList.add("has-media-image");
     const image = document.createElement("img");
     image.src = `/media/poster/w185/${encodeURIComponent(show.poster_path.replace(/^\//, ""))}`;
     image.alt = "";
@@ -85,10 +93,6 @@ function catalogCard(show) {
     image.decoding = "async";
     image.dataset.mediaImage = "";
     poster.append(image);
-  } else {
-    const initial = document.createElement("span");
-    initial.textContent = show.name.charAt(0);
-    poster.append(initial);
   }
 
   const copy = document.createElement("div");
@@ -109,6 +113,30 @@ function catalogCard(show) {
     copy.append(catalogActions());
   }
   return article;
+}
+
+function settleMediaImage(image, loaded) {
+  const container = image.closest(".has-media-image");
+  if (!container) return;
+  if (loaded) {
+    container.classList.add("is-image-loaded");
+    return;
+  }
+  container.classList.remove("has-media-image", "is-image-loaded");
+  image.remove();
+  container.querySelectorAll("[data-media-fallback]").forEach((fallback) => {
+    fallback.hidden = false;
+  });
+}
+
+function inspectCompletedMediaImage(image) {
+  if (!image.complete) return;
+  settleMediaImage(image, image.naturalWidth > 0);
+}
+
+function inspectMediaImages(root) {
+  if (root.matches?.("img[data-media-image]")) inspectCompletedMediaImage(root);
+  root.querySelectorAll?.("img[data-media-image]").forEach(inspectCompletedMediaImage);
 }
 
 function catalogActions() {
@@ -1364,8 +1392,18 @@ document.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("error", (event) => {
-  if (event.target.matches?.("img[data-media-image]")) event.target.remove();
+  if (event.target.matches?.("img[data-media-image]")) settleMediaImage(event.target, false);
 }, true);
+
+document.addEventListener("load", (event) => {
+  if (event.target.matches?.("img[data-media-image]")) settleMediaImage(event.target, true);
+}, true);
+
+document.querySelectorAll("img[data-media-image]").forEach(inspectCompletedMediaImage);
+
+new MutationObserver((mutations) => {
+  mutations.forEach((mutation) => mutation.addedNodes.forEach(inspectMediaImages));
+}).observe(document.documentElement, { childList: true, subtree: true });
 
 document.addEventListener("submit", (event) => {
   if (event.target.matches("[data-view-search]")) event.preventDefault();

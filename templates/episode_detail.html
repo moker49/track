@@ -9,10 +9,10 @@
   </header>
 
   <section class="hero episode-hero">
-    <div class="hero-poster poster" aria-hidden="true">
+    <div class="hero-poster poster{% if episode.still_path %} has-media-image{% endif %}" aria-hidden="true">
       {% if episode.still_path %}<img class="poster-image episode-still-image" src="{{ url_for('cached_tmdb_image', image_type='still', size='w300', tmdb_path=episode.still_path[1:]) }}" alt="" decoding="async" data-media-image>{% endif %}
-      <span class="poster-mark episode-poster-mark">S{{ episode.season_number }}E{{ episode.episode_number }}</span>
-      <span class="poster-label">{{ episode.show_name }}</span>
+      <span class="poster-mark episode-poster-mark"{% if episode.still_path %} hidden data-media-fallback{% endif %}>S{{ episode.season_number }}E{{ episode.episode_number }}</span>
+      <span class="poster-label"{% if episode.still_path %} hidden data-media-fallback{% endif %}>{{ episode.show_name }}</span>
     </div>
     <div class="hero-copy">
       <span class="state-label">Episode {{ episode.episode_number }}</span>

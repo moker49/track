@@ -210,6 +210,31 @@ a {
   object-fit: cover;
 }
 
+.has-media-image:not(.is-image-loaded) {
+  background: var(--surface-high);
+  animation: skeleton-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.poster.has-media-image::before,
+.poster.has-media-image::after {
+  display: none;
+}
+
+.poster.has-media-image .poster-mark,
+.poster.has-media-image .poster-label,
+.mini-poster.has-media-image>span,
+.season-poster-shell.has-media-image .season-poster-fallback {
+  display: none;
+}
+
+.has-media-image:not(.is-image-loaded) img {
+  opacity: 0;
+}
+
+.has-media-image.is-image-loaded img {
+  opacity: 1;
+}
+
 .poster::before,
 .poster::after {
   content: "";
@@ -647,13 +672,27 @@ a {
   gap: 3px;
 }
 
-.season-poster {
+.season-poster-shell {
+  position: relative;
   width: 34px;
   height: 50px;
   border-radius: 6px;
   flex: 0 0 34px;
-  object-fit: cover;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--on-surface-muted);
   background: var(--surface-high);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.season-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .season-title strong {
@@ -1369,10 +1408,12 @@ a {
 }
 
 .mini-poster {
+  position: relative;
   width: 88px;
   height: 100%;
   min-height: 112px;
   border-radius: 0;
+  overflow: hidden;
   display: grid;
   place-items: center;
   color: var(--on-primary);
@@ -1382,6 +1423,8 @@ a {
 }
 
 .mini-poster img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;

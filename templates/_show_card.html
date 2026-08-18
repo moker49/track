@@ -19,10 +19,10 @@
 
   <article class="show-card" data-show-id="{{ show.id }}" data-tmdb-id="{{ show.tmdb_id }}" data-show-name="{{ show.name|lower }}" data-date-added="{{ show.added_at }}" data-release-date="{{ show.first_air_date }}" data-show-state="{{ show.state }}" data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}" data-progress-state="{{ progress_state }}">
     <button class="show-card-open" type="button" data-show-open aria-label="Open {{ show.name }}">
-      <div class="poster poster-purple" aria-hidden="true">
+      <div class="poster poster-purple{% if show.poster_path %} has-media-image{% endif %}" aria-hidden="true">
         {% if show.poster_path %}<img class="poster-image" src="{{ url_for('cached_tmdb_image', image_type='poster', size='w342', tmdb_path=show.poster_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image>{% endif %}
-        <span class="poster-mark">{{ show.name[:2]|upper }}</span>
-        <span class="poster-label">{{ show.name }}</span>
+        <span class="poster-mark"{% if show.poster_path %} hidden data-media-fallback{% endif %}>{{ show.name[:2]|upper }}</span>
+        <span class="poster-label"{% if show.poster_path %} hidden data-media-fallback{% endif %}>{{ show.name }}</span>
       </div>
       <div class="show-card-body">
         <div>

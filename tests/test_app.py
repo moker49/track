@@ -1019,6 +1019,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertTrue(tracked_data["newly_tracked"])
         self.assertIn("show-card", tracked_data["card_html"])
         self.assertIn("/media/poster/w342/preview.jpg", tracked_data["card_html"])
+        self.assertIn("hidden data-media-fallback", tracked_data["card_html"])
 
         tracked_detail = self.client.get(f"/api/shows/{preview_data['show_id']}")
         self.assertIn(b"data-progress-summary", tracked_detail.data)
@@ -1043,6 +1044,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".popular-card.is-added::after", css)
         self.assertIn(".popular-card.is-cached::after", css)
         self.assertIn("background: var(--outline);", css)
+        self.assertIn(".has-media-image:not(.is-image-loaded)", css)
+        self.assertIn("animation: skeleton-pulse 1.2s", css)
+        self.assertIn(".mini-poster {\n  position: relative;", css)
+        self.assertIn(".mini-poster img {\n  position: absolute;", css)
         self.assertIn("inset: 0 0 0 auto", css)
         self.assertNotIn("box-shadow: inset 0 0 0 2px var(--accent)", css)
         self.assertIn('card.querySelector(".popular-card-actions")?.remove()', javascript)
@@ -1059,6 +1064,7 @@ class TrackAppTest(unittest.TestCase):
         detail_swap = javascript.index('views.get("detail").replaceChildren(template.content)')
         self.assertLess(seasons_ready, detail_swap)
         self.assertIn("function markCatalogUntracked", javascript)
+        self.assertIn("fallback.hidden = false", javascript)
 
     def test_failed_import_rolls_back_every_record(self):
         class BrokenClient:
