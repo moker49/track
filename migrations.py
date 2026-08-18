@@ -199,6 +199,23 @@ def _rename_active_to_watching(db: sqlite3.Connection) -> None:
         db.execute("PRAGMA foreign_keys = ON")
 
 
+def _add_image_cache(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS image_cache (
+            id INTEGER PRIMARY KEY,
+            tmdb_path TEXT NOT NULL,
+            image_type TEXT NOT NULL,
+            size TEXT NOT NULL,
+            local_filename TEXT NOT NULL,
+            content_type TEXT NOT NULL,
+            downloaded_at TEXT NOT NULL,
+            UNIQUE (tmdb_path, image_type, size)
+        )
+        """
+    )
+
+
 def migrate_database(db: sqlite3.Connection) -> None:
     db.execute(
         """
@@ -213,6 +230,7 @@ def migrate_database(db: sqlite3.Connection) -> None:
         (2, _add_tmdb_metadata),
         (3, _add_tracking_flag),
         (4, _rename_active_to_watching),
+        (5, _add_image_cache),
     )
     applied = {
         row[0] for row in db.execute("SELECT version FROM schema_migrations")

@@ -23,6 +23,8 @@ After that, start the app normally with `python app.py`. An already-defined syst
 
 Discover searches TMDB as you type. Popular shows are saved locally and refreshed no more than once every 24 hours. A stale saved response remains available if TMDB is temporarily unreachable. Opening a Discover card displays already-imported details immediately when available, then refreshes them from TMDB. A new card is imported as an untracked local preview; it enters the library only after choosing Start watching or Archive.
 
+TMDB poster, season, and episode images are downloaded on demand through the local Flask server. Completed files are stored under `instance/images/`, indexed in SQLite, and reused with long-lived browser caching. Image failures fall back to the built-in text artwork and never fail a metadata import.
+
 ## Navigation
 
 The browser loads one persistent application shell at `/`. Watching, Archive, and Discover are included in the initial HTML and switch in place without changing the URL. Selecting a show renders its compact overview first, then loads seasons and episodes in the background. Both fragments are cached in memory for seamless repeat visits during the current browser session. Stored TMDB metadata is refreshed in the background only when its last refresh is at least 24 hours old, or immediately when Refresh is chosen from the show-detail menu. Existing details stay visible until the refreshed overview and episode list are ready. The outer app shell and navigation are never replaced.

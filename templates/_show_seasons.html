@@ -8,6 +8,7 @@
   data-progress-counted="{{ 'true' if season.is_progress_counted else 'false' }}">
   <summary>
     <span class="season-chevron material-symbols-rounded" aria-hidden="true">expand_more</span>
+    {% if season.poster_path %}<img class="season-poster" src="{{ url_for('cached_tmdb_image', image_type='season', size='w185', tmdb_path=season.poster_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image>{% endif %}
     <span class="season-title">
       <strong>{{ season.name }}</strong>
       <small>{% if season.is_progress_counted %}{{ watched_in_season }} of {{ episodes|length }}{% else %}Not

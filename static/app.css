@@ -201,6 +201,15 @@ a {
   background: var(--primary-dark);
 }
 
+.poster-image {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .poster::before,
 .poster::after {
   content: "";
@@ -636,6 +645,15 @@ a {
 .season-title {
   display: grid;
   gap: 3px;
+}
+
+.season-poster {
+  width: 34px;
+  height: 50px;
+  border-radius: 6px;
+  flex: 0 0 34px;
+  object-fit: cover;
+  background: var(--surface-high);
 }
 
 .season-title strong {
@@ -1274,6 +1292,18 @@ a {
 .popular-grid {
   display: grid;
   gap: 12px;
+}
+
+.tmdb-credit {
+  margin: 24px 12px 0;
+  color: var(--on-surface-muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.tmdb-credit a {
+  color: var(--primary);
 }
 
 .discover-loading {

@@ -79,9 +79,11 @@ function catalogCard(show) {
   poster.className = "mini-poster";
   if (show.poster_path) {
     const image = document.createElement("img");
-    image.src = `https://image.tmdb.org/t/p/w185${show.poster_path}`;
+    image.src = `/media/poster/w185/${encodeURIComponent(show.poster_path.replace(/^\//, ""))}`;
     image.alt = "";
     image.loading = "lazy";
+    image.decoding = "async";
+    image.dataset.mediaImage = "";
     poster.append(image);
   } else {
     const initial = document.createElement("span");
@@ -1360,6 +1362,10 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
   previewCatalogShow(card);
 });
+
+document.addEventListener("error", (event) => {
+  if (event.target.matches?.("img[data-media-image]")) event.target.remove();
+}, true);
 
 document.addEventListener("submit", (event) => {
   if (event.target.matches("[data-view-search]")) event.preventDefault();

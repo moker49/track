@@ -49,6 +49,7 @@
 
   <section class="hero">
     <div class="hero-poster poster poster-purple" aria-hidden="true">
+      {% if show.poster_path %}<img class="poster-image" src="{{ url_for('cached_tmdb_image', image_type='poster', size='w342', tmdb_path=show.poster_path[1:]) }}" alt="" decoding="async" data-media-image>{% endif %}
       <span class="poster-mark">{{ show.name[:2]|upper }}</span>
       <span class="poster-label">{{ show.name }}</span>
     </div>

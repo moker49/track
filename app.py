@@ -5,11 +5,13 @@ import os
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from urllib.request import urlopen
 
-from flask import Flask, abort, g, jsonify, redirect, render_template, request, url_for
+from flask import Flask, abort, g, jsonify, redirect, render_template, request, send_file, url_for
 from dotenv import load_dotenv
 
 from migrations import migrate_database
+from image_cache import ImageCacheError, cached_image
 from tmdb import TMDBClient, TMDBError
 from tmdb_import import import_or_refresh_show
 
@@ -83,9 +85,16 @@ def create_app(test_config: dict | None = None) -> Flask:
         TMDB_CACHE_TTL=timedelta(days=1),
         SHOW_METADATA_TTL=timedelta(days=1),
         TMDB_CLIENT_FACTORY=TMDBClient,
+        IMAGE_CACHE_DIR=None,
+        IMAGE_TRANSPORT=urlopen,
     )
     if test_config:
         app.config.update(test_config)
+
+    if app.config["IMAGE_CACHE_DIR"] is None:
+        app.config["IMAGE_CACHE_DIR"] = str(
+            Path(app.config["DATABASE"]).parent / "images"
+        )
 
     Path(app.config["DATABASE"]).parent.mkdir(parents=True, exist_ok=True)
 
@@ -315,6 +324,26 @@ def create_app(test_config: dict | None = None) -> Flask:
             "index.html",
             watching_shows=watching_shows,
             archived_shows=archived_shows,
+        )
+
+    @app.get("/media/<image_type>/<size>/<path:tmdb_path>")
+    def cached_tmdb_image(image_type: str, size: str, tmdb_path: str):
+        try:
+            image_path, content_type = cached_image(
+                get_db(),
+                Path(app.config["IMAGE_CACHE_DIR"]),
+                image_type,
+                size,
+                tmdb_path,
+                transport=app.config["IMAGE_TRANSPORT"],
+            )
+        except ImageCacheError:
+            abort(404)
+        return send_file(
+            image_path,
+            mimetype=content_type,
+            conditional=True,
+            max_age=31_536_000,
         )
 
     @app.get("/api/discover/popular")

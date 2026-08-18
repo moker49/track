@@ -87,3 +87,14 @@ CREATE TABLE IF NOT EXISTS tmdb_cache (
     payload TEXT NOT NULL,
     refreshed_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS image_cache (
+    id INTEGER PRIMARY KEY,
+    tmdb_path TEXT NOT NULL,
+    image_type TEXT NOT NULL,
+    size TEXT NOT NULL,
+    local_filename TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    downloaded_at TEXT NOT NULL,
+    UNIQUE (tmdb_path, image_type, size)
+);

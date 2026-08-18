@@ -3,6 +3,8 @@ import tempfile
 import unittest
 import json
 import os
+from email.message import Message
+from io import BytesIO
 from pathlib import Path
 from unittest import mock
 
@@ -241,6 +243,61 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(filled_font.status_code, 200)
         self.assertGreater(len(filled_font.data), 1_000_000)
         filled_font.close()
+
+    def test_tmdb_images_are_cached_on_disk_and_recorded_in_sqlite(self):
+        class ImageResponse(BytesIO):
+            def __init__(self, body):
+                super().__init__(body)
+                self.headers = Message()
+                self.headers["Content-Type"] = "image/jpeg"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.close()
+
+        calls = []
+
+        def transport(request, timeout):
+            calls.append((request.full_url, timeout))
+            return ImageResponse(b"test-image-bytes")
+
+        cache_directory = Path(self.temp_dir.name) / "images"
+        self.app.config.update(
+            IMAGE_CACHE_DIR=str(cache_directory),
+            IMAGE_TRANSPORT=transport,
+        )
+
+        first = self.client.get("/media/poster/w185/example.jpg")
+        second = self.client.get("/media/poster/w185/example.jpg")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.data, b"test-image-bytes")
+        self.assertEqual(first.mimetype, "image/jpeg")
+        self.assertIn("max-age=31536000", first.headers["Cache-Control"])
+        self.assertEqual(second.data, b"test-image-bytes")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(
+            calls[0][0], "https://image.tmdb.org/t/p/w185/example.jpg"
+        )
+
+        connection = sqlite3.connect(self.database)
+        cached = connection.execute(
+            """
+            SELECT tmdb_path, image_type, size, content_type, local_filename
+            FROM image_cache
+            """
+        ).fetchone()
+        connection.close()
+        self.assertEqual(cached[:4], ("/example.jpg", "poster", "w185", "image/jpeg"))
+        self.assertTrue((cache_directory / cached[4]).is_file())
+
+        unsupported = self.client.get("/media/poster/original/example.jpg")
+        self.assertEqual(unsupported.status_code, 404)
+        first.close()
+        second.close()
+        unsupported.close()
 
     def test_open_watch_menu_elevates_its_season(self):
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text()
@@ -878,6 +935,7 @@ class TrackAppTest(unittest.TestCase):
             "id": 920,
             "name": "Preview Show",
             "overview": "A show opened from Discover.",
+            "poster_path": "/preview.jpg",
             "first_air_date": "2022-04-10",
             "genres": [{"id": 18, "name": "Drama"}],
         }
@@ -886,11 +944,13 @@ class TrackAppTest(unittest.TestCase):
                 "id": 921,
                 "season_number": 1,
                 "name": "Season 1",
+                "poster_path": "/preview-season.jpg",
                 "episodes": [
                     {
                         "id": 922,
                         "episode_number": 1,
                         "name": "First Look",
+                        "still_path": "/preview-still.jpg",
                         "air_date": "2022-04-10",
                     }
                 ],
@@ -924,6 +984,20 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-show-tracked="false"', detail.data)
         self.assertNotIn(b"data-progress-summary", detail.data)
         self.assertNotIn(b"data-show-menu-button", detail.data)
+        self.assertIn(b"/media/poster/w342/preview.jpg", detail.data)
+
+        seasons_detail = self.client.get(
+            f"/api/shows/{preview_data['show_id']}/seasons"
+        )
+        self.assertIn(b"/media/season/w185/preview-season.jpg", seasons_detail.data)
+
+        connection = sqlite3.connect(self.database)
+        preview_episode_id = connection.execute(
+            "SELECT id FROM episodes WHERE tmdb_id = 922"
+        ).fetchone()[0]
+        connection.close()
+        episode_detail = self.client.get(f"/api/episodes/{preview_episode_id}")
+        self.assertIn(b"/media/still/w300/preview-still.jpg", episode_detail.data)
 
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
             encoding="utf-8"
@@ -944,6 +1018,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(tracked.status_code, 200)
         self.assertTrue(tracked_data["newly_tracked"])
         self.assertIn("show-card", tracked_data["card_html"])
+        self.assertIn("/media/poster/w342/preview.jpg", tracked_data["card_html"])
 
         tracked_detail = self.client.get(f"/api/shows/{preview_data['show_id']}")
         self.assertIn(b"data-progress-summary", tracked_detail.data)
