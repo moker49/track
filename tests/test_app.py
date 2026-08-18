@@ -655,6 +655,7 @@ class TrackAppTest(unittest.TestCase):
 
         self.assertEqual(imported.status_code, 200)
         self.assertTrue(imported.get_json()["created"])
+        self.assertTrue(imported.get_json()["newly_tracked"])
         self.assertIn("show-card", imported.get_json()["card_html"])
         self.assertFalse(duplicate.get_json()["created"])
         self.assertEqual(duplicate.get_json()["state"], "ACTIVE")
@@ -703,6 +704,85 @@ class TrackAppTest(unittest.TestCase):
         connection.close()
         self.assertEqual(refreshed_episode, (regular_episode_id, "Updated Pilot"))
         self.assertEqual(history_count, 1)
+
+    def test_discover_preview_stays_untracked_until_added(self):
+        show_payload = {
+            "id": 920,
+            "name": "Preview Show",
+            "overview": "A show opened from Discover.",
+            "first_air_date": "2022-04-10",
+            "genres": [{"id": 18, "name": "Drama"}],
+        }
+        seasons = [
+            {
+                "id": 921,
+                "season_number": 1,
+                "name": "Season 1",
+                "episodes": [
+                    {
+                        "id": 922,
+                        "episode_number": 1,
+                        "name": "First Look",
+                        "air_date": "2022-04-10",
+                    }
+                ],
+            }
+        ]
+
+        class FakeClient:
+            def show_bundle(self, _tmdb_id):
+                return show_payload, seasons
+
+        self.app.config.update(
+            TMDB_READ_ACCESS_TOKEN="test-token",
+            TMDB_CLIENT_FACTORY=lambda _token: FakeClient(),
+        )
+
+        preview = self.client.post(
+            "/api/discover/shows/920/import", json={"state": None}
+        )
+        preview_data = preview.get_json()
+        self.assertEqual(preview.status_code, 200)
+        self.assertTrue(preview_data["created"])
+        self.assertFalse(preview_data["newly_tracked"])
+        self.assertFalse(preview_data["is_tracked"])
+        self.assertIsNone(preview_data["card_html"])
+
+        home = self.client.get("/")
+        self.assertNotIn(b"Preview Show", home.data)
+        detail = self.client.get(f"/api/shows/{preview_data['show_id']}")
+        self.assertIn(b'data-track-show-state="ACTIVE"', detail.data)
+        self.assertIn(b'data-track-show-state="ARCHIVED"', detail.data)
+        self.assertNotIn(b"data-progress-summary", detail.data)
+        self.assertNotIn(b"data-show-menu-button", detail.data)
+
+        tracked = self.client.post(
+            f"/api/shows/{preview_data['show_id']}/state",
+            json={"state": "ARCHIVED"},
+        )
+        tracked_data = tracked.get_json()
+        self.assertEqual(tracked.status_code, 200)
+        self.assertTrue(tracked_data["newly_tracked"])
+        self.assertIn("show-card", tracked_data["card_html"])
+
+        tracked_detail = self.client.get(f"/api/shows/{preview_data['show_id']}")
+        self.assertIn(b"data-progress-summary", tracked_detail.data)
+        self.assertNotIn(b"data-track-show-state", tracked_detail.data)
+        archived_home = self.client.get("/")
+        self.assertIn(b"Preview Show", archived_home.data)
+
+    def test_discover_cards_have_edge_poster_and_tracked_highlight_styles(self):
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("grid-template-columns: 88px 1fr", css)
+        self.assertIn("overflow: hidden", css)
+        self.assertIn(".popular-card.is-added", css)
+        self.assertIn('card.querySelector(".popular-card-actions")?.remove()', javascript)
+        self.assertIn('openShow(data.show_id, "discover", false)', javascript)
 
     def test_failed_import_rolls_back_every_record(self):
         class BrokenClient:

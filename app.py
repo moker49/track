@@ -151,7 +151,44 @@ def create_app(test_config: dict | None = None) -> Flask:
                     "vote_average": item.get("vote_average"),
                 }
             )
+        if not results:
+            return results
+        placeholders = ",".join("?" for _item in results)
+        local_by_tmdb_id = {
+            row["tmdb_id"]: row
+            for row in get_db().execute(
+                f"""
+                SELECT id, tmdb_id, state, is_tracked
+                FROM shows
+                WHERE tmdb_id IN ({placeholders})
+                """,
+                [item["tmdb_id"] for item in results],
+            )
+        }
+        for item in results:
+            local = local_by_tmdb_id.get(item["tmdb_id"])
+            item["show_id"] = local["id"] if local else None
+            item["is_tracked"] = bool(local["is_tracked"]) if local else False
+            item["state"] = local["state"] if local and local["is_tracked"] else None
         return results
+
+    def get_library_show(db: sqlite3.Connection, show_id: int) -> sqlite3.Row | None:
+        return db.execute(
+            """
+            SELECT s.*,
+                   COUNT(DISTINCT e.id) AS episode_count,
+                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
+            FROM shows s
+            LEFT JOIN seasons sn ON sn.show_id = s.id
+            LEFT JOIN episodes e ON e.season_id = sn.id
+              AND sn.is_progress_counted = 1
+              AND e.air_date <= date('now')
+            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+            WHERE s.id = ?
+            GROUP BY s.id
+            """,
+            (show_id,),
+        ).fetchone()
 
     def watch_payload(
         db: sqlite3.Connection, show_id: int, episode_id: int | None = None
@@ -196,7 +233,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                        NULL AS watch_added_at,
                        NULL AS watch_date
                 FROM shows
-                WHERE id = ?
+                WHERE id = ? AND is_tracked = 1
 
                 UNION ALL
 
@@ -254,7 +291,8 @@ def create_app(test_config: dict | None = None) -> Flask:
               AND sn.is_progress_counted = 1
               AND e.air_date <= date('now')
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
-            WHERE s.state IN ('ACTIVE', 'ARCHIVED')
+            WHERE s.is_tracked = 1
+              AND s.state IN ('ACTIVE', 'ARCHIVED')
             GROUP BY s.id
             ORDER BY CASE s.state WHEN 'ACTIVE' THEN 0 ELSE 1 END,
                      s.name COLLATE NOCASE ASC
@@ -329,54 +367,48 @@ def create_app(test_config: dict | None = None) -> Flask:
     def import_discovered_show(tmdb_id: int):
         payload = request.get_json(silent=True) or {}
         target_state = payload.get("state")
-        if target_state not in {"ACTIVE", "ARCHIVED"}:
-            return jsonify(error="state must be ACTIVE or ARCHIVED"), 400
+        if target_state not in {None, "ACTIVE", "ARCHIVED"}:
+            return jsonify(error="state must be ACTIVE, ARCHIVED, or null"), 400
         try:
             show, seasons = get_tmdb_client().show_bundle(tmdb_id)
             if show.get("id") != tmdb_id:
                 raise TMDBError("TMDB returned the wrong show")
-            show_id, created = import_or_refresh_show(
+            show_id, created, newly_tracked = import_or_refresh_show(
                 get_db(), show, seasons, target_state
             )
         except TMDBError as error:
             return jsonify(error=str(error)), 503
         except ValueError as error:
             return jsonify(error=str(error)), 502
-        imported_show = get_db().execute(
-            """
-            SELECT s.*,
-                   COUNT(DISTINCT e.id) AS episode_count,
-                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
-            FROM shows s
-            LEFT JOIN seasons sn ON sn.show_id = s.id
-            LEFT JOIN episodes e ON e.season_id = sn.id
-              AND sn.is_progress_counted = 1
-              AND e.air_date <= date('now')
-            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
-            WHERE s.id = ?
-            GROUP BY s.id
-            """,
-            (show_id,),
-        ).fetchone()
+        imported_show = get_library_show(get_db(), show_id)
         return jsonify(
             show_id=show_id,
             created=created,
-            state=imported_show["state"],
-            card_html=render_template("_show_card_fragment.html", show=imported_show),
+            newly_tracked=newly_tracked,
+            is_tracked=bool(imported_show["is_tracked"]),
+            state=imported_show["state"] if imported_show["is_tracked"] else None,
+            card_html=(
+                render_template("_show_card_fragment.html", show=imported_show)
+                if imported_show["is_tracked"]
+                else None
+            ),
         )
 
     @app.post("/api/shows/<int:show_id>/refresh")
     def refresh_show(show_id: int):
         db = get_db()
         local_show = db.execute(
-            "SELECT tmdb_id, state FROM shows WHERE id = ?", (show_id,)
+            "SELECT tmdb_id, state, is_tracked FROM shows WHERE id = ?", (show_id,)
         ).fetchone()
         if local_show is None:
             return jsonify(error="Show not found"), 404
         try:
             show, seasons = get_tmdb_client().show_bundle(local_show["tmdb_id"])
-            refreshed_id, _created = import_or_refresh_show(
-                db, show, seasons, local_show["state"]
+            refreshed_id, _created, _newly_tracked = import_or_refresh_show(
+                db,
+                show,
+                seasons,
+                local_show["state"] if local_show["is_tracked"] else None,
             )
         except TMDBError as error:
             return jsonify(error=str(error)), 503
@@ -492,13 +524,14 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         db = get_db()
         show = db.execute(
-            "SELECT id, state FROM shows WHERE id = ?", (show_id,)
+            "SELECT id, state, is_tracked FROM shows WHERE id = ?", (show_id,)
         ).fetchone()
         if show is None:
             return jsonify(error="Show not found"), 404
 
         changed_at = None
-        if show["state"] != target_state:
+        newly_tracked = show["is_tracked"] == 0
+        if newly_tracked or show["state"] != target_state:
             changed_at = utc_now()
             timestamp_column = (
                 "archived_at" if target_state == "ARCHIVED" else "active_at"
@@ -506,10 +539,12 @@ def create_app(test_config: dict | None = None) -> Flask:
             db.execute(
                 f"""
                 UPDATE shows
-                SET state = ?, {timestamp_column} = ?, updated_at = ?
+                SET state = ?, is_tracked = 1, added_at = CASE
+                        WHEN is_tracked = 0 THEN ? ELSE added_at END,
+                    {timestamp_column} = ?, updated_at = ?
                 WHERE id = ?
                 """,
-                (target_state, changed_at, changed_at, show_id),
+                (target_state, changed_at, changed_at, changed_at, show_id),
             )
             db.execute(
                 """
@@ -520,9 +555,16 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
             db.commit()
 
+        library_show = get_library_show(db, show_id)
         return jsonify(
             show_id=show_id,
             state=target_state,
+            newly_tracked=newly_tracked,
+            card_html=(
+                render_template("_show_card_fragment.html", show=library_show)
+                if newly_tracked
+                else None
+            ),
             move_label=("Un-archive" if target_state == "ARCHIVED" else "Archive"),
             move_icon=("unarchive" if target_state == "ARCHIVED" else "archive"),
             activity_title=("Archived" if target_state == "ARCHIVED" else "Un-archived"),

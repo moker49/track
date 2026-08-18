@@ -67,6 +67,10 @@ function catalogCard(show) {
   const article = document.createElement("article");
   article.className = "popular-card";
   article.dataset.tmdbId = show.tmdb_id;
+  if (show.show_id) article.dataset.showId = show.show_id;
+  article.tabIndex = 0;
+  article.setAttribute("role", "link");
+  article.setAttribute("aria-label", `Open details for ${show.name}`);
 
   const poster = document.createElement("div");
   poster.className = "mini-poster";
@@ -91,6 +95,17 @@ function catalogCard(show) {
   const overview = document.createElement("p");
   overview.className = "catalog-overview";
   overview.textContent = show.overview;
+  copy.append(title, meta, overview);
+  article.append(poster, copy);
+  if (show.is_tracked) {
+    markCatalogTracked(article, show.state, show.show_id);
+  } else {
+    copy.append(catalogActions());
+  }
+  return article;
+}
+
+function catalogActions() {
   const actions = document.createElement("div");
   actions.className = "popular-card-actions";
   [["ACTIVE", "Add to watching"], ["ARCHIVED", "Add to archive"]].forEach(([state, label]) => {
@@ -101,9 +116,24 @@ function catalogCard(show) {
     button.textContent = label;
     actions.append(button);
   });
-  copy.append(title, meta, overview, actions);
-  article.append(poster, copy);
-  return article;
+  return actions;
+}
+
+function markCatalogTracked(card, state, showId) {
+  card.classList.add("is-added");
+  card.dataset.showId = showId;
+  card.querySelector(".popular-card-actions")?.remove();
+  if (card.querySelector(".catalog-added-indicator")) return;
+  const indicator = document.createElement("div");
+  indicator.className = "catalog-added-indicator";
+  const icon = document.createElement("span");
+  icon.className = "material-symbols-rounded";
+  icon.setAttribute("aria-hidden", "true");
+  icon.textContent = "check_circle";
+  const label = document.createElement("span");
+  label.textContent = state === "ARCHIVED" ? "In Archive" : "In Watching";
+  indicator.append(icon, label);
+  card.querySelector(".popular-card-copy").append(indicator);
 }
 
 function renderCatalogResults(results, heading, subtitle) {
@@ -167,19 +197,76 @@ async function importCatalogShow(card, state, trigger) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add show");
-    trigger.textContent = data.created ? "Added" : "Already added";
-    if (data.created) {
+    if (data.is_tracked) markCatalogTracked(card, data.state, data.show_id);
+    if (data.newly_tracked) {
       const template = document.createElement("template");
       template.innerHTML = data.card_html.trim();
       document.querySelector(`[data-show-list="${data.state}"]`)?.append(template.content);
       syncStateSections();
       filterAllShowViews();
     }
-    showSnackbar(data.created
+    showSnackbar(data.newly_tracked
       ? `Added to ${data.state === "ACTIVE" ? "Watching" : "Archive"}.`
       : "This show is already in your library.");
   } catch (error) {
     actions.forEach((button) => { button.disabled = false; });
+    showSnackbar(error.message);
+  }
+}
+
+async function previewCatalogShow(card) {
+  if (card.classList.contains("is-loading")) return;
+  card.classList.add("is-loading");
+  card.setAttribute("aria-busy", "true");
+  card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = true; });
+  detailParentView = "discover";
+  prepareDetailLoad("Show details");
+  try {
+    const response = await fetch(`/api/discover/shows/${card.dataset.tmdbId}/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: null }),
+      signal: detailRequest.signal,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not open show");
+    if (data.is_tracked) markCatalogTracked(card, data.state, data.show_id);
+    openShow(data.show_id, "discover", false);
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = false; });
+    showView("discover");
+    views.get("detail").replaceChildren();
+    showSnackbar(error.message);
+  } finally {
+    card.classList.remove("is-loading");
+    card.removeAttribute("aria-busy");
+  }
+}
+
+async function trackDetailShow(showElement, state, trigger) {
+  trigger.disabled = true;
+  try {
+    const response = await fetch(`/api/shows/${showElement.dataset.showId}/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not add show");
+    if (data.newly_tracked && data.card_html) {
+      const template = document.createElement("template");
+      template.innerHTML = data.card_html.trim();
+      document.querySelector(`[data-show-list="${data.state}"]`)?.append(template.content);
+      syncStateSections();
+      filterAllShowViews();
+    }
+    document.querySelectorAll(`.popular-card[data-tmdb-id="${showElement.dataset.tmdbId}"]`)
+      .forEach((card) => markCatalogTracked(card, data.state, data.show_id));
+    showSnackbar(`Added to ${data.state === "ACTIVE" ? "Watching" : "Archive"}.`);
+    openShow(data.show_id, "discover");
+  } catch (error) {
+    trigger.disabled = false;
     showSnackbar(error.message);
   }
 }
@@ -239,9 +326,11 @@ function prepareDetailLoad(title) {
   else showView("detail");
 }
 
-async function openShow(showId, parentView = currentView) {
-  detailParentView = parentView === "archive" ? "archive" : "watching";
-  prepareDetailLoad("Show details");
+async function openShow(showId, parentView = currentView, showSkeleton = true) {
+  detailParentView = ["watching", "archive", "discover"].includes(parentView)
+    ? parentView
+    : "watching";
+  if (showSkeleton) prepareDetailLoad("Show details");
 
   try {
     const response = await fetch(`/api/shows/${showId}`, {
@@ -805,6 +894,22 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const trackShowButton = event.target.closest("[data-track-show-state]");
+  if (trackShowButton) {
+    trackDetailShow(
+      trackShowButton.closest("[data-detail-show]"),
+      trackShowButton.dataset.trackShowState,
+      trackShowButton,
+    );
+    return;
+  }
+
+  const catalogCardElement = event.target.closest(".popular-card[data-tmdb-id]");
+  if (catalogCardElement && !event.target.closest("button")) {
+    previewCatalogShow(catalogCardElement);
+    return;
+  }
+
   if (event.target.closest("[data-discover-retry]")) {
     const query = document.querySelector("[data-discover-search]").value.trim();
     if (query) searchDiscover(query);
@@ -1004,6 +1109,13 @@ document.addEventListener("click", (event) => {
 
   closeShowMenus();
   closeWatchMenus();
+});
+
+document.addEventListener("keydown", (event) => {
+  const card = event.target.closest(".popular-card[data-tmdb-id]");
+  if (!card || event.target.closest("button") || !["Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+  previewCatalogShow(card);
 });
 
 document.addEventListener("submit", (event) => {

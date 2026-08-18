@@ -21,7 +21,7 @@ TMDB_READ_ACCESS_TOKEN=your-token
 
 After that, start the app normally with `python app.py`. An already-defined system environment variable takes precedence over the value in `.env`.
 
-Discover searches TMDB as you type. Popular shows are saved locally and refreshed no more than once every 24 hours. A stale saved response remains available if TMDB is temporarily unreachable.
+Discover searches TMDB as you type. Popular shows are saved locally and refreshed no more than once every 24 hours. A stale saved response remains available if TMDB is temporarily unreachable. Opening a Discover card imports or refreshes its metadata as an untracked local preview; it enters the library only after choosing Add to watching or Add to archive.
 
 Demo data is off by default. To create the two sample shows in a new database, set `TRACK_SEED_DEMO_DATA=1` before the first run.
 
@@ -31,7 +31,7 @@ The browser loads one persistent application shell at `/`. Watching, Archive, an
 
 ## Data model
 
-- `shows` stores imported show metadata, the current Watching/Archive state, lifecycle timestamps, the last TMDB refresh, and the complete source payload.
+- `shows` stores imported show metadata, whether the show is tracked, its Watching/Archive state, lifecycle timestamps, the last TMDB refresh, and the complete source payload.
 - `show_state_history` retains every state entry for future transitions and reporting.
 - `seasons` and `episodes` store local TMDB-shaped metadata and IDs.
 - `episode_watch_history` stores one row per watch event with an immutable `added_at` timestamp and an optional user-selected `watch_date`.

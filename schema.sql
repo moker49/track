@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS shows (
     genres TEXT,
     original_language TEXT,
     state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
+    is_tracked INTEGER NOT NULL DEFAULT 1 CHECK (is_tracked IN (0, 1)),
     added_at TEXT NOT NULL,
     active_at TEXT,
     archived_at TEXT,

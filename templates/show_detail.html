@@ -14,15 +14,16 @@
 {% set progress_state = 'in-progress' %}
 {% set progress_tag = 'Watching' %}
 {% endif %}
-<div data-detail-show data-detail-title="{{ show.name }}" data-show-id="{{ show.id }}"
-  data-show-state="{{ show.state }}" data-watched-count="{{ show.watched_count }}"
+<div data-detail-show data-detail-title="{{ show.name }}" data-show-id="{{ show.id }}" data-tmdb-id="{{ show.tmdb_id }}"
+  data-show-state="{{ show.state }}" data-show-tracked="{{ 'true' if show.is_tracked else 'false' }}"
+  data-watched-count="{{ show.watched_count }}"
   data-episode-count="{{ show.episode_count }}" data-progress-state="{{ progress_state }}">
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back aria-label="Back">
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
     <span class="detail-app-bar-title">Show details</span>
-    <div class="menu-anchor">
+    {% if show.is_tracked %}<div class="menu-anchor">
       <button class="icon-button" type="button" data-show-menu-button aria-label="More options for {{ show.name }}"
         aria-expanded="false">
         <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
@@ -37,7 +38,7 @@
           <span>Remove</span>
         </button>
       </div>
-    </div>
+    </div>{% endif %}
   </header>
 
   <section class="hero">
@@ -46,7 +47,7 @@
       <span class="poster-label">{{ show.name }}</span>
     </div>
     <div class="hero-copy">
-      <span class="state-label progress-tag" data-progress-tag>{{ progress_tag }}</span>
+      {% if show.is_tracked %}<span class="state-label progress-tag" data-progress-tag>{{ progress_tag }}</span>{% endif %}
       <h1>{{ show.name }}</h1>
       <p>{{ show.first_air_date[:4] }} · {{ show.status }}<br>{{ show.genres }}</p>
     </div>
@@ -58,6 +59,7 @@
       <p class="overview">{{ show.overview }}</p>
     </div>
 
+    {% if show.is_tracked %}
     {% set percent = ((show.watched_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
     <div class="detail-progress" data-progress-summary>
       <div class="progress-copy">
@@ -69,6 +71,18 @@
         <span style="width: {{ percent }}%"></span>
       </div>
     </div>
+    {% else %}
+    <div class="md-button-group detail-add-group" aria-label="Add show to library">
+      <button type="button" data-track-show-state="ACTIVE">
+        <span class="material-symbols-rounded" aria-hidden="true">add</span>
+        <span>Add to watching</span>
+      </button>
+      <button type="button" data-track-show-state="ARCHIVED">
+        <span class="material-symbols-rounded" aria-hidden="true">archive</span>
+        <span>Add to archive</span>
+      </button>
+    </div>
+    {% endif %}
 
     <div class="season-list">
       {% for season in seasons %}
@@ -154,10 +168,11 @@
       {% endfor %}
     </div>
 
-    {% set activity_title = 'Activity' %}
+    {% if show.is_tracked %}{% set activity_title = 'Activity' %}
     {% set activity_items = activity %}
     {% set activity_mode = 'show' %}
     {% set activity_empty = 'No activity yet.' %}
     {% include '_activity_log.html' %}
+    {% endif %}
   </section>
 </div>

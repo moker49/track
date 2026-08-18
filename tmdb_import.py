@@ -29,15 +29,15 @@ def import_or_refresh_show(
     db: sqlite3.Connection,
     show: dict,
     seasons: list[dict],
-    target_state: str,
+    target_state: str | None,
     refreshed_at: str | None = None,
-) -> tuple[int, bool]:
-    if target_state not in VALID_STATES:
-        raise ValueError("target_state must be ACTIVE or ARCHIVED")
+) -> tuple[int, bool, bool]:
+    if target_state is not None and target_state not in VALID_STATES:
+        raise ValueError("target_state must be ACTIVE, ARCHIVED, or null")
     tmdb_id = _required_id(show, "show")
     refreshed_at = refreshed_at or _now()
     existing = db.execute(
-        "SELECT id, state FROM shows WHERE tmdb_id = ?", (tmdb_id,)
+        "SELECT id, state, is_tracked FROM shows WHERE tmdb_id = ?", (tmdb_id,)
     ).fetchone()
 
     try:
@@ -48,9 +48,9 @@ def import_or_refresh_show(
                 INSERT INTO shows (
                     tmdb_id, name, original_name, overview, tagline, poster_path,
                     backdrop_path, first_air_date, status, genres,
-                    original_language, state, added_at, active_at, archived_at,
+                    original_language, state, is_tracked, added_at, active_at, archived_at,
                     updated_at, tmdb_refreshed_at, tmdb_payload
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     tmdb_id,
@@ -64,7 +64,8 @@ def import_or_refresh_show(
                     show.get("status"),
                     _genres(show),
                     show.get("original_language"),
-                    target_state,
+                    target_state or "ACTIVE",
+                    int(target_state is not None),
                     refreshed_at,
                     refreshed_at if target_state == "ACTIVE" else None,
                     refreshed_at if target_state == "ARCHIVED" else None,
@@ -74,11 +75,13 @@ def import_or_refresh_show(
                 ),
             )
             show_id = cursor.lastrowid
-            db.execute(
-                "INSERT INTO show_state_history (show_id, state, entered_at) VALUES (?, ?, ?)",
-                (show_id, target_state, refreshed_at),
-            )
+            if target_state is not None:
+                db.execute(
+                    "INSERT INTO show_state_history (show_id, state, entered_at) VALUES (?, ?, ?)",
+                    (show_id, target_state, refreshed_at),
+                )
             created = True
+            newly_tracked = target_state is not None
         else:
             show_id = existing["id"]
             db.execute(
@@ -108,6 +111,32 @@ def import_or_refresh_show(
                 ),
             )
             created = False
+            newly_tracked = existing["is_tracked"] == 0 and target_state is not None
+            if newly_tracked:
+                db.execute(
+                    """
+                    UPDATE shows
+                    SET is_tracked = 1, state = ?, added_at = ?,
+                        active_at = CASE WHEN ? = 'ACTIVE' THEN ? ELSE active_at END,
+                        archived_at = CASE WHEN ? = 'ARCHIVED' THEN ? ELSE archived_at END,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        target_state,
+                        refreshed_at,
+                        target_state,
+                        refreshed_at,
+                        target_state,
+                        refreshed_at,
+                        refreshed_at,
+                        show_id,
+                    ),
+                )
+                db.execute(
+                    "INSERT INTO show_state_history (show_id, state, entered_at) VALUES (?, ?, ?)",
+                    (show_id, target_state, refreshed_at),
+                )
 
         for season in seasons:
             season_tmdb_id = _required_id(season, "season")
@@ -184,7 +213,7 @@ def import_or_refresh_show(
                     ),
                 )
         db.commit()
-        return show_id, created
+        return show_id, created, newly_tracked
     except Exception:
         db.rollback()
         raise

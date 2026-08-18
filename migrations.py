@@ -110,6 +110,17 @@ def _add_tmdb_metadata(db: sqlite3.Connection) -> None:
     db.execute("UPDATE seasons SET is_progress_counted = 0 WHERE season_number <= 0")
 
 
+def _add_tracking_flag(db: sqlite3.Connection) -> None:
+    if "is_tracked" not in _columns(db, "shows"):
+        db.execute(
+            """
+            ALTER TABLE shows
+            ADD COLUMN is_tracked INTEGER NOT NULL DEFAULT 1
+                CHECK (is_tracked IN (0, 1))
+            """
+        )
+
+
 def migrate_database(db: sqlite3.Connection) -> None:
     db.execute(
         """
@@ -119,7 +130,11 @@ def migrate_database(db: sqlite3.Connection) -> None:
         )
         """
     )
-    migrations = ((1, _remove_watchlist), (2, _add_tmdb_metadata))
+    migrations = (
+        (1, _remove_watchlist),
+        (2, _add_tmdb_metadata),
+        (3, _add_tracking_flag),
+    )
     applied = {
         row[0] for row in db.execute("SELECT version FROM schema_migrations")
     }
