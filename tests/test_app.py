@@ -805,6 +805,13 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("grid-template-columns: 88px 1fr", css)
         self.assertIn("overflow: hidden", css)
         self.assertIn(".popular-card.is-added", css)
+        self.assertIn(
+            "background: color-mix(in srgb, var(--accent) 12%, var(--surface-card))",
+            css,
+        )
+        self.assertIn(".popular-card.is-added::after", css)
+        self.assertIn("inset: 0 0 0 auto", css)
+        self.assertNotIn("box-shadow: inset 0 0 0 2px var(--accent)", css)
         self.assertIn('card.querySelector(".popular-card-actions")?.remove()', javascript)
         self.assertIn('openShow(data.show_id, "discover", false)', javascript)
         self.assertIn("const cachedShowId = card.dataset.showId", javascript)

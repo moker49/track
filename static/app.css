@@ -1246,6 +1246,7 @@ a {
 }
 
 .popular-card {
+  position: relative;
   min-height: 112px;
   padding: 0;
   border-radius: var(--radius-md);
@@ -1260,7 +1261,14 @@ a {
 
 .popular-card.is-added {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface-card));
-  box-shadow: inset 0 0 0 2px var(--accent), 0 1px 4px var(--shadow);
+}
+
+.popular-card.is-added::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 4px;
+  background: var(--accent);
 }
 
 .popular-card:focus-visible {

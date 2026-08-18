@@ -108,7 +108,7 @@ function catalogCard(show) {
 function catalogActions() {
   const actions = document.createElement("div");
   actions.className = "popular-card-actions";
-  [["ACTIVE", "Add to watching"], ["ARCHIVED", "Add to archive"]].forEach(([state, label]) => {
+  [["ACTIVE", "Start Watching"], ["ARCHIVED", "Archive"]].forEach(([state, label]) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "catalog-action";
@@ -131,7 +131,7 @@ function markCatalogTracked(card, state, showId) {
   icon.setAttribute("aria-hidden", "true");
   icon.textContent = "check_circle";
   const label = document.createElement("span");
-  label.textContent = state === "ARCHIVED" ? "In Archive" : "In Watching";
+  label.textContent = state === "ARCHIVED" ? "Archived" : "Watching";
   indicator.append(icon, label);
   card.querySelector(".popular-card-copy").append(indicator);
 }
