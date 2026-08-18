@@ -438,6 +438,17 @@ def create_app(test_config: dict | None = None) -> Flask:
         if show is None:
             abort(404)
 
+        return render_template(
+            "show_detail.html",
+            show=show,
+            activity=get_show_activity(db, show_id),
+        )
+
+    @app.get("/api/shows/<int:show_id>/seasons")
+    def show_seasons_fragment(show_id: int):
+        db = get_db()
+        if db.execute("SELECT 1 FROM shows WHERE id = ?", (show_id,)).fetchone() is None:
+            abort(404)
         seasons = db.execute(
             "SELECT * FROM seasons WHERE show_id = ? ORDER BY season_number",
             (show_id,),
@@ -446,7 +457,8 @@ def create_app(test_config: dict | None = None) -> Flask:
         for season in seasons:
             episodes_by_season[season["id"]] = db.execute(
                 """
-                SELECT e.*,
+                SELECT e.id, e.season_id, e.episode_number, e.name, e.overview,
+                       e.air_date, e.runtime_minutes, e.still_path,
                        COUNT(wh.id) AS watch_count,
                        MAX(wh.added_at) AS last_watched_at
                 FROM episodes e
@@ -458,11 +470,9 @@ def create_app(test_config: dict | None = None) -> Flask:
                 (season["id"],),
             ).fetchall()
         return render_template(
-            "show_detail.html",
-            show=show,
+            "_show_seasons.html",
             seasons=seasons,
             episodes_by_season=episodes_by_season,
-            activity=get_show_activity(db, show_id),
         )
 
     @app.get("/api/episodes/<int:episode_id>")

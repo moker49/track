@@ -10,6 +10,8 @@ const libraryViewPreferences = {
   watching: { tags: new Set(), sortField: "name", sortDirection: "asc" },
   archive: { tags: new Set(), sortField: "name", sortDirection: "asc" },
 };
+const showDetailCache = new Map();
+const showSeasonsCache = new Map();
 let currentView = "watching";
 let detailParentView = "watching";
 let detailRequest = null;
@@ -204,6 +206,7 @@ async function importCatalogShow(card, state, trigger) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add show");
+    invalidateShowCache(data.show_id, true);
     if (data.is_tracked) markCatalogTracked(card, data.state, data.show_id);
     if (data.newly_tracked) {
       const template = document.createElement("template");
@@ -250,6 +253,7 @@ async function previewCatalogShow(card) {
     if (!response.ok) throw new Error(data.error || "Could not open show");
     card.dataset.showId = data.show_id;
     if (data.is_tracked) markCatalogTracked(card, data.state, data.show_id);
+    invalidateShowCache(data.show_id, true);
     openShow(data.show_id, "discover", false);
   } catch (error) {
     if (error.name === "AbortError") return;
@@ -275,6 +279,7 @@ async function trackDetailShow(showElement, state, trigger) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add show");
+    invalidateShowCache(data.show_id);
     if (data.newly_tracked && data.card_html) {
       const template = document.createElement("template");
       template.innerHTML = data.card_html.trim();
@@ -338,6 +343,60 @@ function finishDetailLoad() {
   window.scrollTo({ top: 0, behavior: "auto" });
 }
 
+function invalidateShowCache(showId, includeSeasons = false) {
+  showDetailCache.delete(String(showId));
+  if (includeSeasons) showSeasonsCache.delete(String(showId));
+}
+
+function cacheCurrentSeasons(showId) {
+  const detailShow = views.get("detail").querySelector(`[data-detail-show][data-show-id="${showId}"]`);
+  const seasonList = detailShow?.querySelector("[data-season-list]");
+  if (seasonList && !seasonList.querySelector("[data-season-loading]")) {
+    showSeasonsCache.set(String(showId), seasonList.innerHTML);
+  }
+}
+
+async function loadShowSeasons(showId, signal) {
+  const cacheKey = String(showId);
+  const detailShow = views.get("detail").querySelector(`[data-detail-show][data-show-id="${showId}"]`);
+  const seasonList = detailShow?.querySelector("[data-season-list]");
+  if (!seasonList) return;
+
+  if (showSeasonsCache.has(cacheKey)) {
+    seasonList.innerHTML = showSeasonsCache.get(cacheKey);
+    seasonList.removeAttribute("aria-busy");
+    formatDisplayDates(seasonList);
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/shows/${showId}/seasons`, {
+      headers: { "X-Requested-With": "Track" },
+      signal,
+    });
+    if (!response.ok) throw new Error("Could not load seasons");
+    const html = await response.text();
+    showSeasonsCache.set(cacheKey, html);
+    const currentList = views.get("detail")
+      .querySelector(`[data-detail-show][data-show-id="${showId}"] [data-season-list]`);
+    if (!currentList) return;
+    currentList.innerHTML = html;
+    currentList.removeAttribute("aria-busy");
+    formatDisplayDates(currentList);
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    const currentList = views.get("detail")
+      .querySelector(`[data-detail-show][data-show-id="${showId}"] [data-season-list]`);
+    if (!currentList) return;
+    currentList.innerHTML = `
+      <div class="season-load-error">
+        <span>Couldn't load seasons and episodes.</span>
+        <button type="button" data-retry-seasons="${showId}">Try again</button>
+      </div>`;
+    currentList.removeAttribute("aria-busy");
+  }
+}
+
 function prepareDetailLoad(title) {
   if (detailRequest) detailRequest.abort();
   detailRequest = new AbortController();
@@ -352,6 +411,18 @@ async function openShow(showId, parentView = currentView, showSkeleton = true) {
     ? parentView
     : "watching";
   if (showSkeleton) prepareDetailLoad("Show details");
+  else {
+    if (detailRequest) detailRequest.abort();
+    detailRequest = new AbortController();
+  }
+
+  const cacheKey = String(showId);
+  if (showDetailCache.has(cacheKey)) {
+    views.get("detail").innerHTML = showDetailCache.get(cacheKey);
+    finishDetailLoad();
+    loadShowSeasons(showId, detailRequest.signal);
+    return;
+  }
 
   try {
     const response = await fetch(`/api/shows/${showId}`, {
@@ -359,8 +430,11 @@ async function openShow(showId, parentView = currentView, showSkeleton = true) {
       signal: detailRequest.signal,
     });
     if (!response.ok) throw new Error("Could not load show");
-    views.get("detail").innerHTML = await response.text();
+    const html = await response.text();
+    showDetailCache.set(cacheKey, html);
+    views.get("detail").innerHTML = html;
     finishDetailLoad();
+    loadShowSeasons(showId, detailRequest.signal);
   } catch (error) {
     if (error.name === "AbortError") return;
     views.get("detail").innerHTML = `
@@ -580,6 +654,8 @@ async function saveWatchDate() {
     time.dateTime = data.display_date;
     formatDisplayDates(datePickerTarget);
     sortActivityItems(datePickerTarget.closest("[data-activity-log]"));
+    const detailShow = datePickerTarget.closest("[data-detail-show]");
+    if (detailShow) invalidateShowCache(detailShow.dataset.showId);
     datePicker.close();
   } catch (_error) {
     showSnackbar("Couldn't update the watch date. Try again.");
@@ -732,6 +808,7 @@ async function moveShow(showElement, targetState, actionButton) {
     });
     if (!response.ok) throw new Error("Could not move show");
     const data = await response.json();
+    invalidateShowCache(showId);
 
     const card = document.querySelector(`.show-card[data-show-id="${showId}"]`);
     document.querySelector(`[data-show-list="${data.state}"]`)?.append(card);
@@ -773,6 +850,7 @@ async function confirmShowRemoval() {
   try {
     const response = await fetch(`/api/shows/${showId}`, { method: "DELETE" });
     if (!response.ok) throw new Error("Could not remove show");
+    invalidateShowCache(showId);
     document.querySelector(`.show-card[data-show-id="${showId}"]`)?.remove();
     if (tmdbId) {
       document.querySelectorAll(`.popular-card[data-tmdb-id="${tmdbId}"]`)
@@ -832,6 +910,7 @@ function updateEpisodeWatchUi(episode, watchCount, syncSeason = true) {
 }
 
 function applyShowProgress(data) {
+  invalidateShowCache(data.show_id);
   updateProgress(document.querySelector("[data-progress-summary]"), data);
   const showCard = document.querySelector(`.show-card[data-show-id="${data.show_id}"]`);
   if (showCard) {
@@ -867,6 +946,7 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
     const data = await response.json();
     updateEpisodeWatchUi(episode, data.watch_count);
     applyShowProgress(data);
+    cacheCurrentSeasons(data.show_id);
   } catch (_error) {
     showSnackbar("Couldn't update this episode. Try again.");
   } finally {
@@ -903,6 +983,7 @@ async function changeSeasonWatchCount(season, action, trigger) {
     } else {
       removeSeasonActivity(String(data.season_watch_record_id));
     }
+    cacheCurrentSeasons(data.show_id);
   } catch (_error) {
     showSnackbar("Couldn't update this season. Try again.");
   } finally {
@@ -1111,6 +1192,22 @@ document.addEventListener("click", (event) => {
   const retryButton = event.target.closest("[data-retry-show]");
   if (retryButton) {
     openShow(retryButton.dataset.retryShow, detailParentView);
+    return;
+  }
+
+  const retrySeasonsButton = event.target.closest("[data-retry-seasons]");
+  if (retrySeasonsButton) {
+    const showId = retrySeasonsButton.dataset.retrySeasons;
+    showSeasonsCache.delete(String(showId));
+    const seasonList = retrySeasonsButton.closest("[data-season-list]");
+    seasonList.innerHTML = `
+      <div class="season-background-loading" data-season-loading aria-label="Loading seasons and episodes">
+        <span class="skeleton-block skeleton-season"></span>
+        <span class="skeleton-block skeleton-season"></span>
+        <span class="skeleton-block skeleton-season"></span>
+      </div>`;
+    seasonList.setAttribute("aria-busy", "true");
+    loadShowSeasons(showId, detailRequest.signal);
     return;
   }
 

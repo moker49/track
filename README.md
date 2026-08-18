@@ -27,7 +27,7 @@ Demo data is off by default. To create the two sample shows in a new database, s
 
 ## Navigation
 
-The browser loads one persistent application shell at `/`. Watching, Archive, and Discover are included in the initial HTML and switch in place without changing the URL. Selecting a show or episode renders an immediate skeleton and fetches only its detail fragment; the outer app shell and navigation are never replaced.
+The browser loads one persistent application shell at `/`. Watching, Archive, and Discover are included in the initial HTML and switch in place without changing the URL. Selecting a show renders its compact overview first, then loads seasons and episodes in the background. Both fragments are cached in memory for seamless repeat visits during the current browser session. The outer app shell and navigation are never replaced.
 
 ## Data model
 

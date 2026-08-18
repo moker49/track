@@ -78,6 +78,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("const customized = preferences.tags.size > 0;", javascript)
         self.assertNotIn("preferences.sortField !==", javascript)
         self.assertNotIn("preferences.sortDirection !==", javascript)
+        self.assertIn("const showDetailCache = new Map();", javascript)
+        self.assertIn("const showSeasonsCache = new Map();", javascript)
+        self.assertIn("async function loadShowSeasons(showId, signal)", javascript)
+        self.assertIn("fetch(`/api/shows/${showId}/seasons`", javascript)
 
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
             encoding="utf-8"
@@ -94,12 +98,13 @@ class TrackAppTest(unittest.TestCase):
     def test_show_details_are_a_fragment(self):
         detail = self.client.get("/api/shows/1")
         self.assertEqual(detail.status_code, 200)
-        self.assertIn(b"Season 1", detail.data)
-        self.assertIn(b"Seven Thirty-Seven", detail.data)
         self.assertIn(b"arrow_back", detail.data)
-        self.assertNotIn(b'<details class="season" open', detail.data)
-        self.assertIn(b"data-season-watch", detail.data)
-        self.assertIn(b"data-episode-watch", detail.data)
+        self.assertIn(b"data-season-list", detail.data)
+        self.assertIn(b"data-season-loading", detail.data)
+        self.assertNotIn(b"Season 1", detail.data)
+        self.assertNotIn(b"Seven Thirty-Seven", detail.data)
+        self.assertNotIn(b"data-season-watch", detail.data)
+        self.assertNotIn(b"data-episode-watch", detail.data)
         self.assertIn(b'data-detail-title="Breaking Bad"', detail.data)
         self.assertIn(b'class="detail-app-bar-title">Show details</span>', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
@@ -107,12 +112,23 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Watching</span>', detail.data)
         self.assertNotIn(b"data-show-state-label", detail.data)
         self.assertNotIn(b'<details class="activity-log" open', detail.data)
-        self.assertIn(b"rewatch", detail.data)
-        self.assertIn(b"unwatch", detail.data)
-        self.assertIn(b'aria-checked="mixed"', detail.data)
-        self.assertIn(b'aria-checked="false"', detail.data)
         self.assertNotIn(b"<!doctype html>", detail.data.lower())
         self.assertNotIn(b"bottom-nav", detail.data)
+        self.assertLess(len(detail.data), 50_000)
+
+        seasons = self.client.get("/api/shows/1/seasons")
+        self.assertEqual(seasons.status_code, 200)
+        self.assertIn(b"Season 1", seasons.data)
+        self.assertIn(b"Seven Thirty-Seven", seasons.data)
+        self.assertIn(b"data-season-watch", seasons.data)
+        self.assertIn(b"data-episode-watch", seasons.data)
+        self.assertIn(b"rewatch", seasons.data)
+        self.assertIn(b"unwatch", seasons.data)
+        self.assertIn(b'aria-checked="mixed"', seasons.data)
+        self.assertIn(b'aria-checked="false"', seasons.data)
+        self.assertNotIn(b'<details class="season" open', seasons.data)
+        self.assertNotIn(b"<!doctype html>", seasons.data.lower())
+        self.assertNotIn(b"bottom-nav", seasons.data)
 
         archived_detail = self.client.get("/api/shows/2")
         self.assertEqual(archived_detail.status_code, 200)
@@ -123,6 +139,8 @@ class TrackAppTest(unittest.TestCase):
 
         missing = self.client.get("/api/shows/999")
         self.assertEqual(missing.status_code, 404)
+        missing_seasons = self.client.get("/api/shows/999/seasons")
+        self.assertEqual(missing_seasons.status_code, 404)
 
     def test_legacy_page_urls_redirect_to_shell(self):
         for path in ("/search", "/search?q=andor", "/shows/1", "/episodes/1"):
@@ -326,7 +344,7 @@ class TrackAppTest(unittest.TestCase):
             "/api/episodes/1/watch-count", json={"action": "increment"}
         )
 
-        detail = self.client.get("/api/shows/1")
+        detail = self.client.get("/api/shows/1/seasons")
 
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b'data-watch-count="2"', detail.data)

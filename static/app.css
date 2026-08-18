@@ -555,6 +555,35 @@ a {
   gap: 4px;
 }
 
+.season-background-loading {
+  display: grid;
+  gap: 4px;
+}
+
+.season-load-error {
+  min-height: 72px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--on-surface-muted);
+  background: var(--surface-card);
+  font-size: 0.82rem;
+}
+
+.season-load-error button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 20px;
+  color: var(--primary);
+  background: transparent;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .season {
   position: relative;
   border-radius: var(--radius-md);

@@ -1,0 +1,82 @@
+{% for season in seasons %}
+{% set episodes = episodes_by_season[season.id] %}
+{% set watched_in_season = episodes|selectattr('watch_count', 'gt', 0)|list|length %}
+{% set watch_counts = episodes|map(attribute='watch_count')|list %}
+{% set minimum_watch_count = watch_counts|min if watch_counts else 0 %}
+<details class="season" data-season-id="{{ season.id }}" data-episode-count="{{ episodes|length }}"
+  data-watched-count="{{ watched_in_season }}" data-min-watch-count="{{ minimum_watch_count }}"
+  data-progress-counted="{{ 'true' if season.is_progress_counted else 'false' }}">
+  <summary>
+    <span class="season-chevron material-symbols-rounded" aria-hidden="true">expand_more</span>
+    <span class="season-title">
+      <strong>{{ season.name }}</strong>
+      <small>{% if season.is_progress_counted %}{{ watched_in_season }} of {{ episodes|length }}{% else %}Not
+        counted in progress{% endif %}</small>
+    </span>
+    <span class="season-watch-control watch-control-wrap">
+      <button class="check-control" type="button" role="checkbox"
+        aria-checked="{{ 'true' if watched_in_season == episodes|length and episodes else ('mixed' if watched_in_season else 'false') }}"
+        aria-label="Watch options for {{ season.name }}" data-season-watch
+        data-watch-count="{{ minimum_watch_count if watched_in_season == episodes|length else 0 }}">
+        <span class="checkbox-visual" aria-hidden="true">
+          <span class="material-symbols-rounded watch-check" data-watch-check {% if minimum_watch_count> 1 or
+            (watched_in_season and watched_in_season < episodes|length) %}hidden{% endif %}>check</span>
+          <span class="material-symbols-rounded watch-check" data-watch-mixed {% if not watched_in_season or
+            watched_in_season==episodes|length %}hidden{% endif %}>remove</span>
+          <span class="watch-counter" data-watch-counter {% if minimum_watch_count <=1 or watched_in_season <
+            episodes|length %}hidden{% endif %}>{{ minimum_watch_count }}</span>
+        </span>
+      </button>
+      <span class="show-menu watch-menu" data-watch-menu hidden>
+        <button type="button" data-watch-action="increment">
+          <span class="material-symbols-rounded" aria-hidden="true">add</span>
+          <span>rewatch</span>
+        </button>
+        <button type="button" data-watch-action="decrement">
+          <span class="material-symbols-rounded" aria-hidden="true">remove</span>
+          <span>unwatch</span>
+        </button>
+      </span>
+    </span>
+  </summary>
+  <div class="episode-list">
+    {% for episode in episodes %}
+    <article class="episode {{ 'is-watched' if episode.watch_count else '' }}" data-episode-id="{{ episode.id }}"
+      data-watch-count="{{ episode.watch_count }}">
+      <button class="episode-copy episode-open" type="button" data-open-episode
+        aria-label="Open {{ episode.name }} details">
+        <div class="episode-title">
+          <span>{{ episode.episode_number }}</span>
+          <strong>{{ episode.name }}</strong>
+        </div>
+        <p><time datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date }}</time> · {{
+          episode.runtime_minutes }} min</p>
+      </button>
+      <div class="watch-control-wrap">
+        <button class="check-control" type="button" role="checkbox"
+          aria-checked="{{ 'true' if episode.watch_count else 'false' }}"
+          aria-label="Watch options for episode {{ episode.episode_number }} {{ episode.name }}"
+          data-episode-watch data-watch-count="{{ episode.watch_count }}">
+          <span class="checkbox-visual" aria-hidden="true">
+            <span class="material-symbols-rounded watch-check" data-watch-check {% if episode.watch_count> 1
+              %}hidden{% endif %}>check</span>
+            <span class="watch-counter" data-watch-counter {% if episode.watch_count <=1 %}hidden{% endif %}>{{
+              episode.watch_count }}</span>
+          </span>
+        </button>
+        <div class="show-menu watch-menu" data-watch-menu hidden>
+          <button type="button" data-watch-action="increment">
+            <span class="material-symbols-rounded" aria-hidden="true">add</span>
+            <span>rewatch</span>
+          </button>
+          <button type="button" data-watch-action="decrement">
+            <span class="material-symbols-rounded" aria-hidden="true">remove</span>
+            <span>unwatch</span>
+          </button>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</details>
+{% endfor %}
