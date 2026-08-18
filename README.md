@@ -21,7 +21,7 @@ TMDB_READ_ACCESS_TOKEN=your-token
 
 After that, start the app normally with `python app.py`. An already-defined system environment variable takes precedence over the value in `.env`.
 
-Discover searches TMDB as you type. Popular shows are saved locally and refreshed no more than once every 24 hours. A stale saved response remains available if TMDB is temporarily unreachable. Opening a Discover card imports or refreshes its metadata as an untracked local preview; it enters the library only after choosing Add to watching or Add to archive.
+Discover searches TMDB as you type. Popular shows are saved locally and refreshed no more than once every 24 hours. A stale saved response remains available if TMDB is temporarily unreachable. Opening a Discover card displays already-imported details immediately when available, then refreshes them from TMDB. A new card is imported as an untracked local preview; it enters the library only after choosing Add to watching or Add to archive.
 
 Demo data is off by default. To create the two sample shows in a new database, set `TRACK_SEED_DEMO_DATA=1` before the first run.
 
@@ -39,5 +39,7 @@ The browser loads one persistent application shell at `/`. Watching, Archive, an
 - `tmdb_cache` stores cacheable Discover responses such as the once-daily popular list.
 
 Schema changes are applied through the small versioned migration runner. TMDB refreshes update shows, seasons, and episodes in place by TMDB ID, preserving local row IDs and watch history. Season zero and any season marked special are imported and remain watchable, but are excluded from show and season progress.
+
+Removing a show demotes it to an untracked preview. It disappears from Watching and Archive while its imported metadata and complete watch history remain available for Discover and later re-adding.
 
 Episode and season controls support individual rewatches. Watch logs use the chosen watch date when present and otherwise fall back to the added date. Unwatching removes the latest effective entry. Tapping a watch-log entry opens the date picker without changing normal watch behavior.

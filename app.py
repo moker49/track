@@ -575,7 +575,14 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.delete("/api/shows/<int:show_id>")
     def remove_show(show_id: int):
         db = get_db()
-        cursor = db.execute("DELETE FROM shows WHERE id = ?", (show_id,))
+        cursor = db.execute(
+            """
+            UPDATE shows
+            SET is_tracked = 0, updated_at = ?
+            WHERE id = ? AND is_tracked = 1
+            """,
+            (utc_now(), show_id),
+        )
         if cursor.rowcount == 0:
             return jsonify(error="Show not found"), 404
         db.commit()

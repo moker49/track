@@ -482,12 +482,24 @@ class TrackAppTest(unittest.TestCase):
         )
         self.assertEqual(invalid.status_code, 400)
 
-    def test_removing_show_cascades_to_episodes_and_history(self):
+    def test_removing_show_demotes_it_and_preserves_metadata_and_history(self):
+        db = sqlite3.connect(self.database)
+        before = db.execute(
+            """
+            SELECT (SELECT COUNT(*) FROM seasons WHERE show_id = 2),
+                   (SELECT COUNT(*) FROM episodes e JOIN seasons s ON s.id = e.season_id WHERE s.show_id = 2),
+                   (SELECT COUNT(*) FROM episode_watch_history wh
+                    JOIN episodes e ON e.id = wh.episode_id
+                    JOIN seasons s ON s.id = e.season_id WHERE s.show_id = 2)
+            """
+        ).fetchone()
+        db.close()
+
         remove = self.client.delete("/api/shows/2")
         self.assertEqual(remove.status_code, 204)
 
         db = sqlite3.connect(self.database)
-        show_count = db.execute("SELECT COUNT(*) FROM shows WHERE id = 2").fetchone()[0]
+        tracked = db.execute("SELECT is_tracked FROM shows WHERE id = 2").fetchone()[0]
         season_count = db.execute(
             "SELECT COUNT(*) FROM seasons WHERE show_id = 2"
         ).fetchone()[0]
@@ -498,8 +510,20 @@ class TrackAppTest(unittest.TestCase):
             WHERE s.show_id = 2
             """
         ).fetchone()[0]
+        history_count = db.execute(
+            """
+            SELECT COUNT(*) FROM episode_watch_history wh
+            JOIN episodes e ON e.id = wh.episode_id
+            JOIN seasons s ON s.id = e.season_id
+            WHERE s.show_id = 2
+            """
+        ).fetchone()[0]
         db.close()
-        self.assertEqual((show_count, season_count, episode_count), (0, 0, 0))
+        self.assertEqual(tracked, 0)
+        self.assertEqual((season_count, episode_count, history_count), before)
+        self.assertNotIn(b"Game of Thrones", self.client.get("/").data)
+        detail = self.client.get("/api/shows/2")
+        self.assertIn(b'data-track-show-state="ACTIVE"', detail.data)
 
     def test_api_validates_input(self):
         response = self.client.post("/api/episodes/1/watched", json={"watched": "yes"})
@@ -783,6 +807,9 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".popular-card.is-added", css)
         self.assertIn('card.querySelector(".popular-card-actions")?.remove()', javascript)
         self.assertIn('openShow(data.show_id, "discover", false)', javascript)
+        self.assertIn("const cachedShowId = card.dataset.showId", javascript)
+        self.assertIn('await openShow(cachedShowId, "discover")', javascript)
+        self.assertIn("function markCatalogUntracked", javascript)
 
     def test_failed_import_rolls_back_every_record(self):
         class BrokenClient:

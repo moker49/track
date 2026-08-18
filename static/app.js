@@ -136,6 +136,13 @@ function markCatalogTracked(card, state, showId) {
   card.querySelector(".popular-card-copy").append(indicator);
 }
 
+function markCatalogUntracked(card) {
+  card.classList.remove("is-added");
+  card.querySelector(".catalog-added-indicator")?.remove();
+  const copy = card.querySelector(".popular-card-copy");
+  if (copy && !copy.querySelector(".popular-card-actions")) copy.append(catalogActions());
+}
+
 function renderCatalogResults(results, heading, subtitle) {
   const view = views.get("discover");
   view.querySelector("[data-discover-results]").replaceChildren(...results.map(catalogCard));
@@ -216,11 +223,22 @@ async function importCatalogShow(card, state, trigger) {
 
 async function previewCatalogShow(card) {
   if (card.classList.contains("is-loading")) return;
+  const cachedShowId = card.dataset.showId;
+  const hasCachedDetails = Boolean(cachedShowId);
   card.classList.add("is-loading");
   card.setAttribute("aria-busy", "true");
   card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = true; });
-  detailParentView = "discover";
-  prepareDetailLoad("Show details");
+  if (hasCachedDetails) await openShow(cachedShowId, "discover");
+  else {
+    detailParentView = "discover";
+    prepareDetailLoad("Show details");
+  }
+  if (currentView !== "detail") {
+    card.classList.remove("is-loading");
+    card.removeAttribute("aria-busy");
+    card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = false; });
+    return;
+  }
   try {
     const response = await fetch(`/api/discover/shows/${card.dataset.tmdbId}/import`, {
       method: "POST",
@@ -230,13 +248,16 @@ async function previewCatalogShow(card) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not open show");
+    card.dataset.showId = data.show_id;
     if (data.is_tracked) markCatalogTracked(card, data.state, data.show_id);
     openShow(data.show_id, "discover", false);
   } catch (error) {
     if (error.name === "AbortError") return;
     card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = false; });
-    showView("discover");
-    views.get("detail").replaceChildren();
+    if (!hasCachedDetails) {
+      showView("discover");
+      views.get("detail").replaceChildren();
+    }
     showSnackbar(error.message);
   } finally {
     card.classList.remove("is-loading");
@@ -745,12 +766,18 @@ function requestShowRemoval(showElement) {
 async function confirmShowRemoval() {
   if (!pendingRemoveShowId) return;
   const showId = pendingRemoveShowId;
+  const showRepresentation = document.querySelector(`[data-show-id="${showId}"]`);
+  const tmdbId = showRepresentation?.dataset.tmdbId;
   const confirmButton = removeDialog.querySelector("[data-confirm-remove]");
   confirmButton.disabled = true;
   try {
     const response = await fetch(`/api/shows/${showId}`, { method: "DELETE" });
     if (!response.ok) throw new Error("Could not remove show");
     document.querySelector(`.show-card[data-show-id="${showId}"]`)?.remove();
+    if (tmdbId) {
+      document.querySelectorAll(`.popular-card[data-tmdb-id="${tmdbId}"]`)
+        .forEach(markCatalogUntracked);
+    }
     if (views.get("detail").querySelector(`[data-show-id="${showId}"]`)) {
       showView(detailParentView);
       views.get("detail").replaceChildren();
@@ -759,7 +786,7 @@ async function confirmShowRemoval() {
     filterAllShowViews();
     removeDialog.close();
     pendingRemoveShowId = null;
-    showSnackbar("Show removed");
+    showSnackbar("Show removed from your library");
   } catch (_error) {
     showSnackbar("Couldn't remove this show. Try again.");
   } finally {
