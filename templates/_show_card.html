@@ -13,9 +13,9 @@
     {% set progress_tag = "Watching" %}
     {% set progress_state = "in-progress" %}
   {% endif %}
-  {% set target_state = 'ACTIVE' if show.state == 'ARCHIVED' else 'ARCHIVED' %}
-  {% set move_label = 'Un-archive' if show.state == 'ARCHIVED' else 'Archive' %}
-  {% set move_icon = 'unarchive' if show.state == 'ARCHIVED' else 'archive' %}
+  {% set target_state = 'WATCHING' if show.state == 'ARCHIVED' else 'ARCHIVED' %}
+  {% set move_label = 'Start watching' if show.state == 'ARCHIVED' else 'Archive' %}
+  {% set move_icon = 'play_arrow' if show.state == 'ARCHIVED' else 'archive' %}
 
   <article class="show-card" data-show-id="{{ show.id }}" data-tmdb-id="{{ show.tmdb_id }}" data-show-name="{{ show.name|lower }}" data-date-added="{{ show.added_at }}" data-release-date="{{ show.first_air_date }}" data-show-state="{{ show.state }}" data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}" data-progress-state="{{ progress_state }}">
     <button class="show-card-open" type="button" data-show-open aria-label="Open {{ show.name }}">

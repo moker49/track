@@ -29,7 +29,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Archived", home.data)
         self.assertIn(b"Finished", home.data)
         self.assertIn(b"more_vert", home.data)
-        self.assertIn(b"Un-archive", home.data)
+        self.assertIn(b"Start watching", home.data)
         self.assertIn(b"Remove", home.data)
         self.assertIn(b"Popular now", home.data)
         self.assertIn(b"Search watching", home.data)
@@ -118,7 +118,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(archived_detail.status_code, 200)
         self.assertIn(b"Game of Thrones", archived_detail.data)
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Finished</span>', archived_detail.data)
-        self.assertIn(b"Un-archive", archived_detail.data)
+        self.assertIn(b"Start watching", archived_detail.data)
         self.assertIn(b"more_vert", archived_detail.data)
 
         missing = self.client.get("/api/shows/999")
@@ -287,7 +287,7 @@ class TrackAppTest(unittest.TestCase):
         db.close()
         self.assertEqual(rows, [])
 
-    def test_episode_detail_is_a_fragment_with_active_watch_log(self):
+    def test_episode_detail_is_a_fragment_with_current_watch_log(self):
         detail = self.client.get("/api/episodes/1")
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b'data-detail-episode', detail.data)
@@ -451,18 +451,18 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn("ordinalSuffix", javascript)
         self.assertNotIn("timeStyle", javascript)
 
-    def test_show_can_be_archived_and_unarchived_with_history(self):
+    def test_show_can_be_archived_and_started_with_history(self):
         archive = self.client.post(
             "/api/shows/1/state", json={"state": "ARCHIVED"}
         )
         self.assertEqual(archive.status_code, 200)
-        self.assertEqual(archive.get_json()["move_label"], "Un-archive")
+        self.assertEqual(archive.get_json()["move_label"], "Start watching")
 
-        unarchive = self.client.post(
-            "/api/shows/1/state", json={"state": "ACTIVE"}
+        start_watching = self.client.post(
+            "/api/shows/1/state", json={"state": "WATCHING"}
         )
-        self.assertEqual(unarchive.status_code, 200)
-        self.assertEqual(unarchive.get_json()["move_label"], "Archive")
+        self.assertEqual(start_watching.status_code, 200)
+        self.assertEqual(start_watching.get_json()["move_label"], "Archive")
 
         db = sqlite3.connect(self.database)
         state = db.execute("SELECT state FROM shows WHERE id = 1").fetchone()[0]
@@ -470,12 +470,12 @@ class TrackAppTest(unittest.TestCase):
             "SELECT state FROM show_state_history WHERE show_id = 1 ORDER BY id DESC LIMIT 2"
         ).fetchall()
         db.close()
-        self.assertEqual(state, "ACTIVE")
-        self.assertEqual([row[0] for row in transitions], ["ACTIVE", "ARCHIVED"])
+        self.assertEqual(state, "WATCHING")
+        self.assertEqual([row[0] for row in transitions], ["WATCHING", "ARCHIVED"])
 
         detail = self.client.get("/api/shows/1")
         self.assertIn(b">Archived</strong>", detail.data)
-        self.assertIn(b">Un-archived</strong>", detail.data)
+        self.assertIn(b">Started watching</strong>", detail.data)
 
         invalid = self.client.post(
             "/api/shows/1/state", json={"state": "PAUSED"}
@@ -523,7 +523,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual((season_count, episode_count, history_count), before)
         self.assertNotIn(b"Game of Thrones", self.client.get("/").data)
         detail = self.client.get("/api/shows/2")
-        self.assertIn(b'data-track-show-state="ACTIVE"', detail.data)
+        self.assertIn(b'data-track-show-state="WATCHING"', detail.data)
 
     def test_api_validates_input(self):
         response = self.client.post("/api/episodes/1/watched", json={"watched": "yes"})
@@ -563,7 +563,10 @@ class TrackAppTest(unittest.TestCase):
                 connection.close()
             self.assertEqual(show_count, 0)
             self.assertNotIn("WATCHLIST", show_sql)
+            self.assertNotIn("ACTIVE", show_sql)
             self.assertNotIn("watchlist_at", columns)
+            self.assertNotIn("active_at", columns)
+            self.assertIn("watching_at", columns)
 
     def test_dotenv_token_is_loaded_without_overriding_environment(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -671,7 +674,7 @@ class TrackAppTest(unittest.TestCase):
             TMDB_CLIENT_FACTORY=lambda _token: fake,
         )
         imported = self.client.post(
-            "/api/discover/shows/900/import", json={"state": "ACTIVE"}
+            "/api/discover/shows/900/import", json={"state": "WATCHING"}
         )
         duplicate = self.client.post(
             "/api/discover/shows/900/import", json={"state": "ARCHIVED"}
@@ -682,7 +685,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertTrue(imported.get_json()["newly_tracked"])
         self.assertIn("show-card", imported.get_json()["card_html"])
         self.assertFalse(duplicate.get_json()["created"])
-        self.assertEqual(duplicate.get_json()["state"], "ACTIVE")
+        self.assertEqual(duplicate.get_json()["state"], "WATCHING")
 
         connection = sqlite3.connect(self.database)
         connection.row_factory = sqlite3.Row
@@ -775,7 +778,7 @@ class TrackAppTest(unittest.TestCase):
         home = self.client.get("/")
         self.assertNotIn(b"Preview Show", home.data)
         detail = self.client.get(f"/api/shows/{preview_data['show_id']}")
-        self.assertIn(b'data-track-show-state="ACTIVE"', detail.data)
+        self.assertIn(b'data-track-show-state="WATCHING"', detail.data)
         self.assertIn(b'data-track-show-state="ARCHIVED"', detail.data)
         self.assertNotIn(b"data-progress-summary", detail.data)
         self.assertNotIn(b"data-show-menu-button", detail.data)
@@ -831,7 +834,7 @@ class TrackAppTest(unittest.TestCase):
             TMDB_CLIENT_FACTORY=lambda _token: BrokenClient(),
         )
         response = self.client.post(
-            "/api/discover/shows/910/import", json={"state": "ACTIVE"}
+            "/api/discover/shows/910/import", json={"state": "WATCHING"}
         )
         self.assertEqual(response.status_code, 502)
         connection = sqlite3.connect(self.database)

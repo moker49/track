@@ -239,11 +239,11 @@ def create_app(test_config: dict | None = None) -> Flask:
 
                 SELECT CASE state
                            WHEN 'ARCHIVED' THEN 'archived'
-                           ELSE 'unarchived'
+                           ELSE 'started_watching'
                        END AS event_type,
                        CASE state
                            WHEN 'ARCHIVED' THEN 'Archived'
-                           ELSE 'Un-archived'
+                           ELSE 'Started watching'
                        END AS title,
                        entered_at AS occurred_at,
                        NULL AS season_id,
@@ -253,7 +253,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                        NULL AS watch_date
                 FROM ordered_states
                 WHERE state = 'ARCHIVED'
-                   OR (state = 'ACTIVE' AND previous_state = 'ARCHIVED')
+                   OR (state = 'WATCHING' AND previous_state = 'ARCHIVED')
 
                 UNION ALL
 
@@ -292,17 +292,17 @@ def create_app(test_config: dict | None = None) -> Flask:
               AND e.air_date <= date('now')
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             WHERE s.is_tracked = 1
-              AND s.state IN ('ACTIVE', 'ARCHIVED')
+              AND s.state IN ('WATCHING', 'ARCHIVED')
             GROUP BY s.id
-            ORDER BY CASE s.state WHEN 'ACTIVE' THEN 0 ELSE 1 END,
+            ORDER BY CASE s.state WHEN 'WATCHING' THEN 0 ELSE 1 END,
                      s.name COLLATE NOCASE ASC
             """
         ).fetchall()
-        active_shows = [show for show in shows if show["state"] == "ACTIVE"]
+        watching_shows = [show for show in shows if show["state"] == "WATCHING"]
         archived_shows = [show for show in shows if show["state"] == "ARCHIVED"]
         return render_template(
             "index.html",
-            active_shows=active_shows,
+            watching_shows=watching_shows,
             archived_shows=archived_shows,
         )
 
@@ -367,8 +367,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     def import_discovered_show(tmdb_id: int):
         payload = request.get_json(silent=True) or {}
         target_state = payload.get("state")
-        if target_state not in {None, "ACTIVE", "ARCHIVED"}:
-            return jsonify(error="state must be ACTIVE, ARCHIVED, or null"), 400
+        if target_state not in {None, "WATCHING", "ARCHIVED"}:
+            return jsonify(error="state must be WATCHING, ARCHIVED, or null"), 400
         try:
             show, seasons = get_tmdb_client().show_bundle(tmdb_id)
             if show.get("id") != tmdb_id:
@@ -519,8 +519,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     def set_show_state(show_id: int):
         payload = request.get_json(silent=True) or {}
         target_state = payload.get("state")
-        if target_state not in {"ACTIVE", "ARCHIVED"}:
-            return jsonify(error="state must be ACTIVE or ARCHIVED"), 400
+        if target_state not in {"WATCHING", "ARCHIVED"}:
+            return jsonify(error="state must be WATCHING or ARCHIVED"), 400
 
         db = get_db()
         show = db.execute(
@@ -534,7 +534,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if newly_tracked or show["state"] != target_state:
             changed_at = utc_now()
             timestamp_column = (
-                "archived_at" if target_state == "ARCHIVED" else "active_at"
+                "archived_at" if target_state == "ARCHIVED" else "watching_at"
             )
             db.execute(
                 f"""
@@ -565,10 +565,10 @@ def create_app(test_config: dict | None = None) -> Flask:
                 if newly_tracked
                 else None
             ),
-            move_label=("Un-archive" if target_state == "ARCHIVED" else "Archive"),
-            move_icon=("unarchive" if target_state == "ARCHIVED" else "archive"),
-            activity_title=("Archived" if target_state == "ARCHIVED" else "Un-archived"),
-            activity_type=("archived" if target_state == "ARCHIVED" else "unarchived"),
+            move_label=("Start watching" if target_state == "ARCHIVED" else "Archive"),
+            move_icon=("play_arrow" if target_state == "ARCHIVED" else "archive"),
+            activity_title=("Archived" if target_state == "ARCHIVED" else "Started watching"),
+            activity_type=("archived" if target_state == "ARCHIVED" else "started_watching"),
             changed_at=changed_at,
         )
 
@@ -864,8 +864,8 @@ def seed_database(db: sqlite3.Connection) -> None:
         INSERT INTO shows (
             tmdb_id, name, original_name, overview, tagline, poster_path,
             backdrop_path, first_air_date, status, genres, original_language,
-            state, added_at, active_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)
+            state, added_at, watching_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'WATCHING', ?, ?)
         """,
         (
             1396,
@@ -887,7 +887,7 @@ def seed_database(db: sqlite3.Connection) -> None:
     db.executemany(
         "INSERT INTO show_state_history (show_id, state, entered_at) VALUES (?, ?, ?)",
         [
-            (show_id, "ACTIVE", "2026-05-04T00:10:00+00:00"),
+            (show_id, "WATCHING", "2026-05-04T00:10:00+00:00"),
         ],
     )
 
@@ -950,14 +950,14 @@ def seed_game_of_thrones(db: sqlite3.Connection) -> None:
         return
 
     added_at = "2026-06-10T18:30:00+00:00"
-    active_at = "2026-06-12T00:15:00+00:00"
+    watching_at = "2026-06-12T00:15:00+00:00"
     archived_at = "2026-07-01T02:40:00+00:00"
     cursor = db.execute(
         """
         INSERT INTO shows (
             tmdb_id, name, original_name, overview, tagline, poster_path,
             backdrop_path, first_air_date, status, genres, original_language,
-            state, added_at, active_at, archived_at
+            state, added_at, watching_at, archived_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ARCHIVED', ?, ?, ?)
         """,
         (
@@ -973,7 +973,7 @@ def seed_game_of_thrones(db: sqlite3.Connection) -> None:
             "Drama, Fantasy, Action",
             "en",
             added_at,
-            active_at,
+            watching_at,
             archived_at,
         ),
     )
@@ -981,7 +981,7 @@ def seed_game_of_thrones(db: sqlite3.Connection) -> None:
     db.executemany(
         "INSERT INTO show_state_history (show_id, state, entered_at) VALUES (?, ?, ?)",
         [
-            (show_id, "ACTIVE", active_at),
+            (show_id, "WATCHING", watching_at),
             (show_id, "ARCHIVED", archived_at),
         ],
     )

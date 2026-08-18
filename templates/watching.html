@@ -10,27 +10,27 @@
   </form>
 </header>
 
-<section class="page-section" data-state-section="ACTIVE" aria-labelledby="watching-title">
+<section class="page-section" data-state-section="WATCHING" aria-labelledby="watching-title">
   <div class="section-heading">
     <div>
       <h2 id="watching-title">Watching now</h2>
       <p>Pick up where you left off</p>
     </div>
     <div class="section-heading-actions">
-      <span class="count-badge" data-state-count>{{ active_shows|length }}</span>
+      <span class="count-badge" data-state-count>{{ watching_shows|length }}</span>
       <button class="icon-button filter-button" type="button" data-open-library-filter="watching"
         aria-label="Filter and sort watching shows">
         <span class="material-symbols-rounded" aria-hidden="true">filter_list</span>
       </button>
     </div>
   </div>
-  <div class="show-list" data-show-list="ACTIVE">
-    {% for show in active_shows %}{{ show_card(show) }}{% endfor %}
+  <div class="show-list" data-show-list="WATCHING">
+    {% for show in watching_shows %}{{ show_card(show) }}{% endfor %}
   </div>
-  <div class="empty-state state-empty" data-state-empty {% if active_shows %}hidden{% endif %}>
+  <div class="empty-state state-empty" data-state-empty {% if watching_shows %}hidden{% endif %}>
     <span class="empty-icon material-symbols-rounded" aria-hidden="true">tv_off</span>
-    <h3>Nothing active</h3>
-    <p>Un-archive a show when you're ready to continue.</p>
+    <h3>Nothing in Watching</h3>
+    <p>Start watching a show when you're ready to continue.</p>
   </div>
   <div class="empty-state" data-library-no-results hidden>
     <span class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>

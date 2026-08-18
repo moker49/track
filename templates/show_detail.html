@@ -1,6 +1,6 @@
-{% set target_state = 'ACTIVE' if show.state == 'ARCHIVED' else 'ARCHIVED' %}
-{% set move_label = 'Un-archive' if show.state == 'ARCHIVED' else 'Archive' %}
-{% set move_icon = 'unarchive' if show.state == 'ARCHIVED' else 'archive' %}
+{% set target_state = 'WATCHING' if show.state == 'ARCHIVED' else 'ARCHIVED' %}
+{% set move_label = 'Start watching' if show.state == 'ARCHIVED' else 'Archive' %}
+{% set move_icon = 'play_arrow' if show.state == 'ARCHIVED' else 'archive' %}
 {% if show.watched_count == 0 %}
 {% set progress_state = 'not-started' %}
 {% set progress_tag = "New" %}
@@ -74,7 +74,7 @@
     </div>
     {% else %}
     <div class="md-button-group detail-add-group" aria-label="Add show to library">
-      <button type="button" data-track-show-state="ACTIVE">
+      <button type="button" data-track-show-state="WATCHING">
         <span class="material-symbols-rounded" aria-hidden="true">add</span>
         <span>Start Watching</span>
       </button>

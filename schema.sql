@@ -11,10 +11,10 @@ CREATE TABLE IF NOT EXISTS shows (
     status TEXT,
     genres TEXT,
     original_language TEXT,
-    state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
+    state TEXT NOT NULL CHECK (state IN ('WATCHING', 'ARCHIVED')),
     is_tracked INTEGER NOT NULL DEFAULT 1 CHECK (is_tracked IN (0, 1)),
     added_at TEXT NOT NULL,
-    active_at TEXT,
+    watching_at TEXT,
     archived_at TEXT,
     updated_at TEXT,
     tmdb_refreshed_at TEXT,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS shows (
 CREATE TABLE IF NOT EXISTS show_state_history (
     id INTEGER PRIMARY KEY,
     show_id INTEGER NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
-    state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
+    state TEXT NOT NULL CHECK (state IN ('WATCHING', 'ARCHIVED')),
     entered_at TEXT NOT NULL
 );
 

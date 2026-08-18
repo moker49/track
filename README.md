@@ -31,7 +31,7 @@ The browser loads one persistent application shell at `/`. Watching, Archive, an
 
 ## Data model
 
-- `shows` stores imported show metadata, whether the show is tracked, its Watching/Archive state, lifecycle timestamps, the last TMDB refresh, and the complete source payload.
+- `shows` stores imported show metadata, whether the show is tracked, its `WATCHING`/`ARCHIVED` state, lifecycle timestamps, the last TMDB refresh, and the complete source payload.
 - `show_state_history` retains every state entry for future transitions and reporting.
 - `seasons` and `episodes` store local TMDB-shaped metadata and IDs.
 - `episode_watch_history` stores one row per watch event with an immutable `added_at` timestamp and an optional user-selected `watch_date`.

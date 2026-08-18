@@ -108,7 +108,7 @@ function catalogCard(show) {
 function catalogActions() {
   const actions = document.createElement("div");
   actions.className = "popular-card-actions";
-  [["ACTIVE", "Start Watching"], ["ARCHIVED", "Archive"]].forEach(([state, label]) => {
+  [["WATCHING", "Start Watching"], ["ARCHIVED", "Archive"]].forEach(([state, label]) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "catalog-action";
@@ -213,7 +213,7 @@ async function importCatalogShow(card, state, trigger) {
       filterAllShowViews();
     }
     showSnackbar(data.newly_tracked
-      ? `Added to ${data.state === "ACTIVE" ? "Watching" : "Archive"}.`
+      ? `Added to ${data.state === "WATCHING" ? "Watching" : "Archive"}.`
       : "This show is already in your library.");
   } catch (error) {
     actions.forEach((button) => { button.disabled = false; });
@@ -284,7 +284,7 @@ async function trackDetailShow(showElement, state, trigger) {
     }
     document.querySelectorAll(`.popular-card[data-tmdb-id="${showElement.dataset.tmdbId}"]`)
       .forEach((card) => markCatalogTracked(card, data.state, data.show_id));
-    showSnackbar(`Added to ${data.state === "ACTIVE" ? "Watching" : "Archive"}.`);
+    showSnackbar(`Added to ${data.state === "WATCHING" ? "Watching" : "Archive"}.`);
     openShow(data.show_id, "discover");
   } catch (error) {
     trigger.disabled = false;
@@ -460,7 +460,7 @@ function addActivityItem({
   icon.setAttribute("aria-hidden", "true");
   icon.textContent = {
     archived: "archive",
-    unarchived: "unarchive",
+    started_watching: "play_arrow",
     season_watched: "done_all",
   }[type] || "history";
 
@@ -705,7 +705,7 @@ function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
   document.querySelectorAll(`[data-show-id="${showId}"]`).forEach((showElement) => {
     showElement.dataset.showState = state;
     showElement.querySelectorAll('[data-show-action="move"]').forEach((moveButton) => {
-      moveButton.dataset.targetState = state === "ARCHIVED" ? "ACTIVE" : "ARCHIVED";
+      moveButton.dataset.targetState = state === "ARCHIVED" ? "WATCHING" : "ARCHIVED";
       moveButton.querySelector("[data-move-label]").textContent = moveLabel;
       moveButton.querySelector(".material-symbols-rounded").textContent = moveIcon;
     });
@@ -748,7 +748,7 @@ async function moveShow(showElement, targetState, actionButton) {
     if (currentView === "detail") updateActiveNav(detailParentView);
     syncStateSections();
     filterAllShowViews();
-    showSnackbar(data.state === "ARCHIVED" ? "Show archived" : "Show returned to watching");
+    showSnackbar(data.state === "ARCHIVED" ? "Show archived" : "Started watching");
   } catch (_error) {
     showSnackbar("Couldn't move this show. Try again.");
   } finally {
