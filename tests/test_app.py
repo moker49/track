@@ -123,6 +123,32 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'<span class="material-symbols-rounded">inventory_2</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">explore</span>', home.data)
 
+    def test_initial_library_order_matches_natural_default_sort(self):
+        connection = sqlite3.connect(self.database)
+        connection.executemany(
+            """
+            INSERT INTO shows (
+                id, tmdb_id, name, first_air_date, genres,
+                state, is_tracked, added_at, watching_at
+            ) VALUES (?, ?, ?, '2020-01-01', 'Drama', 'WATCHING', 1, ?, ?)
+            """,
+            [
+                (3, 900003, "Series 10", "2026-08-01", "2026-08-01"),
+                (4, 900004, "Series 2", "2026-08-02", "2026-08-02"),
+            ],
+        )
+        connection.commit()
+        connection.close()
+
+        home = self.client.get("/")
+        self.assertLess(home.data.index(b"Series 2"), home.data.index(b"Series 10"))
+
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("const hydratedLibraryViews = new Set();", javascript)
+        self.assertIn("hydratedLibraryViews.add(view.dataset.view)", javascript)
+
     def test_library_filter_and_sort_dialog_is_in_the_shell(self):
         home = self.client.get("/")
         self.assertEqual(home.data.count(b"data-open-library-filter"), 2)

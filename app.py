@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -18,6 +19,14 @@ from tmdb_import import import_or_refresh_show
 
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE = BASE_DIR / "instance" / "track.db"
+
+
+def natural_title_key(value: str) -> tuple:
+    return tuple(
+        (0, int(part)) if part.isdigit() else (1, part.casefold())
+        for part in re.split(r"(\d+)", value)
+        if part
+    )
 
 
 def utc_now() -> str:
@@ -314,12 +323,17 @@ def create_app(test_config: dict | None = None) -> Flask:
             WHERE s.is_tracked = 1
               AND s.state IN ('WATCHING', 'ARCHIVED')
             GROUP BY s.id
-            ORDER BY CASE s.state WHEN 'WATCHING' THEN 0 ELSE 1 END,
-                     s.name COLLATE NOCASE ASC
+            ORDER BY CASE s.state WHEN 'WATCHING' THEN 0 ELSE 1 END, s.id ASC
             """
         ).fetchall()
-        watching_shows = [show for show in shows if show["state"] == "WATCHING"]
-        archived_shows = [show for show in shows if show["state"] == "ARCHIVED"]
+        watching_shows = sorted(
+            (show for show in shows if show["state"] == "WATCHING"),
+            key=lambda show: (natural_title_key(show["name"]), show["id"]),
+        )
+        archived_shows = sorted(
+            (show for show in shows if show["state"] == "ARCHIVED"),
+            key=lambda show: (natural_title_key(show["name"]), show["id"]),
+        )
         return render_template(
             "index.html",
             watching_shows=watching_shows,

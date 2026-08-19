@@ -13,6 +13,7 @@ const libraryViewPreferences = {
 const showDetailCache = new Map();
 const showSeasonsCache = new Map();
 const showRefreshRequests = new Map();
+const hydratedLibraryViews = new Set();
 let currentView = "watching";
 let detailParentView = "watching";
 let detailRequest = null;
@@ -1430,19 +1431,23 @@ function filterShowView(viewOrInput) {
   const cards = [...view.querySelectorAll(".show-card")];
   const list = view.querySelector(".show-list");
 
-  cards.sort((first, second) => {
-    const firstValue = first.dataset[preferences.sortField] || "";
-    const secondValue = second.dataset[preferences.sortField] || "";
-    const comparison = firstValue.localeCompare(secondValue, undefined, {
-      numeric: true,
-      sensitivity: "base",
+  if (hydratedLibraryViews.has(view.dataset.view)) {
+    cards.sort((first, second) => {
+      const firstValue = first.dataset[preferences.sortField] || "";
+      const secondValue = second.dataset[preferences.sortField] || "";
+      const comparison = firstValue.localeCompare(secondValue, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+      if (comparison !== 0) {
+        return preferences.sortDirection === "asc" ? comparison : -comparison;
+      }
+      return Number(first.dataset.showId) - Number(second.dataset.showId);
     });
-    if (comparison !== 0) {
-      return preferences.sortDirection === "asc" ? comparison : -comparison;
-    }
-    return second.dataset.showName.localeCompare(first.dataset.showName);
-  });
-  cards.forEach((card) => list.append(card));
+    cards.forEach((card) => list.append(card));
+  } else {
+    hydratedLibraryViews.add(view.dataset.view);
+  }
 
   let visibleCount = 0;
   cards.forEach((card) => {
