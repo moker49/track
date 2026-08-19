@@ -75,6 +75,41 @@ a {
   display: none !important;
 }
 
+.app-boot-screen {
+  display: none;
+}
+
+html.app-booting .app-shell {
+  visibility: hidden;
+}
+
+html.app-booting .app-boot-screen {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+}
+
+.app-boot-screen span {
+  width: 72px;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--surface-high);
+}
+
+.app-boot-screen span::after {
+  content: "";
+  width: 36px;
+  height: 100%;
+  border-radius: inherit;
+  display: block;
+  background: var(--primary);
+  animation: boot-progress 900ms ease-in-out infinite alternate;
+}
+
 .app-shell {
   width: min(100%, 520px);
   min-height: 100dvh;
@@ -1731,6 +1766,16 @@ a {
 
   to {
     opacity: 1;
+  }
+}
+
+@keyframes boot-progress {
+  from {
+    transform: translateX(-18px);
+  }
+
+  to {
+    transform: translateX(54px);
   }
 }
 

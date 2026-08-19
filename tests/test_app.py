@@ -112,6 +112,9 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-view="discover"', home.data)
         self.assertIn(b'data-view="detail"', home.data)
         self.assertIn(b'id="detail-skeleton-template"', home.data)
+        self.assertIn(b'class="app-boot-screen"', home.data)
+        self.assertIn(b'document.documentElement.classList.add("app-booting")', home.data)
+        self.assertIn(b'material-symbols-rounded-filled.ttf', home.data)
         self.assertEqual(home.data.count(b"data-clear-search"), 3)
         self.assertEqual(home.data.count(b">close</span>"), 4)
         self.assertIn(b'data-progress-state="in-progress"', home.data)
@@ -146,6 +149,10 @@ class TrackAppTest(unittest.TestCase):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
+        self.assertIn("async function revealAppWhenIconsAreReady()", javascript)
+        self.assertIn('document.fonts.load(', javascript)
+        self.assertIn('Material Symbols Rounded Filled', javascript)
+        self.assertIn('classList.remove("app-booting")', javascript)
         self.assertIn("const hydratedLibraryViews = new Set();", javascript)
         self.assertIn("hydratedLibraryViews.add(view.dataset.view)", javascript)
 

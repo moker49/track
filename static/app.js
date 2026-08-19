@@ -1,6 +1,27 @@
 const views = new Map(
   [...document.querySelectorAll("[data-view]")].map((view) => [view.dataset.view, view]),
 );
+
+async function revealAppWhenIconsAreReady() {
+  if (document.fonts) {
+    const iconFonts = Promise.all([
+      document.fonts.load(
+        '24px "Material Symbols Rounded"',
+        "search filter_list more_vert tv inventory_2 explore",
+      ),
+      document.fonts.load('24px "Material Symbols Rounded Filled"', "tv"),
+    ]);
+    await Promise.race([
+      iconFonts.catch(() => undefined),
+      new Promise((resolve) => window.setTimeout(resolve, 4000)),
+    ]);
+  }
+  window.requestAnimationFrame(() => {
+    document.documentElement.classList.remove("app-booting");
+  });
+}
+
+revealAppWhenIconsAreReady();
 const navButtons = [...document.querySelectorAll("[data-nav-view]")];
 const scrollPositions = { watching: 0, archive: 0, discover: 0, detail: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
