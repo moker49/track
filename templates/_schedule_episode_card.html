@@ -6,6 +6,12 @@
       {% if episode.poster_path %}<img src="{{ url_for('cached_tmdb_image', image_type='poster', size='w185', tmdb_path=episode.poster_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span>{{ episode.show_name[:1]|upper }}</span></template>{% else %}<span>{{ episode.show_name[:1]|upper }}</span>{% endif %}
     </div>
     <div class="schedule-card-copy">
+      {% if mode == 'catch-up' %}
+      <div class="schedule-card-actions">
+        <button class="schedule-skip-button" type="button" data-schedule-action="skip">Skip</button>
+        <button class="schedule-watch-button" type="button" data-schedule-action="watch">Watch</button>
+      </div>
+      {% endif %}
       <button class="schedule-card-open" type="button" data-schedule-episode-open
         aria-label="Open {{ episode.episode_name }} details">
         <span class="schedule-episode-tag">Episode {{ episode.episode_number }}</span>
@@ -26,10 +32,6 @@
           <div class="progress-track" aria-hidden="true">
             <span style="width: {{ progress_percent }}%"></span>
           </div>
-        </div>
-        <div class="schedule-card-actions">
-          <button class="schedule-skip-button" type="button" data-schedule-action="skip">Skip</button>
-          <button class="schedule-watch-button" type="button" data-schedule-action="watch">Watch</button>
         </div>
       </div>
       {% endif %}

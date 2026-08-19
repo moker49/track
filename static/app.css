@@ -241,7 +241,7 @@ html.app-booting .app-boot-screen {
 }
 
 .schedule-card {
-  height: 96px;
+  height: 78px;
   border-radius: var(--radius-md);
   overflow: hidden;
   color: var(--on-surface);
@@ -280,6 +280,7 @@ html.app-booting .app-boot-screen {
 }
 
 .schedule-card-copy {
+  position: relative;
   min-width: 0;
   padding: 9px 10px 8px 12px;
   display: flex;
@@ -306,6 +307,10 @@ html.app-booting .app-boot-screen {
 .schedule-card-open:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 3px;
+}
+
+.schedule-card-top-row {
+  margin-bottom: 6px
 }
 
 .schedule-episode-tag {
@@ -338,10 +343,7 @@ html.app-booting .app-boot-screen {
 }
 
 .schedule-card-footer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 8px;
+  display: block;
 }
 
 .schedule-progress {
@@ -368,6 +370,10 @@ html.app-booting .app-boot-screen {
 }
 
 .schedule-card-actions {
+  position: absolute;
+  z-index: 1;
+  top: 9px;
+  right: 10px;
   display: flex;
   align-items: center;
   gap: 2px;

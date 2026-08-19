@@ -225,6 +225,8 @@ class TrackAppTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('.schedule-card[data-schedule-mode="catch-up"] {\n  height: 120px;', css)
+        self.assertIn('.schedule-card-actions {\n  position: absolute;', css)
+        self.assertIn('.schedule-card-footer {\n  display: block;', css)
         self.assertIn('color: var(--progress-not-started);\n  background: color-mix(in srgb, var(--progress-not-started) 18%, transparent);', css)
         self.assertIn('.catalog-action.catalog-action-secondary {', css)
         self.assertIn('.schedule-skip-button {\n  color: var(--primary);\n  background: transparent;', css)
