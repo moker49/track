@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sqlite3
+import threading
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.request import urlopen
@@ -102,6 +103,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         TMDB_CLIENT_FACTORY=TMDBClient,
         IMAGE_CACHE_DIR=None,
         IMAGE_TRANSPORT=urlopen,
+        BACKGROUND_REFRESH_INTERVAL_SECONDS=60 * 60,
     )
     if test_config:
         app.config.update(test_config)
@@ -499,6 +501,68 @@ def create_app(test_config: dict | None = None) -> Flask:
                 else None
             ),
         )
+
+    def refresh_stale_tracked_show_records() -> dict:
+        db = get_db()
+        tracked_shows = db.execute(
+            """
+            SELECT id, tmdb_id, state, tmdb_refreshed_at
+            FROM shows
+            WHERE is_tracked = 1
+            ORDER BY id
+            """
+        ).fetchall()
+        stale_shows = [
+            show
+            for show in tracked_shows
+            if not show_metadata_is_fresh(show["tmdb_refreshed_at"])
+        ]
+        refreshed_shows = []
+        failures = []
+        client = get_tmdb_client() if stale_shows else None
+
+        for local_show in stale_shows:
+            try:
+                show, seasons = client.show_bundle(local_show["tmdb_id"])
+                if show.get("id") != local_show["tmdb_id"]:
+                    raise TMDBError("TMDB returned the wrong show")
+                refreshed_id, _created, _newly_tracked = import_or_refresh_show(
+                    db,
+                    show,
+                    seasons,
+                    local_show["state"],
+                )
+                refreshed_show = get_library_show(db, refreshed_id)
+                refreshed_shows.append(
+                    {
+                        "show_id": refreshed_id,
+                        "refreshed_at": refreshed_show["tmdb_refreshed_at"],
+                        "card_html": render_template(
+                            "_show_card_fragment.html", show=refreshed_show
+                        ),
+                    }
+                )
+            except (TMDBError, ValueError, sqlite3.Error) as error:
+                failures.append(
+                    {
+                        "show_id": local_show["id"],
+                        "error": str(error),
+                    }
+                )
+
+        return {
+            "refreshed": refreshed_shows,
+            "failures": failures,
+            "skipped": len(tracked_shows) - len(stale_shows),
+        }
+
+    app.extensions["refresh_stale_tracked_shows"] = (
+        refresh_stale_tracked_show_records
+    )
+
+    @app.post("/api/shows/refresh-stale")
+    def refresh_stale_tracked_shows():
+        return jsonify(refresh_stale_tracked_show_records())
 
     @app.get("/api/shows/<int:show_id>")
     def show_detail_fragment(show_id: int):
@@ -945,9 +1009,43 @@ def create_app(test_config: dict | None = None) -> Flask:
     return app
 
 
+def start_background_refresh(app: Flask) -> tuple[threading.Thread, threading.Event]:
+    stop_event = threading.Event()
+    interval = app.config["BACKGROUND_REFRESH_INTERVAL_SECONDS"]
+
+    def refresh_worker() -> None:
+        while not stop_event.is_set():
+            try:
+                with app.app_context():
+                    result = app.extensions["refresh_stale_tracked_shows"]()
+                if result["refreshed"] or result["failures"]:
+                    app.logger.info(
+                        "Tracked-show refresh completed: %s refreshed, %s failed, %s fresh",
+                        len(result["refreshed"]),
+                        len(result["failures"]),
+                        result["skipped"],
+                    )
+            except Exception:
+                app.logger.exception("Tracked-show background refresh failed")
+            stop_event.wait(interval)
+
+    thread = threading.Thread(
+        target=refresh_worker,
+        name="track-metadata-refresh",
+        daemon=True,
+    )
+    thread.start()
+    return thread, stop_event
+
+
 
 app = create_app()
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5050, debug=False)
+    _refresh_thread, _refresh_stop = start_background_refresh(app)
+    try:
+        app.run(host="0.0.0.0", port=5050, debug=False)
+    finally:
+        _refresh_stop.set()
+        _refresh_thread.join(timeout=5)

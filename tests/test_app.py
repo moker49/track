@@ -3,12 +3,13 @@ import tempfile
 import unittest
 import json
 import os
+import threading
 from email.message import Message
 from io import BytesIO
 from pathlib import Path
 from unittest import mock
 
-from app import create_app
+from app import create_app, start_background_refresh
 
 
 def seed_test_library(database: Path) -> None:
@@ -982,6 +983,62 @@ class TrackAppTest(unittest.TestCase):
             "/api/shows/1/refresh", json={"force": "yes"}
         )
         self.assertEqual(invalid.status_code, 400)
+
+    def test_stale_tracked_shows_refresh_as_an_independent_batch(self):
+        class FakeClient:
+            def __init__(self):
+                self.calls = []
+
+            def show_bundle(self, tmdb_id):
+                self.calls.append(tmdb_id)
+                return (
+                    {
+                        "id": tmdb_id,
+                        "name": f"Refreshed {tmdb_id}",
+                        "first_air_date": "2020-01-01",
+                        "genres": [{"id": 18, "name": "Drama"}],
+                    },
+                    [],
+                )
+
+        fake = FakeClient()
+        self.app.config.update(
+            TMDB_READ_ACCESS_TOKEN="test-token",
+            TMDB_CLIENT_FACTORY=lambda _token: fake,
+        )
+
+        first = self.client.post("/api/shows/refresh-stale")
+        second = self.client.post("/api/shows/refresh-stale")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(
+            [item["show_id"] for item in first.get_json()["refreshed"]],
+            [1, 2],
+        )
+        self.assertEqual(first.get_json()["failures"], [])
+        self.assertEqual(second.get_json()["refreshed"], [])
+        self.assertEqual(second.get_json()["skipped"], 2)
+        self.assertEqual(fake.calls, [900001, 900002])
+
+    def test_background_refresh_worker_runs_without_a_browser(self):
+        completed = threading.Event()
+        calls = []
+
+        def refresh_once():
+            calls.append(True)
+            completed.set()
+            return {"refreshed": [], "failures": [], "skipped": 0}
+
+        self.app.extensions["refresh_stale_tracked_shows"] = refresh_once
+        self.app.config["BACKGROUND_REFRESH_INTERVAL_SECONDS"] = 60
+        thread, stop_event = start_background_refresh(self.app)
+        try:
+            self.assertTrue(completed.wait(1))
+            self.assertEqual(calls, [True])
+        finally:
+            stop_event.set()
+            thread.join(timeout=1)
+        self.assertFalse(thread.is_alive())
 
     def test_discover_preview_stays_untracked_until_added(self):
         show_payload = {
