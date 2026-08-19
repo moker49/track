@@ -232,8 +232,8 @@ html.app-booting .app-boot-screen {
   flex-direction: column;
   justify-content: space-between;
   padding: 16px 12px;
-  color: var(--on-primary);
-  background: var(--primary-dark);
+  color: var(--on-surface-muted);
+  background: color-mix(in srgb, var(--primary-light) 16%, var(--surface-card));
 }
 
 .poster-image {
@@ -275,8 +275,7 @@ html.app-booting .app-boot-screen {
   content: "";
   position: absolute;
   border-radius: 50%;
-  background: var(--accent);
-  opacity: 0.46;
+  opacity: 0.32;
 }
 
 .poster::before {
@@ -284,6 +283,7 @@ html.app-booting .app-boot-screen {
   height: 115px;
   top: -38px;
   right: -55px;
+  background: var(--primary-light);
 }
 
 .poster::after {
@@ -291,10 +291,12 @@ html.app-booting .app-boot-screen {
   height: 76px;
   bottom: 18px;
   left: -42px;
+  background: var(--accent-dark);
 }
 
 .poster-mark {
   position: relative;
+  color: var(--primary);
   font-size: 2rem;
   font-weight: 700;
   letter-spacing: -0.08em;
@@ -302,6 +304,7 @@ html.app-booting .app-boot-screen {
 
 .poster-label {
   position: relative;
+  color: var(--on-surface-muted);
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -1451,10 +1454,10 @@ html.app-booting .app-boot-screen {
   overflow: hidden;
   display: grid;
   place-items: center;
-  color: var(--on-primary);
+  color: var(--primary);
   font-size: 1.8rem;
   font-weight: 700;
-  background: var(--primary-dark);
+  background: color-mix(in srgb, var(--primary-light) 16%, var(--surface-card));
 }
 
 .mini-poster img {

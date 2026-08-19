@@ -102,10 +102,13 @@ function catalogCard(show) {
   const initial = document.createElement("span");
   initial.textContent = show.name.charAt(0);
   if (show.poster_path) {
-    initial.hidden = true;
-    initial.dataset.mediaFallback = "";
+    const fallbackTemplate = document.createElement("template");
+    fallbackTemplate.dataset.mediaFallbackTemplate = "";
+    fallbackTemplate.content.append(initial);
+    poster.append(fallbackTemplate);
+  } else {
+    poster.append(initial);
   }
-  poster.append(initial);
   if (show.poster_path) {
     poster.classList.add("has-media-image");
     const image = document.createElement("img");
@@ -146,6 +149,11 @@ function settleMediaImage(image, loaded) {
   }
   container.classList.remove("has-media-image", "is-image-loaded");
   image.remove();
+  const fallbackTemplate = container.querySelector("template[data-media-fallback-template]");
+  if (fallbackTemplate) {
+    container.append(fallbackTemplate.content.cloneNode(true));
+    fallbackTemplate.remove();
+  }
   container.querySelectorAll("[data-media-fallback]").forEach((fallback) => {
     fallback.hidden = false;
   });

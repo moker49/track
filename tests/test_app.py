@@ -115,6 +115,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'class="app-boot-screen"', home.data)
         self.assertIn(b'document.documentElement.classList.add("app-booting")', home.data)
         self.assertIn(b'material-symbols-rounded-filled.ttf', home.data)
+        self.assertIn(b'/static/app.css?v=', home.data)
+        self.assertIn(b'/static/app.js?v=', home.data)
         self.assertEqual(home.data.count(b"data-clear-search"), 3)
         self.assertEqual(home.data.count(b">close</span>"), 4)
         self.assertIn(b'data-progress-state="in-progress"', home.data)
@@ -1052,7 +1054,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertTrue(tracked_data["newly_tracked"])
         self.assertIn("show-card", tracked_data["card_html"])
         self.assertIn("/media/poster/w342/preview.jpg", tracked_data["card_html"])
-        self.assertIn("hidden data-media-fallback", tracked_data["card_html"])
+        self.assertIn("data-media-fallback-template", tracked_data["card_html"])
+        self.assertNotIn("hidden data-media-fallback", tracked_data["card_html"])
 
         tracked_detail = self.client.get(f"/api/shows/{preview_data['show_id']}")
         self.assertIn(b"data-progress-summary", tracked_detail.data)
@@ -1079,6 +1082,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("background: var(--outline);", css)
         self.assertIn(".has-media-image:not(.is-image-loaded)", css)
         self.assertIn("animation: skeleton-pulse 1.2s", css)
+        self.assertIn(
+            "background: color-mix(in srgb, var(--primary-light) 16%, var(--surface-card))",
+            css,
+        )
         self.assertIn(".mini-poster {\n  position: relative;", css)
         self.assertIn(".mini-poster img {\n  position: absolute;", css)
         self.assertIn("inset: 0 0 0 auto", css)
@@ -1098,6 +1105,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertLess(seasons_ready, detail_swap)
         self.assertIn("function markCatalogUntracked", javascript)
         self.assertIn("fallback.hidden = false", javascript)
+        self.assertIn('document.createElement("template")', javascript)
+        self.assertIn('template[data-media-fallback-template]', javascript)
 
     def test_failed_import_rolls_back_every_record(self):
         class BrokenClient:

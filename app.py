@@ -19,6 +19,12 @@ from tmdb_import import import_or_refresh_show
 
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE = BASE_DIR / "instance" / "track.db"
+ASSET_VERSION = str(
+    max(
+        (BASE_DIR / "static" / filename).stat().st_mtime_ns
+        for filename in ("app.css", "app.js")
+    )
+)
 
 
 def natural_title_key(value: str) -> tuple:
@@ -122,7 +128,10 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.context_processor
     def inject_year() -> dict:
-        return {"current_year": datetime.now().year}
+        return {
+            "current_year": datetime.now().year,
+            "asset_version": ASSET_VERSION,
+        }
 
     def get_show_progress(db: sqlite3.Connection, show_id: int) -> sqlite3.Row:
         return db.execute(

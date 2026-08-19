@@ -49,9 +49,7 @@
 
   <section class="hero">
     <div class="hero-poster poster poster-purple{% if show.poster_path %} has-media-image{% endif %}" aria-hidden="true">
-      {% if show.poster_path %}<img class="poster-image" src="{{ url_for('cached_tmdb_image', image_type='poster', size='w342', tmdb_path=show.poster_path[1:]) }}" alt="" decoding="async" data-media-image>{% endif %}
-      <span class="poster-mark"{% if show.poster_path %} hidden data-media-fallback{% endif %}>{{ show.name[:2]|upper }}</span>
-      <span class="poster-label"{% if show.poster_path %} hidden data-media-fallback{% endif %}>{{ show.name }}</span>
+      {% if show.poster_path %}<img class="poster-image" src="{{ url_for('cached_tmdb_image', image_type='poster', size='w342', tmdb_path=show.poster_path[1:]) }}" alt="" decoding="async" data-media-image><template data-media-fallback-template><span class="poster-mark">{{ show.name[:2]|upper }}</span><span class="poster-label">{{ show.name }}</span></template>{% else %}<span class="poster-mark">{{ show.name[:2]|upper }}</span><span class="poster-label">{{ show.name }}</span>{% endif %}
     </div>
     <div class="hero-copy">
       {% if show.is_tracked %}<span class="state-label progress-tag" data-progress-tag>{{ progress_tag }}</span>{% endif
