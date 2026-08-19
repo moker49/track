@@ -313,7 +313,8 @@ html.app-booting .app-boot-screen {
 
 .show-card-body {
   min-width: 0;
-  padding: 13px 30px 12px 14px;
+  padding: 14px;
+  padding-right: 26px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
