@@ -127,6 +127,20 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'<span class="material-symbols-rounded">tv</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">inventory_2</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">explore</span>', home.data)
+        self.assertNotIn(b"Drama, Crime", home.data)
+        self.assertNotIn(b"Drama, Fantasy", home.data)
+
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("--compact-card-height: 152px", css)
+        self.assertIn(".show-card {\n  position: relative;\n  width: 100%;\n  height: var(--compact-card-height);", css)
+        self.assertIn(".popular-card {\n  position: relative;\n  height: var(--compact-card-height);", css)
+        self.assertIn("grid-template-columns: 88px 1fr", css)
+        self.assertIn("padding: 13px 30px 12px 14px", css)
+        self.assertIn('class="show-card-meta"', home.data.decode("utf-8"))
+        self.assertIn('class="show-card-year">2008</span>', home.data.decode("utf-8"))
+        self.assertIn("font-size: 1.16rem", css)
 
     def test_initial_library_order_matches_natural_default_sort(self):
         connection = sqlite3.connect(self.database)

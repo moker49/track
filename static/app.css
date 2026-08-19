@@ -44,6 +44,7 @@
   --radius-md: 16px;
   --radius-lg: 24px;
   --touch: 48px;
+  --compact-card-height: 152px;
 }
 
 * {
@@ -201,22 +202,21 @@ html.app-booting .app-boot-screen {
 .show-card {
   position: relative;
   width: 100%;
-  min-height: 180px;
-  margin-top: 12px;
-  border-radius: var(--radius-lg);
+  height: var(--compact-card-height);
+  border-radius: var(--radius-md);
   color: inherit;
   background: var(--surface-card);
-  box-shadow: 0 2px 8px var(--shadow);
+  box-shadow: 0 1px 4px var(--shadow);
 }
 
 .show-card-open {
   width: 100%;
-  min-height: 180px;
+  height: 100%;
   padding: 0;
   border: 0;
   border-radius: inherit;
   display: grid;
-  grid-template-columns: 116px 1fr;
+  grid-template-columns: 88px 1fr;
   overflow: hidden;
   color: inherit;
   background: transparent;
@@ -312,23 +312,47 @@ html.app-booting .app-boot-screen {
 }
 
 .show-card-body {
-  padding: 18px 52px 16px 16px;
+  min-width: 0;
+  padding: 13px 30px 12px 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
 }
 
-.show-card h3 {
-  margin: 6px 0 4px;
-  font-size: 1.25rem;
-  font-weight: 500;
+.show-card-heading {
+  min-width: 0;
+  padding-right: 20px;
 }
 
-.show-card p {
-  margin: 0;
+.show-card-meta {
+  display: flex;
+  align-items: center;
+}
+
+.show-card-year {
+  display: block;
+  margin-top: 3px;
   color: var(--on-surface-muted);
-  font-size: 0.82rem;
-  line-height: 1.45;
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.show-card h3 {
+  margin: 7px 0 0;
+  overflow: hidden;
+  font-size: 1.16rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.show-card .state-label {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  line-height: 1;
 }
 
 .state-label {
@@ -378,6 +402,15 @@ html.app-booting .app-boot-screen {
   font-weight: 500;
 }
 
+.show-card .progress-copy {
+  gap: 10px;
+  font-size: 0.76rem;
+}
+
+.show-card .progress-copy strong {
+  font-weight: 700;
+}
+
 .progress-track {
   height: 6px;
   margin-top: 8px;
@@ -392,6 +425,11 @@ html.app-booting .app-boot-screen {
   border-radius: inherit;
   background: var(--progress-color, var(--progress-in-progress));
   transition: width 240ms ease;
+}
+
+.show-card .progress-track {
+  height: 6px;
+  margin-top: 6px;
 }
 
 .bottom-nav {
@@ -449,6 +487,7 @@ html.app-booting .app-boot-screen {
 
 .show-list {
   display: grid;
+  gap: 12px;
 }
 
 .archived-section {
@@ -458,7 +497,7 @@ html.app-booting .app-boot-screen {
 .card-menu-button {
   position: absolute;
   z-index: 3;
-  top: 6px;
+  top: 2px;
   right: 6px;
   color: var(--on-surface-muted);
 }
@@ -1389,14 +1428,14 @@ html.app-booting .app-boot-screen {
 }
 
 .discover-loading-bar {
-  height: 112px;
+  height: var(--compact-card-height);
   border-radius: var(--radius-md);
   background: var(--surface-card);
 }
 
 .popular-card {
   position: relative;
-  min-height: 112px;
+  height: var(--compact-card-height);
   padding: 0;
   border-radius: var(--radius-md);
   display: grid;
@@ -1449,7 +1488,7 @@ html.app-booting .app-boot-screen {
   position: relative;
   width: 88px;
   height: 100%;
-  min-height: 112px;
+  min-height: 100%;
   border-radius: 0;
   overflow: hidden;
   display: grid;
@@ -1482,8 +1521,11 @@ html.app-booting .app-boot-screen {
 
 .popular-card h3 {
   margin: 5px 0 4px;
+  overflow: hidden;
   font-size: 0.95rem;
   font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .catalog-added-indicator {
