@@ -24,7 +24,13 @@
   <div class="app-shell">
     <main class="app-content">{% block content %}{% endblock %}</main>
     <nav class="bottom-nav" aria-label="Primary navigation">
-      <button class="nav-item active" type="button" data-nav-view="watching" aria-current="page">
+      <button class="nav-item active" type="button" data-nav-view="schedule" aria-current="page">
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-rounded">event_upcoming</span>
+        </span>
+        <span>Schedule</span>
+      </button>
+      <button class="nav-item" type="button" data-nav-view="watching">
         <span class="nav-icon" aria-hidden="true">
           <span class="material-symbols-rounded">tv</span>
         </span>

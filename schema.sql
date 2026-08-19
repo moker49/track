@@ -71,10 +71,18 @@ CREATE TABLE IF NOT EXISTS season_watch_history (
     watch_date TEXT
 );
 
+CREATE TABLE IF NOT EXISTS episode_skips (
+    id INTEGER PRIMARY KEY,
+    episode_id INTEGER NOT NULL UNIQUE
+        REFERENCES episodes(id) ON DELETE CASCADE,
+    skipped_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_seasons_show ON seasons(show_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_season ON episodes(season_id);
 CREATE INDEX IF NOT EXISTS idx_watch_history_episode ON episode_watch_history(episode_id);
 CREATE INDEX IF NOT EXISTS idx_season_watch_history_season ON season_watch_history(season_id);
+CREATE INDEX IF NOT EXISTS idx_episode_skips_episode ON episode_skips(episode_id);
 CREATE INDEX IF NOT EXISTS idx_show_state_history_show ON show_state_history(show_id);
 
 CREATE TABLE IF NOT EXISTS schema_migrations (

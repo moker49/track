@@ -7,9 +7,9 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "search filter_list more_vert tv inventory_2 explore",
+        "search filter_list more_vert event_upcoming tv inventory_2 explore",
       ),
-      document.fonts.load('24px "Material Symbols Rounded Filled"', "tv"),
+      document.fonts.load('24px "Material Symbols Rounded Filled"', "event_upcoming"),
     ]);
     await Promise.race([
       iconFonts.catch(() => undefined),
@@ -18,15 +18,17 @@ async function revealAppWhenIconsAreReady() {
   }
   window.requestAnimationFrame(() => {
     document.documentElement.classList.remove("app-booting");
+    centerScheduleOnNow();
   });
 }
 
 revealAppWhenIconsAreReady();
 const navButtons = [...document.querySelectorAll("[data-nav-view]")];
-const scrollPositions = { watching: 0, archive: 0, discover: 0, detail: 0 };
+const scrollPositions = { schedule: 0, watching: 0, archive: 0, discover: 0, detail: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
 const libraryFilterDialog = document.querySelector("[data-library-filter-dialog]");
+const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   watching: { tags: new Set(), sortField: "name", sortDirection: "asc" },
   archive: { tags: new Set(), sortField: "name", sortDirection: "asc" },
@@ -35,8 +37,8 @@ const showDetailCache = new Map();
 const showSeasonsCache = new Map();
 const showRefreshRequests = new Map();
 const hydratedLibraryViews = new Set();
-let currentView = "watching";
-let detailParentView = "watching";
+let currentView = "schedule";
+let detailParentView = "schedule";
 let detailRequest = null;
 let pendingRemoveShowId = null;
 let datePickerTarget = null;
@@ -47,9 +49,11 @@ let libraryFilterDraft = null;
 let popularLoaded = false;
 let discoverSearchTimer = null;
 let discoverRequest = null;
+let scheduleCentered = false;
+let snackbarAction = null;
 
 if (!window.history.state?.trackApp) {
-  window.history.replaceState({ trackApp: true, view: "watching" }, "");
+  window.history.replaceState({ trackApp: true, view: "schedule" }, "");
 }
 
 function writeHistory(state, mode = "push") {
@@ -79,6 +83,7 @@ function showView(viewName, historyMode = null) {
   updateActiveNav(viewName === "detail" ? detailParentView : viewName);
   currentView = viewName;
   const titles = {
+    schedule: "Schedule · Track",
     watching: "Watching · Track",
     archive: "Archive · Track",
     discover: "Discover · Track",
@@ -87,6 +92,9 @@ function showView(viewName, historyMode = null) {
   document.title = titles[viewName] || "Track";
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
   if (viewName === "discover" && !popularLoaded) loadPopularShows();
+  if (viewName === "schedule") {
+    refreshScheduleContent({ preserveMarker: true }).catch(() => undefined);
+  }
   if (historyMode && viewName !== "detail") {
     writeHistory({ view: viewName }, historyMode);
   }
@@ -430,6 +438,136 @@ function formatDisplayDates(root = document) {
   });
 }
 
+function centerScheduleOnNow() {
+  if (scheduleCentered || currentView !== "schedule") return;
+  const marker = views.get("schedule")?.querySelector("[data-schedule-now]");
+  if (!marker) return;
+  marker.scrollIntoView({ block: "center", behavior: "auto" });
+  scrollPositions.schedule = window.scrollY;
+  scheduleCentered = true;
+}
+
+function waitForScheduleAnimation(card) {
+  return new Promise((resolve) => {
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      resolve();
+    };
+    card.querySelector(".schedule-card-content")
+      ?.addEventListener("animationend", finish, { once: true });
+    window.setTimeout(finish, 240);
+  });
+}
+
+function syncCatchUpEmptyState() {
+  const view = views.get("schedule");
+  const cards = view.querySelectorAll('[data-schedule-mode="catch-up"]');
+  const count = view.querySelector("[data-catch-up-count]");
+  const empty = view.querySelector("[data-catch-up-empty]");
+  if (count) count.textContent = cards.length;
+  if (empty) empty.hidden = cards.length > 0;
+}
+
+async function refreshScheduleContent({ preserveMarker = false } = {}) {
+  const view = views.get("schedule");
+  const currentContent = view.querySelector("[data-schedule-content]");
+  const previousMarkerTop = preserveMarker && currentView === "schedule"
+    ? currentContent.querySelector("[data-schedule-now]")?.getBoundingClientRect().top
+    : null;
+  const response = await fetch("/api/schedule", {
+    headers: { "X-Requested-With": "Track" },
+  });
+  if (!response.ok) throw new Error("Could not refresh Schedule");
+  const template = document.createElement("template");
+  template.innerHTML = (await response.text()).trim();
+  currentContent.replaceWith(template.content);
+  formatDisplayDates(view);
+  if (previousMarkerTop != null) {
+    const nextMarkerTop = view.querySelector("[data-schedule-now]")?.getBoundingClientRect().top;
+    if (nextMarkerTop != null) window.scrollBy(0, nextMarkerTop - previousMarkerTop);
+  }
+}
+
+async function undoScheduleSkip(episodeId) {
+  const response = await fetch(`/api/episodes/${episodeId}/skip`, { method: "DELETE" });
+  if (!response.ok) throw new Error("Could not undo skip");
+  await refreshScheduleContent({ preserveMarker: true });
+  showSnackbar("Skip undone");
+}
+
+async function processScheduleEpisode(card, action) {
+  const episodeId = card.dataset.episodeId;
+  const showId = card.dataset.showId;
+  const buttons = card.querySelectorAll("[data-schedule-action]");
+  let processed = false;
+  buttons.forEach((button) => { button.disabled = true; });
+
+  try {
+    const response = action === "watch"
+      ? await fetch(`/api/episodes/${episodeId}/watch-count`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "increment" }),
+      })
+      : await fetch(`/api/episodes/${episodeId}/skip`, { method: "POST" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `Could not ${action} episode`);
+    processed = true;
+    if (action === "watch") applyShowProgress(data);
+
+    const nextResponse = await fetch(`/api/schedule/shows/${showId}/catch-up`, {
+      headers: { "X-Requested-With": "Track" },
+    });
+    if (!nextResponse.ok && nextResponse.status !== 204) {
+      throw new Error("Could not load the next episode");
+    }
+    const nextHtml = nextResponse.status === 204 ? "" : await nextResponse.text();
+    card.classList.add("is-leaving");
+    await waitForScheduleAnimation(card);
+
+    if (nextHtml.trim()) {
+      const template = document.createElement("template");
+      template.innerHTML = nextHtml.trim();
+      const nextCard = template.content.firstElementChild;
+      nextCard.classList.add("is-entering");
+      card.replaceWith(nextCard);
+      formatDisplayDates(nextCard);
+      window.setTimeout(() => nextCard.classList.remove("is-entering"), 240);
+    } else {
+      card.className = "schedule-card is-caught-up";
+      card.innerHTML = `
+        <div class="schedule-card-content">
+          <span class="material-symbols-rounded" aria-hidden="true">done_all</span>
+          <span>Caught up with this show</span>
+        </div>`;
+      window.setTimeout(() => {
+        card.remove();
+        syncCatchUpEmptyState();
+      }, 650);
+    }
+
+    if (action === "skip") {
+      showSnackbar("Episode skipped", {
+        actionLabel: "Undo",
+        onAction: () => undoScheduleSkip(episodeId),
+      });
+    } else {
+      showSnackbar("Episode watched");
+    }
+  } catch (error) {
+    if (processed) {
+      await refreshScheduleContent({ preserveMarker: true }).catch(() => undefined);
+      showSnackbar("Episode processed; Schedule was refreshed");
+    } else {
+      card.classList.remove("is-leaving");
+      buttons.forEach((button) => { button.disabled = false; });
+      showSnackbar(error.message);
+    }
+  }
+}
+
 function finishDetailLoad({ resetScroll = true } = {}) {
   const detailView = views.get("detail");
   formatDisplayDates(detailView);
@@ -609,9 +747,9 @@ async function openShow(
   showSkeleton = true,
   historyMode = "push",
 ) {
-  detailParentView = ["watching", "archive", "discover"].includes(parentView)
+  detailParentView = ["schedule", "watching", "archive", "discover"].includes(parentView)
     ? parentView
-    : "watching";
+    : "schedule";
   if (historyMode) {
     writeHistory({
       view: "detail",
@@ -1210,6 +1348,31 @@ async function changeSeasonWatchCount(season, action, trigger) {
 }
 
 document.addEventListener("click", (event) => {
+  const snackbarActionButton = event.target.closest("[data-snackbar-action]");
+  if (snackbarActionButton) {
+    const action = snackbarAction;
+    snackbar.hidden = true;
+    snackbarAction = null;
+    if (action) Promise.resolve(action()).catch((error) => showSnackbar(error.message));
+    return;
+  }
+
+  const scheduleAction = event.target.closest("[data-schedule-action]");
+  if (scheduleAction) {
+    processScheduleEpisode(
+      scheduleAction.closest("[data-schedule-card]"),
+      scheduleAction.dataset.scheduleAction,
+    );
+    return;
+  }
+
+  const scheduleEpisodeOpen = event.target.closest("[data-schedule-episode-open]");
+  if (scheduleEpisodeOpen) {
+    detailParentView = "schedule";
+    openEpisode(scheduleEpisodeOpen.closest("[data-episode-id]").dataset.episodeId);
+    return;
+  }
+
   const importButton = event.target.closest("[data-import-state]");
   if (importButton) {
     importCatalogShow(
@@ -1543,6 +1706,7 @@ document.querySelectorAll("[data-show-search]").forEach((input) => {
 });
 
 filterAllShowViews();
+formatDisplayDates(document);
 
 document.querySelector("[data-discover-search]")?.addEventListener("input", (event) => {
   const query = event.target.value.trim();
@@ -1593,9 +1757,9 @@ function restoreHistoryState(state) {
     return;
   }
 
-  detailParentView = ["watching", "archive", "discover"].includes(state.parentView)
+  detailParentView = ["schedule", "watching", "archive", "discover"].includes(state.parentView)
     ? state.parentView
-    : "watching";
+    : "schedule";
   if (state.detailType === "show" && state.showId) {
     openShow(state.showId, detailParentView, true, null);
   } else if (state.detailType === "episode" && state.episodeId) {
@@ -1613,15 +1777,22 @@ window.addEventListener("popstate", (event) => {
   restoreHistoryState(event.state);
 });
 
-if (window.history.state?.trackApp && window.history.state.view !== "watching") {
+if (window.history.state?.trackApp && window.history.state.view !== "schedule") {
   restoreHistoryState(window.history.state);
 }
 
-function showSnackbar(message) {
-  const snackbar = document.querySelector(".snackbar");
+function showSnackbar(message, { actionLabel = "", onAction = null } = {}) {
   if (!snackbar) return;
-  snackbar.textContent = message;
+  const copy = snackbar.querySelector("[data-snackbar-copy]");
+  const actionButton = snackbar.querySelector("[data-snackbar-action]");
+  copy.textContent = message;
+  actionButton.textContent = actionLabel;
+  actionButton.hidden = !actionLabel || !onAction;
+  snackbarAction = onAction;
   snackbar.hidden = false;
   clearTimeout(showSnackbar.timer);
-  showSnackbar.timer = setTimeout(() => { snackbar.hidden = true; }, 2600);
+  showSnackbar.timer = setTimeout(() => {
+    snackbar.hidden = true;
+    snackbarAction = null;
+  }, actionLabel ? 5000 : 2600);
 }

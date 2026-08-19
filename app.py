@@ -230,6 +230,79 @@ def create_app(test_config: dict | None = None) -> Flask:
             (show_id,),
         ).fetchone()
 
+    def get_catch_up_episodes(
+        db: sqlite3.Connection, show_id: int | None = None
+    ) -> list[sqlite3.Row]:
+        return db.execute(
+            """
+            WITH unresolved AS (
+                SELECT s.id AS show_id,
+                       s.name AS show_name,
+                       s.poster_path,
+                       sn.season_number,
+                       sn.name AS season_name,
+                       e.id AS episode_id,
+                       e.episode_number,
+                       e.name AS episode_name,
+                       e.air_date,
+                       e.runtime_minutes,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY s.id
+                           ORDER BY e.air_date, sn.season_number, e.episode_number
+                       ) AS episode_rank,
+                       COUNT(*) OVER (PARTITION BY s.id) AS remaining_count
+                FROM shows s
+                JOIN seasons sn ON sn.show_id = s.id
+                JOIN episodes e ON e.season_id = sn.id
+                WHERE s.is_tracked = 1
+                  AND s.state = 'WATCHING'
+                  AND sn.is_progress_counted = 1
+                  AND e.air_date IS NOT NULL
+                  AND e.air_date <= date('now')
+                  AND (? IS NULL OR s.id = ?)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM episode_watch_history wh
+                      WHERE wh.episode_id = e.id
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM episode_skips sk
+                      WHERE sk.episode_id = e.id
+                  )
+            )
+            SELECT *
+            FROM unresolved
+            WHERE episode_rank = 1
+            ORDER BY air_date DESC, show_name COLLATE NOCASE
+            """,
+            (show_id, show_id),
+        ).fetchall()
+
+    def get_upcoming_episodes(db: sqlite3.Connection) -> list[sqlite3.Row]:
+        return db.execute(
+            """
+            SELECT s.id AS show_id,
+                   s.name AS show_name,
+                   s.poster_path,
+                   sn.season_number,
+                   sn.name AS season_name,
+                   e.id AS episode_id,
+                   e.episode_number,
+                   e.name AS episode_name,
+                   e.air_date,
+                   e.runtime_minutes
+            FROM shows s
+            JOIN seasons sn ON sn.show_id = s.id
+            JOIN episodes e ON e.season_id = sn.id
+            WHERE s.is_tracked = 1
+              AND s.state = 'WATCHING'
+              AND sn.is_progress_counted = 1
+              AND e.air_date IS NOT NULL
+              AND e.air_date > date('now')
+            ORDER BY e.air_date, s.name COLLATE NOCASE,
+                     sn.season_number, e.episode_number
+            """
+        ).fetchall()
+
     def watch_payload(
         db: sqlite3.Connection, show_id: int, episode_id: int | None = None
     ) -> dict:
@@ -347,8 +420,30 @@ def create_app(test_config: dict | None = None) -> Flask:
         )
         return render_template(
             "index.html",
+            catch_up_episodes=get_catch_up_episodes(db),
+            upcoming_episodes=get_upcoming_episodes(db),
             watching_shows=watching_shows,
             archived_shows=archived_shows,
+        )
+
+    @app.get("/api/schedule")
+    def schedule_fragment():
+        db = get_db()
+        return render_template(
+            "_schedule_content.html",
+            catch_up_episodes=get_catch_up_episodes(db),
+            upcoming_episodes=get_upcoming_episodes(db),
+        )
+
+    @app.get("/api/schedule/shows/<int:show_id>/catch-up")
+    def schedule_catch_up_card(show_id: int):
+        episodes = get_catch_up_episodes(get_db(), show_id)
+        if not episodes:
+            return "", 204
+        return render_template(
+            "_schedule_episode_card_fragment.html",
+            episode=episodes[0],
+            mode="catch-up",
         )
 
     @app.get("/media/<image_type>/<size>/<path:tmdb_path>")
@@ -766,6 +861,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             return jsonify(error="Episode not found"), 404
 
         if payload["watched"]:
+            db.execute("DELETE FROM episode_skips WHERE episode_id = ?", (episode_id,))
             watched = db.execute(
                 "SELECT 1 FROM episode_watch_history WHERE episode_id = ? LIMIT 1",
                 (episode_id,),
@@ -817,6 +913,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         changed_at = utc_now()
         if action == "increment":
+            db.execute("DELETE FROM episode_skips WHERE episode_id = ?", (episode_id,))
             db.execute(
                 """
                 INSERT INTO episode_watch_history (episode_id, added_at)
@@ -842,6 +939,63 @@ def create_app(test_config: dict | None = None) -> Flask:
         db.commit()
         return jsonify(watch_payload(db, episode["show_id"], episode_id))
 
+    @app.post("/api/episodes/<int:episode_id>/skip")
+    def skip_episode(episode_id: int):
+        db = get_db()
+        episode = db.execute(
+            """
+            SELECT e.id, sn.show_id
+            FROM episodes e
+            JOIN seasons sn ON sn.id = e.season_id
+            JOIN shows s ON s.id = sn.show_id
+            WHERE e.id = ?
+              AND e.air_date IS NOT NULL
+              AND e.air_date <= date('now')
+              AND sn.is_progress_counted = 1
+              AND s.is_tracked = 1
+              AND s.state = 'WATCHING'
+              AND NOT EXISTS (
+                  SELECT 1 FROM episode_watch_history wh
+                  WHERE wh.episode_id = e.id
+              )
+            """,
+            (episode_id,),
+        ).fetchone()
+        if episode is None:
+            return jsonify(error="Episode cannot be skipped"), 409
+        db.execute(
+            """
+            INSERT INTO episode_skips (episode_id, skipped_at)
+            VALUES (?, ?)
+            ON CONFLICT(episode_id) DO UPDATE SET skipped_at = excluded.skipped_at
+            """,
+            (episode_id, utc_now()),
+        )
+        db.commit()
+        return jsonify(show_id=episode["show_id"], episode_id=episode_id)
+
+    @app.delete("/api/episodes/<int:episode_id>/skip")
+    def undo_skip_episode(episode_id: int):
+        db = get_db()
+        row = db.execute(
+            """
+            SELECT sn.show_id
+            FROM episodes e
+            JOIN seasons sn ON sn.id = e.season_id
+            WHERE e.id = ?
+            """,
+            (episode_id,),
+        ).fetchone()
+        if row is None:
+            return jsonify(error="Episode not found"), 404
+        cursor = db.execute(
+            "DELETE FROM episode_skips WHERE episode_id = ?", (episode_id,)
+        )
+        db.commit()
+        if cursor.rowcount == 0:
+            return jsonify(error="Episode is not skipped"), 404
+        return jsonify(show_id=row["show_id"], episode_id=episode_id)
+
     @app.post("/api/seasons/<int:season_id>/watch-count")
     def change_season_watch_count(season_id: int):
         payload = request.get_json(silent=True) or {}
@@ -865,6 +1019,12 @@ def create_app(test_config: dict | None = None) -> Flask:
         ]
         changed_at = utc_now()
         if action == "increment":
+            if episode_ids:
+                placeholders = ",".join("?" for _episode_id in episode_ids)
+                db.execute(
+                    f"DELETE FROM episode_skips WHERE episode_id IN ({placeholders})",
+                    episode_ids,
+                )
             db.executemany(
                 """
                 INSERT INTO episode_watch_history (episode_id, added_at)

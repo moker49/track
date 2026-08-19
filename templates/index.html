@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="app-view is-active" data-view="watching" aria-label="Watching">
+<section class="app-view is-active" data-view="schedule" aria-label="Schedule">
+  {% include "schedule.html" %}
+</section>
+
+<section class="app-view" data-view="watching" aria-label="Watching" hidden>
   {% include "watching.html" %}
 </section>
 
@@ -41,7 +45,10 @@
   </div>
 </template>
 
-<div class="snackbar" role="status" aria-live="polite" hidden></div>
+<div class="snackbar" role="status" aria-live="polite" hidden>
+  <span data-snackbar-copy></span>
+  <button type="button" data-snackbar-action hidden></button>
+</div>
 
 <dialog class="confirm-dialog" data-remove-dialog>
   <h2>Remove show?</h2>

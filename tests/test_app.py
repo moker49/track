@@ -109,6 +109,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Search archive", home.data)
         self.assertIn(b"Search TMDB", home.data)
         self.assertIn(b'data-view="watching"', home.data)
+        self.assertIn(b'data-view="schedule"', home.data)
         self.assertIn(b'data-view="archive"', home.data)
         self.assertIn(b'data-view="discover"', home.data)
         self.assertIn(b'data-view="detail"', home.data)
@@ -128,6 +129,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'<span class="material-symbols-rounded">tv</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">inventory_2</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">explore</span>', home.data)
+        self.assertIn(b'<span class="material-symbols-rounded">event_upcoming</span>', home.data)
         self.assertNotIn(b"Drama, Crime", home.data)
         self.assertNotIn(b"Drama, Fantasy", home.data)
 
@@ -171,11 +173,81 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('classList.remove("app-booting")', javascript)
         self.assertIn("const hydratedLibraryViews = new Set();", javascript)
         self.assertIn("hydratedLibraryViews.add(view.dataset.view)", javascript)
-        self.assertIn('window.history.replaceState({ trackApp: true, view: "watching" }, "")', javascript)
+        self.assertIn('window.history.replaceState({ trackApp: true, view: "schedule" }, "")', javascript)
         self.assertIn('window.addEventListener("popstate"', javascript)
         self.assertIn("window.history.back()", javascript)
         self.assertIn('detailType: "show"', javascript)
         self.assertIn('detailType: "episode"', javascript)
+
+    def test_schedule_is_the_default_view_with_catch_up_and_upcoming(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            """
+            INSERT INTO episodes (
+                id, season_id, tmdb_id, episode_number, name,
+                air_date, runtime_minutes
+            ) VALUES (100, 2, 99100, 7, 'Future Episode', '2099-01-02', 52)
+            """
+        )
+        connection.commit()
+        connection.close()
+
+        home = self.client.get("/")
+        self.assertIn(b'data-view="schedule"', home.data)
+        self.assertIn(
+            b'class="nav-item active" type="button" data-nav-view="schedule"',
+            home.data,
+        )
+        self.assertIn(b'data-schedule-now', home.data)
+        self.assertIn(b'data-schedule-mode="catch-up"', home.data)
+        self.assertIn(b'data-episode-id="6"', home.data)
+        self.assertIn(b"7 more available", home.data)
+        self.assertIn(b'data-schedule-mode="upcoming"', home.data)
+        self.assertIn(b"Future Episode", home.data)
+        self.assertNotIn(b'data-show-id="2" data-episode-id=', home.data)
+
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('let currentView = "schedule"', javascript)
+        self.assertIn("centerScheduleOnNow()", javascript)
+        self.assertIn('data-schedule-action', javascript)
+
+    def test_schedule_skip_advances_without_creating_watch_history(self):
+        skipped = self.client.post("/api/episodes/6/skip")
+        self.assertEqual(skipped.status_code, 200)
+
+        connection = sqlite3.connect(self.database)
+        skip_count = connection.execute(
+            "SELECT COUNT(*) FROM episode_skips WHERE episode_id = 6"
+        ).fetchone()[0]
+        watch_count = connection.execute(
+            "SELECT COUNT(*) FROM episode_watch_history WHERE episode_id = 6"
+        ).fetchone()[0]
+        connection.close()
+        self.assertEqual(skip_count, 1)
+        self.assertEqual(watch_count, 0)
+
+        next_card = self.client.get("/api/schedule/shows/1/catch-up")
+        self.assertIn(b'data-episode-id="7"', next_card.data)
+        self.assertNotIn(b"Skipped", self.client.get("/api/episodes/6").data)
+
+        undone = self.client.delete("/api/episodes/6/skip")
+        self.assertEqual(undone.status_code, 200)
+        restored_card = self.client.get("/api/schedule/shows/1/catch-up")
+        self.assertIn(b'data-episode-id="6"', restored_card.data)
+
+        self.client.post("/api/episodes/6/skip")
+        watched = self.client.post(
+            "/api/episodes/6/watch-count", json={"action": "increment"}
+        )
+        self.assertEqual(watched.status_code, 200)
+        connection = sqlite3.connect(self.database)
+        remaining_skip = connection.execute(
+            "SELECT COUNT(*) FROM episode_skips WHERE episode_id = 6"
+        ).fetchone()[0]
+        connection.close()
+        self.assertEqual(remaining_skip, 0)
 
     def test_library_filter_and_sort_dialog_is_in_the_shell(self):
         home = self.client.get("/")

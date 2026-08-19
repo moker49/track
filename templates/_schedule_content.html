@@ -1,0 +1,40 @@
+{% from "_schedule_episode_card.html" import schedule_episode_card %}
+<div class="schedule-content" data-schedule-content>
+  <section class="schedule-half schedule-catch-up" aria-labelledby="catch-up-title">
+    <div class="schedule-section-heading">
+      <div>
+        <h2 id="catch-up-title">Catch up</h2>
+        <p>Your next unwatched episode</p>
+      </div>
+      <span class="count-badge" data-catch-up-count>{{ catch_up_episodes|length }}</span>
+    </div>
+    <div class="schedule-list" data-catch-up-list>
+      {% for episode in catch_up_episodes %}{{ schedule_episode_card(episode, 'catch-up') }}{% endfor %}
+    </div>
+    <div class="schedule-empty" data-catch-up-empty {% if catch_up_episodes %}hidden{% endif %}>
+      <span class="material-symbols-rounded" aria-hidden="true">done_all</span>
+      <span>You’re caught up</span>
+    </div>
+  </section>
+
+  <div class="schedule-now" data-schedule-now aria-label="Now">
+    <span></span><strong>Now</strong><span></span>
+  </div>
+
+  <section class="schedule-half schedule-upcoming" aria-labelledby="upcoming-title">
+    <div class="schedule-section-heading">
+      <div>
+        <h2 id="upcoming-title">Coming up</h2>
+        <p>Upcoming episodes from Watching</p>
+      </div>
+      <span class="count-badge">{{ upcoming_episodes|length }}</span>
+    </div>
+    <div class="schedule-list">
+      {% for episode in upcoming_episodes %}{{ schedule_episode_card(episode, 'upcoming') }}{% endfor %}
+    </div>
+    <div class="schedule-empty" {% if upcoming_episodes %}hidden{% endif %}>
+      <span class="material-symbols-rounded" aria-hidden="true">event_busy</span>
+      <span>No upcoming episodes</span>
+    </div>
+  </section>
+</div>

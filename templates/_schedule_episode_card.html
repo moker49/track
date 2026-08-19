@@ -1,0 +1,33 @@
+{% macro schedule_episode_card(episode, mode) %}
+<article class="schedule-card" data-schedule-card data-schedule-mode="{{ mode }}"
+  data-show-id="{{ episode.show_id }}" data-episode-id="{{ episode.episode_id }}">
+  <div class="schedule-card-content">
+    <div class="schedule-poster{% if episode.poster_path %} has-media-image{% endif %}" aria-hidden="true">
+      {% if episode.poster_path %}<img src="{{ url_for('cached_tmdb_image', image_type='poster', size='w185', tmdb_path=episode.poster_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span>{{ episode.show_name[:1]|upper }}</span></template>{% else %}<span>{{ episode.show_name[:1]|upper }}</span>{% endif %}
+    </div>
+    <div class="schedule-card-copy">
+      <button class="schedule-card-open" type="button" data-schedule-episode-open
+        aria-label="Open {{ episode.episode_name }} details">
+        <span class="schedule-show-name">{{ episode.show_name }}</span>
+        <strong>{{ episode.episode_name }}</strong>
+        <span class="schedule-episode-meta">
+          S{{ episode.season_number }}E{{ episode.episode_number }} ·
+          <time datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date }}</time>
+          {% if episode.runtime_minutes %} · {{ episode.runtime_minutes }} min{% endif %}
+        </span>
+      </button>
+      {% if mode == 'catch-up' %}
+      <div class="schedule-card-footer">
+        <span data-schedule-remaining>
+          {% if episode.remaining_count > 1 %}{{ episode.remaining_count - 1 }} more available{% else %}Last available episode{% endif %}
+        </span>
+        <div class="schedule-card-actions">
+          <button class="schedule-skip-button" type="button" data-schedule-action="skip">Skip</button>
+          <button class="schedule-watch-button" type="button" data-schedule-action="watch">Watch</button>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</article>
+{% endmacro %}
