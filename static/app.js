@@ -48,6 +48,15 @@ let popularLoaded = false;
 let discoverSearchTimer = null;
 let discoverRequest = null;
 
+if (!window.history.state?.trackApp) {
+  window.history.replaceState({ trackApp: true, view: "watching" }, "");
+}
+
+function writeHistory(state, mode = "push") {
+  const method = mode === "replace" ? "replaceState" : "pushState";
+  window.history[method]({ trackApp: true, ...state }, "");
+}
+
 function updateActiveNav(navView) {
   navButtons.forEach((button) => {
     const active = button.dataset.navView === navView;
@@ -57,7 +66,7 @@ function updateActiveNav(navView) {
   });
 }
 
-function showView(viewName) {
+function showView(viewName, historyMode = null) {
   if (!views.has(viewName) || viewName === currentView) return;
 
   scrollPositions[currentView] = window.scrollY;
@@ -78,6 +87,9 @@ function showView(viewName) {
   document.title = titles[viewName] || "Track";
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
   if (viewName === "discover" && !popularLoaded) loadPopularShows();
+  if (historyMode && viewName !== "detail") {
+    writeHistory({ view: viewName }, historyMode);
+  }
 }
 
 function setDiscoverState({ loading = false, error = "", empty = false } = {}) {
@@ -292,16 +304,24 @@ async function importCatalogShow(card, state, trigger) {
   }
 }
 
-async function previewCatalogShow(card) {
+async function previewCatalogShow(card, historyMode = "push") {
   if (card.classList.contains("is-loading")) return;
   const cachedShowId = card.dataset.showId;
   const hasCachedDetails = Boolean(cachedShowId);
   card.classList.add("is-loading");
   card.setAttribute("aria-busy", "true");
   card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = true; });
-  if (hasCachedDetails) await openShow(cachedShowId, "discover");
+  if (hasCachedDetails) await openShow(cachedShowId, "discover", true, historyMode);
   else {
     detailParentView = "discover";
+    if (historyMode) {
+      writeHistory({
+        view: "detail",
+        detailType: "catalog",
+        tmdbId: card.dataset.tmdbId,
+        parentView: "discover",
+      }, historyMode);
+    }
     prepareDetailLoad("Show details");
   }
   if (hasCachedDetails) {
@@ -329,12 +349,12 @@ async function previewCatalogShow(card) {
     if (data.is_tracked) markCatalogTracked(card, data.state, data.show_id);
     else card.classList.add("is-cached");
     invalidateShowCache(data.show_id, true);
-    openShow(data.show_id, "discover", false);
+    openShow(data.show_id, "discover", false, "replace");
   } catch (error) {
     if (error.name === "AbortError") return;
     card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = false; });
     if (!hasCachedDetails) {
-      showView("discover");
+      showView("discover", "replace");
       views.get("detail").replaceChildren();
     }
     showSnackbar(error.message);
@@ -365,7 +385,7 @@ async function trackDetailShow(showElement, state, trigger) {
     document.querySelectorAll(`.popular-card[data-tmdb-id="${showElement.dataset.tmdbId}"]`)
       .forEach((card) => markCatalogTracked(card, data.state, data.show_id));
     showSnackbar(`Added to ${data.state === "WATCHING" ? "Watching" : "Archive"}.`);
-    openShow(data.show_id, "discover");
+    openShow(data.show_id, "discover", true, "replace");
   } catch (error) {
     trigger.disabled = false;
     showSnackbar(error.message);
@@ -583,10 +603,23 @@ function prepareDetailLoad(title) {
   else showView("detail");
 }
 
-async function openShow(showId, parentView = currentView, showSkeleton = true) {
+async function openShow(
+  showId,
+  parentView = currentView,
+  showSkeleton = true,
+  historyMode = "push",
+) {
   detailParentView = ["watching", "archive", "discover"].includes(parentView)
     ? parentView
     : "watching";
+  if (historyMode) {
+    writeHistory({
+      view: "detail",
+      detailType: "show",
+      showId: String(showId),
+      parentView: detailParentView,
+    }, historyMode);
+  }
   if (showSkeleton) prepareDetailLoad("Show details");
   else {
     if (detailRequest) detailRequest.abort();
@@ -630,7 +663,15 @@ async function openShow(showId, parentView = currentView, showSkeleton = true) {
   }
 }
 
-async function openEpisode(episodeId) {
+async function openEpisode(episodeId, historyMode = "push") {
+  if (historyMode) {
+    writeHistory({
+      view: "detail",
+      detailType: "episode",
+      episodeId: String(episodeId),
+      parentView: detailParentView,
+    }, historyMode);
+  }
   prepareDetailLoad("Episode details");
 
   try {
@@ -1034,7 +1075,7 @@ async function confirmShowRemoval() {
         .forEach(markCatalogUntracked);
     }
     if (views.get("detail").querySelector(`[data-show-id="${showId}"]`)) {
-      showView(detailParentView);
+      showView(detailParentView, "replace");
       views.get("detail").replaceChildren();
     }
     syncStateSections();
@@ -1285,7 +1326,7 @@ document.addEventListener("click", (event) => {
     closeShowMenus();
     closeWatchMenus();
     if (detailRequest) detailRequest.abort();
-    showView(navButton.dataset.navView);
+    showView(navButton.dataset.navView, "push");
     return;
   }
 
@@ -1360,8 +1401,10 @@ document.addEventListener("click", (event) => {
     closeShowMenus();
     closeWatchMenus();
     if (detailRequest) detailRequest.abort();
-    if (detailBackButton.dataset.backShowId) {
-      openShow(detailBackButton.dataset.backShowId, detailParentView);
+    if (window.history.state?.trackApp && window.history.state.view === "detail") {
+      window.history.back();
+    } else if (detailBackButton.dataset.backShowId) {
+      openShow(detailBackButton.dataset.backShowId, detailParentView, true, null);
     } else {
       showView(detailParentView);
     }
@@ -1370,7 +1413,7 @@ document.addEventListener("click", (event) => {
 
   const retryButton = event.target.closest("[data-retry-show]");
   if (retryButton) {
-    openShow(retryButton.dataset.retryShow, detailParentView);
+    openShow(retryButton.dataset.retryShow, detailParentView, true, null);
     return;
   }
 
@@ -1392,7 +1435,7 @@ document.addEventListener("click", (event) => {
 
   const retryEpisodeButton = event.target.closest("[data-retry-episode]");
   if (retryEpisodeButton) {
-    openEpisode(retryEpisodeButton.dataset.retryEpisode);
+    openEpisode(retryEpisodeButton.dataset.retryEpisode, null);
     return;
   }
 
@@ -1538,6 +1581,41 @@ libraryFilterDialog?.addEventListener("close", () => {
   libraryFilterView = null;
   libraryFilterDraft = null;
 });
+
+function restoreHistoryState(state) {
+  if (!state?.trackApp) return;
+  closeShowMenus();
+  closeWatchMenus();
+  if (detailRequest) detailRequest.abort();
+
+  if (state.view !== "detail") {
+    showView(state.view);
+    return;
+  }
+
+  detailParentView = ["watching", "archive", "discover"].includes(state.parentView)
+    ? state.parentView
+    : "watching";
+  if (state.detailType === "show" && state.showId) {
+    openShow(state.showId, detailParentView, true, null);
+  } else if (state.detailType === "episode" && state.episodeId) {
+    openEpisode(state.episodeId, null);
+  } else if (state.detailType === "catalog" && state.tmdbId) {
+    const card = document.querySelector(`.popular-card[data-tmdb-id="${state.tmdbId}"]`);
+    if (card) previewCatalogShow(card, null);
+    else showView("discover");
+  } else {
+    showView(detailParentView);
+  }
+}
+
+window.addEventListener("popstate", (event) => {
+  restoreHistoryState(event.state);
+});
+
+if (window.history.state?.trackApp && window.history.state.view !== "watching") {
+  restoreHistoryState(window.history.state);
+}
 
 function showSnackbar(message) {
   const snackbar = document.querySelector(".snackbar");

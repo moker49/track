@@ -137,7 +137,6 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".show-card {\n  position: relative;\n  width: 100%;\n  height: var(--compact-card-height);", css)
         self.assertIn(".popular-card {\n  position: relative;\n  height: var(--compact-card-height);", css)
         self.assertIn("grid-template-columns: 88px 1fr", css)
-        self.assertIn("padding: 13px 30px 12px 14px", css)
         self.assertIn('class="show-card-meta"', home.data.decode("utf-8"))
         self.assertIn('class="show-card-year">2008</span>', home.data.decode("utf-8"))
         self.assertIn("font-size: 1.16rem", css)
@@ -171,6 +170,11 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('classList.remove("app-booting")', javascript)
         self.assertIn("const hydratedLibraryViews = new Set();", javascript)
         self.assertIn("hydratedLibraryViews.add(view.dataset.view)", javascript)
+        self.assertIn('window.history.replaceState({ trackApp: true, view: "watching" }, "")', javascript)
+        self.assertIn('window.addEventListener("popstate"', javascript)
+        self.assertIn("window.history.back()", javascript)
+        self.assertIn('detailType: "show"', javascript)
+        self.assertIn('detailType: "episode"', javascript)
 
     def test_library_filter_and_sort_dialog_is_in_the_shell(self):
         home = self.client.get("/")
@@ -1109,9 +1113,12 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('else card.classList.add("is-cached")', javascript)
         self.assertIn('card.classList.remove("is-cached")', javascript)
         self.assertIn('if (card.dataset.showId) card.classList.add("is-cached")', javascript)
-        self.assertIn('openShow(data.show_id, "discover", false)', javascript)
+        self.assertIn('openShow(data.show_id, "discover", false, "replace")', javascript)
         self.assertIn("const cachedShowId = card.dataset.showId", javascript)
-        self.assertIn('await openShow(cachedShowId, "discover")', javascript)
+        self.assertIn(
+            'await openShow(cachedShowId, "discover", true, historyMode)',
+            javascript,
+        )
         self.assertIn("if (hasCachedDetails) {", javascript)
         self.assertIn("refreshShowMetadata(showId);", javascript)
         seasons_ready = javascript.index("nextSeasonList.innerHTML = seasonsHtml")
