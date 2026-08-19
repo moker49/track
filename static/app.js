@@ -196,6 +196,7 @@ function catalogActions() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "catalog-action";
+    if (state === "ARCHIVED") button.classList.add("catalog-action-secondary");
     button.dataset.importState = state;
     button.textContent = label;
     actions.append(button);
@@ -1782,17 +1783,17 @@ if (window.history.state?.trackApp && window.history.state.view !== "schedule") 
 }
 
 function showSnackbar(message, { actionLabel = "", onAction = null } = {}) {
-  if (!snackbar) return;
+  if (!snackbar || !actionLabel || !onAction) return;
   const copy = snackbar.querySelector("[data-snackbar-copy]");
   const actionButton = snackbar.querySelector("[data-snackbar-action]");
   copy.textContent = message;
   actionButton.textContent = actionLabel;
-  actionButton.hidden = !actionLabel || !onAction;
+  actionButton.hidden = false;
   snackbarAction = onAction;
   snackbar.hidden = false;
   clearTimeout(showSnackbar.timer);
   showSnackbar.timer = setTimeout(() => {
     snackbar.hidden = true;
     snackbarAction = null;
-  }, actionLabel ? 5000 : 2600);
+  }, 5000);
 }

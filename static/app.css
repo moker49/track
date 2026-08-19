@@ -235,33 +235,13 @@ html.app-booting .app-boot-screen {
   padding-bottom: 24px;
 }
 
-.schedule-section-heading {
-  min-height: 64px;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.schedule-section-heading h2 {
-  margin: 0 0 3px;
-  font-size: 1.15rem;
-  font-weight: 500;
-}
-
-.schedule-section-heading p {
-  margin: 0;
-  color: var(--on-surface-muted);
-  font-size: 0.78rem;
-}
-
 .schedule-list {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .schedule-card {
-  height: var(--compact-card-height);
+  height: 96px;
   border-radius: var(--radius-md);
   overflow: hidden;
   color: var(--on-surface);
@@ -269,10 +249,14 @@ html.app-booting .app-boot-screen {
   box-shadow: 0 1px 4px var(--shadow);
 }
 
+.schedule-card[data-schedule-mode="catch-up"] {
+  height: 120px;
+}
+
 .schedule-card-content {
   height: 100%;
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr);
 }
 
 .schedule-poster {
@@ -297,10 +281,14 @@ html.app-booting .app-boot-screen {
 
 .schedule-card-copy {
   min-width: 0;
-  padding: 12px 12px 10px 14px;
+  padding: 9px 10px 8px 12px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+}
+
+.schedule-card[data-schedule-mode="upcoming"] .schedule-card-copy {
+  justify-content: center;
 }
 
 .schedule-card-open {
@@ -320,18 +308,21 @@ html.app-booting .app-boot-screen {
   outline-offset: 3px;
 }
 
-.schedule-show-name {
-  overflow: hidden;
-  color: var(--primary);
-  font-size: 0.72rem;
+.schedule-episode-tag {
+  width: fit-content;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--progress-not-started);
+  background: color-mix(in srgb, var(--progress-not-started) 18%, transparent);
+  font-size: 0.62rem;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1;
+  letter-spacing: 0.02em;
 }
 
 .schedule-card-open strong {
   overflow: hidden;
-  font-size: 1rem;
+  font-size: 0.92rem;
   font-weight: 700;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -353,15 +344,33 @@ html.app-booting .app-boot-screen {
   gap: 8px;
 }
 
-.schedule-card-footer>span {
+.schedule-progress {
+  min-width: 0;
+}
+
+.schedule-progress-copy {
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
   color: var(--on-surface-muted);
-  font-size: 0.68rem;
-  line-height: 1.2;
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.schedule-progress-copy strong {
+  color: var(--on-surface);
+  font-weight: 700;
+}
+
+.schedule-progress .progress-track {
+  height: 4px;
 }
 
 .schedule-card-actions {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 2px;
 }
 
 .schedule-card-actions button {
@@ -380,7 +389,7 @@ html.app-booting .app-boot-screen {
 
 .schedule-skip-button {
   color: var(--primary);
-  background: var(--primary-light);
+  background: transparent;
 }
 
 .schedule-watch-button {
@@ -1832,6 +1841,13 @@ html.app-booting .app-boot-screen {
   border-color: transparent;
   color: var(--on-primary);
   background: var(--primary);
+}
+
+.catalog-action.catalog-action-secondary {
+  padding-inline: 8px;
+  border-color: transparent;
+  color: var(--primary);
+  background: transparent;
 }
 
 .detail-add-group {

@@ -8,19 +8,25 @@
     <div class="schedule-card-copy">
       <button class="schedule-card-open" type="button" data-schedule-episode-open
         aria-label="Open {{ episode.episode_name }} details">
-        <span class="schedule-show-name">{{ episode.show_name }}</span>
+        <span class="schedule-episode-tag">Episode {{ episode.episode_number }}</span>
         <strong>{{ episode.episode_name }}</strong>
         <span class="schedule-episode-meta">
-          S{{ episode.season_number }}E{{ episode.episode_number }} ·
+          Season {{ episode.season_number }} ·
           <time datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date }}</time>
-          {% if episode.runtime_minutes %} · {{ episode.runtime_minutes }} min{% endif %}
         </span>
       </button>
       {% if mode == 'catch-up' %}
       <div class="schedule-card-footer">
-        <span data-schedule-remaining>
-          {% if episode.remaining_count > 1 %}{{ episode.remaining_count - 1 }} more available{% else %}Last available episode{% endif %}
-        </span>
+        {% set progress_percent = ((episode.watched_count * 100) / episode.episode_count)|round|int %}
+        <div class="schedule-progress" aria-label="{{ episode.watched_count }} of {{ episode.episode_count }} episodes watched">
+          <div class="schedule-progress-copy">
+            <span>{{ episode.watched_count }} of {{ episode.episode_count }}</span>
+            <strong>{{ progress_percent }}%</strong>
+          </div>
+          <div class="progress-track" aria-hidden="true">
+            <span style="width: {{ progress_percent }}%"></span>
+          </div>
+        </div>
         <div class="schedule-card-actions">
           <button class="schedule-skip-button" type="button" data-schedule-action="skip">Skip</button>
           <button class="schedule-watch-button" type="button" data-schedule-action="watch">Watch</button>

@@ -235,7 +235,21 @@ def create_app(test_config: dict | None = None) -> Flask:
     ) -> list[sqlite3.Row]:
         return db.execute(
             """
-            WITH unresolved AS (
+            WITH show_progress AS (
+                SELECT s.id AS show_id,
+                       COUNT(DISTINCT e.id) AS episode_count,
+                       COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
+                FROM shows s
+                JOIN seasons sn ON sn.show_id = s.id
+                  AND sn.is_progress_counted = 1
+                JOIN episodes e ON e.season_id = sn.id
+                  AND e.air_date <= date('now')
+                LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+                WHERE s.is_tracked = 1
+                  AND s.state = 'WATCHING'
+                GROUP BY s.id
+            ),
+            unresolved AS (
                 SELECT s.id AS show_id,
                        s.name AS show_name,
                        s.poster_path,
@@ -249,8 +263,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                        ROW_NUMBER() OVER (
                            PARTITION BY s.id
                            ORDER BY e.air_date, sn.season_number, e.episode_number
-                       ) AS episode_rank,
-                       COUNT(*) OVER (PARTITION BY s.id) AS remaining_count
+                       ) AS episode_rank
                 FROM shows s
                 JOIN seasons sn ON sn.show_id = s.id
                 JOIN episodes e ON e.season_id = sn.id
@@ -269,10 +282,13 @@ def create_app(test_config: dict | None = None) -> Flask:
                       WHERE sk.episode_id = e.id
                   )
             )
-            SELECT *
+            SELECT unresolved.*,
+                   show_progress.episode_count,
+                   show_progress.watched_count
             FROM unresolved
-            WHERE episode_rank = 1
-            ORDER BY air_date DESC, show_name COLLATE NOCASE
+            JOIN show_progress ON show_progress.show_id = unresolved.show_id
+            WHERE unresolved.episode_rank = 1
+            ORDER BY unresolved.air_date DESC, unresolved.show_name COLLATE NOCASE
             """,
             (show_id, show_id),
         ).fetchall()

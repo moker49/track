@@ -201,9 +201,15 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-schedule-now', home.data)
         self.assertIn(b'data-schedule-mode="catch-up"', home.data)
         self.assertIn(b'data-episode-id="6"', home.data)
-        self.assertIn(b"7 more available", home.data)
+        self.assertIn(b'class="schedule-episode-tag">Episode 6</span>', home.data)
+        self.assertIn(b"5 of 13", home.data)
+        self.assertIn(b"38%", home.data)
+        self.assertNotIn(b"more available", home.data)
         self.assertIn(b'data-schedule-mode="upcoming"', home.data)
         self.assertIn(b"Future Episode", home.data)
+        self.assertNotIn(b"48 min", home.data)
+        self.assertNotIn(b'<h2 id="catch-up-title">', home.data)
+        self.assertNotIn(b'<h2 id="upcoming-title">', home.data)
         self.assertNotIn(b'data-show-id="2" data-episode-id=', home.data)
 
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
@@ -212,6 +218,16 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('let currentView = "schedule"', javascript)
         self.assertIn("centerScheduleOnNow()", javascript)
         self.assertIn('data-schedule-action', javascript)
+        self.assertIn('button.classList.add("catalog-action-secondary")', javascript)
+        self.assertIn('if (!snackbar || !actionLabel || !onAction) return;', javascript)
+
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('.schedule-card[data-schedule-mode="catch-up"] {\n  height: 120px;', css)
+        self.assertIn('color: var(--progress-not-started);\n  background: color-mix(in srgb, var(--progress-not-started) 18%, transparent);', css)
+        self.assertIn('.catalog-action.catalog-action-secondary {', css)
+        self.assertIn('.schedule-skip-button {\n  color: var(--primary);\n  background: transparent;', css)
 
     def test_schedule_skip_advances_without_creating_watch_history(self):
         skipped = self.client.post("/api/episodes/6/skip")
