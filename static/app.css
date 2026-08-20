@@ -200,38 +200,55 @@ html.app-booting .app-boot-screen {
 }
 
 .schedule-app-bar {
-  min-height: calc(88px + env(safe-area-inset-top));
+  min-height: calc(64px + env(safe-area-inset-top));
+  padding: max(8px, env(safe-area-inset-top)) 16px 0;
+  justify-content: flex-end;
 }
 
-.schedule-app-bar h1 {
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 500;
-  letter-spacing: -0.02em;
+.schedule-tabs {
+  height: 48px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.schedule-app-bar p {
-  margin: 3px 0 0;
+.schedule-tab {
+  position: relative;
+  padding: 0 16px;
+  border: 0;
   color: var(--on-surface-muted);
-  font-size: 0.82rem;
+  background: transparent;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.schedule-tab.is-selected {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.schedule-tab.is-selected::after {
+  content: "";
+  position: absolute;
+  right: 20%;
+  bottom: 0;
+  left: 20%;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--primary);
+}
+
+.schedule-tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -4px;
 }
 
 .schedule-content {
   padding: 0 16px 28px;
 }
 
-.schedule-half {
-  min-height: calc(50dvh - 44px);
-}
-
-.schedule-catch-up {
-  padding-top: 8px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-}
-
-.schedule-upcoming {
+.schedule-panel {
+  padding-top: 12px;
   padding-bottom: 24px;
 }
 
@@ -307,10 +324,6 @@ html.app-booting .app-boot-screen {
 .schedule-card-open:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 3px;
-}
-
-.schedule-card-top-row {
-  margin-bottom: 6px
 }
 
 .schedule-episode-tag {
@@ -420,29 +433,6 @@ html.app-booting .app-boot-screen {
   padding: 20px;
   color: var(--accent);
   font-weight: 700;
-}
-
-.schedule-now {
-  min-height: 56px;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 12px;
-  color: var(--primary);
-}
-
-.schedule-now span {
-  height: 1px;
-  background: var(--primary-mid);
-}
-
-.schedule-now strong {
-  padding: 6px 12px;
-  border-radius: 16px;
-  background: var(--primary-light);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 .schedule-empty {

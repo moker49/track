@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -9,14 +10,18 @@
     document.documentElement.classList.add("app-booting");
     window.setTimeout(() => document.documentElement.classList.remove("app-booting"), 4000);
   </script>
-  <link rel="preload" href="{{ url_for('static', filename='fonts/material-symbols-rounded.ttf', v=asset_version) }}" as="font" type="font/ttf" crossorigin>
-  <link rel="preload" href="{{ url_for('static', filename='fonts/material-symbols-rounded-filled.ttf', v=asset_version) }}" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="{{ url_for('static', filename='fonts/material-symbols-rounded.ttf', v=asset_version) }}"
+    as="font" type="font/ttf" crossorigin>
+  <link rel="preload"
+    href="{{ url_for('static', filename='fonts/material-symbols-rounded-filled.ttf', v=asset_version) }}" as="font"
+    type="font/ttf" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css', v=asset_version) }}">
   <script src="{{ url_for('static', filename='app.js', v=asset_version) }}" defer></script>
 </head>
+
 <body>
   <div class="app-boot-screen" role="status" aria-label="Loading Track">
     <span></span>
@@ -26,7 +31,7 @@
     <nav class="bottom-nav" aria-label="Primary navigation">
       <button class="nav-item active" type="button" data-nav-view="schedule" aria-current="page">
         <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-rounded">event_upcoming</span>
+          <span class="material-symbols-rounded">event</span>
         </span>
         <span>Schedule</span>
       </button>
@@ -51,4 +56,5 @@
     </nav>
   </div>
 </body>
+
 </html>

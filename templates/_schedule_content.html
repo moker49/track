@@ -1,6 +1,7 @@
 {% from "_schedule_episode_card.html" import schedule_episode_card %}
 <div class="schedule-content" data-schedule-content>
-  <section class="schedule-half schedule-catch-up" aria-label="Catch up">
+  <section id="schedule-catch-up" class="schedule-panel" role="tabpanel"
+    data-schedule-panel="catch-up" aria-label="Catch up">
     <div class="schedule-list" data-catch-up-list>
       {% for episode in catch_up_episodes %}{{ schedule_episode_card(episode, 'catch-up') }}{% endfor %}
     </div>
@@ -10,11 +11,8 @@
     </div>
   </section>
 
-  <div class="schedule-now" data-schedule-now aria-label="Now">
-    <span></span><strong>Now</strong><span></span>
-  </div>
-
-  <section class="schedule-half schedule-upcoming" aria-label="Coming up">
+  <section id="schedule-upcoming" class="schedule-panel" role="tabpanel"
+    data-schedule-panel="upcoming" aria-label="Coming Up" hidden>
     <div class="schedule-list">
       {% for episode in upcoming_episodes %}{{ schedule_episode_card(episode, 'upcoming') }}{% endfor %}
     </div>

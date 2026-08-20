@@ -129,7 +129,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'<span class="material-symbols-rounded">tv</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">inventory_2</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">explore</span>', home.data)
-        self.assertIn(b'<span class="material-symbols-rounded">event_upcoming</span>', home.data)
+        self.assertIn(b'<span class="material-symbols-rounded">event</span>', home.data)
         self.assertNotIn(b"Drama, Crime", home.data)
         self.assertNotIn(b"Drama, Fantasy", home.data)
 
@@ -198,7 +198,11 @@ class TrackAppTest(unittest.TestCase):
             b'class="nav-item active" type="button" data-nav-view="schedule"',
             home.data,
         )
-        self.assertIn(b'data-schedule-now', home.data)
+        self.assertIn(b'data-schedule-tab="catch-up">Catch up</button>', home.data)
+        self.assertIn(b'data-schedule-tab="upcoming">Coming Up</button>', home.data)
+        self.assertIn(b'data-schedule-panel="catch-up"', home.data)
+        self.assertIn(b'data-schedule-panel="upcoming"', home.data)
+        self.assertNotIn(b'data-schedule-now', home.data)
         self.assertIn(b'data-schedule-mode="catch-up"', home.data)
         self.assertIn(b'data-episode-id="6"', home.data)
         self.assertIn(b'class="schedule-episode-tag">Episode 6</span>', home.data)
@@ -216,7 +220,10 @@ class TrackAppTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('let currentView = "schedule"', javascript)
-        self.assertIn("centerScheduleOnNow()", javascript)
+        self.assertIn('let scheduleTab = "catch-up"', javascript)
+        self.assertIn("function setScheduleTab(tabName)", javascript)
+        self.assertNotIn("centerScheduleOnNow", javascript)
+        self.assertNotIn("preserveMarker", javascript)
         self.assertIn('data-schedule-action', javascript)
         self.assertIn('button.classList.add("catalog-action-secondary")', javascript)
         self.assertIn('if (!snackbar || !actionLabel || !onAction) return;', javascript)

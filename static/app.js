@@ -7,9 +7,9 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "search filter_list more_vert event_upcoming tv inventory_2 explore",
+        "search filter_list more_vert event tv inventory_2 explore",
       ),
-      document.fonts.load('24px "Material Symbols Rounded Filled"', "event_upcoming"),
+      document.fonts.load('24px "Material Symbols Rounded Filled"', "event"),
     ]);
     await Promise.race([
       iconFonts.catch(() => undefined),
@@ -18,7 +18,6 @@ async function revealAppWhenIconsAreReady() {
   }
   window.requestAnimationFrame(() => {
     document.documentElement.classList.remove("app-booting");
-    centerScheduleOnNow();
   });
 }
 
@@ -49,7 +48,7 @@ let libraryFilterDraft = null;
 let popularLoaded = false;
 let discoverSearchTimer = null;
 let discoverRequest = null;
-let scheduleCentered = false;
+let scheduleTab = "catch-up";
 let snackbarAction = null;
 
 if (!window.history.state?.trackApp) {
@@ -93,7 +92,7 @@ function showView(viewName, historyMode = null) {
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
   if (viewName === "discover" && !popularLoaded) loadPopularShows();
   if (viewName === "schedule") {
-    refreshScheduleContent({ preserveMarker: true }).catch(() => undefined);
+    refreshScheduleContent().catch(() => undefined);
   }
   if (historyMode && viewName !== "detail") {
     writeHistory({ view: viewName }, historyMode);
@@ -439,13 +438,18 @@ function formatDisplayDates(root = document) {
   });
 }
 
-function centerScheduleOnNow() {
-  if (scheduleCentered || currentView !== "schedule") return;
-  const marker = views.get("schedule")?.querySelector("[data-schedule-now]");
-  if (!marker) return;
-  marker.scrollIntoView({ block: "center", behavior: "auto" });
-  scrollPositions.schedule = window.scrollY;
-  scheduleCentered = true;
+function setScheduleTab(tabName) {
+  scheduleTab = tabName === "upcoming" ? "upcoming" : "catch-up";
+  const view = views.get("schedule");
+  view.querySelectorAll("[data-schedule-tab]").forEach((tab) => {
+    const selected = tab.dataset.scheduleTab === scheduleTab;
+    tab.classList.toggle("is-selected", selected);
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  });
+  view.querySelectorAll("[data-schedule-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.schedulePanel !== scheduleTab;
+  });
 }
 
 function waitForScheduleAnimation(card) {
@@ -465,18 +469,13 @@ function waitForScheduleAnimation(card) {
 function syncCatchUpEmptyState() {
   const view = views.get("schedule");
   const cards = view.querySelectorAll('[data-schedule-mode="catch-up"]');
-  const count = view.querySelector("[data-catch-up-count]");
   const empty = view.querySelector("[data-catch-up-empty]");
-  if (count) count.textContent = cards.length;
   if (empty) empty.hidden = cards.length > 0;
 }
 
-async function refreshScheduleContent({ preserveMarker = false } = {}) {
+async function refreshScheduleContent() {
   const view = views.get("schedule");
   const currentContent = view.querySelector("[data-schedule-content]");
-  const previousMarkerTop = preserveMarker && currentView === "schedule"
-    ? currentContent.querySelector("[data-schedule-now]")?.getBoundingClientRect().top
-    : null;
   const response = await fetch("/api/schedule", {
     headers: { "X-Requested-With": "Track" },
   });
@@ -485,16 +484,13 @@ async function refreshScheduleContent({ preserveMarker = false } = {}) {
   template.innerHTML = (await response.text()).trim();
   currentContent.replaceWith(template.content);
   formatDisplayDates(view);
-  if (previousMarkerTop != null) {
-    const nextMarkerTop = view.querySelector("[data-schedule-now]")?.getBoundingClientRect().top;
-    if (nextMarkerTop != null) window.scrollBy(0, nextMarkerTop - previousMarkerTop);
-  }
+  setScheduleTab(scheduleTab);
 }
 
 async function undoScheduleSkip(episodeId) {
   const response = await fetch(`/api/episodes/${episodeId}/skip`, { method: "DELETE" });
   if (!response.ok) throw new Error("Could not undo skip");
-  await refreshScheduleContent({ preserveMarker: true });
+  await refreshScheduleContent();
   showSnackbar("Skip undone");
 }
 
@@ -559,7 +555,7 @@ async function processScheduleEpisode(card, action) {
     }
   } catch (error) {
     if (processed) {
-      await refreshScheduleContent({ preserveMarker: true }).catch(() => undefined);
+      await refreshScheduleContent().catch(() => undefined);
       showSnackbar("Episode processed; Schedule was refreshed");
     } else {
       card.classList.remove("is-leaving");
@@ -1358,6 +1354,12 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const scheduleTabButton = event.target.closest("[data-schedule-tab]");
+  if (scheduleTabButton) {
+    setScheduleTab(scheduleTabButton.dataset.scheduleTab);
+    return;
+  }
+
   const scheduleAction = event.target.closest("[data-schedule-action]");
   if (scheduleAction) {
     processScheduleEpisode(
@@ -1622,6 +1624,17 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  const scheduleTabButton = event.target.closest("[data-schedule-tab]");
+  if (scheduleTabButton && ["ArrowLeft", "ArrowRight"].includes(event.key)) {
+    event.preventDefault();
+    const nextTab = scheduleTabButton.dataset.scheduleTab === "catch-up"
+      ? "upcoming"
+      : "catch-up";
+    setScheduleTab(nextTab);
+    views.get("schedule").querySelector(`[data-schedule-tab="${nextTab}"]`)?.focus();
+    return;
+  }
+
   const card = event.target.closest(".popular-card[data-tmdb-id]");
   if (!card || event.target.closest("button") || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
