@@ -160,7 +160,9 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("grid-template-columns: 48px minmax(0, 1fr) 48px", css)
         self.assertIn("padding: max(12px, env(safe-area-inset-top)) 4px 12px", css)
         self.assertIn("text-align: center", css)
-        self.assertIn(".app-bar-search:focus-within input.search-text-positioned", css)
+        self.assertIn(".app-bar-search:has(input:focus)", css)
+        self.assertIn(".app-bar-search input.search-text-positioned:focus", css)
+        self.assertNotIn(".app-bar-search:focus-within", css)
         self.assertIn("text-align: left", css)
         self.assertIn("transition: padding-left 180ms cubic-bezier(0.2, 0, 0, 1)", css)
 

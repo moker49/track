@@ -1686,7 +1686,7 @@ html.app-booting .app-boot-screen {
   background: var(--surface-high);
 }
 
-.app-bar-search:focus-within {
+.app-bar-search:has(input:focus) {
   outline: 2px solid var(--primary);
 }
 
@@ -1709,7 +1709,7 @@ html.app-booting .app-boot-screen {
   transition: padding-left 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.app-bar-search:focus-within input.search-text-positioned {
+.app-bar-search input.search-text-positioned:focus {
   padding-left: 20px;
 }
 
