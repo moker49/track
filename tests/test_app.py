@@ -574,10 +574,13 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".tv-slice-reveal {", css)
         self.assertIn("@keyframes schedule-rail-reveal", css)
         self.assertIn("@keyframes schedule-dot-reveal", css)
+        self.assertIn("@keyframes media-image-reveal", css)
         self.assertIn(
             ".episode-watch-summary-wrap:has(.episode-detail-watch-menu:not([hidden]))",
             css,
         )
+        self.assertIn('image.dataset.mediaImagePending = "";', javascript)
+        self.assertIn('image.classList.add("media-image-reveal")', javascript)
         self.assertIn(
             "background: color-mix(in srgb, var(--progress-not-started) 18%, transparent);",
             css,

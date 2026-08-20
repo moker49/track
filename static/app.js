@@ -265,10 +265,16 @@ function catalogCard(show) {
   return article;
 }
 
-function settleMediaImage(image, loaded) {
+function settleMediaImage(image, loaded, reveal = false) {
   const container = image.closest(".has-media-image");
   if (!container) return;
   if (loaded) {
+    if (reveal && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      image.classList.add("media-image-reveal");
+      image.addEventListener("animationend", () => {
+        image.classList.remove("media-image-reveal");
+      }, { once: true });
+    }
     container.classList.add("is-image-loaded");
     return;
   }
@@ -285,7 +291,10 @@ function settleMediaImage(image, loaded) {
 }
 
 function inspectCompletedMediaImage(image) {
-  if (!image.complete) return;
+  if (!image.complete) {
+    image.dataset.mediaImagePending = "";
+    return;
+  }
   settleMediaImage(image, image.naturalWidth > 0);
 }
 
@@ -2309,7 +2318,11 @@ document.addEventListener("error", (event) => {
 }, true);
 
 document.addEventListener("load", (event) => {
-  if (event.target.matches?.("img[data-media-image]")) settleMediaImage(event.target, true);
+  if (event.target.matches?.("img[data-media-image]")) {
+    const reveal = event.target.hasAttribute("data-media-image-pending");
+    event.target.removeAttribute("data-media-image-pending");
+    settleMediaImage(event.target, true, reveal);
+  }
 }, true);
 
 document.querySelectorAll("img[data-media-image]").forEach(inspectCompletedMediaImage);

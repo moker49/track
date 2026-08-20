@@ -630,6 +630,10 @@ html.app-booting .schedule-empty-reveal {
   opacity: 1;
 }
 
+.has-media-image.is-image-loaded img.media-image-reveal {
+  animation: media-image-reveal 300ms ease-out both;
+}
+
 .poster::before,
 .poster::after {
   content: "";
@@ -2347,6 +2351,16 @@ html.app-booting .tv-slice-reveal {
   }
 }
 
+@keyframes media-image-reveal {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes schedule-rail-reveal {
   from {
     opacity: 0;
@@ -2470,7 +2484,8 @@ html.app-booting .tv-slice-reveal {
   .schedule-item-reveal .schedule-timeline-marker,
   .schedule-item-reveal .schedule-timeline-content,
   .schedule-item-reveal .schedule-timeline-rail>span,
-  .schedule-empty-reveal {
+  .schedule-empty-reveal,
+  .media-image-reveal {
     animation: none;
   }
 }
