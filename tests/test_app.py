@@ -207,18 +207,18 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'data-schedule-now', home.data)
         self.assertIn(b'data-schedule-mode="catch-up"', home.data)
         self.assertIn(b'data-episode-id="6"', home.data)
-        self.assertIn(b'class="schedule-episode-tag">Episode 6</span>', home.data)
-        self.assertIn(b"5 of 13", home.data)
+        self.assertIn(b"Season 1 \xc2\xb7 Episode 6", home.data)
+        self.assertIn(b"5/13", home.data)
         self.assertIn(b"38%", home.data)
         self.assertNotIn(b"more available", home.data)
         self.assertIn(b'data-schedule-mode="upcoming"', home.data)
         self.assertIn(b"Future Episode", home.data)
-        self.assertIn(b'class="upcoming-timeline"', home.data)
+        self.assertIn(b'class="schedule-timeline"', home.data)
         self.assertIn(b"Season 2 \xc2\xb7 Episode 7", home.data)
-        self.assertIn(b'class="upcoming-episode-title">Future Episode</span>', home.data)
+        self.assertIn(b'class="schedule-timeline-episode-title">Future Episode</span>', home.data)
         self.assertRegex(
             home.data.decode("utf-8"),
-            r'class="upcoming-countdown">\s+\d+ days\s+</span>',
+            r'class="schedule-timeline-countdown">\s+\d+ days\s+</span>',
         )
         self.assertNotIn(b"days left", home.data)
         self.assertNotIn(b"48 min", home.data)
@@ -246,17 +246,25 @@ class TrackAppTest(unittest.TestCase):
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
             encoding="utf-8"
         )
-        self.assertIn('.schedule-card[data-schedule-mode="catch-up"] {\n  height: 120px;', css)
-        self.assertIn('.schedule-card-actions {\n  position: absolute;', css)
-        self.assertIn('.schedule-card-footer {\n  display: block;', css)
-        self.assertIn('color: var(--progress-not-started);\n  background: color-mix(in srgb, var(--progress-not-started) 18%, transparent);', css)
+        self.assertIn('.schedule-timeline-item {', css)
+        self.assertIn('grid-template-columns: 48px 16px minmax(0, 1fr);', css)
+        self.assertIn('.schedule-timeline-marker {', css)
+        self.assertIn('justify-items: end;', css)
+        self.assertIn('.schedule-timeline-poster {', css)
+        self.assertIn('width: 72px;\n  height: 120px;', css)
+        self.assertIn('.schedule-timeline-actions {\n  position: absolute;', css)
         self.assertIn('.catalog-action.catalog-action-secondary {', css)
         self.assertIn('.schedule-skip-button {\n  color: var(--primary);\n  background: transparent;', css)
-        self.assertIn('.upcoming-timeline-item {', css)
-        self.assertIn('.upcoming-rail::before {', css)
+        self.assertIn('.schedule-timeline-rail::before {', css)
         self.assertIn('top: calc(50% - 4px);', css)
-        self.assertIn('.upcoming-episode-open::after {', css)
+        self.assertIn('.schedule-timeline-content::after {', css)
         self.assertIn('background: linear-gradient(', css)
+
+        schedule_template = (Path(__file__).parents[1] / "templates" / "_schedule_content.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('{% from "_schedule_timeline_item.html" import schedule_timeline_item %}', schedule_template)
+        self.assertNotIn("_upcoming_timeline_item.html", schedule_template)
 
     def test_schedule_skip_advances_without_creating_watch_history(self):
         skipped = self.client.post("/api/episodes/6/skip")

@@ -475,7 +475,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if not episodes:
             return "", 204
         return render_template(
-            "_schedule_episode_card_fragment.html",
+            "_schedule_timeline_item_fragment.html",
             episode=episodes[0],
             mode="catch-up",
         )

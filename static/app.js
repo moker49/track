@@ -489,7 +489,7 @@ function waitForScheduleAnimation(card) {
       finished = true;
       resolve();
     };
-    card.querySelector(".schedule-card-content")
+    card.querySelector(".schedule-timeline-content")
       ?.addEventListener("animationend", finish, { once: true });
     window.setTimeout(finish, 240);
   });
@@ -564,9 +564,9 @@ async function processScheduleEpisode(card, action) {
       filterSchedule();
       window.setTimeout(() => nextCard.classList.remove("is-entering"), 240);
     } else {
-      card.className = "schedule-card is-caught-up";
+      card.className = "schedule-timeline-item is-caught-up";
       card.innerHTML = `
-        <div class="schedule-card-content">
+        <div class="schedule-timeline-confirmation">
           <span class="material-symbols-rounded" aria-hidden="true">done_all</span>
           <span>Caught up with this show</span>
         </div>`;

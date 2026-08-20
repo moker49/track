@@ -1,0 +1,47 @@
+{% macro schedule_timeline_item(episode, mode) %}
+{% set is_backlog = mode == 'catch-up' %}
+{% set progress_percent = ((episode.watched_count * 100) / episode.episode_count)|round|int if is_backlog else 0 %}
+<article class="schedule-timeline-item" data-schedule-card data-schedule-mode="{{ mode }}"
+  data-show-id="{{ episode.show_id }}" data-episode-id="{{ episode.episode_id }}"
+  data-schedule-search-text="{{ episode.show_name|lower }} {{ episode.episode_name|lower }}">
+  <div class="schedule-timeline-marker" aria-hidden="true">
+    {% if is_backlog %}
+    <strong>{{ progress_percent }}%</strong>
+    <span>{{ episode.watched_count }}/{{ episode.episode_count }}</span>
+    {% else %}
+    <strong>{{ episode.day_label }}</strong>
+    <span>{{ episode.weekday_label }}</span>
+    {% endif %}
+  </div>
+  <span class="schedule-timeline-rail" aria-hidden="true"><span></span></span>
+  <div class="schedule-timeline-content">
+    <button class="schedule-timeline-open" type="button" data-schedule-episode-open
+      aria-label="Open {{ episode.episode_name }} details">
+      <span class="schedule-timeline-poster{% if episode.poster_path %} has-media-image{% endif %}" aria-hidden="true">
+        {% if episode.poster_path %}<img src="{{ url_for('cached_tmdb_image', image_type='poster', size='w185', tmdb_path=episode.poster_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span>{{ episode.show_name[:1]|upper }}</span></template>{% else %}<span>{{ episode.show_name[:1]|upper }}</span>{% endif %}
+      </span>
+      <span class="schedule-timeline-copy">
+        <strong>{{ episode.show_name }}</strong>
+        <span>Season {{ episode.season_number }} · Episode {{ episode.episode_number }}</span>
+        <span class="schedule-timeline-episode-title">{{ episode.episode_name }}</span>
+      </span>
+      {% if not is_backlog %}
+      <span class="schedule-timeline-countdown">
+        {{ episode.days_until }} {{ 'day' if episode.days_until == 1 else 'days' }}
+      </span>
+      {% endif %}
+    </button>
+    {% if is_backlog %}
+    <div class="schedule-timeline-actions">
+      <button class="schedule-skip-button" type="button" data-schedule-action="skip">Skip</button>
+      <button class="schedule-watch-button" type="button" data-schedule-action="watch">Watch</button>
+    </div>
+    <div class="schedule-timeline-progress" aria-label="{{ episode.watched_count }} of {{ episode.episode_count }} episodes watched">
+      <div class="progress-track" aria-hidden="true">
+        <span style="width: {{ progress_percent }}%"></span>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</article>
+{% endmacro %}
