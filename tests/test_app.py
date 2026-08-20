@@ -542,6 +542,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("const tvSliceStaggerMs = 55;", javascript)
         self.assertIn('slice.classList.remove("tv-slice-reveal")', javascript)
         self.assertIn('clearTvFirstReveal(views.get("tv"))', javascript)
+        self.assertIn("const scheduleItemStaggerMs = 65;", javascript)
+        self.assertIn('item.classList.add("schedule-item-reveal")', javascript)
+        self.assertIn('view.classList.add("schedule-rail-reveal")', javascript)
+        self.assertIn("staggerScheduleFirstReveal(views.get(currentView));", javascript)
         self.assertIn("const [overviewHtml, seasonsHtml] = await Promise.all", javascript)
         self.assertIn(
             "renderShowDetail(cachedOverview, cachedSeasons, false, returnContext)",
@@ -568,6 +572,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('.md-button-group button[aria-pressed="true"] {\n  border-radius: 24px;', css)
         self.assertIn("color: var(--progress-not-started);", css)
         self.assertIn(".tv-slice-reveal {", css)
+        self.assertIn("@keyframes schedule-rail-reveal", css)
+        self.assertIn("@keyframes schedule-dot-reveal", css)
         self.assertIn(
             "background: color-mix(in srgb, var(--progress-not-started) 18%, transparent);",
             css,

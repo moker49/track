@@ -295,6 +295,45 @@ html.app-booting .app-boot-screen {
       transparent);
 }
 
+.schedule-first-reveal-pending .schedule-timeline,
+.schedule-first-reveal-pending .schedule-timeline-list,
+.schedule-first-reveal-pending .schedule-empty {
+  visibility: hidden;
+}
+
+.schedule-rail-reveal .schedule-timeline-rail::before,
+.schedule-rail-reveal .upcoming-month h2 {
+  animation: schedule-rail-reveal 300ms ease-out both;
+}
+
+.schedule-item-reveal .schedule-timeline-marker {
+  animation: schedule-marker-reveal 300ms ease-out both;
+  animation-delay: var(--schedule-item-delay, 0ms);
+}
+
+.schedule-item-reveal .schedule-timeline-content {
+  animation: schedule-item-reveal 300ms ease-out both;
+  animation-delay: var(--schedule-item-delay, 0ms);
+}
+
+.schedule-item-reveal .schedule-timeline-rail>span {
+  animation: schedule-dot-reveal 300ms ease-out both;
+  animation-delay: var(--schedule-item-delay, 0ms);
+}
+
+.schedule-empty-reveal {
+  animation: schedule-item-reveal 300ms ease-out both;
+}
+
+html.app-booting .schedule-rail-reveal .schedule-timeline-rail::before,
+html.app-booting .schedule-rail-reveal .upcoming-month h2,
+html.app-booting .schedule-item-reveal .schedule-timeline-marker,
+html.app-booting .schedule-item-reveal .schedule-timeline-content,
+html.app-booting .schedule-item-reveal .schedule-timeline-rail>span,
+html.app-booting .schedule-empty-reveal {
+  animation-play-state: paused;
+}
+
 .schedule-timeline-rail>span {
   position: absolute;
   top: calc(50% - 4px);
@@ -2304,6 +2343,52 @@ html.app-booting .tv-slice-reveal {
   }
 }
 
+@keyframes schedule-rail-reveal {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes schedule-marker-reveal {
+  from {
+    opacity: 0;
+    transform: translateX(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes schedule-item-reveal {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes schedule-dot-reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes schedule-content-out {
   to {
     opacity: 0;
@@ -2375,7 +2460,13 @@ html.app-booting .tv-slice-reveal {
   .season-episodes-loading::before,
   .season-episodes-reveal,
   .detail-slice-reveal,
-  .tv-slice-reveal {
+  .tv-slice-reveal,
+  .schedule-rail-reveal .schedule-timeline-rail::before,
+  .schedule-rail-reveal .upcoming-month h2,
+  .schedule-item-reveal .schedule-timeline-marker,
+  .schedule-item-reveal .schedule-timeline-content,
+  .schedule-item-reveal .schedule-timeline-rail>span,
+  .schedule-empty-reveal {
     animation: none;
   }
 }

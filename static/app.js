@@ -66,6 +66,7 @@ const pendingWatchChanges = new WeakSet();
 const hydratedLibraryViews = new Set();
 const revealedViewAnimations = new Set();
 const tvRevealAnimationHandlers = new WeakMap();
+const scheduleRevealAnimationHandlers = new WeakMap();
 let currentView = "backlog";
 let detailParentView = "backlog";
 let detailRequest = null;
@@ -168,8 +169,17 @@ function showView(viewName, historyMode = null) {
   if (currentView === "backlog" && viewName !== "backlog") {
     clearCaughtUpScheduleItems();
   }
+  if (["backlog", "upcoming"].includes(currentView) && viewName !== currentView) {
+    clearScheduleFirstReveal(views.get(currentView));
+  }
   if (currentView === "tv" && viewName !== "tv") {
     clearTvFirstReveal(views.get("tv"));
+  }
+  const firstScheduleReveal = ["backlog", "upcoming"].includes(viewName)
+    && !revealedViewAnimations.has(viewName);
+  if (firstScheduleReveal) {
+    revealedViewAnimations.add(viewName);
+    views.get(viewName).classList.add("schedule-first-reveal-pending");
   }
   if (viewName === "tv" && !revealedViewAnimations.has("tv")) {
     staggerTvFirstReveal(views.get("tv"));
@@ -194,7 +204,13 @@ function showView(viewName, historyMode = null) {
   document.title = titles[viewName] || "Track";
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
   if (["backlog", "upcoming"].includes(viewName)) {
-    refreshScheduleContent().catch(() => undefined);
+    const scheduleRefresh = refreshScheduleContent().catch(() => undefined);
+    if (firstScheduleReveal) {
+      scheduleRefresh.finally(() => {
+        if (currentView === viewName) staggerScheduleFirstReveal(views.get(viewName));
+        else clearScheduleFirstReveal(views.get(viewName));
+      });
+    }
   }
   if (historyMode && viewName !== "detail") {
     writeHistory({ view: viewName }, historyMode);
@@ -538,6 +554,71 @@ function clearTvFirstReveal(view) {
     tvRevealAnimationHandlers.delete(slice);
     slice.classList.remove("tv-slice-reveal");
     slice.style.removeProperty("--detail-slice-delay");
+  });
+}
+
+function staggerScheduleFirstReveal(view) {
+  const scheduleItemStaggerMs = 65;
+  clearScheduleFirstReveal(view);
+  const items = [...view.querySelectorAll("[data-schedule-card]:not([hidden])")];
+  const emptyState = view.querySelector(
+    "[data-schedule-empty]:not([hidden]), [data-schedule-no-results]:not([hidden])",
+  );
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (!items.length) {
+    if (emptyState) {
+      emptyState.classList.add("schedule-empty-reveal");
+      const finishEmptyReveal = (event) => {
+        if (event.target !== emptyState || event.animationName !== "schedule-item-reveal") return;
+        emptyState.classList.remove("schedule-empty-reveal");
+        emptyState.removeEventListener("animationend", finishEmptyReveal);
+        scheduleRevealAnimationHandlers.delete(emptyState);
+      };
+      scheduleRevealAnimationHandlers.set(emptyState, finishEmptyReveal);
+      emptyState.addEventListener("animationend", finishEmptyReveal);
+    }
+    return;
+  }
+
+  view.classList.add("schedule-rail-reveal");
+  const finishRailReveal = (event) => {
+    if (event.animationName !== "schedule-rail-reveal") return;
+    view.classList.remove("schedule-rail-reveal");
+    view.removeEventListener("animationend", finishRailReveal);
+    scheduleRevealAnimationHandlers.delete(view);
+  };
+  scheduleRevealAnimationHandlers.set(view, finishRailReveal);
+  view.addEventListener("animationend", finishRailReveal);
+
+  items.forEach((item, index) => {
+    item.classList.add("schedule-item-reveal");
+    item.style.setProperty("--schedule-item-delay", `${index * scheduleItemStaggerMs}ms`);
+    const content = item.querySelector(".schedule-timeline-content");
+    const finishItemReveal = (event) => {
+      if (event.target !== content || event.animationName !== "schedule-item-reveal") return;
+      item.classList.remove("schedule-item-reveal");
+      item.style.removeProperty("--schedule-item-delay");
+      item.removeEventListener("animationend", finishItemReveal);
+      scheduleRevealAnimationHandlers.delete(item);
+    };
+    scheduleRevealAnimationHandlers.set(item, finishItemReveal);
+    item.addEventListener("animationend", finishItemReveal);
+  });
+}
+
+function clearScheduleFirstReveal(view) {
+  if (!view) return;
+  const finishRailReveal = scheduleRevealAnimationHandlers.get(view);
+  if (finishRailReveal) view.removeEventListener("animationend", finishRailReveal);
+  scheduleRevealAnimationHandlers.delete(view);
+  view.classList.remove("schedule-first-reveal-pending", "schedule-rail-reveal");
+  view.querySelectorAll(".schedule-item-reveal, .schedule-empty-reveal").forEach((slice) => {
+    const finishReveal = scheduleRevealAnimationHandlers.get(slice);
+    if (finishReveal) slice.removeEventListener("animationend", finishReveal);
+    scheduleRevealAnimationHandlers.delete(slice);
+    slice.classList.remove("schedule-item-reveal", "schedule-empty-reveal");
+    slice.style.removeProperty("--schedule-item-delay");
   });
 }
 
@@ -2430,6 +2511,12 @@ window.addEventListener("popstate", (event) => {
 
 if (window.history.state?.trackApp && window.history.state.view !== "backlog") {
   restoreHistoryState(window.history.state);
+}
+
+if (["backlog", "upcoming"].includes(currentView)
+    && !revealedViewAnimations.has(currentView)) {
+  revealedViewAnimations.add(currentView);
+  staggerScheduleFirstReveal(views.get(currentView));
 }
 
 function showSnackbar(message, { actionLabel = "", onAction = null } = {}) {
