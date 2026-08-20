@@ -198,8 +198,8 @@ class TrackAppTest(unittest.TestCase):
             b'class="nav-item active" type="button" data-nav-view="schedule"',
             home.data,
         )
-        self.assertIn(b'data-schedule-tab="catch-up">Catch up</button>', home.data)
-        self.assertIn(b'data-schedule-tab="upcoming">Coming Up</button>', home.data)
+        self.assertIn(b'data-schedule-tab="catch-up">Backlog</button>', home.data)
+        self.assertIn(b'data-schedule-tab="upcoming">Upcoming</button>', home.data)
         self.assertIn(b'data-schedule-panel="catch-up"', home.data)
         self.assertIn(b'data-schedule-panel="upcoming"', home.data)
         self.assertNotIn(b'data-schedule-now', home.data)
