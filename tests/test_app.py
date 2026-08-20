@@ -104,7 +104,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"more_vert", home.data)
         self.assertIn(b"Start watching", home.data)
         self.assertIn(b"Remove", home.data)
-        self.assertIn(b"Popular now", home.data)
+        self.assertIn(b"Add show", home.data)
+        self.assertIn(b'data-tv-add-results', home.data)
+        self.assertIn(b'data-tv-search-empty', home.data)
+        self.assertIn(b"No results found", home.data)
         self.assertIn(b'data-global-search-bar', home.data)
         self.assertEqual(home.data.count(b'data-global-search>'), 1)
         self.assertIn(b'placeholder="Search queue"', home.data)
@@ -113,7 +116,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-view="tv"', home.data)
         self.assertNotIn(b'data-view="schedule"', home.data)
         self.assertNotIn(b'data-view="archive"', home.data)
-        self.assertIn(b'data-view="discover"', home.data)
+        self.assertNotIn(b'data-view="discover"', home.data)
         self.assertIn(b'data-view="detail"', home.data)
         self.assertIn(b'id="detail-skeleton-template"', home.data)
         self.assertIn(b'class="app-boot-screen"', home.data)
@@ -129,7 +132,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'href="/search"', home.data)
         self.assertNotIn(b'href="/shows/1"', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">tv</span>', home.data)
-        self.assertIn(b'<span class="material-symbols-rounded">explore</span>', home.data)
+        self.assertNotIn(b'<span class="material-symbols-rounded">explore</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">resume</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">event</span>', home.data)
         self.assertNotIn(b"Drama, Crime", home.data)
@@ -145,6 +148,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('class="show-card-meta"', home.data.decode("utf-8"))
         self.assertIn('class="show-card-year">2008</span>', home.data.decode("utf-8"))
         self.assertIn("font-size: 1.16rem", css)
+        self.assertIn("grid-template-columns: repeat(3, 1fr)", css)
 
     def test_initial_library_order_matches_natural_default_sort(self):
         connection = sqlite3.connect(self.database)
@@ -242,7 +246,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("function filterSchedule(viewName = currentView)", javascript)
         self.assertIn("function syncGlobalSearch()", javascript)
         self.assertIn('tv: { placeholder: "Search TV"', javascript)
-        self.assertIn('discover: { placeholder: "Search TMDB"', javascript)
+        self.assertIn('fetch(`/api/tv/search?q=${encodeURIComponent(query)}`', javascript)
         self.assertNotIn("centerScheduleOnNow", javascript)
         self.assertNotIn("preserveMarker", javascript)
         self.assertIn('data-schedule-action', javascript)
@@ -1026,35 +1030,48 @@ class TrackAppTest(unittest.TestCase):
                     "token-from-environment",
                 )
 
-    def test_popular_results_are_cached_for_one_day_and_search_is_remote(self):
+    def test_tv_search_is_remote_and_only_returns_addable_shows(self):
         class FakeClient:
             def __init__(self):
-                self.popular_calls = 0
                 self.search_calls = []
-
-            def popular_tv(self):
-                self.popular_calls += 1
-                return {"results": [{"id": 20, "name": "Popular Show"}]}
 
             def search_tv(self, query):
                 self.search_calls.append(query)
-                return {"results": [{"id": 21, "name": f"Result {query}"}]}
+                return {
+                    "results": [
+                        {"id": 900001, "name": "Already Watching"},
+                        {"id": 22, "name": "Previously Removed"},
+                        {"id": 21, "name": f"Result {query}"},
+                    ]
+                }
+
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            """
+            INSERT INTO shows (
+                id, tmdb_id, name, state, is_tracked, added_at
+            ) VALUES (3, 22, 'Previously Removed', 'WATCHING', 0, '2026-01-01')
+            """
+        )
+        connection.commit()
+        connection.close()
 
         fake = FakeClient()
         self.app.config.update(
             TMDB_READ_ACCESS_TOKEN="test-token",
             TMDB_CLIENT_FACTORY=lambda _token: fake,
         )
-        first = self.client.get("/api/discover/popular")
-        second = self.client.get("/api/discover/popular")
-        search = self.client.get("/api/discover/search?q=Severance")
+        search = self.client.get("/api/tv/search?q=Severance")
 
-        self.assertEqual(first.status_code, 200)
-        self.assertFalse(first.get_json()["cached"])
-        self.assertTrue(second.get_json()["cached"])
-        self.assertEqual(fake.popular_calls, 1)
         self.assertEqual(search.status_code, 200)
         self.assertEqual(fake.search_calls, ["Severance"])
+        results = search.get_json()["results"]
+        self.assertEqual([result["tmdb_id"] for result in results], [22, 21])
+        self.assertEqual(results[0]["show_id"], 3)
+        self.assertFalse(results[0]["is_tracked"])
+        self.assertIsNone(results[1]["show_id"])
+        self.assertEqual(self.client.get("/api/discover/popular").status_code, 404)
+        self.assertEqual(self.client.get("/api/discover/search?q=Severance").status_code, 404)
 
     def test_import_is_atomic_deduplicated_and_specials_do_not_count(self):
         show_payload = {
@@ -1096,10 +1113,10 @@ class TrackAppTest(unittest.TestCase):
             TMDB_CLIENT_FACTORY=lambda _token: fake,
         )
         imported = self.client.post(
-            "/api/discover/shows/900/import", json={"state": "WATCHING"}
+            "/api/tv/shows/900/import", json={"state": "WATCHING"}
         )
         duplicate = self.client.post(
-            "/api/discover/shows/900/import", json={"state": "ARCHIVED"}
+            "/api/tv/shows/900/import", json={"state": "ARCHIVED"}
         )
 
         self.assertEqual(imported.status_code, 200)
@@ -1258,11 +1275,11 @@ class TrackAppTest(unittest.TestCase):
             thread.join(timeout=1)
         self.assertFalse(thread.is_alive())
 
-    def test_discover_preview_stays_untracked_until_added(self):
+    def test_tv_search_preview_stays_untracked_until_added(self):
         show_payload = {
             "id": 920,
             "name": "Preview Show",
-            "overview": "A show opened from Discover.",
+            "overview": "A show opened from TV search.",
             "poster_path": "/preview.jpg",
             "first_air_date": "2022-04-10",
             "genres": [{"id": 18, "name": "Drama"}],
@@ -1295,7 +1312,7 @@ class TrackAppTest(unittest.TestCase):
         )
 
         preview = self.client.post(
-            "/api/discover/shows/920/import", json={"state": None}
+            "/api/tv/shows/920/import", json={"state": None}
         )
         preview_data = preview.get_json()
         self.assertEqual(preview.status_code, 200)
@@ -1356,7 +1373,7 @@ class TrackAppTest(unittest.TestCase):
         archived_home = self.client.get("/")
         self.assertIn(b"Preview Show", archived_home.data)
 
-    def test_discover_cards_have_edge_poster_and_tracked_highlight_styles(self):
+    def test_tv_add_cards_keep_new_and_previously_removed_styles(self):
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
             encoding="utf-8"
         )
@@ -1365,12 +1382,7 @@ class TrackAppTest(unittest.TestCase):
         )
         self.assertIn("grid-template-columns: 88px 1fr", css)
         self.assertIn("overflow: hidden", css)
-        self.assertIn(".popular-card.is-added", css)
-        self.assertIn(
-            "background: color-mix(in srgb, var(--accent) 12%, var(--surface-card))",
-            css,
-        )
-        self.assertIn(".popular-card.is-added::after", css)
+        self.assertNotIn(".popular-card.is-added", css)
         self.assertIn(".popular-card.is-cached::after", css)
         self.assertIn("background: var(--outline);", css)
         self.assertIn(".has-media-image:not(.is-image-loaded)", css)
@@ -1383,15 +1395,12 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".mini-poster img {\n  position: absolute;", css)
         self.assertIn("inset: 0 0 0 auto", css)
         self.assertNotIn("box-shadow: inset 0 0 0 2px var(--accent)", css)
-        self.assertIn('card.querySelector(".popular-card-actions")?.remove()', javascript)
         self.assertIn('if (show.show_id) article.classList.add("is-cached")', javascript)
-        self.assertIn('else card.classList.add("is-cached")', javascript)
-        self.assertIn('card.classList.remove("is-cached")', javascript)
-        self.assertIn('if (card.dataset.showId) card.classList.add("is-cached")', javascript)
-        self.assertIn('openShow(data.show_id, "discover", false, "replace")', javascript)
+        self.assertNotIn("function markCatalogTracked", javascript)
+        self.assertIn('openShow(data.show_id, "tv", false, "replace")', javascript)
         self.assertIn("const cachedShowId = card.dataset.showId", javascript)
         self.assertIn(
-            'await openShow(cachedShowId, "discover", true, historyMode)',
+            'await openShow(cachedShowId, "tv", true, historyMode)',
             javascript,
         )
         self.assertIn("if (hasCachedDetails) {", javascript)
@@ -1399,7 +1408,11 @@ class TrackAppTest(unittest.TestCase):
         seasons_ready = javascript.index("nextSeasonList.innerHTML = seasonsHtml")
         detail_swap = javascript.index('views.get("detail").replaceChildren(template.content)')
         self.assertLess(seasons_ready, detail_swap)
-        self.assertIn("function markCatalogUntracked", javascript)
+        self.assertIn('const searching = view.dataset.view === "tv" && Boolean(query)', javascript)
+        self.assertIn("const matchesTags = searching || preferences.tags.size === 0", javascript)
+        self.assertIn("section.hidden = searching ? visibleCount === 0 : !stateSelected", javascript)
+        self.assertIn("localCount + addCount > 0", javascript)
+        self.assertIn("const available = results.filter((show) => !show.is_tracked)", javascript)
         self.assertIn("fallback.hidden = false", javascript)
         self.assertIn('document.createElement("template")', javascript)
         self.assertIn('template[data-media-fallback-template]', javascript)
@@ -1417,7 +1430,7 @@ class TrackAppTest(unittest.TestCase):
             TMDB_CLIENT_FACTORY=lambda _token: BrokenClient(),
         )
         response = self.client.post(
-            "/api/discover/shows/910/import", json={"state": "WATCHING"}
+            "/api/tv/shows/910/import", json={"state": "WATCHING"}
         )
         self.assertEqual(response.status_code, 502)
         connection = sqlite3.connect(self.database)

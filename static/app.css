@@ -738,7 +738,7 @@ html.app-booting .app-boot-screen {
   padding: 8px 20px env(safe-area-inset-bottom);
   transform: translateX(-50%);
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   border-top: 1px solid var(--outline-soft);
   background: var(--nav-surface);
@@ -1752,6 +1752,19 @@ html.app-booting .app-boot-screen {
   gap: 12px;
 }
 
+.tv-add-section {
+  padding-top: 0;
+}
+
+.tv-search-empty,
+.tv-search-error {
+  margin: 20px 16px 32px;
+}
+
+.tv-search-error .filled-button {
+  margin-top: 20px;
+}
+
 .tmdb-credit {
   margin: 24px 12px 0;
   color: var(--on-surface-muted);
@@ -1764,12 +1777,12 @@ html.app-booting .app-boot-screen {
   color: var(--primary);
 }
 
-.discover-loading {
+.tv-search-loading {
   display: grid;
   gap: 12px;
 }
 
-.discover-loading-bar {
+.tv-search-loading-bar {
   height: var(--compact-card-height);
   border-radius: var(--radius-md);
   background: var(--surface-card);
@@ -1789,20 +1802,11 @@ html.app-booting .app-boot-screen {
   cursor: pointer;
 }
 
-.popular-card.is-added {
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-card));
-}
-
-.popular-card.is-added::after,
 .popular-card.is-cached::after {
   content: "";
   position: absolute;
   inset: 0 0 0 auto;
   width: 4px;
-}
-
-.popular-card.is-added::after {
-  background: var(--accent);
 }
 
 .popular-card.is-cached::after {
@@ -1868,22 +1872,6 @@ html.app-booting .app-boot-screen {
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.catalog-added-indicator {
-  min-height: 36px;
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--accent);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.catalog-added-indicator .material-symbols-rounded {
-  font-family: "Material Symbols Rounded Filled";
-  font-size: 18px;
 }
 
 .popular-card p {

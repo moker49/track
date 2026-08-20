@@ -7,11 +7,11 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "search filter_list more_vert resume event tv explore done_all arrow_forward",
+        "search filter_list more_vert resume event tv done_all arrow_forward",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
-        "resume event tv explore",
+        "resume event tv",
       ),
     ]);
     await Promise.race([
@@ -28,7 +28,7 @@ revealAppWhenIconsAreReady();
 const navButtons = [...document.querySelectorAll("[data-nav-view]")];
 const globalSearchBar = document.querySelector("[data-global-search-bar]");
 const globalSearchInput = document.querySelector("[data-global-search]");
-const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, discover: 0, detail: 0 };
+const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, detail: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
 const libraryFilterDialog = document.querySelector("[data-library-filter-dialog]");
@@ -41,7 +41,7 @@ const libraryViewPreferences = {
     sortDirection: "asc",
   },
 };
-const searchQueries = { backlog: "", upcoming: "", tv: "", discover: "" };
+const searchQueries = { backlog: "", upcoming: "", tv: "" };
 const showDetailCache = new Map();
 const showSeasonsCache = new Map();
 const showRefreshRequests = new Map();
@@ -55,9 +55,11 @@ let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
 let libraryFilterView = null;
 let libraryFilterDraft = null;
-let popularLoaded = false;
-let discoverSearchTimer = null;
-let discoverRequest = null;
+let tvSearchTimer = null;
+let tvSearchRequest = null;
+let tvSearchPending = false;
+let tvSearchComplete = false;
+let tvSearchError = "";
 let snackbarAction = null;
 
 if (!window.history.state?.trackApp) {
@@ -88,7 +90,6 @@ function syncGlobalSearch() {
     backlog: { placeholder: "Search queue", label: "Search queue episodes" },
     upcoming: { placeholder: "Search upcoming", label: "Search upcoming episodes" },
     tv: { placeholder: "Search TV", label: "Search TV shows" },
-    discover: { placeholder: "Search TMDB", label: "Search TMDB" },
   }[currentView];
   if (!settings) return;
   globalSearchInput.placeholder = settings.placeholder;
@@ -120,26 +121,16 @@ function showView(viewName, historyMode = null) {
     backlog: "Queue · Track",
     upcoming: "Upcoming · Track",
     tv: "TV · Track",
-    discover: "Discover · Track",
     detail: "Track",
   };
   document.title = titles[viewName] || "Track";
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
-  if (viewName === "discover" && !popularLoaded) loadPopularShows();
   if (["backlog", "upcoming"].includes(viewName)) {
     refreshScheduleContent().catch(() => undefined);
   }
   if (historyMode && viewName !== "detail") {
     writeHistory({ view: viewName }, historyMode);
   }
-}
-
-function setDiscoverState({ loading = false, error = "", empty = false } = {}) {
-  const view = views.get("discover");
-  view.querySelector("[data-discover-loading]").hidden = !loading;
-  view.querySelector("[data-discover-error]").hidden = !error;
-  view.querySelector("[data-discover-empty]").hidden = !empty;
-  if (error) view.querySelector("[data-discover-error-copy]").textContent = error;
 }
 
 function catalogCard(show) {
@@ -185,12 +176,8 @@ function catalogCard(show) {
   overview.textContent = show.overview;
   copy.append(title, meta, overview);
   article.append(poster, copy);
-  if (show.is_tracked) {
-    markCatalogTracked(article, show.state, show.show_id);
-  } else {
-    if (show.show_id) article.classList.add("is-cached");
-    copy.append(catalogActions());
-  }
+  if (show.show_id) article.classList.add("is-cached");
+  copy.append(catalogActions());
   return article;
 }
 
@@ -238,80 +225,88 @@ function catalogActions() {
   return actions;
 }
 
-function markCatalogTracked(card, state, showId) {
-  card.classList.remove("is-cached");
-  card.classList.add("is-added");
-  card.dataset.showId = showId;
-  card.querySelector(".popular-card-actions")?.remove();
-  if (card.querySelector(".catalog-added-indicator")) return;
-  const indicator = document.createElement("div");
-  indicator.className = "catalog-added-indicator";
-  const icon = document.createElement("span");
-  icon.className = "material-symbols-rounded";
-  icon.setAttribute("aria-hidden", "true");
-  icon.textContent = "check_circle";
-  const label = document.createElement("span");
-  label.textContent = state === "ARCHIVED" ? "Archived" : "Watching";
-  indicator.append(icon, label);
-  card.querySelector(".popular-card-copy").append(indicator);
-}
+function syncTvSearchPresentation() {
+  const view = views.get("tv");
+  if (!view) return;
+  const query = searchQueries.tv.trim();
+  const addSection = view.querySelector("[data-tv-add-section]");
+  const addResults = view.querySelector("[data-tv-add-results]");
+  const loading = view.querySelector("[data-tv-search-loading]");
+  const credit = view.querySelector("[data-tv-search-credit]");
+  const empty = view.querySelector("[data-tv-search-empty]");
+  const error = view.querySelector("[data-tv-search-error]");
+  const addCount = addResults.querySelectorAll(".popular-card").length;
+  const localCount = [...view.querySelectorAll("[data-state-section] .show-card")]
+    .filter((card) => !card.hidden).length;
 
-function markCatalogUntracked(card) {
-  card.classList.remove("is-added");
-  if (card.dataset.showId) card.classList.add("is-cached");
-  card.querySelector(".catalog-added-indicator")?.remove();
-  const copy = card.querySelector(".popular-card-copy");
-  if (copy && !copy.querySelector(".popular-card-actions")) copy.append(catalogActions());
-}
-
-function renderCatalogResults(results, heading, subtitle) {
-  const view = views.get("discover");
-  view.querySelector("[data-discover-results]").replaceChildren(...results.map(catalogCard));
-  view.querySelector("[data-discover-title]").textContent = heading;
-  view.querySelector("[data-discover-subtitle]").textContent = subtitle;
-  setDiscoverState({ empty: results.length === 0 });
-}
-
-async function loadPopularShows() {
-  if (discoverRequest) discoverRequest.abort();
-  discoverRequest = new AbortController();
-  setDiscoverState({ loading: true });
-  try {
-    const response = await fetch("/api/discover/popular", { signal: discoverRequest.signal });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Could not load popular shows");
-    popularLoaded = true;
-    renderCatalogResults(
-      data.results,
-      "Popular now",
-      data.stale ? "Showing the latest saved results" : "Refreshed at most once each day",
-    );
-  } catch (error) {
-    if (error.name === "AbortError") return;
-    setDiscoverState({ error: error.message });
-  }
-}
-
-async function searchDiscover(query) {
   if (!query) {
-    loadPopularShows();
+    addSection.hidden = true;
+    empty.hidden = true;
+    error.hidden = true;
     return;
   }
-  if (query.length < 2) return;
-  if (discoverRequest) discoverRequest.abort();
-  discoverRequest = new AbortController();
-  setDiscoverState({ loading: true });
+
+  addSection.hidden = !tvSearchPending && addCount === 0;
+  loading.hidden = !tvSearchPending;
+  addResults.hidden = tvSearchPending;
+  credit.hidden = tvSearchPending || addCount === 0;
+  addSection.querySelector("[data-tv-add-count]").textContent = addCount;
+  error.hidden = !tvSearchError;
+  if (tvSearchError) {
+    error.querySelector("[data-tv-search-error-copy]").textContent = tvSearchError;
+  }
+  empty.hidden = tvSearchPending
+    || !tvSearchComplete
+    || Boolean(tvSearchError)
+    || localCount + addCount > 0;
+}
+
+function clearTvCatalogResults() {
+  const results = views.get("tv")?.querySelector("[data-tv-add-results]");
+  if (results) results.replaceChildren();
+}
+
+function renderTvCatalogResults(results) {
+  const available = results.filter((show) => !show.is_tracked);
+  views.get("tv").querySelector("[data-tv-add-results]")
+    .replaceChildren(...available.map(catalogCard));
+  syncTvSearchPresentation();
+}
+
+async function searchTvCatalog(query) {
+  if (tvSearchRequest) tvSearchRequest.abort();
+  tvSearchRequest = new AbortController();
+  tvSearchPending = true;
+  tvSearchComplete = false;
+  tvSearchError = "";
+  clearTvCatalogResults();
+  syncTvSearchPresentation();
   try {
-    const response = await fetch(`/api/discover/search?q=${encodeURIComponent(query)}`, {
-      signal: discoverRequest.signal,
+    const response = await fetch(`/api/tv/search?q=${encodeURIComponent(query)}`, {
+      signal: tvSearchRequest.signal,
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not search TMDB");
-    renderCatalogResults(data.results, "Search results", `Results for “${query}”`);
+    if (searchQueries.tv.trim() !== query) return;
+    tvSearchPending = false;
+    tvSearchComplete = true;
+    renderTvCatalogResults(data.results);
   } catch (error) {
     if (error.name === "AbortError") return;
-    setDiscoverState({ error: error.message });
+    tvSearchPending = false;
+    tvSearchComplete = true;
+    tvSearchError = error.message;
+    syncTvSearchPresentation();
   }
+}
+
+function appendLibraryCard(data) {
+  if (!data.newly_tracked || !data.card_html) return;
+  const existing = document.querySelector(`.show-card[data-show-id="${data.show_id}"]`);
+  if (existing) return;
+  const template = document.createElement("template");
+  template.innerHTML = data.card_html.trim();
+  document.querySelector(`[data-show-list="${data.state}"]`)?.append(template.content);
 }
 
 async function importCatalogShow(card, state, trigger) {
@@ -321,7 +316,7 @@ async function importCatalogShow(card, state, trigger) {
     const hasLocalShow = Boolean(card.dataset.showId);
     const url = hasLocalShow
       ? `/api/shows/${card.dataset.showId}/state`
-      : `/api/discover/shows/${card.dataset.tmdbId}/import`;
+      : `/api/tv/shows/${card.dataset.tmdbId}/import`;
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -330,17 +325,11 @@ async function importCatalogShow(card, state, trigger) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add show");
     invalidateShowCache(data.show_id, true);
-    if (hasLocalShow || data.is_tracked) markCatalogTracked(card, data.state, data.show_id);
-    if (data.newly_tracked) {
-      const template = document.createElement("template");
-      template.innerHTML = data.card_html.trim();
-      document.querySelector(`[data-show-list="${data.state}"]`)?.append(template.content);
-      syncStateSections();
-      filterAllShowViews();
-    }
-    showSnackbar(data.newly_tracked
-      ? `Added to ${data.state === "WATCHING" ? "Watching" : "Archive"}.`
-      : "This show is already in your library.");
+    appendLibraryCard(data);
+    card.remove();
+    syncStateSections();
+    filterAllShowViews();
+    syncTvSearchPresentation();
   } catch (error) {
     actions.forEach((button) => { button.disabled = false; });
     showSnackbar(error.message);
@@ -354,15 +343,15 @@ async function previewCatalogShow(card, historyMode = "push") {
   card.classList.add("is-loading");
   card.setAttribute("aria-busy", "true");
   card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = true; });
-  if (hasCachedDetails) await openShow(cachedShowId, "discover", true, historyMode);
+  if (hasCachedDetails) await openShow(cachedShowId, "tv", true, historyMode);
   else {
-    detailParentView = "discover";
+    detailParentView = "tv";
     if (historyMode) {
       writeHistory({
         view: "detail",
         detailType: "catalog",
         tmdbId: card.dataset.tmdbId,
-        parentView: "discover",
+        parentView: "tv",
       }, historyMode);
     }
     prepareDetailLoad("Show details");
@@ -380,7 +369,7 @@ async function previewCatalogShow(card, historyMode = "push") {
     return;
   }
   try {
-    const response = await fetch(`/api/discover/shows/${card.dataset.tmdbId}/import`, {
+    const response = await fetch(`/api/tv/shows/${card.dataset.tmdbId}/import`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ state: null }),
@@ -389,15 +378,15 @@ async function previewCatalogShow(card, historyMode = "push") {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not open show");
     card.dataset.showId = data.show_id;
-    if (data.is_tracked) markCatalogTracked(card, data.state, data.show_id);
+    if (data.is_tracked) card.remove();
     else card.classList.add("is-cached");
     invalidateShowCache(data.show_id, true);
-    openShow(data.show_id, "discover", false, "replace");
+    openShow(data.show_id, "tv", false, "replace");
   } catch (error) {
     if (error.name === "AbortError") return;
     card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = false; });
     if (!hasCachedDetails) {
-      showView("discover", "replace");
+      showView("tv", "replace");
       views.get("detail").replaceChildren();
     }
     showSnackbar(error.message);
@@ -418,17 +407,13 @@ async function trackDetailShow(showElement, state, trigger) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add show");
     invalidateShowCache(data.show_id);
-    if (data.newly_tracked && data.card_html) {
-      const template = document.createElement("template");
-      template.innerHTML = data.card_html.trim();
-      document.querySelector(`[data-show-list="${data.state}"]`)?.append(template.content);
-      syncStateSections();
-      filterAllShowViews();
-    }
+    appendLibraryCard(data);
     document.querySelectorAll(`.popular-card[data-tmdb-id="${showElement.dataset.tmdbId}"]`)
-      .forEach((card) => markCatalogTracked(card, data.state, data.show_id));
-    showSnackbar(`Added to ${data.state === "WATCHING" ? "Watching" : "Archive"}.`);
-    openShow(data.show_id, "discover", true, "replace");
+      .forEach((card) => card.remove());
+    syncStateSections();
+    filterAllShowViews();
+    syncTvSearchPresentation();
+    openShow(data.show_id, "tv", true, "replace");
   } catch (error) {
     trigger.disabled = false;
     showSnackbar(error.message);
@@ -795,7 +780,7 @@ async function openShow(
   showSkeleton = true,
   historyMode = "push",
 ) {
-  detailParentView = ["backlog", "upcoming", "tv", "discover"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv"].includes(parentView)
     ? parentView
     : "backlog";
   if (historyMode) {
@@ -1281,8 +1266,10 @@ async function confirmShowRemoval() {
     invalidateShowCache(showId);
     document.querySelector(`.show-card[data-show-id="${showId}"]`)?.remove();
     if (tmdbId) {
-      document.querySelectorAll(`.popular-card[data-tmdb-id="${tmdbId}"]`)
-        .forEach(markCatalogUntracked);
+      document.querySelectorAll(`.popular-card[data-tmdb-id="${tmdbId}"]`).forEach((card) => {
+        card.classList.add("is-cached");
+        card.dataset.showId = showId;
+      });
     }
     if (views.get("detail").querySelector(`[data-show-id="${showId}"]`)) {
       showView(detailParentView, "replace");
@@ -1290,6 +1277,7 @@ async function confirmShowRemoval() {
     }
     syncStateSections();
     filterAllShowViews();
+    if (searchQueries.tv.trim()) searchTvCatalog(searchQueries.tv.trim());
     removeDialog.close();
     pendingRemoveShowId = null;
     showSnackbar("Show removed from your library");
@@ -1471,10 +1459,9 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  if (event.target.closest("[data-discover-retry]")) {
-    const query = searchQueries.discover.trim();
-    if (query) searchDiscover(query);
-    else loadPopularShows();
+  if (event.target.closest("[data-tv-search-retry]")) {
+    const query = searchQueries.tv.trim();
+    if (query) searchTvCatalog(query);
     return;
   }
 
@@ -1774,10 +1761,10 @@ function filterShowView(view) {
   const preferences = libraryViewPreferences[view.dataset.view];
   if (!preferences) return;
   const query = searchQueries[view.dataset.view].trim().toLocaleLowerCase();
+  const searching = view.dataset.view === "tv" && Boolean(query);
   view.querySelectorAll("[data-state-section]").forEach((section) => {
     const state = section.dataset.stateSection;
-    const stateSelected = preferences.states.has(state);
-    section.hidden = !stateSelected;
+    const stateSelected = searching || preferences.states.has(state);
     const list = section.querySelector(".show-list");
     const cards = [...section.querySelectorAll(".show-card")];
 
@@ -1800,16 +1787,18 @@ function filterShowView(view) {
     let visibleCount = 0;
     cards.forEach((card) => {
       const matchesSearch = card.dataset.showName.includes(query);
-      const matchesTags = preferences.tags.size === 0
+      const matchesTags = searching || preferences.tags.size === 0
         || preferences.tags.has(card.dataset.progressState);
       const visible = stateSelected && matchesSearch && matchesTags;
       card.hidden = !visible;
       if (visible) visibleCount += 1;
     });
-    const noResults = section.querySelector("[data-library-no-results]");
-    if (noResults) noResults.hidden = visibleCount > 0 || cards.length === 0;
+    section.hidden = searching ? visibleCount === 0 : !stateSelected;
+    const count = section.querySelector("[data-state-count]");
+    if (count) count.textContent = searching ? visibleCount : cards.length;
   });
   hydratedLibraryViews.add(view.dataset.view);
+  if (view.dataset.view === "tv") syncTvSearchPresentation();
 }
 
 function filterAllShowViews() {
@@ -1824,9 +1813,17 @@ globalSearchInput?.addEventListener("input", () => {
     filterSchedule(currentView);
   } else if (currentView === "tv") {
     filterShowView(views.get(currentView));
-  } else if (currentView === "discover") {
-    clearTimeout(discoverSearchTimer);
-    discoverSearchTimer = setTimeout(() => searchDiscover(query.trim()), 350);
+    clearTimeout(tvSearchTimer);
+    if (tvSearchRequest) tvSearchRequest.abort();
+    tvSearchPending = false;
+    tvSearchComplete = false;
+    tvSearchError = "";
+    clearTvCatalogResults();
+    if (query.trim()) {
+      tvSearchTimer = setTimeout(() => searchTvCatalog(query.trim()), 350);
+    } else {
+      syncTvSearchPresentation();
+    }
   }
 });
 
@@ -1874,7 +1871,7 @@ function restoreHistoryState(state) {
   closeWatchMenus();
   if (detailRequest) detailRequest.abort();
 
-  const legacyViews = { schedule: "backlog", watching: "tv", archive: "tv" };
+  const legacyViews = { schedule: "backlog", watching: "tv", archive: "tv", discover: "tv" };
   const restoredView = legacyViews[state.view] || state.view;
   if (restoredView !== "detail") {
     showView(restoredView);
@@ -1882,7 +1879,7 @@ function restoreHistoryState(state) {
   }
 
   const restoredParent = legacyViews[state.parentView] || state.parentView;
-  detailParentView = ["backlog", "upcoming", "tv", "discover"].includes(restoredParent)
+  detailParentView = ["backlog", "upcoming", "tv"].includes(restoredParent)
     ? restoredParent
     : "backlog";
   if (state.detailType === "show" && state.showId) {
@@ -1892,7 +1889,7 @@ function restoreHistoryState(state) {
   } else if (state.detailType === "catalog" && state.tmdbId) {
     const card = document.querySelector(`.popular-card[data-tmdb-id="${state.tmdbId}"]`);
     if (card) previewCatalogShow(card, null);
-    else showView("discover");
+    else showView("tv");
   } else {
     showView(detailParentView);
   }

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 import sqlite3
@@ -102,7 +101,6 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.config.from_mapping(
         DATABASE=str(DATABASE),
         TMDB_READ_ACCESS_TOKEN=os.environ.get("TMDB_READ_ACCESS_TOKEN", ""),
-        TMDB_CACHE_TTL=timedelta(days=1),
         SHOW_METADATA_TTL=timedelta(days=1),
         TMDB_CLIENT_FACTORY=TMDBClient,
         IMAGE_CACHE_DIR=None,
@@ -504,65 +502,20 @@ def create_app(test_config: dict | None = None) -> Flask:
             max_age=31_536_000,
         )
 
-    @app.get("/api/discover/popular")
-    def discover_popular():
-        db = get_db()
-        cached = db.execute(
-            "SELECT payload, refreshed_at FROM tmdb_cache WHERE cache_key = 'popular'"
-        ).fetchone()
-        now = datetime.now(timezone.utc)
-        fresh = False
-        if cached is not None:
-            refreshed_at = datetime.fromisoformat(cached["refreshed_at"])
-            fresh = now - refreshed_at < app.config["TMDB_CACHE_TTL"]
-            if fresh:
-                return jsonify(
-                    results=catalog_results(json.loads(cached["payload"])),
-                    refreshed_at=cached["refreshed_at"],
-                    cached=True,
-                )
-
-        try:
-            payload = get_tmdb_client().popular_tv()
-        except TMDBError as error:
-            if cached is not None:
-                return jsonify(
-                    results=catalog_results(json.loads(cached["payload"])),
-                    refreshed_at=cached["refreshed_at"],
-                    cached=True,
-                    stale=True,
-                )
-            return jsonify(error=str(error), configured=bool(app.config["TMDB_READ_ACCESS_TOKEN"])), 503
-
-        refreshed_at = utc_now()
-        db.execute(
-            """
-            INSERT INTO tmdb_cache (cache_key, payload, refreshed_at)
-            VALUES ('popular', ?, ?)
-            ON CONFLICT(cache_key) DO UPDATE SET
-                payload = excluded.payload,
-                refreshed_at = excluded.refreshed_at
-            """,
-            (json.dumps(payload, separators=(",", ":")), refreshed_at),
-        )
-        db.commit()
-        return jsonify(
-            results=catalog_results(payload), refreshed_at=refreshed_at, cached=False
-        )
-
-    @app.get("/api/discover/search")
-    def discover_search():
+    @app.get("/api/tv/search")
+    def tv_search():
         query = request.args.get("q", "").strip()
-        if len(query) < 2:
-            return jsonify(error="Enter at least two characters"), 400
+        if not query:
+            return jsonify(error="Enter a search term"), 400
         try:
             payload = get_tmdb_client().search_tv(query)
         except TMDBError as error:
             return jsonify(error=str(error), configured=bool(app.config["TMDB_READ_ACCESS_TOKEN"])), 503
-        return jsonify(results=catalog_results(payload))
+        results = [result for result in catalog_results(payload) if not result["is_tracked"]]
+        return jsonify(results=results)
 
-    @app.post("/api/discover/shows/<int:tmdb_id>/import")
-    def import_discovered_show(tmdb_id: int):
+    @app.post("/api/tv/shows/<int:tmdb_id>/import")
+    def import_tv_show(tmdb_id: int):
         payload = request.get_json(silent=True) or {}
         target_state = payload.get("state")
         if target_state not in {None, "WATCHING", "ARCHIVED"}:

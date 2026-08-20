@@ -90,12 +90,6 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     applied_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS tmdb_cache (
-    cache_key TEXT PRIMARY KEY,
-    payload TEXT NOT NULL,
-    refreshed_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS image_cache (
     id INTEGER PRIMARY KEY,
     tmdb_path TEXT NOT NULL,
