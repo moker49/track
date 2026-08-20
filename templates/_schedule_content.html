@@ -5,9 +5,13 @@
     <div class="schedule-list" data-catch-up-list>
       {% for episode in catch_up_episodes %}{{ schedule_episode_card(episode, 'catch-up') }}{% endfor %}
     </div>
-    <div class="schedule-empty" data-catch-up-empty {% if catch_up_episodes %}hidden{% endif %}>
+    <div class="schedule-empty" data-catch-up-empty data-schedule-empty {% if catch_up_episodes %}hidden{% endif %}>
       <span class="material-symbols-rounded" aria-hidden="true">done_all</span>
       <span>You’re caught up</span>
+    </div>
+    <div class="schedule-empty" data-schedule-no-results hidden>
+      <span class="material-symbols-rounded" aria-hidden="true">search_off</span>
+      <span>No matching episodes</span>
     </div>
   </section>
 
@@ -16,9 +20,13 @@
     <div class="schedule-list">
       {% for episode in upcoming_episodes %}{{ schedule_episode_card(episode, 'upcoming') }}{% endfor %}
     </div>
-    <div class="schedule-empty" {% if upcoming_episodes %}hidden{% endif %}>
+    <div class="schedule-empty" data-schedule-empty {% if upcoming_episodes %}hidden{% endif %}>
       <span class="material-symbols-rounded" aria-hidden="true">event_busy</span>
       <span>No upcoming episodes</span>
+    </div>
+    <div class="schedule-empty" data-schedule-no-results hidden>
+      <span class="material-symbols-rounded" aria-hidden="true">search_off</span>
+      <span>No matching episodes</span>
     </div>
   </section>
 </div>

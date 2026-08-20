@@ -200,9 +200,10 @@ html.app-booting .app-boot-screen {
 }
 
 .schedule-app-bar {
-  min-height: calc(64px + env(safe-area-inset-top));
-  padding: max(8px, env(safe-area-inset-top)) 16px 0;
+  min-height: calc(128px + env(safe-area-inset-top));
+  padding: max(12px, env(safe-area-inset-top)) 16px 0;
   justify-content: flex-end;
+  gap: 8px;
 }
 
 .schedule-tabs {

@@ -441,6 +441,12 @@ function formatDisplayDates(root = document) {
 function setScheduleTab(tabName) {
   scheduleTab = tabName === "upcoming" ? "upcoming" : "catch-up";
   const view = views.get("schedule");
+  const searchInput = view.querySelector("[data-schedule-search]");
+  const searchLabel = scheduleTab === "upcoming" ? "upcoming" : "backlog";
+  if (searchInput) {
+    searchInput.placeholder = `Search ${searchLabel}`;
+    searchInput.setAttribute("aria-label", `Search ${searchLabel} episodes`);
+  }
   view.querySelectorAll("[data-schedule-tab]").forEach((tab) => {
     const selected = tab.dataset.scheduleTab === scheduleTab;
     tab.classList.toggle("is-selected", selected);
@@ -450,6 +456,7 @@ function setScheduleTab(tabName) {
   view.querySelectorAll("[data-schedule-panel]").forEach((panel) => {
     panel.hidden = panel.dataset.schedulePanel !== scheduleTab;
   });
+  filterSchedule();
 }
 
 function waitForScheduleAnimation(card) {
@@ -471,6 +478,7 @@ function syncCatchUpEmptyState() {
   const cards = view.querySelectorAll('[data-schedule-mode="catch-up"]');
   const empty = view.querySelector("[data-catch-up-empty]");
   if (empty) empty.hidden = cards.length > 0;
+  filterSchedule();
 }
 
 async function refreshScheduleContent() {
@@ -531,6 +539,7 @@ async function processScheduleEpisode(card, action) {
       nextCard.classList.add("is-entering");
       card.replaceWith(nextCard);
       formatDisplayDates(nextCard);
+      filterSchedule();
       window.setTimeout(() => nextCard.classList.remove("is-entering"), 240);
     } else {
       card.className = "schedule-card is-caught-up";
@@ -1668,6 +1677,28 @@ function updateProgress(progress, data) {
   bar.querySelector("span").style.width = `${data.percent}%`;
 }
 
+function filterSchedule() {
+  const view = views.get("schedule");
+  const input = view?.querySelector("[data-schedule-search]");
+  if (!view || !input) return;
+  const query = input.value.trim().toLocaleLowerCase();
+
+  view.querySelectorAll("[data-schedule-panel]").forEach((panel) => {
+    const cards = [...panel.querySelectorAll("[data-schedule-card]")];
+    let visibleCount = 0;
+    cards.forEach((card) => {
+      const visible = !query || card.dataset.scheduleSearch?.includes(query);
+      card.hidden = !visible;
+      if (visible) visibleCount += 1;
+    });
+
+    const empty = panel.querySelector("[data-schedule-empty]");
+    const noResults = panel.querySelector("[data-schedule-no-results]");
+    if (empty) empty.hidden = cards.length > 0;
+    if (noResults) noResults.hidden = !query || visibleCount > 0 || cards.length === 0;
+  });
+}
+
 function filterShowView(viewOrInput) {
   const view = viewOrInput?.matches?.("[data-view]")
     ? viewOrInput
@@ -1719,7 +1750,11 @@ document.querySelectorAll("[data-show-search]").forEach((input) => {
   input.addEventListener("input", () => filterShowView(input));
 });
 
+document.querySelector("[data-schedule-search]")
+  ?.addEventListener("input", filterSchedule);
+
 filterAllShowViews();
+filterSchedule();
 formatDisplayDates(document);
 
 document.querySelector("[data-discover-search]")?.addEventListener("input", (event) => {
