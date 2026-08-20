@@ -588,7 +588,9 @@ def create_app(test_config: dict | None = None) -> Flask:
             ),
         )
 
-    def refresh_stale_tracked_show_records() -> dict:
+    def refresh_stale_tracked_show_records(
+        include_card_html: bool = False,
+    ) -> dict:
         db = get_db()
         tracked_shows = db.execute(
             """
@@ -619,15 +621,15 @@ def create_app(test_config: dict | None = None) -> Flask:
                     local_show["state"],
                 )
                 refreshed_show = get_library_show(db, refreshed_id)
-                refreshed_shows.append(
-                    {
-                        "show_id": refreshed_id,
-                        "refreshed_at": refreshed_show["tmdb_refreshed_at"],
-                        "card_html": render_template(
-                            "_show_card_fragment.html", show=refreshed_show
-                        ),
-                    }
-                )
+                refreshed_result = {
+                    "show_id": refreshed_id,
+                    "refreshed_at": refreshed_show["tmdb_refreshed_at"],
+                }
+                if include_card_html:
+                    refreshed_result["card_html"] = render_template(
+                        "_show_card_fragment.html", show=refreshed_show
+                    )
+                refreshed_shows.append(refreshed_result)
             except (TMDBError, ValueError, sqlite3.Error) as error:
                 failures.append(
                     {
@@ -648,7 +650,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.post("/api/shows/refresh-stale")
     def refresh_stale_tracked_shows():
-        return jsonify(refresh_stale_tracked_show_records())
+        return jsonify(refresh_stale_tracked_show_records(include_card_html=True))
 
     @app.get("/api/shows/<int:show_id>")
     def show_detail_fragment(show_id: int):

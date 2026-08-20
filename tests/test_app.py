@@ -1257,10 +1257,27 @@ class TrackAppTest(unittest.TestCase):
             [item["show_id"] for item in first.get_json()["refreshed"]],
             [1, 2],
         )
+        self.assertTrue(
+            all("show-card" in item["card_html"] for item in first.get_json()["refreshed"])
+        )
         self.assertEqual(first.get_json()["failures"], [])
         self.assertEqual(second.get_json()["refreshed"], [])
         self.assertEqual(second.get_json()["skipped"], 2)
         self.assertEqual(fake.calls, [900001, 900002])
+
+        connection = sqlite3.connect(self.database)
+        connection.execute("UPDATE shows SET tmdb_refreshed_at = NULL")
+        connection.commit()
+        connection.close()
+        with self.app.app_context():
+            background_result = self.app.extensions["refresh_stale_tracked_shows"]()
+        self.assertEqual(
+            [item["show_id"] for item in background_result["refreshed"]],
+            [1, 2],
+        )
+        self.assertTrue(
+            all("card_html" not in item for item in background_result["refreshed"])
+        )
 
     def test_background_refresh_worker_runs_without_a_browser(self):
         completed = threading.Event()
