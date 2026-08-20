@@ -981,9 +981,12 @@ async function openEpisode(episodeId, historyMode = "push") {
     if (previousWasShow) {
       episodeTemplate.content.querySelector("[data-episode-show-open]")?.remove();
     }
-    episodeTemplate.content
-      .querySelectorAll(".episode-hero, .episode-detail-content")
-      .forEach((section) => section.classList.add("episode-detail-reveal"));
+    const episodeHero = episodeTemplate.content.querySelector(".episode-hero");
+    const episodeContent = episodeTemplate.content.querySelector(".episode-detail-content");
+    [episodeHero, ...episodeContent.children].forEach((section, index) => {
+      section.classList.add("episode-detail-reveal");
+      section.style.setProperty("--episode-detail-reveal-delay", `${index * 25}ms`);
+    });
     views.get("detail").replaceChildren(episodeTemplate.content);
     finishDetailLoad();
   } catch (error) {

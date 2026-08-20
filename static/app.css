@@ -2238,6 +2238,7 @@ html.app-booting .app-boot-screen {
 
 .episode-detail-reveal {
   animation: episode-detail-reveal 300ms ease-out both;
+  animation-delay: var(--episode-detail-reveal-delay, 0ms);
 }
 
 .skeleton-hero {
