@@ -2248,9 +2248,14 @@ html.app-booting .app-boot-screen {
   animation: detail-breathe 3.2s ease-in-out 140ms infinite alternate both;
 }
 
-.detail-slice-reveal {
+.detail-slice-reveal,
+.tv-slice-reveal {
   animation: detail-slice-reveal 300ms ease-out both;
   animation-delay: var(--detail-slice-delay, 0ms);
+}
+
+html.app-booting .tv-slice-reveal {
+  animation-play-state: paused;
 }
 
 .sr-only {
@@ -2369,7 +2374,8 @@ html.app-booting .app-boot-screen {
   .detail-loading::before,
   .season-episodes-loading::before,
   .season-episodes-reveal,
-  .detail-slice-reveal {
+  .detail-slice-reveal,
+  .tv-slice-reveal {
     animation: none;
   }
 }

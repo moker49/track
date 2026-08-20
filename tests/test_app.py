@@ -536,6 +536,12 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("const showDetailCache = new Map();", javascript)
         self.assertIn("const showSeasonsCache = new Map();", javascript)
         self.assertIn("const seasonEpisodesCache = new Map();", javascript)
+        self.assertIn('revealedViewAnimations.has("tv")', javascript)
+        self.assertIn("staggerTvFirstReveal(views.get(\"tv\"))", javascript)
+        self.assertIn('slice.classList.add("tv-slice-reveal")', javascript)
+        self.assertIn("const tvSliceStaggerMs = 55;", javascript)
+        self.assertIn('slice.classList.remove("tv-slice-reveal")', javascript)
+        self.assertIn('clearTvFirstReveal(views.get("tv"))', javascript)
         self.assertIn("const [overviewHtml, seasonsHtml] = await Promise.all", javascript)
         self.assertIn(
             "renderShowDetail(cachedOverview, cachedSeasons, false, returnContext)",
@@ -561,6 +567,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("grid-template-columns: repeat(3, minmax(0, 1fr))", css)
         self.assertIn('.md-button-group button[aria-pressed="true"] {\n  border-radius: 24px;', css)
         self.assertIn("color: var(--progress-not-started);", css)
+        self.assertIn(".tv-slice-reveal {", css)
         self.assertIn(
             "background: color-mix(in srgb, var(--progress-not-started) 18%, transparent);",
             css,

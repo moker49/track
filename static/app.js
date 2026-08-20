@@ -64,6 +64,8 @@ const episodeDetailCache = new Map();
 const showRefreshRequests = new Map();
 const pendingWatchChanges = new WeakSet();
 const hydratedLibraryViews = new Set();
+const revealedViewAnimations = new Set();
+const tvRevealAnimationHandlers = new WeakMap();
 let currentView = "backlog";
 let detailParentView = "backlog";
 let detailRequest = null;
@@ -165,6 +167,13 @@ function showView(viewName, historyMode = null) {
 
   if (currentView === "backlog" && viewName !== "backlog") {
     clearCaughtUpScheduleItems();
+  }
+  if (currentView === "tv" && viewName !== "tv") {
+    clearTvFirstReveal(views.get("tv"));
+  }
+  if (viewName === "tv" && !revealedViewAnimations.has("tv")) {
+    staggerTvFirstReveal(views.get("tv"));
+    revealedViewAnimations.add("tv");
   }
   scrollPositions[currentView] = window.scrollY;
   views.forEach((view, name) => {
@@ -494,6 +503,41 @@ function staggerDetailSlices(sections, startIndex = 0) {
   sections.filter(Boolean).forEach((section, index) => {
     section.classList.add("detail-slice-reveal");
     section.style.setProperty("--detail-slice-delay", `${(startIndex + index) * 25}ms`);
+  });
+}
+
+function staggerTvFirstReveal(view) {
+  const tvSliceStaggerMs = 55;
+  const slices = [];
+  view.querySelectorAll(":scope > .page-section:not([hidden])").forEach((section) => {
+    slices.push(section.querySelector(":scope > .section-heading"));
+    slices.push(...section.querySelectorAll(":scope > .show-list > .show-card:not([hidden])"));
+    slices.push(...section.querySelectorAll(":scope > .popular-grid > .popular-card:not([hidden])"));
+    slices.push(...section.querySelectorAll(":scope > .empty-state:not([hidden])"));
+  });
+  slices.push(...view.querySelectorAll(":scope > .empty-state:not([hidden])"));
+  slices.filter(Boolean).forEach((slice, index) => {
+    slice.classList.add("tv-slice-reveal");
+    slice.style.setProperty("--detail-slice-delay", `${index * tvSliceStaggerMs}ms`);
+    const finishReveal = (event) => {
+      if (event.target !== slice || event.animationName !== "detail-slice-reveal") return;
+      slice.classList.remove("tv-slice-reveal");
+      slice.style.removeProperty("--detail-slice-delay");
+      slice.removeEventListener("animationend", finishReveal);
+      tvRevealAnimationHandlers.delete(slice);
+    };
+    tvRevealAnimationHandlers.set(slice, finishReveal);
+    slice.addEventListener("animationend", finishReveal);
+  });
+}
+
+function clearTvFirstReveal(view) {
+  view.querySelectorAll(".tv-slice-reveal").forEach((slice) => {
+    const finishReveal = tvRevealAnimationHandlers.get(slice);
+    if (finishReveal) slice.removeEventListener("animationend", finishReveal);
+    tvRevealAnimationHandlers.delete(slice);
+    slice.classList.remove("tv-slice-reveal");
+    slice.style.removeProperty("--detail-slice-delay");
   });
 }
 
