@@ -1475,6 +1475,63 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
   }
 }
 
+function updateEpisodeDetailWatchUi(detailEpisode, watchCount) {
+  detailEpisode.dataset.watchCount = watchCount;
+  const control = detailEpisode.querySelector("[data-episode-detail-watch]");
+  if (!control) return;
+  control.dataset.watchCount = watchCount;
+  control.querySelector("[data-episode-detail-watch-count]").textContent = watchCount;
+  control.querySelector("[data-episode-detail-watch-label]").textContent =
+    watchCount === 1 ? "watch" : "watches";
+}
+
+function removeEpisodeWatchActivity(recordId) {
+  if (!recordId) return;
+  const log = views.get("detail").querySelector("[data-activity-log]");
+  const list = log?.querySelector("[data-activity-list]");
+  list?.querySelector(`.activity-item[data-watch-kind="episode"][data-watch-record-id="${recordId}"]`)?.remove();
+  if (list && !list.querySelector(".activity-item")) {
+    const empty = document.createElement("li");
+    empty.className = "activity-empty";
+    empty.dataset.activityEmpty = "";
+    empty.textContent = "This episode has not been watched yet.";
+    list.append(empty);
+  }
+  syncActivityCount(log);
+}
+
+async function changeEpisodeDetailWatchCount(detailEpisode, action) {
+  if (pendingWatchChanges.has(detailEpisode)) return;
+  pendingWatchChanges.add(detailEpisode);
+  try {
+    const response = await fetch(`/api/episodes/${detailEpisode.dataset.episodeId}/watch-count`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    if (!response.ok) throw new Error("Could not update episode");
+    const data = await response.json();
+    updateEpisodeDetailWatchUi(detailEpisode, data.watch_count);
+    applyShowProgress(data);
+    if (data.action === "increment") {
+      addActivityItem({
+        type: "watched",
+        title: "Watched",
+        occurredAt: data.changed_at,
+        recordId: String(data.watch_record_id),
+        watchKind: "episode",
+        addedAt: data.changed_at,
+      });
+    } else {
+      removeEpisodeWatchActivity(data.watch_record_id);
+    }
+  } catch (_error) {
+    showSnackbar("Couldn't update this episode. Try again.");
+  } finally {
+    pendingWatchChanges.delete(detailEpisode);
+  }
+}
+
 async function changeSeasonWatchCount(season, action, trigger) {
   if (pendingWatchChanges.has(season)) return;
   pendingWatchChanges.add(season);
@@ -1688,9 +1745,22 @@ document.addEventListener("click", (event) => {
     const wrapper = watchAction.closest(".watch-control-wrap");
     const episode = wrapper.closest(".episode");
     const season = wrapper.closest(".season");
+    const detailEpisode = wrapper.closest("[data-detail-episode]");
     closeWatchMenus();
     if (episode) changeEpisodeWatchCount(episode, watchAction.dataset.watchAction, watchAction);
-    else changeSeasonWatchCount(season, watchAction.dataset.watchAction, watchAction);
+    else if (season) changeSeasonWatchCount(season, watchAction.dataset.watchAction, watchAction);
+    else if (detailEpisode) changeEpisodeDetailWatchCount(detailEpisode, watchAction.dataset.watchAction);
+    return;
+  }
+
+  const episodeDetailControl = event.target.closest("[data-episode-detail-watch]");
+  if (episodeDetailControl) {
+    const detailEpisode = episodeDetailControl.closest("[data-detail-episode]");
+    if (Number(detailEpisode.dataset.watchCount) === 0) {
+      changeEpisodeDetailWatchCount(detailEpisode, "increment");
+    } else {
+      toggleWatchMenu(episodeDetailControl);
+    }
     return;
   }
 

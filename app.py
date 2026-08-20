@@ -906,15 +906,16 @@ def create_app(test_config: dict | None = None) -> Flask:
             return jsonify(error="Episode not found"), 404
 
         changed_at = utc_now()
+        watch_record_id = None
         if action == "increment":
             db.execute("DELETE FROM episode_skips WHERE episode_id = ?", (episode_id,))
-            db.execute(
+            watch_record_id = db.execute(
                 """
                 INSERT INTO episode_watch_history (episode_id, added_at)
                 VALUES (?, ?)
                 """,
                 (episode_id, changed_at),
-            )
+            ).lastrowid
         else:
             latest_watch = db.execute(
                 """
@@ -929,9 +930,16 @@ def create_app(test_config: dict | None = None) -> Flask:
                 (episode_id,),
             ).fetchone()
             if latest_watch is not None:
+                watch_record_id = latest_watch["id"]
                 db.execute("DELETE FROM episode_watch_history WHERE id = ?", (latest_watch["id"],))
         db.commit()
-        return jsonify(watch_payload(db, episode["show_id"], episode_id))
+        response_payload = watch_payload(db, episode["show_id"], episode_id)
+        response_payload.update(
+            action=action,
+            changed_at=changed_at,
+            watch_record_id=watch_record_id,
+        )
+        return jsonify(response_payload)
 
     @app.post("/api/episodes/<int:episode_id>/skip")
     def skip_episode(episode_id: int):
