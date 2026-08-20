@@ -69,6 +69,16 @@
   <button type="button" data-snackbar-action hidden></button>
 </div>
 
+<dialog class="image-viewer" data-image-viewer aria-label="Image preview">
+  <button class="icon-button image-viewer-close" type="button" data-image-viewer-close
+    aria-label="Close image preview">
+    <span class="material-symbols-rounded" aria-hidden="true">close</span>
+  </button>
+  <div class="image-viewer-stage" data-image-viewer-stage aria-busy="true">
+    <img data-image-viewer-image alt="">
+  </div>
+</dialog>
+
 <dialog class="confirm-dialog" data-remove-dialog>
   <h2>Remove show?</h2>
   <p>This removes the show from TV. Its metadata and watch history stay saved.</p>

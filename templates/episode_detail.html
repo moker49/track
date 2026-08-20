@@ -9,9 +9,13 @@
   </header>
 
   <section class="hero episode-hero">
+    {% if episode.still_path %}<button class="image-preview-button hero-image-button" type="button"
+      data-full-image-src="https://image.tmdb.org/t/p/w780{{ episode.still_path }}"
+      data-full-image-alt="Still from {{ episode.name }}" aria-label="View still from {{ episode.name }}">{% endif %}
     <div class="hero-poster poster{% if episode.still_path %} has-media-image{% endif %}" aria-hidden="true">
       {% if episode.still_path %}<img class="poster-image episode-still-image" src="{{ url_for('cached_tmdb_image', image_type='still', size='w300', tmdb_path=episode.still_path[1:]) }}" alt="" decoding="async" data-media-image><template data-media-fallback-template><span class="poster-mark episode-poster-mark">S{{ episode.season_number }}E{{ episode.episode_number }}</span><span class="poster-label">{{ episode.show_name }}</span></template>{% else %}<span class="poster-mark episode-poster-mark">S{{ episode.season_number }}E{{ episode.episode_number }}</span><span class="poster-label">{{ episode.show_name }}</span>{% endif %}
     </div>
+    {% if episode.still_path %}</button>{% endif %}
     <div class="hero-copy">
       <span class="state-label">Episode {{ episode.episode_number }}</span>
       <h1>{{ episode.name }}</h1>

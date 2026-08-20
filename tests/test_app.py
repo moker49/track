@@ -122,6 +122,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-view="backlog"', home.data)
         self.assertIn(b'data-view="upcoming"', home.data)
         self.assertIn(b'data-view="tv"', home.data)
+        self.assertIn(b'data-image-viewer', home.data)
+        self.assertIn(b'data-image-viewer-image', home.data)
         self.assertNotIn(b'data-view="schedule"', home.data)
         self.assertNotIn(b'data-view="archive"', home.data)
         self.assertNotIn(b'data-view="discover"', home.data)
@@ -133,7 +135,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'/static/app.css?v=', home.data)
         self.assertIn(b'/static/app.js?v=', home.data)
         self.assertEqual(home.data.count(b"data-clear-search"), 1)
-        self.assertEqual(home.data.count(b">close</span>"), 2)
+        self.assertEqual(home.data.count(b">close</span>"), 3)
         self.assertIn(b'data-progress-state="started"', home.data)
         self.assertIn(b'data-progress-state="finished"', home.data)
         self.assertIn(b'data-show-id="1"', home.data)
@@ -1483,11 +1485,19 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"data-progress-summary", detail.data)
         self.assertNotIn(b"data-show-menu-button", detail.data)
         self.assertIn(b"/media/poster/w342/preview.jpg", detail.data)
+        self.assertIn(
+            b'data-full-image-src="https://image.tmdb.org/t/p/w780/preview.jpg"',
+            detail.data,
+        )
 
         seasons_detail = self.client.get(
             f"/api/shows/{preview_data['show_id']}/seasons"
         )
         self.assertIn(b"/media/season/w185/preview-season.jpg", seasons_detail.data)
+        self.assertIn(
+            b'data-full-image-src="https://image.tmdb.org/t/p/w780/preview-season.jpg"',
+            seasons_detail.data,
+        )
 
         connection = sqlite3.connect(self.database)
         preview_episode_id = connection.execute(
@@ -1496,6 +1506,17 @@ class TrackAppTest(unittest.TestCase):
         connection.close()
         episode_detail = self.client.get(f"/api/episodes/{preview_episode_id}")
         self.assertIn(b"/media/still/w300/preview-still.jpg", episode_detail.data)
+        self.assertIn(
+            b'data-full-image-src="https://image.tmdb.org/t/p/w780/preview-still.jpg"',
+            episode_detail.data,
+        )
+
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("function openImageViewer(trigger)", javascript)
+        self.assertIn("imageViewer.showModal()", javascript)
+        self.assertIn('imageViewerImage?.removeAttribute("src")', javascript)
 
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
             encoding="utf-8"

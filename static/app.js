@@ -37,6 +37,9 @@ const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, detail: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
 const libraryFilterDialog = document.querySelector("[data-library-filter-dialog]");
+const imageViewer = document.querySelector("[data-image-viewer]");
+const imageViewerImage = imageViewer?.querySelector("[data-image-viewer-image]");
+const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]");
 const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   tv: {
@@ -76,6 +79,25 @@ function writeHistory(state, mode = "push") {
   const method = mode === "replace" ? "replaceState" : "pushState";
   window.history[method]({ trackApp: true, ...state }, "");
 }
+
+function openImageViewer(trigger) {
+  if (!imageViewer || !imageViewerImage || !imageViewerStage) return;
+  imageViewerStage.setAttribute("aria-busy", "true");
+  imageViewerStage.classList.remove("is-loaded", "has-error");
+  imageViewerImage.alt = trigger.dataset.fullImageAlt || "Large image";
+  imageViewerImage.src = trigger.dataset.fullImageSrc;
+  imageViewer.showModal();
+}
+
+imageViewerImage?.addEventListener("load", () => {
+  imageViewerStage?.classList.add("is-loaded");
+  imageViewerStage?.removeAttribute("aria-busy");
+});
+
+imageViewerImage?.addEventListener("error", () => {
+  imageViewerStage?.classList.add("has-error");
+  imageViewerStage?.removeAttribute("aria-busy");
+});
 
 function updateActiveNav(navView) {
   navButtons.forEach((button) => {
@@ -1447,6 +1469,18 @@ async function changeSeasonWatchCount(season, action, trigger) {
 }
 
 document.addEventListener("click", (event) => {
+  const imageTrigger = event.target.closest("[data-full-image-src]");
+  if (imageTrigger) {
+    event.preventDefault();
+    openImageViewer(imageTrigger);
+    return;
+  }
+
+  if (event.target.closest("[data-image-viewer-close]")) {
+    imageViewer?.close();
+    return;
+  }
+
   const snackbarActionButton = event.target.closest("[data-snackbar-action]");
   if (snackbarActionButton) {
     const action = snackbarAction;
@@ -1902,6 +1936,15 @@ libraryFilterDialog?.addEventListener("close", () => {
   globalSearchInput?.blur();
   libraryFilterView = null;
   libraryFilterDraft = null;
+});
+
+imageViewer?.addEventListener("click", (event) => {
+  if (event.target === imageViewer) imageViewer.close();
+});
+
+imageViewer?.addEventListener("close", () => {
+  imageViewerImage?.removeAttribute("src");
+  imageViewerStage?.classList.remove("is-loaded", "has-error");
 });
 
 function restoreHistoryState(state) {

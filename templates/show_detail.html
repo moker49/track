@@ -48,9 +48,13 @@
   </header>
 
   <section class="hero">
+    {% if show.poster_path %}<button class="image-preview-button hero-image-button" type="button"
+      data-full-image-src="https://image.tmdb.org/t/p/w780{{ show.poster_path }}"
+      data-full-image-alt="{{ show.name }} poster" aria-label="View {{ show.name }} poster">{% endif %}
     <div class="hero-poster poster poster-purple{% if show.poster_path %} has-media-image{% endif %}" aria-hidden="true">
       {% if show.poster_path %}<img class="poster-image" src="{{ url_for('cached_tmdb_image', image_type='poster', size='w342', tmdb_path=show.poster_path[1:]) }}" alt="" decoding="async" data-media-image><template data-media-fallback-template><span class="poster-mark">{{ show.name[:2]|upper }}</span><span class="poster-label">{{ show.name }}</span></template>{% else %}<span class="poster-mark">{{ show.name[:2]|upper }}</span><span class="poster-label">{{ show.name }}</span>{% endif %}
     </div>
+    {% if show.poster_path %}</button>{% endif %}
     <div class="hero-copy">
       {% if show.is_tracked %}<span class="state-label progress-tag" data-progress-tag>{{ progress_tag }}</span>{% endif
       %}
@@ -106,6 +110,10 @@
         data-progress-counted="{{ 'true' if season.is_progress_counted else 'false' }}">
         <summary>
           <span class="season-chevron material-symbols-rounded" aria-hidden="true">expand_more</span>
+          {% if season.poster_path %}<button class="season-image-button" type="button"
+            data-full-image-src="https://image.tmdb.org/t/p/w780{{ season.poster_path }}"
+            data-full-image-alt="{{ season.name }} poster" aria-label="View {{ season.name }} poster"><span
+              class="season-poster-shell has-media-image" aria-hidden="true"><img class="season-poster" src="{{ url_for('cached_tmdb_image', image_type='season', size='w185', tmdb_path=season.poster_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span class="season-poster-fallback">S{{ season.season_number }}</span></template></span></button>{% endif %}
           <span class="season-title">
             <strong>{{ season.name }}</strong>
             <small>{% if season.is_progress_counted %}{{ watched_in_season }} of {{ episodes|length }}{% else %}Not

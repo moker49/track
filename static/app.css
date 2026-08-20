@@ -914,9 +914,32 @@ html.app-booting .app-boot-screen {
 }
 
 .hero-poster {
+  width: 100%;
   height: 160px;
   border-radius: var(--radius-md);
   box-shadow: 0 3px 12px var(--shadow);
+}
+
+.image-preview-button,
+.season-image-button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.hero-image-button {
+  width: 112px;
+  height: 160px;
+  border-radius: var(--radius-md);
+}
+
+.image-preview-button:focus-visible,
+.season-image-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
 }
 
 .hero-copy {
@@ -1064,6 +1087,13 @@ html.app-booting .app-boot-screen {
   background: var(--surface-high);
   font-size: 0.68rem;
   font-weight: 700;
+}
+
+.season-image-button {
+  width: 34px;
+  height: 50px;
+  border-radius: 6px;
+  flex: 0 0 34px;
 }
 
 .season-poster {
@@ -1410,6 +1440,72 @@ html.app-booting .app-boot-screen {
   color: var(--on-surface-muted);
   font-size: 0.84rem;
   text-align: center;
+}
+
+.image-viewer {
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  border: 0;
+  overflow: hidden;
+  color: var(--on-surface);
+  background: color-mix(in srgb, var(--surface-low) 96%, transparent);
+}
+
+.image-viewer::backdrop {
+  background: var(--surface-low);
+}
+
+.image-viewer-close {
+  position: absolute;
+  z-index: 2;
+  top: max(16px, env(safe-area-inset-top));
+  right: 16px;
+  color: var(--on-surface);
+  background: color-mix(in srgb, var(--surface-high) 88%, transparent);
+}
+
+.image-viewer-stage {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.image-viewer-stage::before {
+  content: "";
+  width: min(58vw, 220px);
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-md);
+  background: var(--surface-high);
+  animation: skeleton-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.image-viewer-stage img {
+  display: none;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+  box-shadow: 0 8px 32px var(--shadow);
+}
+
+.image-viewer-stage.is-loaded::before,
+.image-viewer-stage.has-error::before {
+  display: none;
+}
+
+.image-viewer-stage.is-loaded img {
+  display: block;
+}
+
+.image-viewer-stage.has-error::after {
+  content: "Image couldn’t be loaded";
+  color: var(--on-surface-muted);
+  font-size: 0.9rem;
 }
 
 .date-picker {
