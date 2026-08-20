@@ -575,6 +575,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("@keyframes schedule-rail-reveal", css)
         self.assertIn("@keyframes schedule-dot-reveal", css)
         self.assertIn(
+            ".episode-watch-summary-wrap:has(.episode-detail-watch-menu:not([hidden]))",
+            css,
+        )
+        self.assertIn(
             "background: color-mix(in srgb, var(--progress-not-started) 18%, transparent);",
             css,
         )
