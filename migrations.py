@@ -126,6 +126,8 @@ def _rename_active_to_watching(db: sqlite3.Connection) -> None:
     show_sql = db.execute(
         "SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'shows'"
     ).fetchone()[0]
+    if "active_at" in columns and "'WATCHING'" not in show_sql:
+        return
     if "watching_at" in columns and "'ACTIVE'" not in show_sql:
         return
 
@@ -216,6 +218,84 @@ def _add_image_cache(db: sqlite3.Connection) -> None:
     )
 
 
+def _rename_watching_to_active(db: sqlite3.Connection) -> None:
+    columns = _columns(db, "shows")
+    show_sql = db.execute(
+        "SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'shows'"
+    ).fetchone()[0]
+    if "active_at" in columns and "'WATCHING'" not in show_sql:
+        return
+
+    timestamp_source = "active_at" if "active_at" in columns else "watching_at"
+    db.commit()
+    db.execute("PRAGMA foreign_keys = OFF")
+    try:
+        db.executescript(
+            f"""
+            BEGIN IMMEDIATE;
+            CREATE TABLE shows_active_migrated (
+                id INTEGER PRIMARY KEY,
+                tmdb_id INTEGER UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                original_name TEXT,
+                overview TEXT,
+                tagline TEXT,
+                poster_path TEXT,
+                backdrop_path TEXT,
+                first_air_date TEXT,
+                status TEXT,
+                genres TEXT,
+                original_language TEXT,
+                state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
+                is_tracked INTEGER NOT NULL DEFAULT 1 CHECK (is_tracked IN (0, 1)),
+                added_at TEXT NOT NULL,
+                active_at TEXT,
+                archived_at TEXT,
+                updated_at TEXT,
+                tmdb_refreshed_at TEXT,
+                tmdb_payload TEXT NOT NULL DEFAULT '{{}}'
+            );
+
+            INSERT INTO shows_active_migrated (
+                id, tmdb_id, name, original_name, overview, tagline, poster_path,
+                backdrop_path, first_air_date, status, genres, original_language,
+                state, is_tracked, added_at, active_at, archived_at, updated_at,
+                tmdb_refreshed_at, tmdb_payload
+            )
+            SELECT id, tmdb_id, name, original_name, overview, tagline, poster_path,
+                   backdrop_path, first_air_date, status, genres, original_language,
+                   CASE state WHEN 'WATCHING' THEN 'ACTIVE' ELSE state END,
+                   is_tracked, added_at, {timestamp_source}, archived_at, updated_at,
+                   tmdb_refreshed_at, tmdb_payload
+            FROM shows;
+
+            CREATE TABLE show_state_history_active_migrated (
+                id INTEGER PRIMARY KEY,
+                show_id INTEGER NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
+                state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
+                entered_at TEXT NOT NULL
+            );
+
+            INSERT INTO show_state_history_active_migrated (id, show_id, state, entered_at)
+            SELECT id, show_id,
+                   CASE state WHEN 'WATCHING' THEN 'ACTIVE' ELSE state END,
+                   entered_at
+            FROM show_state_history;
+
+            DROP TABLE show_state_history;
+            DROP TABLE shows;
+            ALTER TABLE shows_active_migrated RENAME TO shows;
+            ALTER TABLE show_state_history_active_migrated RENAME TO show_state_history;
+            COMMIT;
+            """
+        )
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.execute("PRAGMA foreign_keys = ON")
+
+
 def migrate_database(db: sqlite3.Connection) -> None:
     db.execute(
         """
@@ -231,6 +311,7 @@ def migrate_database(db: sqlite3.Connection) -> None:
         (3, _add_tracking_flag),
         (4, _rename_active_to_watching),
         (5, _add_image_cache),
+        (6, _rename_watching_to_active),
     )
     applied = {
         row[0] for row in db.execute("SELECT version FROM schema_migrations")

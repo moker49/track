@@ -32,7 +32,7 @@
 </section>
 
 <section class="app-view" data-view="tv" aria-label="TV" hidden>
-  {% include "watching.html" %}
+  {% include "tv.html" %}
 </section>
 
 <section class="app-view" data-view="detail" aria-label="Show details" aria-live="polite" hidden></section>
@@ -122,9 +122,9 @@
       <section class="filter-dialog-section" aria-labelledby="filter-options-title">
         <h3 id="filter-options-title">Filter</h3>
         <div class="md-button-group library-state-button-group" data-filter-state-group aria-label="Show state">
-          <button type="button" data-filter-state="WATCHING" aria-pressed="true">
+          <button type="button" data-filter-state="ACTIVE" aria-pressed="true">
             <span class="material-symbols-rounded" aria-hidden="true">check</span>
-            <span>Watching</span>
+            <span>Active</span>
           </button>
           <button type="button" data-filter-state="ARCHIVED" aria-pressed="false">
             <span class="material-symbols-rounded" aria-hidden="true">check</span>

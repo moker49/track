@@ -5,7 +5,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 
-VALID_STATES = {"WATCHING", "ARCHIVED"}
+VALID_STATES = {"ACTIVE", "ARCHIVED"}
 
 
 def _now() -> str:
@@ -33,7 +33,7 @@ def import_or_refresh_show(
     refreshed_at: str | None = None,
 ) -> tuple[int, bool, bool]:
     if target_state is not None and target_state not in VALID_STATES:
-        raise ValueError("target_state must be WATCHING, ARCHIVED, or null")
+        raise ValueError("target_state must be ACTIVE, ARCHIVED, or null")
     tmdb_id = _required_id(show, "show")
     refreshed_at = refreshed_at or _now()
     existing = db.execute(
@@ -48,7 +48,7 @@ def import_or_refresh_show(
                 INSERT INTO shows (
                     tmdb_id, name, original_name, overview, tagline, poster_path,
                     backdrop_path, first_air_date, status, genres,
-                    original_language, state, is_tracked, added_at, watching_at, archived_at,
+                    original_language, state, is_tracked, added_at, active_at, archived_at,
                     updated_at, tmdb_refreshed_at, tmdb_payload
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -64,10 +64,10 @@ def import_or_refresh_show(
                     show.get("status"),
                     _genres(show),
                     show.get("original_language"),
-                    target_state or "WATCHING",
+                    target_state or "ACTIVE",
                     int(target_state is not None),
                     refreshed_at,
-                    refreshed_at if target_state == "WATCHING" else None,
+                    refreshed_at if target_state == "ACTIVE" else None,
                     refreshed_at if target_state == "ARCHIVED" else None,
                     refreshed_at,
                     refreshed_at,
@@ -117,7 +117,7 @@ def import_or_refresh_show(
                     """
                     UPDATE shows
                     SET is_tracked = 1, state = ?, added_at = ?,
-                        watching_at = CASE WHEN ? = 'WATCHING' THEN ? ELSE watching_at END,
+                        active_at = CASE WHEN ? = 'ACTIVE' THEN ? ELSE active_at END,
                         archived_at = CASE WHEN ? = 'ARCHIVED' THEN ? ELSE archived_at END,
                         updated_at = ?
                     WHERE id = ?

@@ -248,7 +248,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                   AND e.air_date <= date('now')
                 LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
                 WHERE s.is_tracked = 1
-                  AND s.state = 'WATCHING'
+                  AND s.state = 'ACTIVE'
                 GROUP BY s.id
             ),
             unresolved AS (
@@ -275,7 +275,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                 JOIN episodes e ON e.season_id = sn.id
                 LEFT JOIN episode_skips sk ON sk.episode_id = e.id
                 WHERE s.is_tracked = 1
-                  AND s.state = 'WATCHING'
+                  AND s.state = 'ACTIVE'
                   AND sn.is_progress_counted = 1
                   AND e.air_date IS NOT NULL
                   AND e.air_date <= date('now')
@@ -388,11 +388,11 @@ def create_app(test_config: dict | None = None) -> Flask:
 
                 SELECT CASE state
                            WHEN 'ARCHIVED' THEN 'archived'
-                           ELSE 'started_watching'
+                           ELSE 'activated'
                        END AS event_type,
                        CASE state
                            WHEN 'ARCHIVED' THEN 'Archived'
-                           ELSE 'Started watching'
+                           ELSE 'Made active'
                        END AS title,
                        entered_at AS occurred_at,
                        NULL AS season_id,
@@ -402,7 +402,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                        NULL AS watch_date
                 FROM ordered_states
                 WHERE state = 'ARCHIVED'
-                   OR (state = 'WATCHING' AND previous_state = 'ARCHIVED')
+                   OR (state = 'ACTIVE' AND previous_state = 'ARCHIVED')
 
                 UNION ALL
 
@@ -441,13 +441,13 @@ def create_app(test_config: dict | None = None) -> Flask:
               AND e.air_date <= date('now')
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             WHERE s.is_tracked = 1
-              AND s.state IN ('WATCHING', 'ARCHIVED')
+              AND s.state IN ('ACTIVE', 'ARCHIVED')
             GROUP BY s.id
-            ORDER BY CASE s.state WHEN 'WATCHING' THEN 0 ELSE 1 END, s.id ASC
+            ORDER BY CASE s.state WHEN 'ACTIVE' THEN 0 ELSE 1 END, s.id ASC
             """
         ).fetchall()
-        watching_shows = sorted(
-            (show for show in shows if show["state"] == "WATCHING"),
+        active_shows = sorted(
+            (show for show in shows if show["state"] == "ACTIVE"),
             key=lambda show: (natural_title_key(show["name"]), show["id"]),
         )
         archived_shows = sorted(
@@ -458,7 +458,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "index.html",
             catch_up_episodes=get_catch_up_episodes(db),
             upcoming_episodes=get_upcoming_episodes(db),
-            watching_shows=watching_shows,
+            active_shows=active_shows,
             archived_shows=archived_shows,
         )
 
@@ -518,8 +518,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     def import_tv_show(tmdb_id: int):
         payload = request.get_json(silent=True) or {}
         target_state = payload.get("state")
-        if target_state not in {None, "WATCHING", "ARCHIVED"}:
-            return jsonify(error="state must be WATCHING, ARCHIVED, or null"), 400
+        if target_state not in {None, "ACTIVE", "ARCHIVED"}:
+            return jsonify(error="state must be ACTIVE, ARCHIVED, or null"), 400
         try:
             show, seasons = get_tmdb_client().show_bundle(tmdb_id)
             if show.get("id") != tmdb_id:
@@ -766,8 +766,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     def set_show_state(show_id: int):
         payload = request.get_json(silent=True) or {}
         target_state = payload.get("state")
-        if target_state not in {"WATCHING", "ARCHIVED"}:
-            return jsonify(error="state must be WATCHING or ARCHIVED"), 400
+        if target_state not in {"ACTIVE", "ARCHIVED"}:
+            return jsonify(error="state must be ACTIVE or ARCHIVED"), 400
 
         db = get_db()
         show = db.execute(
@@ -781,7 +781,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if newly_tracked or show["state"] != target_state:
             changed_at = utc_now()
             timestamp_column = (
-                "archived_at" if target_state == "ARCHIVED" else "watching_at"
+                "archived_at" if target_state == "ARCHIVED" else "active_at"
             )
             db.execute(
                 f"""
@@ -812,10 +812,10 @@ def create_app(test_config: dict | None = None) -> Flask:
                 if newly_tracked
                 else None
             ),
-            move_label=("Start watching" if target_state == "ARCHIVED" else "Archive"),
+            move_label=("Make active" if target_state == "ARCHIVED" else "Archive"),
             move_icon=("play_arrow" if target_state == "ARCHIVED" else "archive"),
-            activity_title=("Archived" if target_state == "ARCHIVED" else "Started watching"),
-            activity_type=("archived" if target_state == "ARCHIVED" else "started_watching"),
+            activity_title=("Archived" if target_state == "ARCHIVED" else "Made active"),
+            activity_type=("archived" if target_state == "ARCHIVED" else "activated"),
             changed_at=changed_at,
         )
 
@@ -946,7 +946,7 @@ def create_app(test_config: dict | None = None) -> Flask:
               AND e.air_date <= date('now')
               AND sn.is_progress_counted = 1
               AND s.is_tracked = 1
-              AND s.state = 'WATCHING'
+              AND s.state = 'ACTIVE'
               AND NOT EXISTS (
                   SELECT 1 FROM episode_watch_history wh
                   WHERE wh.episode_id = e.id

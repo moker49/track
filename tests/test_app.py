@@ -20,12 +20,12 @@ def seed_test_library(database: Path) -> None:
         INSERT INTO shows (
             id, tmdb_id, name, original_name, overview, tagline,
             first_air_date, status, genres, original_language, state,
-            added_at, watching_at, archived_at
+            added_at, active_at, archived_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'en', ?, ?, ?, ?)
         """,
         [
-            (1, 900001, "Watching Test Show", "Watching Test Show", "Test overview.", "Test tagline.",
-             "2008-01-20", "Ended", "Drama, Crime", "WATCHING",
+            (1, 900001, "Active Test Show", "Active Test Show", "Test overview.", "Test tagline.",
+             "2008-01-20", "Ended", "Drama, Crime", "ACTIVE",
              "2026-05-02T19:15:00+00:00", "2026-05-04T00:10:00+00:00", None),
             (2, 900002, "Archived Test Show", "Archived Test Show", "Test overview.", "Test tagline.",
              "2011-04-17", "Ended", "Drama, Fantasy", "ARCHIVED",
@@ -35,8 +35,8 @@ def seed_test_library(database: Path) -> None:
     connection.executemany(
         "INSERT INTO show_state_history (show_id, state, entered_at) VALUES (?, ?, ?)",
         [
-            (1, "WATCHING", "2026-05-04T00:10:00+00:00"),
-            (2, "WATCHING", "2026-06-12T00:15:00+00:00"),
+            (1, "ACTIVE", "2026-05-04T00:10:00+00:00"),
+            (2, "ACTIVE", "2026-06-12T00:15:00+00:00"),
             (2, "ARCHIVED", "2026-07-01T02:40:00+00:00"),
         ],
     )
@@ -97,12 +97,12 @@ class TrackAppTest(unittest.TestCase):
     def test_single_page_shell_contains_primary_views(self):
         home = self.client.get("/")
         self.assertEqual(home.status_code, 200)
-        self.assertIn(b"Watching Test Show", home.data)
+        self.assertIn(b"Active Test Show", home.data)
         self.assertIn(b"Archived Test Show", home.data)
         self.assertIn(b"Archived", home.data)
         self.assertIn(b"Finished", home.data)
         self.assertIn(b"more_vert", home.data)
-        self.assertIn(b"Start watching", home.data)
+        self.assertIn(b"Make active", home.data)
         self.assertIn(b"Remove", home.data)
         self.assertIn(b"Add show", home.data)
         self.assertIn(b'data-tv-add-results', home.data)
@@ -185,8 +185,8 @@ class TrackAppTest(unittest.TestCase):
             """
             INSERT INTO shows (
                 id, tmdb_id, name, first_air_date, genres,
-                state, is_tracked, added_at, watching_at
-            ) VALUES (?, ?, ?, '2020-01-01', 'Drama', 'WATCHING', 1, ?, ?)
+                state, is_tracked, added_at, active_at
+            ) VALUES (?, ?, ?, '2020-01-01', 'Drama', 'ACTIVE', 1, ?, ?)
             """,
             [
                 (3, 900003, "Series 10", "2026-08-01", "2026-08-01"),
@@ -241,7 +241,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-nav-view="upcoming"', home.data)
         self.assertNotIn(b'data-schedule-tab', home.data)
         self.assertIn(b'placeholder="Search queue"', home.data)
-        self.assertIn(b'data-schedule-search-text="watching test show episode 6"', home.data)
+        self.assertIn(b'data-schedule-search-text="active test show episode 6"', home.data)
         self.assertIn(b'data-schedule-content="backlog"', home.data)
         self.assertIn(b'data-schedule-content="upcoming"', home.data)
         self.assertNotIn(b'data-schedule-now', home.data)
@@ -422,7 +422,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-date-added=', home.data)
         self.assertIn(b'data-release-date=', home.data)
         self.assertEqual(home.data.count(b'class="md-button-group'), 4)
-        self.assertIn(b'data-filter-state="WATCHING" aria-pressed="true"', home.data)
+        self.assertIn(b'data-filter-state="ACTIVE" aria-pressed="true"', home.data)
         self.assertIn(b'data-filter-state="ARCHIVED" aria-pressed="false"', home.data)
         self.assertIn(b'<h3 id="filter-options-title">Filter</h3>', home.data)
         self.assertIn(b'<h3 id="filter-sort-title">Sort</h3>', home.data)
@@ -439,9 +439,9 @@ class TrackAppTest(unittest.TestCase):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
-        self.assertIn('states: new Set(["WATCHING"])', javascript)
+        self.assertIn('states: new Set(["ACTIVE"])', javascript)
         self.assertIn("preferences.tags.size === 0", javascript)
-        self.assertIn('const defaultStates = preferences.states.size === 1 && preferences.states.has("WATCHING");', javascript)
+        self.assertIn('const defaultStates = preferences.states.size === 1 && preferences.states.has("ACTIVE");', javascript)
         self.assertIn("if (libraryFilterDraft.states.size > 1)", javascript)
         self.assertIn('filterShowView(views.get("tv"))', javascript)
         self.assertNotIn("preferences.sortField !==", javascript)
@@ -475,7 +475,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"Season Two Premiere", detail.data)
         self.assertNotIn(b"data-season-watch", detail.data)
         self.assertNotIn(b"data-episode-watch", detail.data)
-        self.assertIn(b'data-detail-title="Watching Test Show"', detail.data)
+        self.assertIn(b'data-detail-title="Active Test Show"', detail.data)
         self.assertIn(b'class="detail-app-bar-title">Show details</span>', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
         self.assertIn(b"Added to My Shows", detail.data)
@@ -504,7 +504,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(archived_detail.status_code, 200)
         self.assertIn(b"Archived Test Show", archived_detail.data)
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Finished</span>', archived_detail.data)
-        self.assertIn(b"Start watching", archived_detail.data)
+        self.assertIn(b"Make active", archived_detail.data)
         self.assertIn(b"more_vert", archived_detail.data)
         move_position = archived_detail.data.index(b'data-show-action="move"')
         refresh_position = archived_detail.data.index(b'data-show-action="refresh"')
@@ -744,7 +744,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'class="detail-app-bar-title">Episode details</span>', detail.data)
         self.assertIn(b'data-back-show-id="1"', detail.data)
         self.assertIn(b'data-episode-show-open data-show-id="1"', detail.data)
-        self.assertIn(b">Watching Test Show</span>", detail.data)
+        self.assertIn(b">Active Test Show</span>", detail.data)
         self.assertIn(b"Watch log", detail.data)
         self.assertIn(b'data-activity-type="watched"', detail.data)
         self.assertIn(b'class="activity-log watch-log"', detail.data)
@@ -909,18 +909,18 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn("ordinalSuffix", javascript)
         self.assertNotIn("timeStyle", javascript)
 
-    def test_show_can_be_archived_and_started_with_history(self):
+    def test_show_can_be_archived_and_made_active_with_history(self):
         archive = self.client.post(
             "/api/shows/1/state", json={"state": "ARCHIVED"}
         )
         self.assertEqual(archive.status_code, 200)
-        self.assertEqual(archive.get_json()["move_label"], "Start watching")
+        self.assertEqual(archive.get_json()["move_label"], "Make active")
 
-        start_watching = self.client.post(
-            "/api/shows/1/state", json={"state": "WATCHING"}
+        make_active = self.client.post(
+            "/api/shows/1/state", json={"state": "ACTIVE"}
         )
-        self.assertEqual(start_watching.status_code, 200)
-        self.assertEqual(start_watching.get_json()["move_label"], "Archive")
+        self.assertEqual(make_active.status_code, 200)
+        self.assertEqual(make_active.get_json()["move_label"], "Archive")
 
         db = sqlite3.connect(self.database)
         state = db.execute("SELECT state FROM shows WHERE id = 1").fetchone()[0]
@@ -928,12 +928,12 @@ class TrackAppTest(unittest.TestCase):
             "SELECT state FROM show_state_history WHERE show_id = 1 ORDER BY id DESC LIMIT 2"
         ).fetchall()
         db.close()
-        self.assertEqual(state, "WATCHING")
-        self.assertEqual([row[0] for row in transitions], ["WATCHING", "ARCHIVED"])
+        self.assertEqual(state, "ACTIVE")
+        self.assertEqual([row[0] for row in transitions], ["ACTIVE", "ARCHIVED"])
 
         detail = self.client.get("/api/shows/1")
         self.assertIn(b">Archived</strong>", detail.data)
-        self.assertIn(b">Started watching</strong>", detail.data)
+        self.assertIn(b">Made active</strong>", detail.data)
 
         invalid = self.client.post(
             "/api/shows/1/state", json={"state": "PAUSED"}
@@ -981,7 +981,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual((season_count, episode_count, history_count), before)
         self.assertNotIn(b"Archived Test Show", self.client.get("/").data)
         detail = self.client.get("/api/shows/2")
-        self.assertIn(b'data-track-show-state="WATCHING"', detail.data)
+        self.assertIn(b'data-track-show-state="ACTIVE"', detail.data)
 
     def test_api_validates_input(self):
         response = self.client.post("/api/episodes/1/watched", json={"watched": "yes"})
@@ -1019,11 +1019,90 @@ class TrackAppTest(unittest.TestCase):
                 connection.close()
             self.assertEqual(show_count, 0)
             self.assertNotIn("WATCHLIST", show_sql)
-            self.assertNotIn("ACTIVE", show_sql)
+            self.assertNotIn("WATCHING", show_sql)
+            self.assertIn("ACTIVE", show_sql)
             self.assertNotIn("watchlist_at", columns)
-            self.assertNotIn("active_at", columns)
-            self.assertIn("watching_at", columns)
+            self.assertIn("active_at", columns)
+            self.assertNotIn("watching_at", columns)
             self.assertIn("tmdb_refreshed_at", columns)
+
+    def test_watching_state_database_migrates_to_active_without_losing_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "legacy.db"
+            connection = sqlite3.connect(database)
+            connection.executescript(
+                """
+                CREATE TABLE shows (
+                    id INTEGER PRIMARY KEY,
+                    tmdb_id INTEGER UNIQUE NOT NULL,
+                    name TEXT NOT NULL,
+                    original_name TEXT,
+                    overview TEXT,
+                    tagline TEXT,
+                    poster_path TEXT,
+                    backdrop_path TEXT,
+                    first_air_date TEXT,
+                    status TEXT,
+                    genres TEXT,
+                    original_language TEXT,
+                    state TEXT NOT NULL CHECK (state IN ('WATCHING', 'ARCHIVED')),
+                    is_tracked INTEGER NOT NULL DEFAULT 1 CHECK (is_tracked IN (0, 1)),
+                    added_at TEXT NOT NULL,
+                    watching_at TEXT,
+                    archived_at TEXT,
+                    updated_at TEXT,
+                    tmdb_refreshed_at TEXT,
+                    tmdb_payload TEXT NOT NULL DEFAULT '{}'
+                );
+                CREATE TABLE show_state_history (
+                    id INTEGER PRIMARY KEY,
+                    show_id INTEGER NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
+                    state TEXT NOT NULL CHECK (state IN ('WATCHING', 'ARCHIVED')),
+                    entered_at TEXT NOT NULL
+                );
+                CREATE TABLE schema_migrations (
+                    version INTEGER PRIMARY KEY,
+                    applied_at TEXT NOT NULL
+                );
+                INSERT INTO schema_migrations (version, applied_at)
+                VALUES (1, '2026-01-01'), (2, '2026-01-01'), (3, '2026-01-01'),
+                       (4, '2026-01-01'), (5, '2026-01-01');
+                INSERT INTO shows (
+                    id, tmdb_id, name, state, added_at, watching_at, tmdb_payload
+                ) VALUES (
+                    1, 1234, 'Legacy Show', 'WATCHING', '2026-01-01',
+                    '2026-01-02', '{"id": 1234}'
+                );
+                INSERT INTO show_state_history (show_id, state, entered_at)
+                VALUES (1, 'WATCHING', '2026-01-02');
+                """
+            )
+            connection.commit()
+            connection.close()
+
+            create_app({"TESTING": True, "DATABASE": str(database)})
+
+            connection = sqlite3.connect(database)
+            connection.row_factory = sqlite3.Row
+            show = connection.execute("SELECT * FROM shows WHERE id = 1").fetchone()
+            history = connection.execute(
+                "SELECT state, entered_at FROM show_state_history WHERE show_id = 1"
+            ).fetchone()
+            versions = connection.execute(
+                "SELECT version FROM schema_migrations ORDER BY version"
+            ).fetchall()
+            columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(shows)")
+            }
+            connection.close()
+
+            self.assertEqual(show["state"], "ACTIVE")
+            self.assertEqual(show["active_at"], "2026-01-02")
+            self.assertEqual(json.loads(show["tmdb_payload"]), {"id": 1234})
+            self.assertEqual(tuple(history), ("ACTIVE", "2026-01-02"))
+            self.assertEqual([row[0] for row in versions], [1, 2, 3, 4, 5, 6])
+            self.assertIn("active_at", columns)
+            self.assertNotIn("watching_at", columns)
 
     def test_dotenv_token_is_loaded_without_overriding_environment(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1079,7 +1158,7 @@ class TrackAppTest(unittest.TestCase):
             """
             INSERT INTO shows (
                 id, tmdb_id, name, state, is_tracked, added_at
-            ) VALUES (3, 22, 'Previously Removed', 'WATCHING', 0, '2026-01-01')
+            ) VALUES (3, 22, 'Previously Removed', 'ACTIVE', 0, '2026-01-01')
             """
         )
         connection.commit()
@@ -1142,7 +1221,7 @@ class TrackAppTest(unittest.TestCase):
             TMDB_CLIENT_FACTORY=lambda _token: fake,
         )
         imported = self.client.post(
-            "/api/tv/shows/900/import", json={"state": "WATCHING"}
+            "/api/tv/shows/900/import", json={"state": "ACTIVE"}
         )
         duplicate = self.client.post(
             "/api/tv/shows/900/import", json={"state": "ARCHIVED"}
@@ -1153,7 +1232,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertTrue(imported.get_json()["newly_tracked"])
         self.assertIn("show-card", imported.get_json()["card_html"])
         self.assertFalse(duplicate.get_json()["created"])
-        self.assertEqual(duplicate.get_json()["state"], "WATCHING")
+        self.assertEqual(duplicate.get_json()["state"], "ACTIVE")
 
         connection = sqlite3.connect(self.database)
         connection.row_factory = sqlite3.Row
@@ -1210,7 +1289,7 @@ class TrackAppTest(unittest.TestCase):
                 return (
                     {
                         "id": tmdb_id,
-                        "name": "Watching Test Show",
+                        "name": "Active Test Show",
                         "first_air_date": "2008-01-20",
                         "genres": [{"id": 18, "name": "Drama"}],
                     },
@@ -1370,7 +1449,7 @@ class TrackAppTest(unittest.TestCase):
         home = self.client.get("/")
         self.assertNotIn(b"Preview Show", home.data)
         detail = self.client.get(f"/api/shows/{preview_data['show_id']}")
-        self.assertIn(b'data-track-show-state="WATCHING"', detail.data)
+        self.assertIn(b'data-track-show-state="ACTIVE"', detail.data)
         self.assertIn(b'data-track-show-state="ARCHIVED"', detail.data)
         self.assertIn(b'data-show-tracked="false"', detail.data)
         self.assertNotIn(b"data-progress-summary", detail.data)
@@ -1476,7 +1555,7 @@ class TrackAppTest(unittest.TestCase):
             TMDB_CLIENT_FACTORY=lambda _token: BrokenClient(),
         )
         response = self.client.post(
-            "/api/tv/shows/910/import", json={"state": "WATCHING"}
+            "/api/tv/shows/910/import", json={"state": "ACTIVE"}
         )
         self.assertEqual(response.status_code, 502)
         connection = sqlite3.connect(self.database)

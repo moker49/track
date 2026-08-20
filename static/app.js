@@ -40,7 +40,7 @@ const libraryFilterDialog = document.querySelector("[data-library-filter-dialog]
 const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   tv: {
-    states: new Set(["WATCHING"]),
+    states: new Set(["ACTIVE"]),
     tags: new Set(),
     sortField: "name",
     sortDirection: "asc",
@@ -240,7 +240,7 @@ function inspectMediaImages(root) {
 function catalogActions() {
   const actions = document.createElement("div");
   actions.className = "popular-card-actions";
-  [["WATCHING", "Start Watching"], ["ARCHIVED", "Archive"]].forEach(([state, label]) => {
+  [["ACTIVE", "Add to Active"], ["ARCHIVED", "Archive"]].forEach(([state, label]) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "catalog-action";
@@ -965,7 +965,7 @@ function addActivityItem({
   icon.setAttribute("aria-hidden", "true");
   icon.textContent = {
     archived: "archive",
-    started_watching: "play_arrow",
+    activated: "play_arrow",
     season_watched: "done_all",
   }[type] || "history";
 
@@ -1141,7 +1141,7 @@ function updateLibraryFilterButton(viewName) {
   const preferences = libraryViewPreferences[viewName];
   const button = document.querySelector(`[data-open-library-filter="${viewName}"]`);
   if (!preferences || !button) return;
-  const defaultStates = preferences.states.size === 1 && preferences.states.has("WATCHING");
+  const defaultStates = preferences.states.size === 1 && preferences.states.has("ACTIVE");
   const customized = !defaultStates || preferences.tags.size > 0;
   button.classList.toggle("has-active-filter", customized);
 }
@@ -1221,7 +1221,7 @@ function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
   document.querySelectorAll(`[data-show-id="${showId}"]`).forEach((showElement) => {
     showElement.dataset.showState = state;
     showElement.querySelectorAll('[data-show-action="move"]').forEach((moveButton) => {
-      moveButton.dataset.targetState = state === "ARCHIVED" ? "WATCHING" : "ARCHIVED";
+      moveButton.dataset.targetState = state === "ARCHIVED" ? "ACTIVE" : "ARCHIVED";
       moveButton.querySelector("[data-move-label]").textContent = moveLabel;
       moveButton.querySelector(".material-symbols-rounded").textContent = moveIcon;
     });
@@ -1265,7 +1265,7 @@ async function moveShow(showElement, targetState, actionButton) {
     if (currentView === "detail") updateActiveNav(detailParentView);
     syncStateSections();
     filterAllShowViews();
-    showSnackbar(data.state === "ARCHIVED" ? "Show archived" : "Started watching");
+    showSnackbar(data.state === "ARCHIVED" ? "Show archived" : "Show made active");
   } catch (_error) {
     showSnackbar("Couldn't move this show. Try again.");
   } finally {

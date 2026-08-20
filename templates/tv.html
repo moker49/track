@@ -1,21 +1,21 @@
 {% from "_show_card.html" import show_card %}
-<section class="page-section" data-state-section="WATCHING" aria-labelledby="watching-title">
+<section class="page-section" data-state-section="ACTIVE" aria-labelledby="active-title">
   <div class="section-heading">
     <div>
-      <h2 id="watching-title">Watching now</h2>
-      <p>Pick up where you left off</p>
+      <h2 id="active-title">Active</h2>
+      <p>Shows you’re currently tracking</p>
     </div>
     <div class="section-heading-actions">
-      <span class="count-badge" data-state-count>{{ watching_shows|length }}</span>
+      <span class="count-badge" data-state-count>{{ active_shows|length }}</span>
     </div>
   </div>
-  <div class="show-list" data-show-list="WATCHING">
-    {% for show in watching_shows %}{{ show_card(show) }}{% endfor %}
+  <div class="show-list" data-show-list="ACTIVE">
+    {% for show in active_shows %}{{ show_card(show) }}{% endfor %}
   </div>
-  <div class="empty-state state-empty" data-state-empty {% if watching_shows %}hidden{% endif %}>
+  <div class="empty-state state-empty" data-state-empty {% if active_shows %}hidden{% endif %}>
     <span class="empty-icon material-symbols-rounded" aria-hidden="true">tv_off</span>
-    <h3>Nothing in Watching</h3>
-    <p>Start watching a show when you're ready to continue.</p>
+    <h3>Nothing active</h3>
+    <p>Add a show when you’re ready to start watching.</p>
   </div>
 </section>
 
