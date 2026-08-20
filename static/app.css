@@ -1127,6 +1127,10 @@ html.app-booting .app-boot-screen {
   align-items: center;
 }
 
+.episode.is-returned-to {
+  animation: episode-return-highlight 2000ms cubic-bezier(0.2, 0, 0, 1);
+}
+
 [data-detail-show][data-show-tracked="false"] .season-list .watch-control-wrap {
   display: none;
 }
@@ -2274,6 +2278,18 @@ html.app-booting .app-boot-screen {
   from {
     opacity: 0;
     transform: translateY(6px);
+  }
+}
+
+@keyframes episode-return-highlight {
+  from {
+    background: color-mix(in srgb, var(--primary) 18%, transparent);
+    box-shadow: inset 3px 0 var(--primary);
+  }
+
+  to {
+    background: transparent;
+    box-shadow: inset 3px 0 transparent;
   }
 }
 

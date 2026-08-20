@@ -670,6 +670,8 @@ function cacheCurrentSeasons(showId) {
   if (seasonList && !seasonList.querySelector("[data-season-loading]")) {
     const cachedList = seasonList.cloneNode(true);
     enableWatchControls(cachedList);
+    cachedList.querySelectorAll("details.season[open]")
+      .forEach((season) => season.removeAttribute("open"));
     showSeasonsCache.set(String(showId), cachedList.innerHTML);
   }
 }
@@ -677,6 +679,32 @@ function cacheCurrentSeasons(showId) {
 function enableWatchControls(root) {
   root.querySelectorAll("[data-episode-watch], [data-season-watch]")
     .forEach((control) => { control.disabled = false; });
+}
+
+function restoreShowDetailContext(showId, context) {
+  if (!context) return;
+  const detailShow = views.get("detail")
+    .querySelector(`[data-detail-show][data-show-id="${showId}"]`);
+  if (!detailShow) return;
+
+  (context.openSeasonIds || []).forEach((seasonId) => {
+    const season = detailShow.querySelector(`[data-season-id="${seasonId}"]`);
+    if (season) season.open = true;
+  });
+
+  const returnedEpisode = context.returnEpisodeId
+    ? detailShow.querySelector(`[data-episode-id="${context.returnEpisodeId}"]`)
+    : null;
+  window.requestAnimationFrame(() => {
+    if (Number.isFinite(Number(context.detailScrollY))) {
+      window.scrollTo({ top: Number(context.detailScrollY), behavior: "auto" });
+    }
+    if (!returnedEpisode) return;
+    returnedEpisode.classList.add("is-returned-to");
+    returnedEpisode.addEventListener("animationend", () => {
+      returnedEpisode.classList.remove("is-returned-to");
+    }, { once: true });
+  });
 }
 
 function replaceLibraryCard(showId, cardHtml) {
@@ -781,7 +809,7 @@ function refreshShowIfDue(showId) {
   }
 }
 
-async function loadShowSeasons(showId, signal) {
+async function loadShowSeasons(showId, signal, returnContext = null) {
   const cacheKey = String(showId);
   const detailShow = views.get("detail").querySelector(`[data-detail-show][data-show-id="${showId}"]`);
   const seasonList = detailShow?.querySelector("[data-season-list]");
@@ -792,6 +820,7 @@ async function loadShowSeasons(showId, signal) {
     enableWatchControls(seasonList);
     seasonList.removeAttribute("aria-busy");
     formatDisplayDates(seasonList);
+    restoreShowDetailContext(showId, returnContext);
     return;
   }
 
@@ -810,6 +839,7 @@ async function loadShowSeasons(showId, signal) {
     enableWatchControls(currentList);
     currentList.removeAttribute("aria-busy");
     formatDisplayDates(currentList);
+    restoreShowDetailContext(showId, returnContext);
   } catch (error) {
     if (error.name === "AbortError") return;
     const currentList = views.get("detail")
@@ -838,6 +868,7 @@ async function openShow(
   parentView = currentView,
   showSkeleton = true,
   historyMode = "push",
+  returnContext = null,
 ) {
   detailParentView = ["backlog", "upcoming", "tv"].includes(parentView)
     ? parentView
@@ -860,7 +891,8 @@ async function openShow(
   if (showDetailCache.has(cacheKey)) {
     views.get("detail").innerHTML = showDetailCache.get(cacheKey);
     finishDetailLoad();
-    loadShowSeasons(showId, detailRequest.signal).finally(() => refreshShowIfDue(showId));
+    loadShowSeasons(showId, detailRequest.signal, returnContext)
+      .finally(() => refreshShowIfDue(showId));
     return;
   }
 
@@ -874,7 +906,8 @@ async function openShow(
     showDetailCache.set(cacheKey, html);
     views.get("detail").innerHTML = html;
     finishDetailLoad();
-    loadShowSeasons(showId, detailRequest.signal).finally(() => refreshShowIfDue(showId));
+    loadShowSeasons(showId, detailRequest.signal, returnContext)
+      .finally(() => refreshShowIfDue(showId));
   } catch (error) {
     if (error.name === "AbortError") return;
     views.get("detail").innerHTML = `
@@ -902,6 +935,18 @@ async function openEpisode(episodeId, historyMode = "push") {
       && activeHistoryState.detailType === "show"
     )
     : Boolean(activeHistoryState?.previousWasShow);
+
+  if (historyMode && previousWasShow) {
+    const currentShow = views.get("detail").querySelector("[data-detail-show]");
+    const openSeasonIds = [...currentShow.querySelectorAll("details.season[open]")]
+      .map((season) => season.dataset.seasonId);
+    window.history.replaceState({
+      ...activeHistoryState,
+      openSeasonIds,
+      returnEpisodeId: String(episodeId),
+      detailScrollY: window.scrollY,
+    }, "");
+  }
 
   if (historyMode) {
     writeHistory({
@@ -1965,7 +2010,7 @@ function restoreHistoryState(state) {
     ? restoredParent
     : "backlog";
   if (state.detailType === "show" && state.showId) {
-    openShow(state.showId, detailParentView, true, null);
+    openShow(state.showId, detailParentView, true, null, state);
   } else if (state.detailType === "episode" && state.episodeId) {
     openEpisode(state.episodeId, null);
   } else if (state.detailType === "catalog" && state.tmdbId) {

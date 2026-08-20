@@ -206,6 +206,9 @@ class TrackAppTest(unittest.TestCase):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("async function revealAppWhenIconsAreReady()", javascript)
         self.assertIn('document.fonts.load(', javascript)
         self.assertIn('Material Symbols Rounded Filled', javascript)
@@ -219,8 +222,17 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('detailType: "episode"', javascript)
         self.assertIn('activeHistoryState.detailType === "show"', javascript)
         self.assertIn('previousWasShow,', javascript)
+        self.assertIn("openSeasonIds,", javascript)
+        self.assertIn("returnEpisodeId: String(episodeId)", javascript)
+        self.assertIn("detailScrollY: window.scrollY", javascript)
+        self.assertIn("function restoreShowDetailContext(showId, context)", javascript)
+        self.assertIn('classList.add("is-returned-to")', javascript)
+        self.assertIn("openShow(state.showId, detailParentView, true, null, state)", javascript)
         self.assertIn('episodeTemplate.content.querySelector("[data-episode-show-open]")?.remove()', javascript)
         self.assertIn('replaceChildren(episodeTemplate.content)', javascript)
+
+        self.assertIn(".episode.is-returned-to", css)
+        self.assertIn("@keyframes episode-return-highlight", css)
 
     def test_backlog_and_upcoming_are_independent_primary_views(self):
         connection = sqlite3.connect(self.database)
@@ -456,7 +468,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn("preferences.sortDirection !==", javascript)
         self.assertIn("const showDetailCache = new Map();", javascript)
         self.assertIn("const showSeasonsCache = new Map();", javascript)
-        self.assertIn("async function loadShowSeasons(showId, signal)", javascript)
+        self.assertIn(
+            "async function loadShowSeasons(showId, signal, returnContext = null)",
+            javascript,
+        )
         self.assertIn("fetch(`/api/shows/${showId}/seasons`", javascript)
 
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
