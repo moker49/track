@@ -797,6 +797,27 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-watch-counter', detail.data)
         self.assertIn(b'>2</span>', detail.data)
 
+    def test_watch_controls_are_never_disabled_or_cached_as_disabled(self):
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        episode_change = javascript[
+            javascript.index("async function changeEpisodeWatchCount"):
+            javascript.index("async function changeSeasonWatchCount")
+        ]
+        season_change = javascript[
+            javascript.index("async function changeSeasonWatchCount"):
+            javascript.index('document.addEventListener("click"')
+        ]
+        self.assertNotIn(".disabled", episode_change)
+        self.assertNotIn(".disabled", season_change)
+        self.assertIn("const pendingWatchChanges = new WeakSet();", javascript)
+        self.assertIn("enableWatchControls(cachedList)", javascript)
+        self.assertIn("enableWatchControls(seasonList)", javascript)
+
+        seasons = self.client.get("/api/shows/1/seasons")
+        self.assertNotIn(b" disabled", seasons.data)
+
     def test_progress_tag_supports_new(self):
         db = sqlite3.connect(self.database)
         db.execute(

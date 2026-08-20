@@ -50,6 +50,7 @@ const searchQueries = { backlog: "", upcoming: "", tv: "" };
 const showDetailCache = new Map();
 const showSeasonsCache = new Map();
 const showRefreshRequests = new Map();
+const pendingWatchChanges = new WeakSet();
 const hydratedLibraryViews = new Set();
 let currentView = "backlog";
 let detailParentView = "backlog";
@@ -645,8 +646,15 @@ function cacheCurrentSeasons(showId) {
   const detailShow = views.get("detail").querySelector(`[data-detail-show][data-show-id="${showId}"]`);
   const seasonList = detailShow?.querySelector("[data-season-list]");
   if (seasonList && !seasonList.querySelector("[data-season-loading]")) {
-    showSeasonsCache.set(String(showId), seasonList.innerHTML);
+    const cachedList = seasonList.cloneNode(true);
+    enableWatchControls(cachedList);
+    showSeasonsCache.set(String(showId), cachedList.innerHTML);
   }
+}
+
+function enableWatchControls(root) {
+  root.querySelectorAll("[data-episode-watch], [data-season-watch]")
+    .forEach((control) => { control.disabled = false; });
 }
 
 function replaceLibraryCard(showId, cardHtml) {
@@ -759,6 +767,7 @@ async function loadShowSeasons(showId, signal) {
 
   if (showSeasonsCache.has(cacheKey)) {
     seasonList.innerHTML = showSeasonsCache.get(cacheKey);
+    enableWatchControls(seasonList);
     seasonList.removeAttribute("aria-busy");
     formatDisplayDates(seasonList);
     return;
@@ -776,6 +785,7 @@ async function loadShowSeasons(showId, signal) {
       .querySelector(`[data-detail-show][data-show-id="${showId}"] [data-season-list]`);
     if (!currentList) return;
     currentList.innerHTML = html;
+    enableWatchControls(currentList);
     currentList.removeAttribute("aria-busy");
     formatDisplayDates(currentList);
   } catch (error) {
@@ -1378,7 +1388,8 @@ function applyShowProgress(data) {
 }
 
 async function changeEpisodeWatchCount(episode, action, trigger) {
-  trigger.disabled = true;
+  if (pendingWatchChanges.has(episode)) return;
+  pendingWatchChanges.add(episode);
   try {
     const response = await fetch(`/api/episodes/${episode.dataset.episodeId}/watch-count`, {
       method: "POST",
@@ -1393,12 +1404,13 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
   } catch (_error) {
     showSnackbar("Couldn't update this episode. Try again.");
   } finally {
-    trigger.disabled = false;
+    pendingWatchChanges.delete(episode);
   }
 }
 
 async function changeSeasonWatchCount(season, action, trigger) {
-  trigger.disabled = true;
+  if (pendingWatchChanges.has(season)) return;
+  pendingWatchChanges.add(season);
   try {
     const response = await fetch(`/api/seasons/${season.dataset.seasonId}/watch-count`, {
       method: "POST",
@@ -1430,7 +1442,7 @@ async function changeSeasonWatchCount(season, action, trigger) {
   } catch (_error) {
     showSnackbar("Couldn't update this season. Try again.");
   } finally {
-    trigger.disabled = false;
+    pendingWatchChanges.delete(season);
   }
 }
 
