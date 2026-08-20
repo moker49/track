@@ -1327,7 +1327,7 @@ function updateEpisodeWatchUi(episode, watchCount, syncSeason = true) {
 }
 
 function applyShowProgress(data) {
-  invalidateShowCache(data.show_id);
+  invalidateShowCache(data.show_id, true);
   updateProgress(document.querySelector("[data-progress-summary]"), data);
   const showCard = document.querySelector(`.show-card[data-show-id="${data.show_id}"]`);
   if (showCard) {

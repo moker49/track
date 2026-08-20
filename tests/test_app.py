@@ -245,6 +245,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('function showCaughtUpScheduleState(card, data, action)', javascript)
         self.assertIn('function clearCaughtUpScheduleItems()', javascript)
         self.assertIn('aria-label="Caught up">done_all', javascript)
+        self.assertIn('function applyShowProgress(data) {\n  invalidateShowCache(data.show_id, true);', javascript)
         self.assertNotIn('Caught up with this show', javascript)
 
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
