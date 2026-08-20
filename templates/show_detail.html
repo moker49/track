@@ -8,10 +8,10 @@
 {% set progress_state = 'finished' %}
 {% set progress_tag = 'Finished' %}
 {% elif show.state == 'ARCHIVED' %}
-{% set progress_state = 'stopped' %}
+{% set progress_state = 'started' %}
 {% set progress_tag = 'Stopped' %}
 {% else %}
-{% set progress_state = 'in-progress' %}
+{% set progress_state = 'started' %}
 {% set progress_tag = 'Watching' %}
 {% endif %}
 <div data-detail-show data-detail-title="{{ show.name }}" data-show-id="{{ show.id }}" data-tmdb-id="{{ show.tmdb_id }}"

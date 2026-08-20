@@ -8,10 +8,10 @@
     {% set progress_state = "finished" %}
   {% elif show.state == 'ARCHIVED' %}
     {% set progress_tag = "Stopped" %}
-    {% set progress_state = "stopped" %}
+    {% set progress_state = "started" %}
   {% else %}
     {% set progress_tag = "Watching" %}
-    {% set progress_state = "in-progress" %}
+    {% set progress_state = "started" %}
   {% endif %}
   {% set target_state = 'ACTIVE' if show.state == 'ARCHIVED' else 'ARCHIVED' %}
   {% set move_label = 'Make active' if show.state == 'ARCHIVED' else 'Archive' %}

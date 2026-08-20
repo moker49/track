@@ -1199,7 +1199,7 @@ function syncProgressState(showElement) {
   const episodeCount = Number(showElement.dataset.episodeCount);
   if (!Number.isFinite(watchedCount) || !Number.isFinite(episodeCount)) return;
 
-  let progressState = "in-progress";
+  let progressState = "started";
   let progressLabel = "Watching";
   if (watchedCount === 0) {
     progressState = "not-started";
@@ -1208,7 +1208,6 @@ function syncProgressState(showElement) {
     progressState = "finished";
     progressLabel = "Finished";
   } else if (showElement.dataset.showState === "ARCHIVED") {
-    progressState = "stopped";
     progressLabel = "Stopped";
   }
 

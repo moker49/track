@@ -134,7 +134,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'/static/app.js?v=', home.data)
         self.assertEqual(home.data.count(b"data-clear-search"), 1)
         self.assertEqual(home.data.count(b">close</span>"), 2)
-        self.assertIn(b'data-progress-state="in-progress"', home.data)
+        self.assertIn(b'data-progress-state="started"', home.data)
         self.assertIn(b'data-progress-state="finished"', home.data)
         self.assertIn(b'data-show-id="1"', home.data)
         self.assertNotIn(b'href="/search"', home.data)
@@ -414,7 +414,7 @@ class TrackAppTest(unittest.TestCase):
         home = self.client.get("/")
         self.assertEqual(home.data.count(b"data-open-library-filter"), 1)
         self.assertIn(b'data-library-filter-dialog', home.data)
-        self.assertEqual(home.data.count(b"data-filter-tag="), 4)
+        self.assertEqual(home.data.count(b"data-filter-tag="), 3)
         self.assertIn(b'data-sort-field="name" aria-pressed="true"', home.data)
         self.assertIn(b'data-sort-field="dateAdded"', home.data)
         self.assertIn(b'data-sort-field="releaseDate"', home.data)
@@ -432,7 +432,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'class="filter-fullscreen-app-bar"', home.data)
         self.assertIn(b">Done</button>", home.data)
         self.assertIn(b"<span>New</span>", home.data)
-        self.assertIn(b"<span>Watching</span>", home.data)
+        self.assertIn(b"<span>Started</span>", home.data)
+        self.assertNotIn(b'data-filter-tag="stopped"', home.data)
         self.assertNotIn(b"Haven&#39;t started", home.data)
         self.assertNotIn(b"In progress", home.data)
 
@@ -819,7 +820,7 @@ class TrackAppTest(unittest.TestCase):
 
         home = self.client.get("/")
         self.assertIn(b">Stopped</span>", home.data)
-        self.assertIn(b'data-progress-state="stopped"', home.data)
+        self.assertIn(b'data-progress-state="started"', home.data)
 
     def test_progress_colors_share_status_variables(self):
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
@@ -827,6 +828,7 @@ class TrackAppTest(unittest.TestCase):
         )
         self.assertIn("--progress-complete: var(--accent)", css)
         self.assertIn("--progress-not-started:", css)
+        self.assertIn("--progress-started: var(--primary)", css)
         self.assertIn("--progress-stopped: var(--error)", css)
         self.assertIn("background: var(--progress-color", css)
 

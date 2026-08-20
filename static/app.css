@@ -24,7 +24,7 @@
   --accent-track: hsl(174 25% 29%);
   --accent-dark: hsl(174 42% 28%);
   --primary-mid: hsl(263 34% 44%);
-  --progress-in-progress: var(--primary);
+  --progress-started: var(--primary);
   --progress-complete: var(--accent);
   --progress-not-started: hsl(45 88% 62%);
   --progress-stopped: var(--error);
@@ -674,8 +674,8 @@ html.app-booting .app-boot-screen {
   text-transform: uppercase;
 }
 
-[data-progress-state="in-progress"] {
-  --progress-color: var(--progress-in-progress);
+[data-progress-state="started"] {
+  --progress-color: var(--progress-started);
 }
 
 [data-progress-state="finished"] {
@@ -686,7 +686,7 @@ html.app-booting .app-boot-screen {
   --progress-color: var(--progress-not-started);
 }
 
-[data-progress-state="stopped"] {
+[data-progress-state="started"][data-show-state="ARCHIVED"] {
   --progress-color: var(--progress-stopped);
 }
 
@@ -730,7 +730,7 @@ html.app-booting .app-boot-screen {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--progress-color, var(--progress-in-progress));
+  background: var(--progress-color, var(--progress-started));
   transition: width 240ms ease;
 }
 
@@ -961,11 +961,11 @@ html.app-booting .app-boot-screen {
 .detail-progress {
   padding: 16px;
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--progress-color, var(--progress-in-progress)) 14%, var(--surface-card));
+  background: color-mix(in srgb, var(--progress-color, var(--progress-started)) 14%, var(--surface-card));
 }
 
 .detail-progress .progress-track {
-  background: color-mix(in srgb, var(--progress-color, var(--progress-in-progress)) 28%, var(--surface-high));
+  background: color-mix(in srgb, var(--progress-color, var(--progress-started)) 28%, var(--surface-high));
 }
 
 .season-list {
