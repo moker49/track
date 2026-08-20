@@ -482,24 +482,30 @@ html.app-booting .app-boot-screen {
   height: 4px;
 }
 
+.schedule-timeline-item.is-caught-up {
+  --progress-color: var(--progress-complete);
+}
+
+.schedule-timeline-item.is-caught-up .schedule-timeline-marker strong,
+.schedule-caught-up-icon {
+  color: var(--progress-complete);
+}
+
+.schedule-timeline-item.is-caught-up .schedule-timeline-rail>span {
+  background: var(--progress-complete);
+}
+
+.schedule-caught-up-icon {
+  padding: 6px 8px;
+  font-size: 1.5rem;
+}
+
 .schedule-timeline-item.is-leaving .schedule-timeline-content {
   animation: schedule-content-out 180ms ease forwards;
 }
 
 .schedule-timeline-item.is-entering .schedule-timeline-content {
   animation: schedule-content-in 180ms ease both;
-}
-
-.schedule-timeline-confirmation {
-  min-height: 144px;
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: 32px auto;
-  place-content: center;
-  align-items: center;
-  gap: 10px;
-  color: var(--accent);
-  font-weight: 700;
 }
 
 .schedule-empty {

@@ -7,7 +7,7 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "search filter_list more_vert event tv inventory_2 explore",
+        "search filter_list more_vert event tv inventory_2 explore done_all",
       ),
       document.fonts.load('24px "Material Symbols Rounded Filled"', "event"),
     ]);
@@ -98,6 +98,9 @@ function syncGlobalSearch() {
 function showView(viewName, historyMode = null) {
   if (!views.has(viewName) || viewName === currentView) return;
 
+  if (currentView === "schedule" && viewName !== "schedule") {
+    clearCaughtUpScheduleItems();
+  }
   scrollPositions[currentView] = window.scrollY;
   views.forEach((view, name) => {
     const active = name === viewName;
@@ -466,7 +469,11 @@ function formatDisplayDates(root = document) {
 }
 
 function setScheduleTab(tabName) {
-  scheduleTab = tabName === "upcoming" ? "upcoming" : "catch-up";
+  const nextTab = tabName === "upcoming" ? "upcoming" : "catch-up";
+  if (scheduleTab === "catch-up" && nextTab !== "catch-up") {
+    clearCaughtUpScheduleItems();
+  }
+  scheduleTab = nextTab;
   const view = views.get("schedule");
   view.querySelectorAll("[data-schedule-tab]").forEach((tab) => {
     const selected = tab.dataset.scheduleTab === scheduleTab;
@@ -501,6 +508,35 @@ function syncCatchUpEmptyState() {
   const empty = view.querySelector("[data-catch-up-empty]");
   if (empty) empty.hidden = cards.length > 0;
   filterSchedule();
+}
+
+function clearCaughtUpScheduleItems() {
+  const view = views.get("schedule");
+  view.querySelectorAll('[data-schedule-mode="catch-up"].is-caught-up')
+    .forEach((card) => card.remove());
+  syncCatchUpEmptyState();
+}
+
+function showCaughtUpScheduleState(card, data, action) {
+  card.classList.remove("is-leaving");
+  card.classList.add("is-caught-up", "is-entering");
+
+  if (action === "watch") {
+    const percent = card.querySelector(".schedule-timeline-marker strong");
+    const count = card.querySelector(".schedule-timeline-marker span");
+    const progress = card.querySelector(".schedule-timeline-progress .progress-track span");
+    if (percent) percent.textContent = `${data.percent}%`;
+    if (count) count.textContent = `${data.watched_count}/${data.episode_count}`;
+    if (progress) progress.style.width = `${data.percent}%`;
+  }
+
+  const actions = card.querySelector(".schedule-timeline-actions");
+  if (actions) {
+    actions.innerHTML = `
+      <span class="schedule-caught-up-icon material-symbols-rounded"
+        role="img" aria-label="Caught up">done_all</span>`;
+  }
+  window.setTimeout(() => card.classList.remove("is-entering"), 240);
 }
 
 async function refreshScheduleContent() {
@@ -563,17 +599,14 @@ async function processScheduleEpisode(card, action) {
       formatDisplayDates(nextCard);
       filterSchedule();
       window.setTimeout(() => nextCard.classList.remove("is-entering"), 240);
+    } else if (
+      action === "watch"
+      && data.episode_count > 0
+      && data.watched_count === data.episode_count
+    ) {
+      showCaughtUpScheduleState(card, data, action);
     } else {
-      card.className = "schedule-timeline-item is-caught-up";
-      card.innerHTML = `
-        <div class="schedule-timeline-confirmation">
-          <span class="material-symbols-rounded" aria-hidden="true">done_all</span>
-          <span>Caught up with this show</span>
-        </div>`;
-      window.setTimeout(() => {
-        card.remove();
-        syncCatchUpEmptyState();
-      }, 650);
+      await refreshScheduleContent();
     }
 
     if (action === "skip") {

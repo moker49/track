@@ -242,6 +242,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('data-schedule-action', javascript)
         self.assertIn('button.classList.add("catalog-action-secondary")', javascript)
         self.assertIn('if (!snackbar || !actionLabel || !onAction) return;', javascript)
+        self.assertIn('function showCaughtUpScheduleState(card, data, action)', javascript)
+        self.assertIn('function clearCaughtUpScheduleItems()', javascript)
+        self.assertIn('aria-label="Caught up">done_all', javascript)
+        self.assertNotIn('Caught up with this show', javascript)
 
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
             encoding="utf-8"
@@ -259,6 +263,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('top: calc(50% - 4px);', css)
         self.assertIn('.schedule-timeline-content::after {', css)
         self.assertIn('background: linear-gradient(', css)
+        self.assertIn('.schedule-timeline-item.is-caught-up {', css)
+        self.assertIn('--progress-color: var(--progress-complete);', css)
+        self.assertIn('.schedule-caught-up-icon {', css)
+        self.assertIn('.schedule-timeline-item.is-caught-up .schedule-timeline-rail>span {', css)
 
         schedule_template = (Path(__file__).parents[1] / "templates" / "_schedule_content.html").read_text(
             encoding="utf-8"
@@ -301,6 +309,31 @@ class TrackAppTest(unittest.TestCase):
         ).fetchone()[0]
         connection.close()
         self.assertEqual(remaining_skip, 0)
+
+    def test_schedule_cycles_skipped_episodes_and_only_finishes_when_fully_watched(self):
+        for episode_id in range(6, 14):
+            skipped = self.client.post(f"/api/episodes/{episode_id}/skip")
+            self.assertEqual(skipped.status_code, 200)
+
+        wrapped = self.client.get("/api/schedule/shows/1/catch-up")
+        self.assertEqual(wrapped.status_code, 200)
+        self.assertIn(b'data-episode-id="6"', wrapped.data)
+
+        skipped_again = self.client.post("/api/episodes/6/skip")
+        self.assertEqual(skipped_again.status_code, 200)
+        rotated = self.client.get("/api/schedule/shows/1/catch-up")
+        self.assertEqual(rotated.status_code, 200)
+        self.assertIn(b'data-episode-id="7"', rotated.data)
+
+        for episode_id in range(6, 14):
+            watched = self.client.post(
+                f"/api/episodes/{episode_id}/watch-count",
+                json={"action": "increment"},
+            )
+            self.assertEqual(watched.status_code, 200)
+
+        caught_up = self.client.get("/api/schedule/shows/1/catch-up")
+        self.assertEqual(caught_up.status_code, 204)
 
     def test_library_filter_and_sort_dialog_is_in_the_shell(self):
         home = self.client.get("/")

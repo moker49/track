@@ -40,6 +40,10 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def precise_utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
 def migrate_watch_history_tables(db: sqlite3.Connection) -> None:
     table_definitions = {
         "episode_watch_history": ("episode_id", "episodes"),
@@ -262,11 +266,16 @@ def create_app(test_config: dict | None = None) -> Flask:
                        e.runtime_minutes,
                        ROW_NUMBER() OVER (
                            PARTITION BY s.id
-                           ORDER BY e.air_date, sn.season_number, e.episode_number
+                           ORDER BY CASE WHEN sk.episode_id IS NULL THEN 0 ELSE 1 END,
+                                    sk.skipped_at,
+                                    e.air_date,
+                                    sn.season_number,
+                                    e.episode_number
                        ) AS episode_rank
                 FROM shows s
                 JOIN seasons sn ON sn.show_id = s.id
                 JOIN episodes e ON e.season_id = sn.id
+                LEFT JOIN episode_skips sk ON sk.episode_id = e.id
                 WHERE s.is_tracked = 1
                   AND s.state = 'WATCHING'
                   AND sn.is_progress_counted = 1
@@ -276,10 +285,6 @@ def create_app(test_config: dict | None = None) -> Flask:
                   AND NOT EXISTS (
                       SELECT 1 FROM episode_watch_history wh
                       WHERE wh.episode_id = e.id
-                  )
-                  AND NOT EXISTS (
-                      SELECT 1 FROM episode_skips sk
-                      WHERE sk.episode_id = e.id
                   )
             )
             SELECT unresolved.*,
@@ -1003,7 +1008,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             VALUES (?, ?)
             ON CONFLICT(episode_id) DO UPDATE SET skipped_at = excluded.skipped_at
             """,
-            (episode_id, utc_now()),
+            (episode_id, precise_utc_now()),
         )
         db.commit()
         return jsonify(show_id=episode["show_id"], episode_id=episode_id)
