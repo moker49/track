@@ -1,22 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
 <header class="top-app-bar global-search-app-bar" data-global-search-bar>
-  <button class="icon-button top-bar-action" type="button" aria-label="Menu">
+  <button class="icon-button top-bar-action" type="button" data-search-menu aria-label="Menu">
     <span class="material-symbols-rounded" aria-hidden="true">menu</span>
+  </button>
+  <button class="icon-button top-bar-action" type="button" data-search-back aria-label="Clear search and go back" hidden>
+    <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
   </button>
   <form class="app-bar-search" role="search" data-view-search>
     <input type="search" placeholder="Search queue" aria-label="Search queue episodes"
       autocomplete="off" data-global-search>
-    <button class="search-clear" type="button" data-clear-search aria-label="Clear search" hidden>
-      <span class="material-symbols-rounded" aria-hidden="true">close</span>
-    </button>
     <button class="search-filter-decorator filter-button" type="button" data-open-library-filter="tv"
       aria-label="Filter and sort TV shows" hidden>
       <span class="material-symbols-rounded" aria-hidden="true">filter_list</span>
     </button>
   </form>
-  <button class="icon-button top-bar-action" type="button" aria-label="Profile">
+  <button class="icon-button top-bar-action" type="button" data-search-profile aria-label="Profile">
     <span class="material-symbols-rounded" aria-hidden="true">account_circle</span>
+  </button>
+  <button class="icon-button top-bar-action" type="button" data-clear-search aria-label="Clear search" hidden>
+    <span class="material-symbols-rounded" aria-hidden="true">close</span>
   </button>
 </header>
 

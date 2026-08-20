@@ -1694,6 +1694,11 @@ html.app-booting .app-boot-screen {
   outline: 2px solid var(--primary);
 }
 
+.app-bar-search:focus-within input {
+  padding-left: 20px;
+  text-align: left;
+}
+
 .app-bar-search input {
   width: 100%;
   height: 100%;
@@ -1721,29 +1726,6 @@ html.app-booting .app-boot-screen {
   display: none;
 }
 
-.search-clear {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 40px;
-  height: 40px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  display: grid;
-  flex: 0 0 40px;
-  place-items: center;
-  color: var(--on-surface-muted);
-  background: transparent;
-  cursor: pointer;
-}
-
-.search-clear:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-
 .search-filter-decorator {
   position: absolute;
   top: 8px;
@@ -1759,10 +1741,6 @@ html.app-booting .app-boot-screen {
   place-items: center;
   background: transparent;
   cursor: pointer;
-}
-
-.app-bar-search:has(.search-filter-decorator:not([hidden])) .search-clear:not([hidden]) {
-  right: 48px;
 }
 
 .search-filter-decorator:focus-visible {

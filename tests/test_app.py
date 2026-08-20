@@ -112,8 +112,11 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(home.data.count(b'data-global-search>'), 1)
         self.assertIn(b'aria-label="Menu"', home.data)
         self.assertIn(b'>menu</span>', home.data)
+        self.assertIn(b'data-search-back', home.data)
+        self.assertIn(b'>arrow_back</span>', home.data)
         self.assertIn(b'aria-label="Profile"', home.data)
         self.assertIn(b'>account_circle</span>', home.data)
+        self.assertIn(b'data-clear-search aria-label="Clear search" hidden', home.data)
         self.assertNotIn(b'>search</span>', home.data)
         self.assertIn(b'placeholder="Search queue"', home.data)
         self.assertIn(b'data-view="backlog"', home.data)
@@ -157,6 +160,19 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("grid-template-columns: 48px minmax(0, 1fr) 48px", css)
         self.assertIn("padding: max(12px, env(safe-area-inset-top)) 4px 12px", css)
         self.assertIn("text-align: center", css)
+        self.assertIn(".app-bar-search:focus-within input", css)
+        self.assertIn("text-align: left", css)
+
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("function syncSearchChrome()", javascript)
+        self.assertIn("searchMenuButton.hidden = hasText", javascript)
+        self.assertIn("searchProfileButton.hidden = hasText", javascript)
+        self.assertIn("searchClearButton.hidden = !hasText", javascript)
+        self.assertIn("searchBackButton.hidden = !hasText", javascript)
+        self.assertIn("globalSearchInput.focus()", javascript)
+        self.assertIn("globalSearchInput.blur()", javascript)
 
     def test_initial_library_order_matches_natural_default_sort(self):
         connection = sqlite3.connect(self.database)

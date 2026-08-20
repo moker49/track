@@ -7,7 +7,7 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list more_vert resume event tv done_all arrow_forward menu account_circle",
+        "filter_list more_vert resume event tv done_all arrow_forward menu account_circle arrow_back close",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
@@ -28,6 +28,10 @@ revealAppWhenIconsAreReady();
 const navButtons = [...document.querySelectorAll("[data-nav-view]")];
 const globalSearchBar = document.querySelector("[data-global-search-bar]");
 const globalSearchInput = document.querySelector("[data-global-search]");
+const searchMenuButton = document.querySelector("[data-search-menu]");
+const searchBackButton = document.querySelector("[data-search-back]");
+const searchProfileButton = document.querySelector("[data-search-profile]");
+const searchClearButton = document.querySelector("[data-clear-search]");
 const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, detail: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
@@ -80,6 +84,14 @@ function updateActiveNav(navView) {
   });
 }
 
+function syncSearchChrome() {
+  const hasText = Boolean(globalSearchInput?.value);
+  if (searchMenuButton) searchMenuButton.hidden = hasText;
+  if (searchBackButton) searchBackButton.hidden = !hasText;
+  if (searchProfileButton) searchProfileButton.hidden = hasText;
+  if (searchClearButton) searchClearButton.hidden = !hasText;
+}
+
 function syncGlobalSearch() {
   if (!globalSearchBar || !globalSearchInput) return;
   const isDetail = currentView === "detail";
@@ -95,8 +107,7 @@ function syncGlobalSearch() {
   globalSearchInput.placeholder = settings.placeholder;
   globalSearchInput.setAttribute("aria-label", settings.label);
   globalSearchInput.value = searchQueries[currentView];
-  const clearButton = globalSearchBar.querySelector("[data-clear-search]");
-  if (clearButton) clearButton.hidden = globalSearchInput.value.length === 0;
+  syncSearchChrome();
   const filterButton = globalSearchBar.querySelector("[data-open-library-filter]");
   if (filterButton) filterButton.hidden = currentView !== "tv";
 }
@@ -1807,6 +1818,7 @@ function filterAllShowViews() {
 
 globalSearchInput?.addEventListener("input", () => {
   if (currentView === "detail") return;
+  syncSearchChrome();
   const query = globalSearchInput.value;
   searchQueries[currentView] = query;
   if (["backlog", "upcoming"].includes(currentView)) {
@@ -1827,29 +1839,23 @@ globalSearchInput?.addEventListener("input", () => {
   }
 });
 
+searchClearButton?.addEventListener("click", () => {
+  globalSearchInput.value = "";
+  globalSearchInput.dispatchEvent(new Event("input", { bubbles: true }));
+  globalSearchInput.focus();
+});
+
+searchBackButton?.addEventListener("click", () => {
+  globalSearchInput.value = "";
+  globalSearchInput.dispatchEvent(new Event("input", { bubbles: true }));
+  globalSearchInput.blur();
+});
+
 filterAllShowViews();
 filterSchedule("backlog");
 filterSchedule("upcoming");
 formatDisplayDates(document);
 syncGlobalSearch();
-
-document.querySelectorAll(".app-bar-search").forEach((searchForm) => {
-  const input = searchForm.querySelector('input[type="search"]');
-  const clearButton = searchForm.querySelector("[data-clear-search]");
-  if (!input || !clearButton) return;
-
-  const syncClearButton = () => {
-    clearButton.hidden = input.value.length === 0;
-  };
-
-  input.addEventListener("input", syncClearButton);
-  clearButton.addEventListener("click", () => {
-    input.value = "";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.focus();
-  });
-  syncClearButton();
-});
 
 removeDialog?.addEventListener("close", () => {
   pendingRemoveShowId = null;
