@@ -160,8 +160,9 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("grid-template-columns: 48px minmax(0, 1fr) 48px", css)
         self.assertIn("padding: max(12px, env(safe-area-inset-top)) 4px 12px", css)
         self.assertIn("text-align: center", css)
-        self.assertIn(".app-bar-search:focus-within input", css)
+        self.assertIn(".app-bar-search:focus-within input.search-text-positioned", css)
         self.assertIn("text-align: left", css)
+        self.assertIn("transition: padding-left 180ms cubic-bezier(0.2, 0, 0, 1)", css)
 
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
@@ -173,6 +174,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("searchBackButton.hidden = !hasText", javascript)
         self.assertIn("globalSearchInput.focus()", javascript)
         self.assertIn("globalSearchInput.blur()", javascript)
+        self.assertIn("function syncSearchTextPosition()", javascript)
+        self.assertIn("searchTextMeasureContext.measureText(text).width", javascript)
+        self.assertIn('style.setProperty("--search-text-centered-inset"', javascript)
+        self.assertIn('classList.add("search-text-positioned")', javascript)
 
     def test_initial_library_order_matches_natural_default_sort(self):
         connection = sqlite3.connect(self.database)

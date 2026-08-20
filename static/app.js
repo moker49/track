@@ -32,6 +32,7 @@ const searchMenuButton = document.querySelector("[data-search-menu]");
 const searchBackButton = document.querySelector("[data-search-back]");
 const searchProfileButton = document.querySelector("[data-search-profile]");
 const searchClearButton = document.querySelector("[data-clear-search]");
+const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, detail: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
@@ -92,6 +93,20 @@ function syncSearchChrome() {
   if (searchClearButton) searchClearButton.hidden = !hasText;
 }
 
+function syncSearchTextPosition() {
+  if (!globalSearchInput || !searchTextMeasureContext || !globalSearchInput.clientWidth) return;
+  const style = window.getComputedStyle(globalSearchInput);
+  searchTextMeasureContext.font = style.font
+    || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+  const text = globalSearchInput.value || globalSearchInput.placeholder;
+  const letterSpacing = Number.parseFloat(style.letterSpacing) || 0;
+  const textWidth = searchTextMeasureContext.measureText(text).width
+    + Math.max(0, text.length - 1) * letterSpacing;
+  const centeredInset = Math.max(20, (globalSearchInput.clientWidth - textWidth) / 2);
+  globalSearchInput.style.setProperty("--search-text-centered-inset", `${centeredInset}px`);
+  globalSearchInput.classList.add("search-text-positioned");
+}
+
 function syncGlobalSearch() {
   if (!globalSearchBar || !globalSearchInput) return;
   const isDetail = currentView === "detail";
@@ -108,6 +123,7 @@ function syncGlobalSearch() {
   globalSearchInput.setAttribute("aria-label", settings.label);
   globalSearchInput.value = searchQueries[currentView];
   syncSearchChrome();
+  syncSearchTextPosition();
   const filterButton = globalSearchBar.querySelector("[data-open-library-filter]");
   if (filterButton) filterButton.hidden = currentView !== "tv";
 }
@@ -1819,6 +1835,7 @@ function filterAllShowViews() {
 globalSearchInput?.addEventListener("input", () => {
   if (currentView === "detail") return;
   syncSearchChrome();
+  syncSearchTextPosition();
   const query = globalSearchInput.value;
   searchQueries[currentView] = query;
   if (["backlog", "upcoming"].includes(currentView)) {
@@ -1850,6 +1867,9 @@ searchBackButton?.addEventListener("click", () => {
   globalSearchInput.dispatchEvent(new Event("input", { bubbles: true }));
   globalSearchInput.blur();
 });
+
+window.addEventListener("resize", syncSearchTextPosition);
+document.fonts?.ready.then(syncSearchTextPosition);
 
 filterAllShowViews();
 filterSchedule("backlog");
