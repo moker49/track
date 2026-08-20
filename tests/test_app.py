@@ -535,12 +535,19 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn("preferences.sortDirection !==", javascript)
         self.assertIn("const showDetailCache = new Map();", javascript)
         self.assertIn("const showSeasonsCache = new Map();", javascript)
+        self.assertIn("const seasonEpisodesCache = new Map();", javascript)
         self.assertIn("const [overviewHtml, seasonsHtml] = await Promise.all", javascript)
         self.assertIn(
             "renderShowDetail(cachedOverview, cachedSeasons, false, returnContext)",
             javascript,
         )
         self.assertIn("fetchFragment(`/api/shows/${showId}/seasons`", javascript)
+        self.assertIn("fetch(`/api/seasons/${seasonId}/episodes`", javascript)
+        self.assertIn('document.addEventListener("toggle"', javascript)
+        self.assertIn(
+            "await Promise.all(seasonsToRestore.filter(Boolean).map(loadSeasonEpisodes))",
+            javascript,
+        )
 
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
             encoding="utf-8"
@@ -580,9 +587,11 @@ class TrackAppTest(unittest.TestCase):
         seasons = self.client.get("/api/shows/1/seasons")
         self.assertEqual(seasons.status_code, 200)
         self.assertIn(b"Season 1", seasons.data)
-        self.assertIn(b"Season Two Premiere", seasons.data)
+        self.assertNotIn(b"Season Two Premiere", seasons.data)
         self.assertIn(b"data-season-watch", seasons.data)
-        self.assertIn(b"data-episode-watch", seasons.data)
+        self.assertNotIn(b"data-episode-watch", seasons.data)
+        self.assertIn(b'data-episodes-loaded="false"', seasons.data)
+        self.assertIn(b"data-season-episodes", seasons.data)
         self.assertIn(b"rewatch", seasons.data)
         self.assertIn(b"unwatch", seasons.data)
         self.assertIn(b'aria-checked="mixed"', seasons.data)
@@ -590,6 +599,13 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'<details class="season" open', seasons.data)
         self.assertNotIn(b"<!doctype html>", seasons.data.lower())
         self.assertNotIn(b"bottom-nav", seasons.data)
+
+        episodes = self.client.get("/api/seasons/2/episodes")
+        self.assertEqual(episodes.status_code, 200)
+        self.assertIn(b"Season Two Premiere", episodes.data)
+        self.assertIn(b"data-episode-watch", episodes.data)
+        self.assertNotIn(b"data-season-watch", episodes.data)
+        self.assertEqual(self.client.get("/api/seasons/999/episodes").status_code, 404)
 
         archived_detail = self.client.get("/api/shows/2")
         self.assertEqual(archived_detail.status_code, 200)
@@ -762,6 +778,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(first_watch.status_code, 200)
         first_data = first_watch.get_json()
         self.assertEqual(first_data["season_watched_count"], 6)
+        self.assertEqual(first_data["season_min_watch_count"], 1)
         self.assertEqual(first_data["watched_count"], 11)
         self.assertTrue(all(item["watch_count"] == 1 for item in first_data["episodes"]))
 
@@ -770,6 +787,7 @@ class TrackAppTest(unittest.TestCase):
         )
         rewatch_data = rewatch.get_json()
         self.assertEqual(rewatch_data["watched_count"], 11)
+        self.assertEqual(rewatch_data["season_min_watch_count"], 2)
         self.assertTrue(all(item["watch_count"] == 2 for item in rewatch_data["episodes"]))
 
         unwatch = self.client.post(
@@ -784,6 +802,7 @@ class TrackAppTest(unittest.TestCase):
         )
         fully_unwatched_data = fully_unwatched.get_json()
         self.assertEqual(fully_unwatched_data["season_watched_count"], 0)
+        self.assertEqual(fully_unwatched_data["season_min_watch_count"], 0)
         self.assertEqual(fully_unwatched_data["watched_count"], 5)
         self.assertTrue(
             all(
@@ -878,7 +897,7 @@ class TrackAppTest(unittest.TestCase):
             "/api/episodes/1/watch-count", json={"action": "increment"}
         )
 
-        detail = self.client.get("/api/shows/1/seasons")
+        detail = self.client.get("/api/seasons/1/episodes")
 
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b'data-watch-count="2"', detail.data)
@@ -911,7 +930,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("enableWatchControls(cachedList)", javascript)
         self.assertIn('enableWatchControls(views.get("detail"))', javascript)
 
-        seasons = self.client.get("/api/shows/1/seasons")
+        seasons = self.client.get("/api/seasons/1/episodes")
         self.assertNotIn(b" disabled", seasons.data)
 
     def test_progress_tag_supports_new(self):

@@ -1011,6 +1011,51 @@ html.app-booting .app-boot-screen {
   gap: 4px;
 }
 
+.season-episodes-loading {
+  min-height: 88px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.season-episodes-loading::before {
+  content: "";
+  width: min(38vw, 144px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+      color-mix(in srgb, var(--primary) 8%, transparent) 0%,
+      color-mix(in srgb, var(--surface-high) 30%, transparent) 34%,
+      transparent 70%);
+  animation: detail-breathe 3.2s ease-in-out 140ms infinite alternate both;
+}
+
+.season-episodes-error {
+  min-height: 64px;
+  padding: 8px 12px 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--on-surface-muted);
+  font-size: 0.82rem;
+}
+
+.season-episodes-error button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 20px;
+  color: var(--primary);
+  background: transparent;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.season-episodes-reveal {
+  animation: detail-slice-reveal 300ms ease-out both;
+}
+
 .season {
   position: relative;
   border-radius: var(--radius-md);
@@ -2322,6 +2367,8 @@ html.app-booting .app-boot-screen {
   }
 
   .detail-loading::before,
+  .season-episodes-loading::before,
+  .season-episodes-reveal,
   .detail-slice-reveal {
     animation: none;
   }

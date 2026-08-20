@@ -52,6 +52,9 @@ const libraryViewPreferences = {
 const searchQueries = { backlog: "", upcoming: "", tv: "" };
 const showDetailCache = new Map();
 const showSeasonsCache = new Map();
+const seasonEpisodesCache = new Map();
+const seasonEpisodeRequests = new Map();
+const seasonLoadTasks = new WeakMap();
 const episodeDetailCache = new Map();
 const showRefreshRequests = new Map();
 const pendingWatchChanges = new WeakSet();
@@ -614,6 +617,7 @@ async function processScheduleEpisode(card, action) {
     processed = true;
     if (action === "watch") {
       episodeDetailCache.delete(String(episodeId));
+      seasonEpisodesCache.clear();
       applyShowProgress(data);
     }
 
@@ -676,7 +680,10 @@ function finishDetailLoad({ resetScroll = true } = {}) {
 
 function invalidateShowCache(showId, includeSeasons = false) {
   showDetailCache.delete(String(showId));
-  if (includeSeasons) showSeasonsCache.delete(String(showId));
+  if (includeSeasons) {
+    showSeasonsCache.delete(String(showId));
+    seasonEpisodesCache.clear();
+  }
 }
 
 function cacheCurrentSeasons(showId) {
@@ -685,10 +692,22 @@ function cacheCurrentSeasons(showId) {
   if (seasonList) {
     const cachedList = seasonList.cloneNode(true);
     enableWatchControls(cachedList);
-    cachedList.querySelectorAll("details.season[open]")
-      .forEach((season) => season.removeAttribute("open"));
+    cachedList.querySelectorAll("details.season").forEach((season) => {
+      season.removeAttribute("open");
+      season.dataset.episodesLoaded = "false";
+      season.querySelector("[data-season-episodes]")?.replaceChildren();
+    });
     showSeasonsCache.set(String(showId), cachedList.innerHTML);
   }
+}
+
+function cacheCurrentSeasonEpisodes(season) {
+  if (season?.dataset.episodesLoaded !== "true") return;
+  const episodeList = season.querySelector("[data-season-episodes]");
+  if (!episodeList) return;
+  const cachedList = episodeList.cloneNode(true);
+  enableWatchControls(cachedList);
+  seasonEpisodesCache.set(String(season.dataset.seasonId), cachedList.innerHTML);
 }
 
 function enableWatchControls(root) {
@@ -696,16 +715,86 @@ function enableWatchControls(root) {
     .forEach((control) => { control.disabled = false; });
 }
 
-function restoreShowDetailContext(showId, context) {
+function renderSeasonEpisodes(season, html, animate) {
+  const episodeList = season.querySelector("[data-season-episodes]");
+  if (!episodeList) return;
+  episodeList.innerHTML = html;
+  season.dataset.episodesLoaded = "true";
+  enableWatchControls(episodeList);
+  formatDisplayDates(episodeList);
+  if (animate && episodeList.children.length) {
+    episodeList.classList.add("season-episodes-reveal");
+    episodeList.addEventListener("animationend", () => {
+      episodeList.classList.remove("season-episodes-reveal");
+    }, { once: true });
+  }
+}
+
+function loadSeasonEpisodes(season) {
+  if (!season || season.dataset.episodesLoaded === "true") return Promise.resolve();
+  const existingTask = seasonLoadTasks.get(season);
+  if (existingTask) return existingTask;
+  const task = performSeasonEpisodeLoad(season)
+    .finally(() => seasonLoadTasks.delete(season));
+  seasonLoadTasks.set(season, task);
+  return task;
+}
+
+async function performSeasonEpisodeLoad(season) {
+  if (!season || season.dataset.episodesLoaded === "true") return;
+  const seasonId = String(season.dataset.seasonId);
+  const cachedEpisodes = seasonEpisodesCache.get(seasonId);
+  if (cachedEpisodes !== undefined) {
+    renderSeasonEpisodes(season, cachedEpisodes, false);
+    return;
+  }
+
+  const episodeList = season.querySelector("[data-season-episodes]");
+  episodeList.innerHTML = `
+    <div class="season-episodes-loading" role="status" aria-label="Loading episodes">
+      <span class="sr-only">Loading episodes</span>
+    </div>`;
+
+  let request = seasonEpisodeRequests.get(seasonId);
+  if (!request) {
+    request = fetch(`/api/seasons/${seasonId}/episodes`, {
+      headers: { "X-Requested-With": "Track" },
+    }).then(async (response) => {
+      if (!response.ok) throw new Error("Could not load episodes");
+      const html = await response.text();
+      seasonEpisodesCache.set(seasonId, html);
+      return html;
+    });
+    seasonEpisodeRequests.set(seasonId, request);
+  }
+
+  try {
+    renderSeasonEpisodes(season, await request, true);
+  } catch (_error) {
+    episodeList.innerHTML = `
+      <div class="season-episodes-error">
+        <span>Couldn't load episodes.</span>
+        <button type="button" data-retry-season-episodes>Try again</button>
+      </div>`;
+  } finally {
+    if (seasonEpisodeRequests.get(seasonId) === request) {
+      seasonEpisodeRequests.delete(seasonId);
+    }
+  }
+}
+
+async function restoreShowDetailContext(showId, context) {
   if (!context) return;
   const detailShow = views.get("detail")
     .querySelector(`[data-detail-show][data-show-id="${showId}"]`);
   if (!detailShow) return;
 
-  (context.openSeasonIds || []).forEach((seasonId) => {
+  const seasonsToRestore = (context.openSeasonIds || []).map((seasonId) => {
     const season = detailShow.querySelector(`[data-season-id="${seasonId}"]`);
     if (season) season.open = true;
+    return season;
   });
+  await Promise.all(seasonsToRestore.filter(Boolean).map(loadSeasonEpisodes));
 
   const returnedEpisode = context.returnEpisodeId
     ? detailShow.querySelector(`[data-episode-id="${context.returnEpisodeId}"]`)
@@ -749,6 +838,7 @@ async function fetchRefreshedShowFragments(showId) {
   const cacheKey = String(showId);
   showDetailCache.set(cacheKey, overviewHtml);
   showSeasonsCache.set(cacheKey, seasonsHtml);
+  seasonEpisodesCache.clear();
 
   const currentShow = views.get("detail")
     .querySelector(`[data-detail-show][data-show-id="${showId}"]`);
@@ -757,6 +847,7 @@ async function fetchRefreshedShowFragments(showId) {
     [...currentShow.querySelectorAll("details.season[open]")]
       .map((season) => season.dataset.seasonId),
   );
+  const detailScrollY = window.scrollY;
 
   const template = document.createElement("template");
   template.innerHTML = overviewHtml.trim();
@@ -769,6 +860,10 @@ async function fetchRefreshedShowFragments(showId) {
   });
   views.get("detail").replaceChildren(template.content);
   finishDetailLoad({ resetScroll: false });
+  restoreShowDetailContext(showId, {
+    openSeasonIds: [...openSeasonIds],
+    detailScrollY,
+  });
 }
 
 async function refreshShowMetadata(showId, { force = false, trigger = null } = {}) {
@@ -1446,20 +1541,24 @@ function setWatchControl(control, watchCount, mixed = false) {
   }
 }
 
+function updateSeasonWatchSummary(season, episodeCount, watchedCount, minimumWatchCount) {
+  season.dataset.episodeCount = episodeCount;
+  season.dataset.watchedCount = watchedCount;
+  season.dataset.minWatchCount = minimumWatchCount;
+  if (season.dataset.progressCounted !== "false") {
+    season.querySelector(".season-title small").textContent = `${watchedCount} of ${episodeCount}`;
+  }
+  const mixed = watchedCount > 0 && watchedCount < episodeCount;
+  const displayedCount = watchedCount === episodeCount ? minimumWatchCount : 0;
+  setWatchControl(season.querySelector("[data-season-watch]"), displayedCount, mixed);
+}
+
 function syncSeasonFromEpisodes(season) {
   const episodes = [...season.querySelectorAll(".episode")];
   const counts = episodes.map((episode) => Number(episode.dataset.watchCount));
   const watchedCount = counts.filter((count) => count > 0).length;
   const minimumWatchCount = counts.length ? Math.min(...counts) : 0;
-  season.dataset.episodeCount = episodes.length;
-  season.dataset.watchedCount = watchedCount;
-  season.dataset.minWatchCount = minimumWatchCount;
-  if (season.dataset.progressCounted !== "false") {
-    season.querySelector(".season-title small").textContent = `${watchedCount} of ${episodes.length}`;
-  }
-  const mixed = watchedCount > 0 && watchedCount < episodes.length;
-  const displayedCount = watchedCount === episodes.length ? minimumWatchCount : 0;
-  setWatchControl(season.querySelector("[data-season-watch]"), displayedCount, mixed);
+  updateSeasonWatchSummary(season, episodes.length, watchedCount, minimumWatchCount);
 }
 
 function updateEpisodeWatchUi(episode, watchCount, syncSeason = true) {
@@ -1508,6 +1607,7 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
     episodeDetailCache.delete(String(episode.dataset.episodeId));
     updateEpisodeWatchUi(episode, data.watch_count);
     applyShowProgress(data);
+    cacheCurrentSeasonEpisodes(episode.closest(".season"));
     cacheCurrentSeasons(data.show_id);
   } catch (_error) {
     showSnackbar("Couldn't update this episode. Try again.");
@@ -1553,6 +1653,7 @@ async function changeEpisodeDetailWatchCount(detailEpisode, action) {
     if (!response.ok) throw new Error("Could not update episode");
     const data = await response.json();
     episodeDetailCache.delete(String(detailEpisode.dataset.episodeId));
+    seasonEpisodesCache.clear();
     updateEpisodeDetailWatchUi(detailEpisode, data.watch_count);
     applyShowProgress(data);
     if (data.action === "increment") {
@@ -1586,12 +1687,23 @@ async function changeSeasonWatchCount(season, action, trigger) {
     if (!response.ok) throw new Error("Could not update season");
     const data = await response.json();
     episodeDetailCache.clear();
-    data.episodes.forEach((episodeData) => {
-      const episode = season.querySelector(`[data-episode-id="${episodeData.episode_id}"]`);
-      if (episode) updateEpisodeWatchUi(episode, episodeData.watch_count, false);
-    });
-    syncSeasonFromEpisodes(season);
+    if (season.dataset.episodesLoaded === "true") {
+      data.episodes.forEach((episodeData) => {
+        const episode = season.querySelector(`[data-episode-id="${episodeData.episode_id}"]`);
+        if (episode) updateEpisodeWatchUi(episode, episodeData.watch_count, false);
+      });
+      syncSeasonFromEpisodes(season);
+    } else {
+      seasonEpisodesCache.delete(String(season.dataset.seasonId));
+      updateSeasonWatchSummary(
+        season,
+        data.season_episode_count,
+        data.season_watched_count,
+        data.season_min_watch_count,
+      );
+    }
     applyShowProgress(data);
+    cacheCurrentSeasonEpisodes(season);
     if (action === "increment") {
       addActivityItem({
         type: "season_watched",
@@ -1612,6 +1724,11 @@ async function changeSeasonWatchCount(season, action, trigger) {
     pendingWatchChanges.delete(season);
   }
 }
+
+document.addEventListener("toggle", (event) => {
+  const season = event.target.closest?.("details.season[data-season-id]");
+  if (season?.open) loadSeasonEpisodes(season);
+}, true);
 
 document.addEventListener("click", (event) => {
   const imageTrigger = event.target.closest("[data-full-image-src]");
@@ -1885,6 +2002,14 @@ document.addEventListener("click", (event) => {
   const retryEpisodeButton = event.target.closest("[data-retry-episode]");
   if (retryEpisodeButton) {
     openEpisode(retryEpisodeButton.dataset.retryEpisode, null);
+    return;
+  }
+
+  const retrySeasonEpisodes = event.target.closest("[data-retry-season-episodes]");
+  if (retrySeasonEpisodes) {
+    const season = retrySeasonEpisodes.closest(".season");
+    seasonEpisodesCache.delete(String(season.dataset.seasonId));
+    loadSeasonEpisodes(season);
     return;
   }
 

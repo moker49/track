@@ -688,30 +688,58 @@ def create_app(test_config: dict | None = None) -> Flask:
         if db.execute("SELECT 1 FROM shows WHERE id = ?", (show_id,)).fetchone() is None:
             abort(404)
         seasons = db.execute(
-            "SELECT * FROM seasons WHERE show_id = ? ORDER BY season_number",
-            (show_id,),
-        ).fetchall()
-        episodes_by_season = {}
-        for season in seasons:
-            episodes_by_season[season["id"]] = db.execute(
-                """
-                SELECT e.id, e.season_id, e.episode_number, e.name, e.overview,
-                       e.air_date, e.runtime_minutes, e.still_path,
-                       COUNT(wh.id) AS watch_count,
-                       MAX(wh.added_at) AS last_watched_at
+            """
+            WITH episode_counts AS (
+                SELECT e.id,
+                       e.season_id,
+                       COUNT(wh.id) AS watch_count
                 FROM episodes e
                 LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
-                WHERE e.season_id = ?
+                WHERE e.season_id IN (
+                    SELECT id FROM seasons WHERE show_id = ?
+                )
                 GROUP BY e.id
-                ORDER BY e.episode_number
-                """,
-                (season["id"],),
-            ).fetchall()
-        return render_template(
-            "_show_seasons.html",
-            seasons=seasons,
-            episodes_by_season=episodes_by_season,
-        )
+            )
+            SELECT sn.*,
+                   COUNT(ec.id) AS episode_count,
+                   COALESCE(SUM(CASE WHEN ec.watch_count > 0 THEN 1 ELSE 0 END), 0)
+                       AS watched_count,
+                   CASE
+                       WHEN COUNT(ec.id) > 0
+                        AND SUM(CASE WHEN ec.watch_count > 0 THEN 1 ELSE 0 END) = COUNT(ec.id)
+                       THEN MIN(ec.watch_count)
+                       ELSE 0
+                   END AS minimum_watch_count
+            FROM seasons sn
+            LEFT JOIN episode_counts ec ON ec.season_id = sn.id
+            WHERE sn.show_id = ?
+            GROUP BY sn.id
+            ORDER BY sn.season_number
+            """,
+            (show_id, show_id),
+        ).fetchall()
+        return render_template("_show_seasons.html", seasons=seasons)
+
+    @app.get("/api/seasons/<int:season_id>/episodes")
+    def season_episodes_fragment(season_id: int):
+        db = get_db()
+        if db.execute("SELECT 1 FROM seasons WHERE id = ?", (season_id,)).fetchone() is None:
+            abort(404)
+        episodes = db.execute(
+            """
+            SELECT e.id, e.season_id, e.episode_number, e.name, e.overview,
+                   e.air_date, e.runtime_minutes, e.still_path,
+                   COUNT(wh.id) AS watch_count,
+                   MAX(wh.added_at) AS last_watched_at
+            FROM episodes e
+            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+            WHERE e.season_id = ?
+            GROUP BY e.id
+            ORDER BY e.episode_number
+            """,
+            (season_id,),
+        ).fetchall()
+        return render_template("_season_episodes.html", episodes=episodes)
 
     @app.get("/api/episodes/<int:episode_id>")
     def episode_detail_fragment(episode_id: int):
@@ -1104,6 +1132,12 @@ def create_app(test_config: dict | None = None) -> Flask:
             season_episode_count=len(episode_counts),
             season_watched_count=sum(
                 1 for episode in episode_counts if episode["watch_count"] > 0
+            ),
+            season_min_watch_count=(
+                min(episode["watch_count"] for episode in episode_counts)
+                if episode_counts
+                and all(episode["watch_count"] > 0 for episode in episode_counts)
+                else 0
             ),
             season_watched_at=(changed_at if action == "increment" and episode_ids else None),
             season_watch_record_id=season_watch_record_id,
