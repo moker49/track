@@ -180,6 +180,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("window.history.back()", javascript)
         self.assertIn('detailType: "show"', javascript)
         self.assertIn('detailType: "episode"', javascript)
+        self.assertIn('activeHistoryState.detailType === "show"', javascript)
+        self.assertIn('previousWasShow,', javascript)
+        self.assertIn('episodeTemplate.content.querySelector("[data-episode-show-open]")?.remove()', javascript)
+        self.assertIn('replaceChildren(episodeTemplate.content)', javascript)
 
     def test_backlog_and_upcoming_are_independent_primary_views(self):
         connection = sqlite3.connect(self.database)

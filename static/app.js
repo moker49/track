@@ -7,7 +7,7 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "search filter_list more_vert resume event tv explore done_all",
+        "search filter_list more_vert resume event tv explore done_all arrow_forward",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
@@ -850,12 +850,22 @@ async function openShow(
 }
 
 async function openEpisode(episodeId, historyMode = "push") {
+  const activeHistoryState = window.history.state;
+  const previousWasShow = historyMode
+    ? Boolean(
+      activeHistoryState?.trackApp
+      && activeHistoryState.view === "detail"
+      && activeHistoryState.detailType === "show"
+    )
+    : Boolean(activeHistoryState?.previousWasShow);
+
   if (historyMode) {
     writeHistory({
       view: "detail",
       detailType: "episode",
       episodeId: String(episodeId),
       parentView: detailParentView,
+      previousWasShow,
     }, historyMode);
   }
   prepareDetailLoad("Episode details");
@@ -866,7 +876,12 @@ async function openEpisode(episodeId, historyMode = "push") {
       signal: detailRequest.signal,
     });
     if (!response.ok) throw new Error("Could not load episode");
-    views.get("detail").innerHTML = await response.text();
+    const episodeTemplate = document.createElement("template");
+    episodeTemplate.innerHTML = await response.text();
+    if (previousWasShow) {
+      episodeTemplate.content.querySelector("[data-episode-show-open]")?.remove();
+    }
+    views.get("detail").replaceChildren(episodeTemplate.content);
     finishDetailLoad();
   } catch (error) {
     if (error.name === "AbortError") return;
