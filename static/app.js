@@ -52,6 +52,7 @@ const libraryViewPreferences = {
 const searchQueries = { backlog: "", upcoming: "", tv: "" };
 const showDetailCache = new Map();
 const showSeasonsCache = new Map();
+const episodeDetailCache = new Map();
 const showRefreshRequests = new Map();
 const pendingWatchChanges = new WeakSet();
 const hydratedLibraryViews = new Set();
@@ -606,7 +607,10 @@ async function processScheduleEpisode(card, action) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `Could not ${action} episode`);
     processed = true;
-    if (action === "watch") applyShowProgress(data);
+    if (action === "watch") {
+      episodeDetailCache.delete(String(episodeId));
+      applyShowProgress(data);
+    }
 
     const nextResponse = await fetch(`/api/schedule/shows/${showId}/catch-up`, {
       headers: { "X-Requested-With": "Track" },
@@ -777,6 +781,7 @@ async function refreshShowMetadata(showId, { force = false, trigger = null } = {
     if (!response.ok) throw new Error(data.error || "Could not refresh show");
 
     if (data.refreshed) {
+      episodeDetailCache.clear();
       await fetchRefreshedShowFragments(showId);
       replaceLibraryCard(showId, data.card_html);
     } else {
@@ -933,6 +938,7 @@ async function openShow(
 }
 
 async function openEpisode(episodeId, historyMode = "push") {
+  const cacheKey = String(episodeId);
   const activeHistoryState = window.history.state;
   const previousWasShow = historyMode
     ? Boolean(
@@ -963,7 +969,18 @@ async function openEpisode(episodeId, historyMode = "push") {
       previousWasShow,
     }, historyMode);
   }
+
   if (detailRequest) detailRequest.abort();
+  const cachedEpisode = episodeDetailCache.get(cacheKey);
+  if (cachedEpisode) {
+    detailRequest = null;
+    scrollPositions.detail = 0;
+    if (currentView === "detail") window.scrollTo({ top: 0, behavior: "auto" });
+    else showView("detail");
+    renderEpisodeDetail(cachedEpisode, previousWasShow, false);
+    return;
+  }
+
   detailRequest = new AbortController();
   renderEpisodeDetailLoading();
   scrollPositions.detail = 0;
@@ -976,19 +993,9 @@ async function openEpisode(episodeId, historyMode = "push") {
       signal: detailRequest.signal,
     });
     if (!response.ok) throw new Error("Could not load episode");
-    const episodeTemplate = document.createElement("template");
-    episodeTemplate.innerHTML = await response.text();
-    if (previousWasShow) {
-      episodeTemplate.content.querySelector("[data-episode-show-open]")?.remove();
-    }
-    const episodeHero = episodeTemplate.content.querySelector(".episode-hero");
-    const episodeContent = episodeTemplate.content.querySelector(".episode-detail-content");
-    [episodeHero, ...episodeContent.children].forEach((section, index) => {
-      section.classList.add("episode-detail-reveal");
-      section.style.setProperty("--episode-detail-reveal-delay", `${index * 25}ms`);
-    });
-    views.get("detail").replaceChildren(episodeTemplate.content);
-    finishDetailLoad();
+    const episodeHtml = await response.text();
+    episodeDetailCache.set(cacheKey, episodeHtml);
+    renderEpisodeDetail(episodeHtml, previousWasShow, true);
   } catch (error) {
     if (error.name === "AbortError") return;
     views.get("detail").innerHTML = `
@@ -1005,6 +1012,24 @@ async function openEpisode(episodeId, historyMode = "push") {
         <button class="filled-button" type="button" data-retry-episode="${episodeId}">Try again</button>
       </div>`;
   }
+}
+
+function renderEpisodeDetail(episodeHtml, previousWasShow, animate) {
+  const episodeTemplate = document.createElement("template");
+  episodeTemplate.innerHTML = episodeHtml;
+  if (previousWasShow) {
+    episodeTemplate.content.querySelector("[data-episode-show-open]")?.remove();
+  }
+  if (animate) {
+    const episodeHero = episodeTemplate.content.querySelector(".episode-hero");
+    const episodeContent = episodeTemplate.content.querySelector(".episode-detail-content");
+    [episodeHero, ...episodeContent.children].forEach((section, index) => {
+      section.classList.add("episode-detail-reveal");
+      section.style.setProperty("--episode-detail-reveal-delay", `${index * 25}ms`);
+    });
+  }
+  views.get("detail").replaceChildren(episodeTemplate.content);
+  finishDetailLoad();
 }
 
 function syncActivityCount(log) {
@@ -1181,6 +1206,8 @@ async function saveWatchDate() {
     sortActivityItems(datePickerTarget.closest("[data-activity-log]"));
     const detailShow = datePickerTarget.closest("[data-detail-show]");
     if (detailShow) invalidateShowCache(detailShow.dataset.showId);
+    const detailEpisode = datePickerTarget.closest("[data-detail-episode]");
+    if (detailEpisode) episodeDetailCache.delete(detailEpisode.dataset.episodeId);
     datePicker.close();
   } catch (_error) {
     showSnackbar("Couldn't update the watch date. Try again.");
@@ -1482,6 +1509,7 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
     });
     if (!response.ok) throw new Error("Could not update episode");
     const data = await response.json();
+    episodeDetailCache.delete(String(episode.dataset.episodeId));
     updateEpisodeWatchUi(episode, data.watch_count);
     applyShowProgress(data);
     cacheCurrentSeasons(data.show_id);
@@ -1528,6 +1556,7 @@ async function changeEpisodeDetailWatchCount(detailEpisode, action) {
     });
     if (!response.ok) throw new Error("Could not update episode");
     const data = await response.json();
+    episodeDetailCache.delete(String(detailEpisode.dataset.episodeId));
     updateEpisodeDetailWatchUi(detailEpisode, data.watch_count);
     applyShowProgress(data);
     if (data.action === "increment") {
@@ -1560,6 +1589,7 @@ async function changeSeasonWatchCount(season, action, trigger) {
     });
     if (!response.ok) throw new Error("Could not update season");
     const data = await response.json();
+    episodeDetailCache.clear();
     data.episodes.forEach((episodeData) => {
       const episode = season.querySelector(`[data-episode-id="${episodeData.episode_id}"]`);
       if (episode) updateEpisodeWatchUi(episode, episodeData.watch_count, false);

@@ -888,6 +888,14 @@ class TrackAppTest(unittest.TestCase):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
+        self.assertIn("const episodeDetailCache = new Map();", javascript)
+        self.assertIn("if (cachedEpisode)", javascript)
+        self.assertIn(
+            "renderEpisodeDetail(cachedEpisode, previousWasShow, false)", javascript
+        )
+        self.assertIn(
+            "renderEpisodeDetail(episodeHtml, previousWasShow, true)", javascript
+        )
         episode_change = javascript[
             javascript.index("async function changeEpisodeWatchCount"):
             javascript.index("async function changeSeasonWatchCount")
