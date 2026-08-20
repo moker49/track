@@ -132,7 +132,7 @@ html.app-booting .app-boot-screen {
   z-index: 10;
   top: 0;
   min-height: calc(80px + env(safe-area-inset-top));
-  padding: max(12px, env(safe-area-inset-top)) 16px 12px;
+  padding: max(12px, env(safe-area-inset-top)) 4px 12px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -143,7 +143,7 @@ html.app-booting .app-boot-screen {
 .global-search-app-bar {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) 48px;
-  gap: 8px;
+  gap: 4px;
   align-items: center;
 }
 

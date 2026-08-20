@@ -155,6 +155,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("font-size: 1.16rem", css)
         self.assertIn("grid-template-columns: repeat(3, 1fr)", css)
         self.assertIn("grid-template-columns: 48px minmax(0, 1fr) 48px", css)
+        self.assertIn("padding: max(12px, env(safe-area-inset-top)) 4px 12px", css)
         self.assertIn("text-align: center", css)
 
     def test_initial_library_order_matches_natural_default_sort(self):
