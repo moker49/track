@@ -289,13 +289,11 @@ html.app-booting .app-boot-screen {
 }
 
 .schedule-timeline-list>.schedule-timeline-item:only-child .schedule-timeline-rail::before {
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    var(--outline-soft) 32px,
-    var(--outline-soft) calc(100% - 32px),
-    transparent
-  );
+  background: linear-gradient(to bottom,
+      transparent,
+      var(--outline-soft) 32px,
+      var(--outline-soft) calc(100% - 32px),
+      transparent);
 }
 
 .schedule-timeline-rail>span {
@@ -322,13 +320,11 @@ html.app-booting .app-boot-screen {
   bottom: 0;
   left: 8px;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--outline-soft) 70%, transparent) 18%,
-    color-mix(in srgb, var(--outline-soft) 70%, transparent) 82%,
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      color-mix(in srgb, var(--outline-soft) 70%, transparent) 18%,
+      color-mix(in srgb, var(--outline-soft) 70%, transparent) 82%,
+      transparent);
 }
 
 .schedule-timeline-item:last-child .schedule-timeline-content::after {
@@ -1673,7 +1669,7 @@ html.app-booting .app-boot-screen {
 }
 
 .status-button-group {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .sort-field-button-group {
