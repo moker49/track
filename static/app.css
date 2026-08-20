@@ -140,6 +140,17 @@ html.app-booting .app-boot-screen {
   background: var(--surface);
 }
 
+.global-search-app-bar {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  gap: 8px;
+  align-items: center;
+}
+
+.top-bar-action {
+  align-self: center;
+}
+
 .hero h1 {
   margin: 0;
   font-size: 2rem;
@@ -1670,12 +1681,11 @@ html.app-booting .app-boot-screen {
 }
 
 .app-bar-search {
+  position: relative;
   height: 56px;
-  padding: 0 20px;
+  padding: 0;
   border-radius: 28px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
+  display: block;
   color: var(--on-surface-muted);
   background: var(--surface-high);
 }
@@ -1686,12 +1696,15 @@ html.app-booting .app-boot-screen {
 
 .app-bar-search input {
   width: 100%;
+  height: 100%;
   min-width: 0;
+  padding: 0 40px;
   border: 0;
   outline: 0;
   color: var(--on-surface);
   background: transparent;
   appearance: none;
+  text-align: center;
 }
 
 .app-bar-search input::placeholder {
@@ -1709,9 +1722,12 @@ html.app-booting .app-boot-screen {
 }
 
 .search-clear {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   width: 40px;
   height: 40px;
-  margin-right: -12px;
+  margin: 0;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -1729,9 +1745,12 @@ html.app-booting .app-boot-screen {
 }
 
 .search-filter-decorator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   width: 40px;
   height: 40px;
-  margin-right: -12px;
+  margin: 0;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -1740,6 +1759,10 @@ html.app-booting .app-boot-screen {
   place-items: center;
   background: transparent;
   cursor: pointer;
+}
+
+.app-bar-search:has(.search-filter-decorator:not([hidden])) .search-clear:not([hidden]) {
+  right: 48px;
 }
 
 .search-filter-decorator:focus-visible {

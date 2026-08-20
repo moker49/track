@@ -110,6 +110,11 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"No results found", home.data)
         self.assertIn(b'data-global-search-bar', home.data)
         self.assertEqual(home.data.count(b'data-global-search>'), 1)
+        self.assertIn(b'aria-label="Menu"', home.data)
+        self.assertIn(b'>menu</span>', home.data)
+        self.assertIn(b'aria-label="Profile"', home.data)
+        self.assertIn(b'>account_circle</span>', home.data)
+        self.assertNotIn(b'>search</span>', home.data)
         self.assertIn(b'placeholder="Search queue"', home.data)
         self.assertIn(b'data-view="backlog"', home.data)
         self.assertIn(b'data-view="upcoming"', home.data)
@@ -149,6 +154,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('class="show-card-year">2008</span>', home.data.decode("utf-8"))
         self.assertIn("font-size: 1.16rem", css)
         self.assertIn("grid-template-columns: repeat(3, 1fr)", css)
+        self.assertIn("grid-template-columns: 48px minmax(0, 1fr) 48px", css)
+        self.assertIn("text-align: center", css)
 
     def test_initial_library_order_matches_natural_default_sort(self):
         connection = sqlite3.connect(self.database)

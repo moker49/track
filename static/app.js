@@ -7,7 +7,7 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "search filter_list more_vert resume event tv done_all arrow_forward",
+        "filter_list more_vert resume event tv done_all arrow_forward menu account_circle",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
