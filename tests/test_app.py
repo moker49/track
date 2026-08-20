@@ -542,7 +542,12 @@ class TrackAppTest(unittest.TestCase):
             javascript,
         )
         self.assertIn("fetchFragment(`/api/shows/${showId}/seasons`", javascript)
-        self.assertIn("fetch(`/api/seasons/${seasonId}/episodes`", javascript)
+        self.assertIn("fetch(`/api/seasons/${cacheKey}/episodes`", javascript)
+        self.assertIn("const seasonEpisodeHydrationTargets = new Map();", javascript)
+        self.assertIn("activeSeasonEpisodePrefetches < 3", javascript)
+        self.assertIn("window.requestIdleCallback(hydrateWhenIdle", javascript)
+        self.assertIn("renderSeasonEpisodes(season, html, false);", javascript)
+        self.assertIn("prefetchShowSeasonEpisodes(detailShow);", javascript)
         self.assertIn('document.addEventListener("toggle"', javascript)
         self.assertIn(
             "await Promise.all(seasonsToRestore.filter(Boolean).map(loadSeasonEpisodes))",

@@ -55,6 +55,11 @@ const showSeasonsCache = new Map();
 const seasonEpisodesCache = new Map();
 const seasonEpisodeRequests = new Map();
 const seasonLoadTasks = new WeakMap();
+const seasonEpisodePrefetchQueue = [];
+const queuedSeasonEpisodePrefetches = new Set();
+const seasonEpisodeHydrationTargets = new Map();
+let activeSeasonEpisodePrefetches = 0;
+let seasonEpisodeCacheGeneration = 0;
 const episodeDetailCache = new Map();
 const showRefreshRequests = new Map();
 const pendingWatchChanges = new WeakSet();
@@ -617,7 +622,7 @@ async function processScheduleEpisode(card, action) {
     processed = true;
     if (action === "watch") {
       episodeDetailCache.delete(String(episodeId));
-      seasonEpisodesCache.clear();
+      clearSeasonEpisodeCaches();
       applyShowProgress(data);
     }
 
@@ -682,8 +687,34 @@ function invalidateShowCache(showId, includeSeasons = false) {
   showDetailCache.delete(String(showId));
   if (includeSeasons) {
     showSeasonsCache.delete(String(showId));
-    seasonEpisodesCache.clear();
+    clearSeasonEpisodeCaches();
   }
+}
+
+function setSeasonEpisodesCache(seasonId, html) {
+  const cacheKey = String(seasonId);
+  seasonEpisodesCache.set(cacheKey, html);
+}
+
+function deleteSeasonEpisodesCache(seasonId) {
+  const cacheKey = String(seasonId);
+  seasonEpisodeCacheGeneration += 1;
+  seasonEpisodesCache.delete(cacheKey);
+  seasonEpisodeHydrationTargets.delete(cacheKey);
+  queuedSeasonEpisodePrefetches.delete(cacheKey);
+  for (let index = seasonEpisodePrefetchQueue.length - 1; index >= 0; index -= 1) {
+    if (seasonEpisodePrefetchQueue[index] === cacheKey) {
+      seasonEpisodePrefetchQueue.splice(index, 1);
+    }
+  }
+}
+
+function clearSeasonEpisodeCaches() {
+  seasonEpisodeCacheGeneration += 1;
+  seasonEpisodesCache.clear();
+  seasonEpisodeHydrationTargets.clear();
+  queuedSeasonEpisodePrefetches.clear();
+  seasonEpisodePrefetchQueue.length = 0;
 }
 
 function cacheCurrentSeasons(showId) {
@@ -707,7 +738,7 @@ function cacheCurrentSeasonEpisodes(season) {
   if (!episodeList) return;
   const cachedList = episodeList.cloneNode(true);
   enableWatchControls(cachedList);
-  seasonEpisodesCache.set(String(season.dataset.seasonId), cachedList.innerHTML);
+  setSeasonEpisodesCache(season.dataset.seasonId, cachedList.innerHTML);
 }
 
 function enableWatchControls(root) {
@@ -715,11 +746,128 @@ function enableWatchControls(root) {
     .forEach((control) => { control.disabled = false; });
 }
 
+function requestSeasonEpisodes(seasonId) {
+  const cacheKey = String(seasonId);
+  const cachedEpisodes = seasonEpisodesCache.get(cacheKey);
+  if (cachedEpisodes !== undefined) return Promise.resolve(cachedEpisodes);
+  const existingRequest = seasonEpisodeRequests.get(cacheKey);
+  if (existingRequest) return existingRequest;
+
+  const requestGeneration = seasonEpisodeCacheGeneration;
+  const request = fetch(`/api/seasons/${cacheKey}/episodes`, {
+    headers: { "X-Requested-With": "Track" },
+  }).then(async (response) => {
+    if (!response.ok) throw new Error("Could not load episodes");
+    const html = await response.text();
+    if (requestGeneration !== seasonEpisodeCacheGeneration) {
+      const staleError = new Error("Episode data changed while loading");
+      staleError.name = "StaleSeasonEpisodesError";
+      throw staleError;
+    }
+    setSeasonEpisodesCache(cacheKey, html);
+    return html;
+  }).finally(() => {
+    if (seasonEpisodeRequests.get(cacheKey) === request) {
+      seasonEpisodeRequests.delete(cacheKey);
+    }
+  });
+  seasonEpisodeRequests.set(cacheKey, request);
+  return request;
+}
+
+function scheduleSeasonEpisodeHydration(seasonId) {
+  const cacheKey = String(seasonId);
+  const season = seasonEpisodeHydrationTargets.get(cacheKey);
+  const html = seasonEpisodesCache.get(cacheKey);
+  const hydrationGeneration = seasonEpisodeCacheGeneration;
+  if (!season || html === undefined) return;
+  if (season.dataset.episodesLoaded === "true") {
+    seasonEpisodeHydrationTargets.delete(cacheKey);
+    return;
+  }
+
+  const hydrateWhenIdle = (deadline = null) => {
+    if (deadline && !deadline.didTimeout && deadline.timeRemaining() < 8) {
+      window.requestIdleCallback(hydrateWhenIdle, { timeout: 1200 });
+      return;
+    }
+    if (
+      hydrationGeneration !== seasonEpisodeCacheGeneration
+      || !season.isConnected
+      || seasonEpisodeHydrationTargets.get(cacheKey) !== season
+      || seasonEpisodesCache.get(cacheKey) !== html
+      || season.dataset.episodesLoaded === "true"
+    ) return;
+    renderSeasonEpisodes(season, html, false);
+    seasonEpisodeHydrationTargets.delete(cacheKey);
+  };
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(hydrateWhenIdle, { timeout: 1200 });
+  } else {
+    window.setTimeout(hydrateWhenIdle, 80);
+  }
+}
+
+function pumpSeasonEpisodePrefetchQueue() {
+  while (activeSeasonEpisodePrefetches < 3 && seasonEpisodePrefetchQueue.length) {
+    const seasonId = seasonEpisodePrefetchQueue.shift();
+    queuedSeasonEpisodePrefetches.delete(seasonId);
+    if (seasonEpisodesCache.has(seasonId)) {
+      scheduleSeasonEpisodeHydration(seasonId);
+      continue;
+    }
+    activeSeasonEpisodePrefetches += 1;
+    requestSeasonEpisodes(seasonId)
+      .then(() => {
+        scheduleSeasonEpisodeHydration(seasonId);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        activeSeasonEpisodePrefetches -= 1;
+        pumpSeasonEpisodePrefetchQueue();
+      });
+  }
+}
+
+function prefetchShowSeasonEpisodes(detailShow) {
+  const seasons = [...detailShow.querySelectorAll("details.season[data-season-id]")];
+  if (!seasons.length) return;
+  seasonEpisodeHydrationTargets.clear();
+  queuedSeasonEpisodePrefetches.clear();
+  seasonEpisodePrefetchQueue.length = 0;
+  const regularSeasons = seasons.filter((season) => season.dataset.progressCounted !== "false");
+  const likelySeason = regularSeasons.find(
+    (season) => Number(season.dataset.watchedCount) < Number(season.dataset.episodeCount),
+  ) || regularSeasons.at(-1) || seasons[0];
+  const orderedSeasons = [
+    likelySeason,
+    ...regularSeasons.filter((season) => season !== likelySeason),
+    ...seasons.filter((season) => season.dataset.progressCounted === "false"),
+  ];
+  orderedSeasons.forEach((season) => {
+    seasonEpisodeHydrationTargets.set(String(season.dataset.seasonId), season);
+  });
+  [...orderedSeasons].reverse().forEach((season) => {
+    const seasonId = String(season.dataset.seasonId);
+    if (seasonEpisodesCache.has(seasonId)) {
+      scheduleSeasonEpisodeHydration(seasonId);
+      return;
+    }
+    if (queuedSeasonEpisodePrefetches.has(seasonId)) return;
+    queuedSeasonEpisodePrefetches.add(seasonId);
+    seasonEpisodePrefetchQueue.unshift(seasonId);
+  });
+  pumpSeasonEpisodePrefetchQueue();
+}
+
 function renderSeasonEpisodes(season, html, animate) {
   const episodeList = season.querySelector("[data-season-episodes]");
   if (!episodeList) return;
   episodeList.innerHTML = html;
   season.dataset.episodesLoaded = "true";
+  if (seasonEpisodeHydrationTargets.get(String(season.dataset.seasonId)) === season) {
+    seasonEpisodeHydrationTargets.delete(String(season.dataset.seasonId));
+  }
   enableWatchControls(episodeList);
   formatDisplayDates(episodeList);
   if (animate && episodeList.children.length) {
@@ -755,31 +903,18 @@ async function performSeasonEpisodeLoad(season) {
       <span class="sr-only">Loading episodes</span>
     </div>`;
 
-  let request = seasonEpisodeRequests.get(seasonId);
-  if (!request) {
-    request = fetch(`/api/seasons/${seasonId}/episodes`, {
-      headers: { "X-Requested-With": "Track" },
-    }).then(async (response) => {
-      if (!response.ok) throw new Error("Could not load episodes");
-      const html = await response.text();
-      seasonEpisodesCache.set(seasonId, html);
-      return html;
-    });
-    seasonEpisodeRequests.set(seasonId, request);
-  }
-
   try {
-    renderSeasonEpisodes(season, await request, true);
-  } catch (_error) {
+    renderSeasonEpisodes(season, await requestSeasonEpisodes(seasonId), true);
+  } catch (error) {
+    if (error.name === "StaleSeasonEpisodesError") {
+      await performSeasonEpisodeLoad(season);
+      return;
+    }
     episodeList.innerHTML = `
       <div class="season-episodes-error">
         <span>Couldn't load episodes.</span>
         <button type="button" data-retry-season-episodes>Try again</button>
       </div>`;
-  } finally {
-    if (seasonEpisodeRequests.get(seasonId) === request) {
-      seasonEpisodeRequests.delete(seasonId);
-    }
   }
 }
 
@@ -838,7 +973,7 @@ async function fetchRefreshedShowFragments(showId) {
   const cacheKey = String(showId);
   showDetailCache.set(cacheKey, overviewHtml);
   showSeasonsCache.set(cacheKey, seasonsHtml);
-  seasonEpisodesCache.clear();
+  clearSeasonEpisodeCaches();
 
   const currentShow = views.get("detail")
     .querySelector(`[data-detail-show][data-show-id="${showId}"]`);
@@ -1029,6 +1164,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
   enableWatchControls(views.get("detail"));
   finishDetailLoad();
   restoreShowDetailContext(detailShow.dataset.showId, returnContext);
+  prefetchShowSeasonEpisodes(detailShow);
 }
 
 async function openEpisode(episodeId, historyMode = "push") {
@@ -1653,7 +1789,7 @@ async function changeEpisodeDetailWatchCount(detailEpisode, action) {
     if (!response.ok) throw new Error("Could not update episode");
     const data = await response.json();
     episodeDetailCache.delete(String(detailEpisode.dataset.episodeId));
-    seasonEpisodesCache.clear();
+    clearSeasonEpisodeCaches();
     updateEpisodeDetailWatchUi(detailEpisode, data.watch_count);
     applyShowProgress(data);
     if (data.action === "increment") {
@@ -1694,7 +1830,7 @@ async function changeSeasonWatchCount(season, action, trigger) {
       });
       syncSeasonFromEpisodes(season);
     } else {
-      seasonEpisodesCache.delete(String(season.dataset.seasonId));
+      deleteSeasonEpisodesCache(season.dataset.seasonId);
       updateSeasonWatchSummary(
         season,
         data.season_episode_count,
@@ -2008,7 +2144,7 @@ document.addEventListener("click", (event) => {
   const retrySeasonEpisodes = event.target.closest("[data-retry-season-episodes]");
   if (retrySeasonEpisodes) {
     const season = retrySeasonEpisodes.closest(".season");
-    seasonEpisodesCache.delete(String(season.dataset.seasonId));
+    deleteSeasonEpisodesCache(season.dataset.seasonId);
     loadSeasonEpisodes(season);
     return;
   }
