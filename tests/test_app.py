@@ -128,8 +128,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'data-view="archive"', home.data)
         self.assertNotIn(b'data-view="discover"', home.data)
         self.assertIn(b'data-view="detail"', home.data)
-        self.assertIn(b'id="detail-skeleton-template"', home.data)
-        self.assertIn(b'id="episode-detail-loading-template"', home.data)
+        self.assertIn(b'id="detail-loading-template"', home.data)
+        self.assertNotIn(b'id="detail-skeleton-template"', home.data)
         self.assertIn(b'class="app-boot-screen"', home.data)
         self.assertIn(b'document.documentElement.classList.add("app-booting")', home.data)
         self.assertIn(b'material-symbols-rounded-filled.ttf', home.data)
@@ -535,11 +535,12 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn("preferences.sortDirection !==", javascript)
         self.assertIn("const showDetailCache = new Map();", javascript)
         self.assertIn("const showSeasonsCache = new Map();", javascript)
+        self.assertIn("const [overviewHtml, seasonsHtml] = await Promise.all", javascript)
         self.assertIn(
-            "async function loadShowSeasons(showId, signal, returnContext = null)",
+            "renderShowDetail(cachedOverview, cachedSeasons, false, returnContext)",
             javascript,
         )
-        self.assertIn("fetch(`/api/shows/${showId}/seasons`", javascript)
+        self.assertIn("fetchFragment(`/api/shows/${showId}/seasons`", javascript)
 
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
             encoding="utf-8"
@@ -558,7 +559,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b"arrow_back", detail.data)
         self.assertIn(b"data-season-list", detail.data)
-        self.assertIn(b"data-season-loading", detail.data)
+        self.assertNotIn(b"data-season-loading", detail.data)
         self.assertIn(b'data-tmdb-refreshed-at=""', detail.data)
         self.assertIn(b'data-metadata-refresh-due="true"', detail.data)
         self.assertNotIn(b"Season 1", detail.data)
@@ -908,7 +909,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(".disabled", season_change)
         self.assertIn("const pendingWatchChanges = new WeakSet();", javascript)
         self.assertIn("enableWatchControls(cachedList)", javascript)
-        self.assertIn("enableWatchControls(seasonList)", javascript)
+        self.assertIn('enableWatchControls(views.get("detail"))', javascript)
 
         seasons = self.client.get("/api/shows/1/seasons")
         self.assertNotIn(b" disabled", seasons.data)

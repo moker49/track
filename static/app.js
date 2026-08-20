@@ -471,17 +471,22 @@ async function trackDetailShow(showElement, state, trigger) {
   }
 }
 
-function renderDetailSkeleton(title = "Show details") {
+function renderDetailLoading(title) {
   const detailView = views.get("detail");
-  const template = document.querySelector("#detail-skeleton-template");
+  const template = document.querySelector("#detail-loading-template");
   detailView.replaceChildren(template.content.cloneNode(true));
-  detailView.querySelector("[data-detail-skeleton-title]").textContent = title;
+  detailView.querySelector("[data-detail-loading-title]").textContent = title;
+  const loadingLabel = `Loading ${title.toLowerCase()}`;
+  const loading = detailView.querySelector(".detail-loading");
+  loading.setAttribute("aria-label", loadingLabel);
+  loading.querySelector("[data-detail-loading-label]").textContent = loadingLabel;
 }
 
-function renderEpisodeDetailLoading() {
-  const detailView = views.get("detail");
-  const template = document.querySelector("#episode-detail-loading-template");
-  detailView.replaceChildren(template.content.cloneNode(true));
+function staggerDetailSlices(sections, startIndex = 0) {
+  sections.filter(Boolean).forEach((section, index) => {
+    section.classList.add("detail-slice-reveal");
+    section.style.setProperty("--detail-slice-delay", `${(startIndex + index) * 25}ms`);
+  });
 }
 
 function parseIsoDate(value) {
@@ -677,7 +682,7 @@ function invalidateShowCache(showId, includeSeasons = false) {
 function cacheCurrentSeasons(showId) {
   const detailShow = views.get("detail").querySelector(`[data-detail-show][data-show-id="${showId}"]`);
   const seasonList = detailShow?.querySelector("[data-season-list]");
-  if (seasonList && !seasonList.querySelector("[data-season-loading]")) {
+  if (seasonList) {
     const cachedList = seasonList.cloneNode(true);
     enableWatchControls(cachedList);
     cachedList.querySelectorAll("details.season[open]")
@@ -820,55 +825,10 @@ function refreshShowIfDue(showId) {
   }
 }
 
-async function loadShowSeasons(showId, signal, returnContext = null) {
-  const cacheKey = String(showId);
-  const detailShow = views.get("detail").querySelector(`[data-detail-show][data-show-id="${showId}"]`);
-  const seasonList = detailShow?.querySelector("[data-season-list]");
-  if (!seasonList) return;
-
-  if (showSeasonsCache.has(cacheKey)) {
-    seasonList.innerHTML = showSeasonsCache.get(cacheKey);
-    enableWatchControls(seasonList);
-    seasonList.removeAttribute("aria-busy");
-    formatDisplayDates(seasonList);
-    restoreShowDetailContext(showId, returnContext);
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/shows/${showId}/seasons`, {
-      headers: { "X-Requested-With": "Track" },
-      signal,
-    });
-    if (!response.ok) throw new Error("Could not load seasons");
-    const html = await response.text();
-    showSeasonsCache.set(cacheKey, html);
-    const currentList = views.get("detail")
-      .querySelector(`[data-detail-show][data-show-id="${showId}"] [data-season-list]`);
-    if (!currentList) return;
-    currentList.innerHTML = html;
-    enableWatchControls(currentList);
-    currentList.removeAttribute("aria-busy");
-    formatDisplayDates(currentList);
-    restoreShowDetailContext(showId, returnContext);
-  } catch (error) {
-    if (error.name === "AbortError") return;
-    const currentList = views.get("detail")
-      .querySelector(`[data-detail-show][data-show-id="${showId}"] [data-season-list]`);
-    if (!currentList) return;
-    currentList.innerHTML = `
-      <div class="season-load-error">
-        <span>Couldn't load seasons and episodes.</span>
-        <button type="button" data-retry-seasons="${showId}">Try again</button>
-      </div>`;
-    currentList.removeAttribute("aria-busy");
-  }
-}
-
 function prepareDetailLoad(title) {
   if (detailRequest) detailRequest.abort();
   detailRequest = new AbortController();
-  renderDetailSkeleton(title);
+  renderDetailLoading(title);
   scrollPositions.detail = 0;
   if (currentView === "detail") window.scrollTo({ top: 0, behavior: "auto" });
   else showView("detail");
@@ -881,6 +841,7 @@ async function openShow(
   historyMode = "push",
   returnContext = null,
 ) {
+  const cacheKey = String(showId);
   detailParentView = ["backlog", "upcoming", "tv"].includes(parentView)
     ? parentView
     : "backlog";
@@ -892,33 +853,45 @@ async function openShow(
       parentView: detailParentView,
     }, historyMode);
   }
+  const cachedOverview = showDetailCache.get(cacheKey);
+  const cachedSeasons = showSeasonsCache.get(cacheKey);
+  if (cachedOverview && cachedSeasons) {
+    if (detailRequest) detailRequest.abort();
+    detailRequest = null;
+    if (currentView !== "detail") showView("detail");
+    renderShowDetail(cachedOverview, cachedSeasons, false, returnContext);
+    refreshShowIfDue(showId);
+    return;
+  }
+
   if (showSkeleton) prepareDetailLoad("Show details");
   else {
     if (detailRequest) detailRequest.abort();
     detailRequest = new AbortController();
-  }
-
-  const cacheKey = String(showId);
-  if (showDetailCache.has(cacheKey)) {
-    views.get("detail").innerHTML = showDetailCache.get(cacheKey);
-    finishDetailLoad();
-    loadShowSeasons(showId, detailRequest.signal, returnContext)
-      .finally(() => refreshShowIfDue(showId));
-    return;
+    if (currentView !== "detail") showView("detail");
   }
 
   try {
-    const response = await fetch(`/api/shows/${showId}`, {
-      headers: { "X-Requested-With": "Track" },
-      signal: detailRequest.signal,
-    });
-    if (!response.ok) throw new Error("Could not load show");
-    const html = await response.text();
-    showDetailCache.set(cacheKey, html);
-    views.get("detail").innerHTML = html;
-    finishDetailLoad();
-    loadShowSeasons(showId, detailRequest.signal, returnContext)
-      .finally(() => refreshShowIfDue(showId));
+    const fetchFragment = async (url, errorMessage) => {
+      const response = await fetch(url, {
+        headers: { "X-Requested-With": "Track" },
+        signal: detailRequest.signal,
+      });
+      if (!response.ok) throw new Error(errorMessage);
+      return response.text();
+    };
+    const [overviewHtml, seasonsHtml] = await Promise.all([
+      cachedOverview
+        ? Promise.resolve(cachedOverview)
+        : fetchFragment(`/api/shows/${showId}`, "Could not load show"),
+      cachedSeasons
+        ? Promise.resolve(cachedSeasons)
+        : fetchFragment(`/api/shows/${showId}/seasons`, "Could not load seasons"),
+    ]);
+    showDetailCache.set(cacheKey, overviewHtml);
+    showSeasonsCache.set(cacheKey, seasonsHtml);
+    renderShowDetail(overviewHtml, seasonsHtml, true, returnContext);
+    refreshShowIfDue(showId);
   } catch (error) {
     if (error.name === "AbortError") return;
     views.get("detail").innerHTML = `
@@ -935,6 +908,32 @@ async function openShow(
         <button class="filled-button" type="button" data-retry-show="${showId}">Try again</button>
       </div>`;
   }
+}
+
+function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) {
+  const showTemplate = document.createElement("template");
+  showTemplate.innerHTML = showHtml;
+  const detailShow = showTemplate.content.querySelector("[data-detail-show]");
+  const hero = detailShow.querySelector(".hero");
+  const detailContent = detailShow.querySelector(".detail-content");
+  const seasonList = detailContent.querySelector("[data-season-list]");
+  const activity = detailContent.querySelector("[data-activity-log]");
+  seasonList.innerHTML = seasonsHtml;
+  seasonList.removeAttribute("aria-busy");
+  if (animate) {
+    const slices = [
+      hero,
+      ...[...detailContent.children]
+        .filter((section) => section !== seasonList && section !== activity),
+      ...seasonList.querySelectorAll(":scope > .season"),
+      activity,
+    ];
+    staggerDetailSlices(slices);
+  }
+  views.get("detail").replaceChildren(showTemplate.content);
+  enableWatchControls(views.get("detail"));
+  finishDetailLoad();
+  restoreShowDetailContext(detailShow.dataset.showId, returnContext);
 }
 
 async function openEpisode(episodeId, historyMode = "push") {
@@ -982,7 +981,7 @@ async function openEpisode(episodeId, historyMode = "push") {
   }
 
   detailRequest = new AbortController();
-  renderEpisodeDetailLoading();
+  renderDetailLoading("Episode details");
   scrollPositions.detail = 0;
   if (currentView === "detail") window.scrollTo({ top: 0, behavior: "auto" });
   else showView("detail");
@@ -1023,10 +1022,7 @@ function renderEpisodeDetail(episodeHtml, previousWasShow, animate) {
   if (animate) {
     const episodeHero = episodeTemplate.content.querySelector(".episode-hero");
     const episodeContent = episodeTemplate.content.querySelector(".episode-detail-content");
-    [episodeHero, ...episodeContent.children].forEach((section, index) => {
-      section.classList.add("episode-detail-reveal");
-      section.style.setProperty("--episode-detail-reveal-delay", `${index * 25}ms`);
-    });
+    staggerDetailSlices([episodeHero, ...episodeContent.children]);
   }
   views.get("detail").replaceChildren(episodeTemplate.content);
   finishDetailLoad();
@@ -1883,22 +1879,6 @@ document.addEventListener("click", (event) => {
   const retryButton = event.target.closest("[data-retry-show]");
   if (retryButton) {
     openShow(retryButton.dataset.retryShow, detailParentView, true, null);
-    return;
-  }
-
-  const retrySeasonsButton = event.target.closest("[data-retry-seasons]");
-  if (retrySeasonsButton) {
-    const showId = retrySeasonsButton.dataset.retrySeasons;
-    showSeasonsCache.delete(String(showId));
-    const seasonList = retrySeasonsButton.closest("[data-season-list]");
-    seasonList.innerHTML = `
-      <div class="season-background-loading" data-season-loading aria-label="Loading seasons and episodes">
-        <span class="skeleton-block skeleton-season"></span>
-        <span class="skeleton-block skeleton-season"></span>
-        <span class="skeleton-block skeleton-season"></span>
-      </div>`;
-    seasonList.setAttribute("aria-busy", "true");
-    loadShowSeasons(showId, detailRequest.signal);
     return;
   }
 

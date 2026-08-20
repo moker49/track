@@ -95,11 +95,6 @@
     {% endif %}
 
     <div class="season-list" data-season-list data-show-id="{{ show.id }}" aria-busy="true">
-      <div class="season-background-loading" data-season-loading aria-label="Loading seasons and episodes">
-        <span class="skeleton-block skeleton-season"></span>
-        <span class="skeleton-block skeleton-season"></span>
-        <span class="skeleton-block skeleton-season"></span>
-      </div>
       {% for season in seasons %}
       {% set episodes = episodes_by_season[season.id] %}
       {% set watched_in_season = episodes|selectattr('watch_count', 'gt', 0)|list|length %}

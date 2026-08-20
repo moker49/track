@@ -1011,35 +1011,6 @@ html.app-booting .app-boot-screen {
   gap: 4px;
 }
 
-.season-background-loading {
-  display: grid;
-  gap: 4px;
-}
-
-.season-load-error {
-  min-height: 72px;
-  padding: 12px 16px;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--on-surface-muted);
-  background: var(--surface-card);
-  font-size: 0.82rem;
-}
-
-.season-load-error button {
-  min-height: 40px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 20px;
-  color: var(--primary);
-  background: transparent;
-  font-weight: 700;
-  cursor: pointer;
-}
-
 .season {
   position: relative;
   border-radius: var(--radius-md);
@@ -2213,18 +2184,14 @@ html.app-booting .app-boot-screen {
   margin-inline: 16px;
 }
 
-.detail-skeleton {
-  padding-bottom: 28px;
-}
-
-.episode-detail-loading {
+.detail-loading {
   min-height: min(62dvh, 560px);
   display: grid;
   place-items: center;
   overflow: hidden;
 }
 
-.episode-detail-loading::before {
+.detail-loading::before {
   content: "";
   width: min(64vw, 280px);
   aspect-ratio: 1;
@@ -2233,80 +2200,12 @@ html.app-booting .app-boot-screen {
       color-mix(in srgb, var(--primary) 8%, transparent) 0%,
       color-mix(in srgb, var(--surface-high) 30%, transparent) 34%,
       transparent 70%);
-  animation: episode-detail-breathe 3.2s ease-in-out 140ms infinite alternate both;
+  animation: detail-breathe 3.2s ease-in-out 140ms infinite alternate both;
 }
 
-.episode-detail-reveal {
-  animation: episode-detail-reveal 300ms ease-out both;
-  animation-delay: var(--episode-detail-reveal-delay, 0ms);
-}
-
-.skeleton-hero {
-  padding: 8px 20px 20px;
-  display: grid;
-  grid-template-columns: 112px 1fr;
-  align-items: end;
-  gap: 18px;
-}
-
-.skeleton-copy {
-  display: grid;
-  gap: 12px;
-  padding-bottom: 10px;
-}
-
-.skeleton-body {
-  padding: 12px 20px;
-  display: grid;
-  gap: 12px;
-}
-
-.skeleton-block {
-  display: block;
-  border-radius: 8px;
-  background: var(--surface-high);
-  animation: skeleton-pulse 1.2s ease-in-out infinite alternate;
-}
-
-.skeleton-poster {
-  width: 112px;
-  height: 160px;
-  border-radius: var(--radius-md);
-}
-
-.skeleton-chip {
-  width: 72px;
-  height: 24px;
-}
-
-.skeleton-title {
-  width: 88%;
-  height: 32px;
-}
-
-.skeleton-line {
-  width: 100%;
-  height: 14px;
-}
-
-.skeleton-line.medium {
-  width: 58%;
-}
-
-.skeleton-line.short {
-  width: 70%;
-}
-
-.skeleton-progress {
-  height: 68px;
-  margin-top: 8px;
-  border-radius: var(--radius-md);
-}
-
-.skeleton-season {
-  height: 72px;
-  margin-top: 2px;
-  border-radius: var(--radius-md);
+.detail-slice-reveal {
+  animation: detail-slice-reveal 300ms ease-out both;
+  animation-delay: var(--detail-slice-delay, 0ms);
 }
 
 .sr-only {
@@ -2331,7 +2230,7 @@ html.app-booting .app-boot-screen {
   }
 }
 
-@keyframes episode-detail-breathe {
+@keyframes detail-breathe {
   from {
     opacity: 0.18;
     transform: scale(0.82);
@@ -2343,7 +2242,7 @@ html.app-booting .app-boot-screen {
   }
 }
 
-@keyframes episode-detail-reveal {
+@keyframes detail-slice-reveal {
   from {
     opacity: 0;
     transform: translateY(4px);
@@ -2422,8 +2321,8 @@ html.app-booting .app-boot-screen {
     transition-duration: 0.01ms !important;
   }
 
-  .episode-detail-loading::before,
-  .episode-detail-reveal {
+  .detail-loading::before,
+  .detail-slice-reveal {
     animation: none;
   }
 }

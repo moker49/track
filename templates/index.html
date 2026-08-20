@@ -37,42 +37,15 @@
 
 <section class="app-view" data-view="detail" aria-label="Show details" aria-live="polite" hidden></section>
 
-<template id="detail-skeleton-template">
-  <header class="detail-app-bar">
-    <button class="icon-button" type="button" data-detail-back aria-label="Back to TV">
-      <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
-    </button>
-    <span data-detail-skeleton-title>Show details</span>
-  </header>
-  <div class="detail-skeleton" aria-label="Loading show details" aria-busy="true">
-    <div class="skeleton-hero">
-      <span class="skeleton-block skeleton-poster"></span>
-      <div class="skeleton-copy">
-        <span class="skeleton-block skeleton-chip"></span>
-        <span class="skeleton-block skeleton-title"></span>
-        <span class="skeleton-block skeleton-line short"></span>
-      </div>
-    </div>
-    <div class="skeleton-body">
-      <span class="skeleton-block skeleton-line medium"></span>
-      <span class="skeleton-block skeleton-line"></span>
-      <span class="skeleton-block skeleton-line"></span>
-      <span class="skeleton-block skeleton-progress"></span>
-      <span class="skeleton-block skeleton-season"></span>
-      <span class="skeleton-block skeleton-season"></span>
-    </div>
-  </div>
-</template>
-
-<template id="episode-detail-loading-template">
+<template id="detail-loading-template">
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back aria-label="Back">
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
-    <span>Episode details</span>
+    <span data-detail-loading-title>Details</span>
   </header>
-  <div class="episode-detail-loading" role="status" aria-label="Loading episode details" aria-busy="true">
-    <span class="sr-only">Loading episode details</span>
+  <div class="detail-loading" role="status" aria-label="Loading details" aria-busy="true">
+    <span class="sr-only" data-detail-loading-label>Loading details</span>
   </div>
 </template>
 
