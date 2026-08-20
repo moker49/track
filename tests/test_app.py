@@ -129,6 +129,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'data-view="discover"', home.data)
         self.assertIn(b'data-view="detail"', home.data)
         self.assertIn(b'id="detail-skeleton-template"', home.data)
+        self.assertIn(b'id="episode-detail-loading-template"', home.data)
         self.assertIn(b'class="app-boot-screen"', home.data)
         self.assertIn(b'document.documentElement.classList.add("app-booting")', home.data)
         self.assertIn(b'material-symbols-rounded-filled.ttf', home.data)

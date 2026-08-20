@@ -64,6 +64,18 @@
   </div>
 </template>
 
+<template id="episode-detail-loading-template">
+  <header class="detail-app-bar">
+    <button class="icon-button" type="button" data-detail-back aria-label="Back">
+      <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+    </button>
+    <span>Episode details</span>
+  </header>
+  <div class="episode-detail-loading" role="status" aria-label="Loading episode details" aria-busy="true">
+    <span class="sr-only">Loading episode details</span>
+  </div>
+</template>
+
 <div class="snackbar" role="status" aria-live="polite" hidden>
   <span data-snackbar-copy></span>
   <button type="button" data-snackbar-action hidden></button>

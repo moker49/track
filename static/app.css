@@ -2217,6 +2217,29 @@ html.app-booting .app-boot-screen {
   padding-bottom: 28px;
 }
 
+.episode-detail-loading {
+  min-height: min(62dvh, 560px);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.episode-detail-loading::before {
+  content: "";
+  width: min(64vw, 280px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+      color-mix(in srgb, var(--primary) 8%, transparent) 0%,
+      color-mix(in srgb, var(--surface-high) 30%, transparent) 34%,
+      transparent 70%);
+  animation: episode-detail-breathe 3.2s ease-in-out 140ms infinite alternate both;
+}
+
+.episode-detail-reveal {
+  animation: episode-detail-reveal 300ms ease-out both;
+}
+
 .skeleton-hero {
   padding: 8px 20px 20px;
   display: grid;
@@ -2307,6 +2330,30 @@ html.app-booting .app-boot-screen {
   }
 }
 
+@keyframes episode-detail-breathe {
+  from {
+    opacity: 0.18;
+    transform: scale(0.82);
+  }
+
+  to {
+    opacity: 0.58;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes episode-detail-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes schedule-content-out {
   to {
     opacity: 0;
@@ -2372,5 +2419,10 @@ html.app-booting .app-boot-screen {
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .episode-detail-loading::before,
+  .episode-detail-reveal {
+    animation: none;
   }
 }

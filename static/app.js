@@ -477,6 +477,12 @@ function renderDetailSkeleton(title = "Show details") {
   detailView.querySelector("[data-detail-skeleton-title]").textContent = title;
 }
 
+function renderEpisodeDetailLoading() {
+  const detailView = views.get("detail");
+  const template = document.querySelector("#episode-detail-loading-template");
+  detailView.replaceChildren(template.content.cloneNode(true));
+}
+
 function parseIsoDate(value) {
   const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!match) return null;
@@ -957,7 +963,12 @@ async function openEpisode(episodeId, historyMode = "push") {
       previousWasShow,
     }, historyMode);
   }
-  prepareDetailLoad("Episode details");
+  if (detailRequest) detailRequest.abort();
+  detailRequest = new AbortController();
+  renderEpisodeDetailLoading();
+  scrollPositions.detail = 0;
+  if (currentView === "detail") window.scrollTo({ top: 0, behavior: "auto" });
+  else showView("detail");
 
   try {
     const response = await fetch(`/api/episodes/${episodeId}`, {
@@ -970,6 +981,9 @@ async function openEpisode(episodeId, historyMode = "push") {
     if (previousWasShow) {
       episodeTemplate.content.querySelector("[data-episode-show-open]")?.remove();
     }
+    episodeTemplate.content
+      .querySelectorAll(".episode-hero, .episode-detail-content")
+      .forEach((section) => section.classList.add("episode-detail-reveal"));
     views.get("detail").replaceChildren(episodeTemplate.content);
     finishDetailLoad();
   } catch (error) {
