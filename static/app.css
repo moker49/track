@@ -315,6 +315,24 @@ html.app-booting .app-boot-screen {
   background: var(--outline-soft);
 }
 
+.schedule-timeline-list>.schedule-timeline-item:first-child .schedule-timeline-rail::before {
+  background: linear-gradient(to bottom, transparent, var(--outline-soft) 32px);
+}
+
+.schedule-timeline-list>.schedule-timeline-item:last-child .schedule-timeline-rail::before {
+  background: linear-gradient(to bottom, var(--outline-soft) calc(100% - 32px), transparent);
+}
+
+.schedule-timeline-list>.schedule-timeline-item:only-child .schedule-timeline-rail::before {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--outline-soft) 32px,
+    var(--outline-soft) calc(100% - 32px),
+    transparent
+  );
+}
+
 .schedule-timeline-rail>span {
   position: absolute;
   top: calc(50% - 4px);
