@@ -408,11 +408,31 @@ html.app-booting .app-boot-screen {
   padding: 7px 9px;
   border: 1px solid var(--accent-dark);
   border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   color: var(--accent);
   background: var(--accent-light);
   font-size: 0.66rem;
   font-weight: 700;
+  line-height: 1;
   white-space: nowrap;
+}
+
+.schedule-timeline-countdown.is-live {
+  border-color: color-mix(in srgb, var(--error) 44%, transparent);
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+}
+
+.schedule-timeline-countdown.is-live::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex: 0 0 5px;
+  background: currentColor;
 }
 
 .schedule-timeline-actions {

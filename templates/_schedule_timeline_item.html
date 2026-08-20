@@ -26,8 +26,8 @@
         <span class="schedule-timeline-episode-title">{{ episode.episode_name }}</span>
       </span>
       {% if not is_backlog %}
-      <span class="schedule-timeline-countdown">
-        {{ episode.days_until }} {{ 'day' if episode.days_until == 1 else 'days' }}
+      <span class="schedule-timeline-countdown{% if episode.is_live %} is-live{% endif %}">
+        {% if episode.is_live %}live{% elif episode.days_until == 0 %}today{% elif episode.days_until == 1 %}tomorrow{% else %}{{ episode.days_until }} days{% endif %}
       </span>
       {% endif %}
     </button>

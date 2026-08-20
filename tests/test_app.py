@@ -427,6 +427,72 @@ class TrackAppTest(unittest.TestCase):
         untracked_schedule = self.client.get("/api/schedule")
         self.assertNotIn(b"Archived Future Episode", untracked_schedule.data)
 
+    def test_upcoming_includes_the_past_week_with_live_status(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            """
+            INSERT INTO episodes (
+                id, season_id, tmdb_id, episode_number, name,
+                air_date, runtime_minutes
+            ) VALUES (100, 2, 99100, 7, 'Recently Aired', date('now', '-3 days'), 52)
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO episodes (
+                id, season_id, tmdb_id, episode_number, name,
+                air_date, runtime_minutes
+            ) VALUES (101, 2, 99101, 8, 'Too Old for Upcoming', date('now', '-8 days'), 52)
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO episodes (
+                id, season_id, tmdb_id, episode_number, name,
+                air_date, runtime_minutes
+            ) VALUES (102, 2, 99102, 9, 'Airs Today', date('now'), 52)
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO episodes (
+                id, season_id, tmdb_id, episode_number, name,
+                air_date, runtime_minutes
+            ) VALUES (103, 2, 99103, 10, 'Airs Tomorrow', date('now', '+1 day'), 52)
+            """
+        )
+        connection.commit()
+        connection.close()
+
+        schedule = self.client.get("/api/schedule")
+        self.assertIn(b"Recently Aired", schedule.data)
+        self.assertIn(b"Airs Today", schedule.data)
+        self.assertIn(b"Airs Tomorrow", schedule.data)
+        self.assertNotIn(b"Too Old for Upcoming", schedule.data)
+        self.assertIn(b'class="schedule-timeline-countdown is-live">', schedule.data)
+        self.assertRegex(
+            schedule.data.decode("utf-8"),
+            r'class="schedule-timeline-countdown is-live">\s+live\s+</span>',
+        )
+        self.assertRegex(
+            schedule.data.decode("utf-8"),
+            r'class="schedule-timeline-countdown">\s+today\s+</span>',
+        )
+        self.assertRegex(
+            schedule.data.decode("utf-8"),
+            r'class="schedule-timeline-countdown">\s+tomorrow\s+</span>',
+        )
+
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(".schedule-timeline-countdown.is-live", css)
+        self.assertIn(".schedule-timeline-countdown.is-live::before", css)
+        self.assertIn("color: var(--error)", css)
+        self.assertIn("display: inline-flex", css)
+        self.assertIn("align-items: center", css)
+        self.assertIn("flex: 0 0 5px", css)
+
     def test_library_filter_and_sort_dialog_is_in_the_shell(self):
         home = self.client.get("/")
         self.assertEqual(home.data.count(b"data-open-library-filter"), 1)

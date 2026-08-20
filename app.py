@@ -315,7 +315,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             WHERE s.is_tracked = 1
               AND sn.is_progress_counted = 1
               AND e.air_date IS NOT NULL
-              AND e.air_date > date('now')
+              AND e.air_date >= date('now', '-7 days')
             ORDER BY e.air_date, s.name COLLATE NOCASE,
                      sn.season_number, e.episode_number
             """
@@ -335,6 +335,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                 day_label=f"{air_date.day:02d}",
                 weekday_label=air_date.strftime("%a").upper(),
                 days_until=(air_date - today).days,
+                is_live=air_date < today,
             )
             upcoming.append(episode)
         return upcoming
