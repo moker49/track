@@ -336,6 +336,35 @@ class TrackAppTest(unittest.TestCase):
         caught_up = self.client.get("/api/schedule/shows/1/catch-up")
         self.assertEqual(caught_up.status_code, 204)
 
+    def test_upcoming_includes_archived_but_excludes_untracked_shows(self):
+        connection = sqlite3.connect(self.database)
+        connection.executemany(
+            """
+            INSERT INTO episodes (
+                id, season_id, tmdb_id, episode_number, name,
+                air_date, runtime_minutes
+            ) VALUES (?, 4, ?, ?, ?, ?, 52)
+            """,
+            [
+                (100, 99100, 7, "Archived Future Episode", "2099-01-02"),
+                (101, 99101, 8, "Archived Backlog Candidate", "2020-01-02"),
+            ],
+        )
+        connection.commit()
+        connection.close()
+
+        tracked_schedule = self.client.get("/api/schedule")
+        self.assertIn(b"Archived Future Episode", tracked_schedule.data)
+        self.assertNotIn(b"Archived Backlog Candidate", tracked_schedule.data)
+
+        connection = sqlite3.connect(self.database)
+        connection.execute("UPDATE shows SET is_tracked = 0 WHERE id = 2")
+        connection.commit()
+        connection.close()
+
+        untracked_schedule = self.client.get("/api/schedule")
+        self.assertNotIn(b"Archived Future Episode", untracked_schedule.data)
+
     def test_library_filter_and_sort_dialog_is_in_the_shell(self):
         home = self.client.get("/")
         self.assertEqual(home.data.count(b"data-open-library-filter"), 2)

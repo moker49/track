@@ -315,7 +315,6 @@ def create_app(test_config: dict | None = None) -> Flask:
             JOIN seasons sn ON sn.show_id = s.id
             JOIN episodes e ON e.season_id = sn.id
             WHERE s.is_tracked = 1
-              AND s.state = 'WATCHING'
               AND sn.is_progress_counted = 1
               AND e.air_date IS NOT NULL
               AND e.air_date > date('now')
