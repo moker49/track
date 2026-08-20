@@ -7,10 +7,6 @@
     </div>
     <div class="section-heading-actions">
       <span class="count-badge" data-state-count>{{ watching_shows|length }}</span>
-      <button class="icon-button filter-button" type="button" data-open-library-filter="watching"
-        aria-label="Filter and sort watching shows">
-        <span class="material-symbols-rounded" aria-hidden="true">filter_list</span>
-      </button>
     </div>
   </div>
   <div class="show-list" data-show-list="WATCHING">
@@ -20,6 +16,31 @@
     <span class="empty-icon material-symbols-rounded" aria-hidden="true">tv_off</span>
     <h3>Nothing in Watching</h3>
     <p>Start watching a show when you're ready to continue.</p>
+  </div>
+  <div class="empty-state" data-library-no-results hidden>
+    <span class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>
+    <h3>No matching shows</h3>
+    <p>Try a different title or filter.</p>
+  </div>
+</section>
+
+<section class="page-section archived-section" data-state-section="ARCHIVED" aria-labelledby="archived-title" hidden>
+  <div class="section-heading">
+    <div>
+      <h2 id="archived-title">Archived</h2>
+      <p>Finished or paused shows</p>
+    </div>
+    <div class="section-heading-actions">
+      <span class="count-badge" data-state-count>{{ archived_shows|length }}</span>
+    </div>
+  </div>
+  <div class="show-list" data-show-list="ARCHIVED">
+    {% for show in archived_shows %}{{ show_card(show) }}{% endfor %}
+  </div>
+  <div class="empty-state state-empty" data-state-empty {% if archived_shows %}hidden{% endif %}>
+    <span class="empty-icon material-symbols-rounded" aria-hidden="true">inventory_2</span>
+    <h3>No archived shows</h3>
+    <p>Shows you archive will appear here.</p>
   </div>
   <div class="empty-state" data-library-no-results hidden>
     <span class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>

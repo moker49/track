@@ -1,0 +1,23 @@
+{% from "_schedule_timeline_item.html" import schedule_timeline_item %}
+<div class="schedule-content" data-schedule-content="upcoming">
+  <section class="schedule-panel" aria-label="Upcoming">
+    <div class="schedule-timeline">
+      {% for month in upcoming_episodes|groupby('month_key') %}
+      <section class="upcoming-month" data-upcoming-month aria-label="{{ month.list[0].month_label }}">
+        <h2>{{ month.list[0].month_label }}</h2>
+        <div class="schedule-timeline-list">
+          {% for episode in month.list %}{{ schedule_timeline_item(episode, 'upcoming') }}{% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+    </div>
+    <div class="schedule-empty" data-schedule-empty {% if upcoming_episodes %}hidden{% endif %}>
+      <span class="material-symbols-rounded" aria-hidden="true">event_busy</span>
+      <span>No upcoming episodes</span>
+    </div>
+    <div class="schedule-empty" data-schedule-no-results hidden>
+      <span class="material-symbols-rounded" aria-hidden="true">search_off</span>
+      <span>No matching episodes</span>
+    </div>
+  </section>
+</div>

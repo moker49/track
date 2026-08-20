@@ -3,24 +3,28 @@
 <header class="top-app-bar global-search-app-bar" data-global-search-bar>
   <form class="app-bar-search" role="search" data-view-search>
     <span class="material-symbols-rounded" aria-hidden="true">search</span>
-    <input type="search" placeholder="Search backlog" aria-label="Search backlog episodes"
+    <input type="search" placeholder="Search queue" aria-label="Search queue episodes"
       autocomplete="off" data-global-search>
     <button class="search-clear" type="button" data-clear-search aria-label="Clear search" hidden>
       <span class="material-symbols-rounded" aria-hidden="true">close</span>
     </button>
+    <button class="search-filter-decorator filter-button" type="button" data-open-library-filter="tv"
+      aria-label="Filter and sort TV shows" hidden>
+      <span class="material-symbols-rounded" aria-hidden="true">filter_list</span>
+    </button>
   </form>
 </header>
 
-<section class="app-view is-active" data-view="schedule" aria-label="Schedule">
-  {% include "schedule.html" %}
+<section class="app-view is-active" data-view="backlog" aria-label="Queue">
+  {% include "_backlog_content.html" %}
 </section>
 
-<section class="app-view" data-view="watching" aria-label="Watching" hidden>
+<section class="app-view" data-view="upcoming" aria-label="Upcoming" hidden>
+  {% include "_upcoming_content.html" %}
+</section>
+
+<section class="app-view" data-view="tv" aria-label="TV" hidden>
   {% include "watching.html" %}
-</section>
-
-<section class="app-view" data-view="archive" aria-label="Archive" hidden>
-  {% include "archive.html" %}
 </section>
 
 <section class="app-view" data-view="discover" aria-label="Discover" hidden>
@@ -31,7 +35,7 @@
 
 <template id="detail-skeleton-template">
   <header class="detail-app-bar">
-    <button class="icon-button" type="button" data-detail-back aria-label="Back to Watching">
+    <button class="icon-button" type="button" data-detail-back aria-label="Back to TV">
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
     <span data-detail-skeleton-title>Show details</span>
@@ -63,7 +67,7 @@
 
 <dialog class="confirm-dialog" data-remove-dialog>
   <h2>Remove show?</h2>
-  <p>This removes the show from Watching and Archive. Its metadata and watch history stay saved.</p>
+  <p>This removes the show from TV. Its metadata and watch history stay saved.</p>
   <div class="dialog-actions">
     <button type="button" data-cancel-remove>Cancel</button>
     <button class="danger-action" type="button" data-confirm-remove>Remove</button>
@@ -111,8 +115,18 @@
     </header>
 
     <div class="filter-dialog-content">
-      <section class="filter-dialog-section" aria-labelledby="filter-status-title">
-        <h3 id="filter-status-title">Status</h3>
+      <section class="filter-dialog-section" aria-labelledby="filter-options-title">
+        <h3 id="filter-options-title">Filter</h3>
+        <div class="md-button-group library-state-button-group" data-filter-state-group aria-label="Show state">
+          <button type="button" data-filter-state="WATCHING" aria-pressed="true">
+            <span class="material-symbols-rounded" aria-hidden="true">check</span>
+            <span>Watching</span>
+          </button>
+          <button type="button" data-filter-state="ARCHIVED" aria-pressed="false">
+            <span class="material-symbols-rounded" aria-hidden="true">check</span>
+            <span>Archived</span>
+          </button>
+        </div>
         <div class="md-button-group status-button-group" data-filter-tag-group>
           <button type="button" data-filter-tag="not-started" aria-pressed="false">
             <span class="material-symbols-rounded" aria-hidden="true">check</span>
@@ -136,7 +150,7 @@
       <div class="filter-dialog-divider"></div>
 
       <section class="filter-dialog-section" aria-labelledby="filter-sort-title">
-        <h3 id="filter-sort-title">Sort by</h3>
+        <h3 id="filter-sort-title">Sort</h3>
         <div class="md-button-group sort-field-button-group" data-sort-field-group aria-label="Sort field">
           <button type="button" data-sort-field="name" aria-pressed="true">
             <span class="material-symbols-rounded" aria-hidden="true">check</span>
@@ -152,7 +166,6 @@
           </button>
         </div>
 
-        <h3 class="direction-heading">Direction</h3>
         <div class="md-button-group direction-button-group" data-sort-direction-group aria-label="Sort direction">
           <button type="button" data-sort-direction="asc" aria-pressed="true">
             <span class="material-symbols-rounded" aria-hidden="true">check</span>

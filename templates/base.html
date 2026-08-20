@@ -29,23 +29,23 @@
   <div class="app-shell">
     <main class="app-content">{% block content %}{% endblock %}</main>
     <nav class="bottom-nav" aria-label="Primary navigation">
-      <button class="nav-item active" type="button" data-nav-view="schedule" aria-current="page">
+      <button class="nav-item active" type="button" data-nav-view="backlog" aria-current="page">
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-rounded">resume</span>
+        </span>
+        <span>Queue</span>
+      </button>
+      <button class="nav-item" type="button" data-nav-view="upcoming">
         <span class="nav-icon" aria-hidden="true">
           <span class="material-symbols-rounded">event</span>
         </span>
-        <span>Schedule</span>
+        <span>Upcoming</span>
       </button>
-      <button class="nav-item" type="button" data-nav-view="watching">
+      <button class="nav-item" type="button" data-nav-view="tv">
         <span class="nav-icon" aria-hidden="true">
           <span class="material-symbols-rounded">tv</span>
         </span>
-        <span>Watching</span>
-      </button>
-      <button class="nav-item" type="button" data-nav-view="archive">
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-rounded">inventory_2</span>
-        </span>
-        <span>Archive</span>
+        <span>TV</span>
       </button>
       <button class="nav-item" type="button" data-nav-view="discover">
         <span class="nav-icon" aria-hidden="true">

@@ -7,9 +7,12 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "search filter_list more_vert event tv inventory_2 explore done_all",
+        "search filter_list more_vert resume event tv explore done_all",
       ),
-      document.fonts.load('24px "Material Symbols Rounded Filled"', "event"),
+      document.fonts.load(
+        '24px "Material Symbols Rounded Filled"',
+        "resume event tv explore",
+      ),
     ]);
     await Promise.race([
       iconFonts.catch(() => undefined),
@@ -25,22 +28,26 @@ revealAppWhenIconsAreReady();
 const navButtons = [...document.querySelectorAll("[data-nav-view]")];
 const globalSearchBar = document.querySelector("[data-global-search-bar]");
 const globalSearchInput = document.querySelector("[data-global-search]");
-const scrollPositions = { schedule: 0, watching: 0, archive: 0, discover: 0, detail: 0 };
+const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, discover: 0, detail: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
 const libraryFilterDialog = document.querySelector("[data-library-filter-dialog]");
 const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
-  watching: { tags: new Set(), sortField: "name", sortDirection: "asc" },
-  archive: { tags: new Set(), sortField: "name", sortDirection: "asc" },
+  tv: {
+    states: new Set(["WATCHING"]),
+    tags: new Set(),
+    sortField: "name",
+    sortDirection: "asc",
+  },
 };
-const searchQueries = { schedule: "", watching: "", archive: "", discover: "" };
+const searchQueries = { backlog: "", upcoming: "", tv: "", discover: "" };
 const showDetailCache = new Map();
 const showSeasonsCache = new Map();
 const showRefreshRequests = new Map();
 const hydratedLibraryViews = new Set();
-let currentView = "schedule";
-let detailParentView = "schedule";
+let currentView = "backlog";
+let detailParentView = "backlog";
 let detailRequest = null;
 let pendingRemoveShowId = null;
 let datePickerTarget = null;
@@ -51,11 +58,10 @@ let libraryFilterDraft = null;
 let popularLoaded = false;
 let discoverSearchTimer = null;
 let discoverRequest = null;
-let scheduleTab = "catch-up";
 let snackbarAction = null;
 
 if (!window.history.state?.trackApp) {
-  window.history.replaceState({ trackApp: true, view: "schedule" }, "");
+  window.history.replaceState({ trackApp: true, view: "backlog" }, "");
 }
 
 function writeHistory(state, mode = "push") {
@@ -79,12 +85,9 @@ function syncGlobalSearch() {
   if (isDetail) return;
 
   const settings = {
-    schedule: {
-      placeholder: scheduleTab === "upcoming" ? "Search upcoming" : "Search backlog",
-      label: scheduleTab === "upcoming" ? "Search upcoming episodes" : "Search backlog episodes",
-    },
-    watching: { placeholder: "Search watching", label: "Search watching shows" },
-    archive: { placeholder: "Search archive", label: "Search archived shows" },
+    backlog: { placeholder: "Search queue", label: "Search queue episodes" },
+    upcoming: { placeholder: "Search upcoming", label: "Search upcoming episodes" },
+    tv: { placeholder: "Search TV", label: "Search TV shows" },
     discover: { placeholder: "Search TMDB", label: "Search TMDB" },
   }[currentView];
   if (!settings) return;
@@ -93,12 +96,14 @@ function syncGlobalSearch() {
   globalSearchInput.value = searchQueries[currentView];
   const clearButton = globalSearchBar.querySelector("[data-clear-search]");
   if (clearButton) clearButton.hidden = globalSearchInput.value.length === 0;
+  const filterButton = globalSearchBar.querySelector("[data-open-library-filter]");
+  if (filterButton) filterButton.hidden = currentView !== "tv";
 }
 
 function showView(viewName, historyMode = null) {
   if (!views.has(viewName) || viewName === currentView) return;
 
-  if (currentView === "schedule" && viewName !== "schedule") {
+  if (currentView === "backlog" && viewName !== "backlog") {
     clearCaughtUpScheduleItems();
   }
   scrollPositions[currentView] = window.scrollY;
@@ -112,16 +117,16 @@ function showView(viewName, historyMode = null) {
   currentView = viewName;
   syncGlobalSearch();
   const titles = {
-    schedule: "Schedule · Track",
-    watching: "Watching · Track",
-    archive: "Archive · Track",
+    backlog: "Queue · Track",
+    upcoming: "Upcoming · Track",
+    tv: "TV · Track",
     discover: "Discover · Track",
     detail: "Track",
   };
   document.title = titles[viewName] || "Track";
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
   if (viewName === "discover" && !popularLoaded) loadPopularShows();
-  if (viewName === "schedule") {
+  if (["backlog", "upcoming"].includes(viewName)) {
     refreshScheduleContent().catch(() => undefined);
   }
   if (historyMode && viewName !== "detail") {
@@ -468,26 +473,6 @@ function formatDisplayDates(root = document) {
   });
 }
 
-function setScheduleTab(tabName) {
-  const nextTab = tabName === "upcoming" ? "upcoming" : "catch-up";
-  if (scheduleTab === "catch-up" && nextTab !== "catch-up") {
-    clearCaughtUpScheduleItems();
-  }
-  scheduleTab = nextTab;
-  const view = views.get("schedule");
-  view.querySelectorAll("[data-schedule-tab]").forEach((tab) => {
-    const selected = tab.dataset.scheduleTab === scheduleTab;
-    tab.classList.toggle("is-selected", selected);
-    tab.setAttribute("aria-selected", String(selected));
-    tab.tabIndex = selected ? 0 : -1;
-  });
-  view.querySelectorAll("[data-schedule-panel]").forEach((panel) => {
-    panel.hidden = panel.dataset.schedulePanel !== scheduleTab;
-  });
-  if (currentView === "schedule") syncGlobalSearch();
-  filterSchedule();
-}
-
 function waitForScheduleAnimation(card) {
   return new Promise((resolve) => {
     let finished = false;
@@ -503,7 +488,7 @@ function waitForScheduleAnimation(card) {
 }
 
 function syncCatchUpEmptyState() {
-  const view = views.get("schedule");
+  const view = views.get("backlog");
   const cards = view.querySelectorAll('[data-schedule-mode="catch-up"]');
   const empty = view.querySelector("[data-catch-up-empty]");
   if (empty) empty.hidden = cards.length > 0;
@@ -511,7 +496,7 @@ function syncCatchUpEmptyState() {
 }
 
 function clearCaughtUpScheduleItems() {
-  const view = views.get("schedule");
+  const view = views.get("backlog");
   view.querySelectorAll('[data-schedule-mode="catch-up"].is-caught-up')
     .forEach((card) => card.remove());
   syncCatchUpEmptyState();
@@ -540,17 +525,19 @@ function showCaughtUpScheduleState(card, data, action) {
 }
 
 async function refreshScheduleContent() {
-  const view = views.get("schedule");
-  const currentContent = view.querySelector("[data-schedule-content]");
   const response = await fetch("/api/schedule", {
     headers: { "X-Requested-With": "Track" },
   });
   if (!response.ok) throw new Error("Could not refresh Schedule");
   const template = document.createElement("template");
   template.innerHTML = (await response.text()).trim();
-  currentContent.replaceWith(template.content);
-  formatDisplayDates(view);
-  setScheduleTab(scheduleTab);
+  ["backlog", "upcoming"].forEach((viewName) => {
+    const incoming = template.content.querySelector(`[data-schedule-content="${viewName}"]`);
+    const current = views.get(viewName)?.querySelector(`[data-schedule-content="${viewName}"]`);
+    if (incoming && current) current.replaceWith(incoming);
+    formatDisplayDates(views.get(viewName));
+    filterSchedule(viewName);
+  });
 }
 
 async function undoScheduleSkip(episodeId) {
@@ -808,9 +795,9 @@ async function openShow(
   showSkeleton = true,
   historyMode = "push",
 ) {
-  detailParentView = ["schedule", "watching", "archive", "discover"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "discover"].includes(parentView)
     ? parentView
-    : "schedule";
+    : "backlog";
   if (historyMode) {
     writeHistory({
       view: "detail",
@@ -1083,6 +1070,12 @@ async function saveWatchDate() {
 
 function syncLibraryFilterDialog() {
   if (!libraryFilterDialog || !libraryFilterDraft) return;
+  libraryFilterDialog.querySelectorAll("[data-filter-state]").forEach((button) => {
+    button.setAttribute(
+      "aria-pressed",
+      String(libraryFilterDraft.states.has(button.dataset.filterState)),
+    );
+  });
   libraryFilterDialog.querySelectorAll("[data-filter-tag]").forEach((button) => {
     button.setAttribute(
       "aria-pressed",
@@ -1108,6 +1101,7 @@ function openLibraryFilter(viewName) {
   if (!libraryFilterDialog || !preferences) return;
   libraryFilterView = viewName;
   libraryFilterDraft = {
+    states: new Set(preferences.states),
     tags: new Set(preferences.tags),
     sortField: preferences.sortField,
     sortDirection: preferences.sortDirection,
@@ -1120,13 +1114,15 @@ function updateLibraryFilterButton(viewName) {
   const preferences = libraryViewPreferences[viewName];
   const button = document.querySelector(`[data-open-library-filter="${viewName}"]`);
   if (!preferences || !button) return;
-  const customized = preferences.tags.size > 0;
+  const defaultStates = preferences.states.size === 1 && preferences.states.has("WATCHING");
+  const customized = !defaultStates || preferences.tags.size > 0;
   button.classList.toggle("has-active-filter", customized);
 }
 
 function applyLibraryFilterDraft() {
   if (!libraryFilterView || !libraryFilterDraft) return;
   libraryViewPreferences[libraryFilterView] = {
+    states: new Set(libraryFilterDraft.states),
     tags: new Set(libraryFilterDraft.tags),
     sortField: libraryFilterDraft.sortField,
     sortDirection: libraryFilterDraft.sortDirection,
@@ -1238,7 +1234,7 @@ async function moveShow(showElement, targetState, actionButton) {
         occurredAt: data.changed_at,
       });
     }
-    detailParentView = data.state === "ARCHIVED" ? "archive" : "watching";
+    detailParentView = "tv";
     if (currentView === "detail") updateActiveNav(detailParentView);
     syncStateSections();
     filterAllShowViews();
@@ -1418,12 +1414,6 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const scheduleTabButton = event.target.closest("[data-schedule-tab]");
-  if (scheduleTabButton) {
-    setScheduleTab(scheduleTabButton.dataset.scheduleTab);
-    return;
-  }
-
   const scheduleAction = event.target.closest("[data-schedule-action]");
   if (scheduleAction) {
     processScheduleEpisode(
@@ -1435,7 +1425,7 @@ document.addEventListener("click", (event) => {
 
   const scheduleEpisodeOpen = event.target.closest("[data-schedule-episode-open]");
   if (scheduleEpisodeOpen) {
-    detailParentView = "schedule";
+    detailParentView = currentView === "upcoming" ? "upcoming" : "backlog";
     openEpisode(scheduleEpisodeOpen.closest("[data-episode-id]").dataset.episodeId);
     return;
   }
@@ -1515,6 +1505,18 @@ document.addEventListener("click", (event) => {
   const openFilterButton = event.target.closest("[data-open-library-filter]");
   if (openFilterButton) {
     openLibraryFilter(openFilterButton.dataset.openLibraryFilter);
+    return;
+  }
+
+  const filterStateButton = event.target.closest("[data-filter-state]");
+  if (filterStateButton && libraryFilterDraft) {
+    const state = filterStateButton.dataset.filterState;
+    if (libraryFilterDraft.states.has(state)) {
+      if (libraryFilterDraft.states.size > 1) libraryFilterDraft.states.delete(state);
+    } else {
+      libraryFilterDraft.states.add(state);
+    }
+    syncLibraryFilterDialog();
     return;
   }
 
@@ -1669,6 +1671,12 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const episodeShowLink = event.target.closest("[data-episode-show-open]");
+  if (episodeShowLink) {
+    openShow(episodeShowLink.dataset.showId, detailParentView);
+    return;
+  }
+
   const episodeOpenButton = event.target.closest("[data-open-episode]");
   if (episodeOpenButton) {
     openEpisode(episodeOpenButton.closest("[data-episode-id]").dataset.episodeId);
@@ -1678,8 +1686,7 @@ document.addEventListener("click", (event) => {
   const showOpenButton = event.target.closest("[data-show-open]");
   if (showOpenButton) {
     const showCard = showOpenButton.closest("[data-show-id]");
-    const parentView = showCard.dataset.showState === "ARCHIVED" ? "archive" : "watching";
-    openShow(showCard.dataset.showId, parentView);
+    openShow(showCard.dataset.showId, "tv");
     return;
   }
 
@@ -1688,17 +1695,6 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  const scheduleTabButton = event.target.closest("[data-schedule-tab]");
-  if (scheduleTabButton && ["ArrowLeft", "ArrowRight"].includes(event.key)) {
-    event.preventDefault();
-    const nextTab = scheduleTabButton.dataset.scheduleTab === "catch-up"
-      ? "upcoming"
-      : "catch-up";
-    setScheduleTab(nextTab);
-    views.get("schedule").querySelector(`[data-schedule-tab="${nextTab}"]`)?.focus();
-    return;
-  }
-
   const card = event.target.closest(".popular-card[data-tmdb-id]");
   if (!card || event.target.closest("button") || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
@@ -1732,10 +1728,11 @@ function updateProgress(progress, data) {
   bar.querySelector("span").style.width = `${data.percent}%`;
 }
 
-function filterSchedule() {
-  const view = views.get("schedule");
+function filterSchedule(viewName = currentView) {
+  if (!["backlog", "upcoming"].includes(viewName)) return;
+  const view = views.get(viewName);
   if (!view) return;
-  const query = searchQueries.schedule.trim().toLocaleLowerCase();
+  const query = searchQueries[viewName].trim().toLocaleLowerCase();
 
   view.querySelectorAll("[data-schedule-panel]").forEach((panel) => {
     const cards = [...panel.querySelectorAll("[data-schedule-card]")];
@@ -1762,51 +1759,55 @@ function filterShowView(view) {
   const preferences = libraryViewPreferences[view.dataset.view];
   if (!preferences) return;
   const query = searchQueries[view.dataset.view].trim().toLocaleLowerCase();
-  const cards = [...view.querySelectorAll(".show-card")];
-  const list = view.querySelector(".show-list");
+  view.querySelectorAll("[data-state-section]").forEach((section) => {
+    const state = section.dataset.stateSection;
+    const stateSelected = preferences.states.has(state);
+    section.hidden = !stateSelected;
+    const list = section.querySelector(".show-list");
+    const cards = [...section.querySelectorAll(".show-card")];
 
-  if (hydratedLibraryViews.has(view.dataset.view)) {
-    cards.sort((first, second) => {
-      const firstValue = first.dataset[preferences.sortField] || "";
-      const secondValue = second.dataset[preferences.sortField] || "";
-      const comparison = firstValue.localeCompare(secondValue, undefined, {
-        numeric: true,
-        sensitivity: "base",
+    if (hydratedLibraryViews.has(view.dataset.view)) {
+      cards.sort((first, second) => {
+        const firstValue = first.dataset[preferences.sortField] || "";
+        const secondValue = second.dataset[preferences.sortField] || "";
+        const comparison = firstValue.localeCompare(secondValue, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+        if (comparison !== 0) {
+          return preferences.sortDirection === "asc" ? comparison : -comparison;
+        }
+        return Number(first.dataset.showId) - Number(second.dataset.showId);
       });
-      if (comparison !== 0) {
-        return preferences.sortDirection === "asc" ? comparison : -comparison;
-      }
-      return Number(first.dataset.showId) - Number(second.dataset.showId);
-    });
-    cards.forEach((card) => list.append(card));
-  } else {
-    hydratedLibraryViews.add(view.dataset.view);
-  }
+      cards.forEach((card) => list.append(card));
+    }
 
-  let visibleCount = 0;
-  cards.forEach((card) => {
-    const matchesSearch = card.dataset.showName.includes(query);
-    const matchesTags = preferences.tags.size === 0
-      || preferences.tags.has(card.dataset.progressState);
-    const visible = matchesSearch && matchesTags;
-    card.hidden = !visible;
-    if (visible) visibleCount += 1;
+    let visibleCount = 0;
+    cards.forEach((card) => {
+      const matchesSearch = card.dataset.showName.includes(query);
+      const matchesTags = preferences.tags.size === 0
+        || preferences.tags.has(card.dataset.progressState);
+      const visible = stateSelected && matchesSearch && matchesTags;
+      card.hidden = !visible;
+      if (visible) visibleCount += 1;
+    });
+    const noResults = section.querySelector("[data-library-no-results]");
+    if (noResults) noResults.hidden = visibleCount > 0 || cards.length === 0;
   });
-  const noResults = view.querySelector("[data-library-no-results]");
-  if (noResults) noResults.hidden = visibleCount > 0 || cards.length === 0;
+  hydratedLibraryViews.add(view.dataset.view);
 }
 
 function filterAllShowViews() {
-  ["watching", "archive"].forEach((viewName) => filterShowView(views.get(viewName)));
+  filterShowView(views.get("tv"));
 }
 
 globalSearchInput?.addEventListener("input", () => {
   if (currentView === "detail") return;
   const query = globalSearchInput.value;
   searchQueries[currentView] = query;
-  if (currentView === "schedule") {
-    filterSchedule();
-  } else if (["watching", "archive"].includes(currentView)) {
+  if (["backlog", "upcoming"].includes(currentView)) {
+    filterSchedule(currentView);
+  } else if (currentView === "tv") {
     filterShowView(views.get(currentView));
   } else if (currentView === "discover") {
     clearTimeout(discoverSearchTimer);
@@ -1815,7 +1816,8 @@ globalSearchInput?.addEventListener("input", () => {
 });
 
 filterAllShowViews();
-filterSchedule();
+filterSchedule("backlog");
+filterSchedule("upcoming");
 formatDisplayDates(document);
 syncGlobalSearch();
 
@@ -1857,14 +1859,17 @@ function restoreHistoryState(state) {
   closeWatchMenus();
   if (detailRequest) detailRequest.abort();
 
-  if (state.view !== "detail") {
-    showView(state.view);
+  const legacyViews = { schedule: "backlog", watching: "tv", archive: "tv" };
+  const restoredView = legacyViews[state.view] || state.view;
+  if (restoredView !== "detail") {
+    showView(restoredView);
     return;
   }
 
-  detailParentView = ["schedule", "watching", "archive", "discover"].includes(state.parentView)
-    ? state.parentView
-    : "schedule";
+  const restoredParent = legacyViews[state.parentView] || state.parentView;
+  detailParentView = ["backlog", "upcoming", "tv", "discover"].includes(restoredParent)
+    ? restoredParent
+    : "backlog";
   if (state.detailType === "show" && state.showId) {
     openShow(state.showId, detailParentView, true, null);
   } else if (state.detailType === "episode" && state.episodeId) {
@@ -1882,7 +1887,7 @@ window.addEventListener("popstate", (event) => {
   restoreHistoryState(event.state);
 });
 
-if (window.history.state?.trackApp && window.history.state.view !== "schedule") {
+if (window.history.state?.trackApp && window.history.state.view !== "backlog") {
   restoreHistoryState(window.history.state);
 }
 

@@ -107,10 +107,12 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Popular now", home.data)
         self.assertIn(b'data-global-search-bar', home.data)
         self.assertEqual(home.data.count(b'data-global-search>'), 1)
-        self.assertIn(b'placeholder="Search backlog"', home.data)
-        self.assertIn(b'data-view="watching"', home.data)
-        self.assertIn(b'data-view="schedule"', home.data)
-        self.assertIn(b'data-view="archive"', home.data)
+        self.assertIn(b'placeholder="Search queue"', home.data)
+        self.assertIn(b'data-view="backlog"', home.data)
+        self.assertIn(b'data-view="upcoming"', home.data)
+        self.assertIn(b'data-view="tv"', home.data)
+        self.assertNotIn(b'data-view="schedule"', home.data)
+        self.assertNotIn(b'data-view="archive"', home.data)
         self.assertIn(b'data-view="discover"', home.data)
         self.assertIn(b'data-view="detail"', home.data)
         self.assertIn(b'id="detail-skeleton-template"', home.data)
@@ -127,8 +129,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'href="/search"', home.data)
         self.assertNotIn(b'href="/shows/1"', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">tv</span>', home.data)
-        self.assertIn(b'<span class="material-symbols-rounded">inventory_2</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">explore</span>', home.data)
+        self.assertIn(b'<span class="material-symbols-rounded">resume</span>', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">event</span>', home.data)
         self.assertNotIn(b"Drama, Crime", home.data)
         self.assertNotIn(b"Drama, Fantasy", home.data)
@@ -173,13 +175,13 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('classList.remove("app-booting")', javascript)
         self.assertIn("const hydratedLibraryViews = new Set();", javascript)
         self.assertIn("hydratedLibraryViews.add(view.dataset.view)", javascript)
-        self.assertIn('window.history.replaceState({ trackApp: true, view: "schedule" }, "")', javascript)
+        self.assertIn('window.history.replaceState({ trackApp: true, view: "backlog" }, "")', javascript)
         self.assertIn('window.addEventListener("popstate"', javascript)
         self.assertIn("window.history.back()", javascript)
         self.assertIn('detailType: "show"', javascript)
         self.assertIn('detailType: "episode"', javascript)
 
-    def test_schedule_is_the_default_view_with_catch_up_and_upcoming(self):
+    def test_backlog_and_upcoming_are_independent_primary_views(self):
         connection = sqlite3.connect(self.database)
         connection.execute(
             """
@@ -193,17 +195,18 @@ class TrackAppTest(unittest.TestCase):
         connection.close()
 
         home = self.client.get("/")
-        self.assertIn(b'data-view="schedule"', home.data)
+        self.assertIn(b'data-view="backlog"', home.data)
+        self.assertIn(b'data-view="upcoming"', home.data)
         self.assertIn(
-            b'class="nav-item active" type="button" data-nav-view="schedule"',
+            b'class="nav-item active" type="button" data-nav-view="backlog"',
             home.data,
         )
-        self.assertIn(b'data-schedule-tab="catch-up">Backlog</button>', home.data)
-        self.assertIn(b'data-schedule-tab="upcoming">Upcoming</button>', home.data)
-        self.assertIn(b'placeholder="Search backlog"', home.data)
+        self.assertIn(b'data-nav-view="upcoming"', home.data)
+        self.assertNotIn(b'data-schedule-tab', home.data)
+        self.assertIn(b'placeholder="Search queue"', home.data)
         self.assertIn(b'data-schedule-search-text="watching test show episode 6"', home.data)
-        self.assertIn(b'data-schedule-panel="catch-up"', home.data)
-        self.assertIn(b'data-schedule-panel="upcoming"', home.data)
+        self.assertIn(b'data-schedule-content="backlog"', home.data)
+        self.assertIn(b'data-schedule-content="upcoming"', home.data)
         self.assertNotIn(b'data-schedule-now', home.data)
         self.assertIn(b'data-schedule-mode="catch-up"', home.data)
         self.assertIn(b'data-episode-id="6"', home.data)
@@ -229,13 +232,12 @@ class TrackAppTest(unittest.TestCase):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
-        self.assertIn('let currentView = "schedule"', javascript)
-        self.assertIn('let scheduleTab = "catch-up"', javascript)
-        self.assertIn("function setScheduleTab(tabName)", javascript)
-        self.assertIn("function filterSchedule()", javascript)
+        self.assertIn('let currentView = "backlog"', javascript)
+        self.assertNotIn("scheduleTab", javascript)
+        self.assertNotIn("function setScheduleTab", javascript)
+        self.assertIn("function filterSchedule(viewName = currentView)", javascript)
         self.assertIn("function syncGlobalSearch()", javascript)
-        self.assertIn('watching: { placeholder: "Search watching"', javascript)
-        self.assertIn('archive: { placeholder: "Search archive"', javascript)
+        self.assertIn('tv: { placeholder: "Search TV"', javascript)
         self.assertIn('discover: { placeholder: "Search TMDB"', javascript)
         self.assertNotIn("centerScheduleOnNow", javascript)
         self.assertNotIn("preserveMarker", javascript)
@@ -271,11 +273,14 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('--progress-color: var(--progress-complete);', css)
         self.assertIn('.schedule-caught-up-icon {', css)
         self.assertIn('.schedule-timeline-item.is-caught-up .schedule-timeline-rail>span {', css)
+        self.assertNotIn('.schedule-tabs-bar {', css)
+        self.assertNotIn('.schedule-tab {', css)
 
         schedule_template = (Path(__file__).parents[1] / "templates" / "_schedule_content.html").read_text(
             encoding="utf-8"
         )
-        self.assertIn('{% from "_schedule_timeline_item.html" import schedule_timeline_item %}', schedule_template)
+        self.assertIn('{% include "_backlog_content.html" %}', schedule_template)
+        self.assertIn('{% include "_upcoming_content.html" %}', schedule_template)
         self.assertNotIn("_upcoming_timeline_item.html", schedule_template)
 
     def test_schedule_skip_advances_without_creating_watch_history(self):
@@ -370,7 +375,7 @@ class TrackAppTest(unittest.TestCase):
 
     def test_library_filter_and_sort_dialog_is_in_the_shell(self):
         home = self.client.get("/")
-        self.assertEqual(home.data.count(b"data-open-library-filter"), 2)
+        self.assertEqual(home.data.count(b"data-open-library-filter"), 1)
         self.assertIn(b'data-library-filter-dialog', home.data)
         self.assertEqual(home.data.count(b"data-filter-tag="), 4)
         self.assertIn(b'data-sort-field="name" aria-pressed="true"', home.data)
@@ -379,7 +384,14 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-sort-direction="asc" aria-pressed="true"', home.data)
         self.assertIn(b'data-date-added=', home.data)
         self.assertIn(b'data-release-date=', home.data)
-        self.assertEqual(home.data.count(b'class="md-button-group'), 3)
+        self.assertEqual(home.data.count(b'class="md-button-group'), 4)
+        self.assertIn(b'data-filter-state="WATCHING" aria-pressed="true"', home.data)
+        self.assertIn(b'data-filter-state="ARCHIVED" aria-pressed="false"', home.data)
+        self.assertIn(b'<h3 id="filter-options-title">Filter</h3>', home.data)
+        self.assertIn(b'<h3 id="filter-sort-title">Sort</h3>', home.data)
+        self.assertNotIn(b">Status</h3>", home.data)
+        self.assertNotIn(b">Sort by</h3>", home.data)
+        self.assertNotIn(b">Direction</h3>", home.data)
         self.assertIn(b'class="filter-fullscreen-app-bar"', home.data)
         self.assertIn(b">Done</button>", home.data)
         self.assertIn(b"<span>New</span>", home.data)
@@ -390,9 +402,11 @@ class TrackAppTest(unittest.TestCase):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
-        self.assertIn('sortField: "name", sortDirection: "asc"', javascript)
+        self.assertIn('states: new Set(["WATCHING"])', javascript)
         self.assertIn("preferences.tags.size === 0", javascript)
-        self.assertIn("const customized = preferences.tags.size > 0;", javascript)
+        self.assertIn('const defaultStates = preferences.states.size === 1 && preferences.states.has("WATCHING");', javascript)
+        self.assertIn("if (libraryFilterDraft.states.size > 1)", javascript)
+        self.assertIn('filterShowView(views.get("tv"))', javascript)
         self.assertNotIn("preferences.sortField !==", javascript)
         self.assertNotIn("preferences.sortDirection !==", javascript)
         self.assertIn("const showDetailCache = new Map();", javascript)
@@ -692,6 +706,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-detail-title="Opening Episode"', detail.data)
         self.assertIn(b'class="detail-app-bar-title">Episode details</span>', detail.data)
         self.assertIn(b'data-back-show-id="1"', detail.data)
+        self.assertIn(b'data-episode-show-open data-show-id="1"', detail.data)
+        self.assertIn(b">Watching Test Show</span>", detail.data)
         self.assertIn(b"Watch log", detail.data)
         self.assertIn(b'data-activity-type="watched"', detail.data)
         self.assertIn(b'class="activity-log watch-log"', detail.data)
@@ -699,6 +715,13 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-watch-log-entry', detail.data)
         self.assertNotIn(b"season-list", detail.data)
         self.assertNotIn(b"<!doctype html>", detail.data.lower())
+
+        connection = sqlite3.connect(self.database)
+        connection.execute("UPDATE episodes SET runtime_minutes = NULL WHERE id = 2")
+        connection.commit()
+        connection.close()
+        no_duration = self.client.get("/api/episodes/2")
+        self.assertNotIn(b"None min", no_duration.data)
 
         self.client.post(
             "/api/episodes/1/watch-count", json={"action": "increment"}

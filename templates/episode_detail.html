@@ -16,12 +16,19 @@
       <span class="state-label">Episode {{ episode.episode_number }}</span>
       <h1>{{ episode.name }}</h1>
       <p>{{ episode.season_name }}<br><time datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date
-          }}</time> · {{ episode.runtime_minutes }} min</p>
+          }}</time>{% if episode.runtime_minutes is not none %} · {{ episode.runtime_minutes }} min{% endif %}</p>
     </div>
   </section>
 
   <section class="detail-content episode-detail-content">
     <p class="overview episode-overview">{{ episode.overview }}</p>
+
+    <button class="episode-show-link" type="button" data-episode-show-open data-show-id="{{ episode.show_id }}"
+      aria-label="Open {{ episode.show_name }} show details">
+      <span class="material-symbols-rounded" aria-hidden="true">tv</span>
+      <span>{{ episode.show_name }}</span>
+      <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+    </button>
 
     <div class="episode-watch-summary">
       <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
