@@ -260,7 +260,7 @@ html.app-booting .app-boot-screen {
 }
 
 .schedule-card {
-  height: 78px;
+  height: 96px;
   border-radius: var(--radius-md);
   overflow: hidden;
   color: var(--on-surface);
@@ -305,10 +305,6 @@ html.app-booting .app-boot-screen {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-}
-
-.schedule-card[data-schedule-mode="upcoming"] .schedule-card-copy {
-  justify-content: center;
 }
 
 .schedule-card-open {
@@ -449,6 +445,179 @@ html.app-booting .app-boot-screen {
 
 .schedule-empty .material-symbols-rounded {
   color: var(--primary);
+}
+
+.upcoming-timeline {
+  display: grid;
+  gap: 22px;
+}
+
+.upcoming-month h2 {
+  margin: 4px 0 8px;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.upcoming-month-list {
+  display: grid;
+}
+
+.upcoming-timeline-item {
+  min-height: 104px;
+  display: grid;
+  grid-template-columns: 40px 16px minmax(0, 1fr);
+  color: var(--on-surface);
+}
+
+.upcoming-date {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 2px;
+}
+
+.upcoming-date strong {
+  color: var(--primary);
+  font-size: 1.22rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.upcoming-date span {
+  color: var(--on-surface-muted);
+  font-size: 0.62rem;
+  font-weight: 500;
+}
+
+.upcoming-rail {
+  position: relative;
+  display: block;
+}
+
+.upcoming-rail::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 7px;
+  width: 1px;
+  background: var(--outline-soft);
+}
+
+.upcoming-rail>span {
+  position: absolute;
+  top: calc(50% - 4px);
+  left: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 0 3px var(--surface);
+}
+
+.upcoming-episode-open {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: 104px;
+  padding: 10px 0 12px 8px;
+  border: 0;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.upcoming-episode-open::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 8px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--outline-soft) 70%, transparent) 18%,
+    color-mix(in srgb, var(--outline-soft) 70%, transparent) 82%,
+    transparent
+  );
+}
+
+.upcoming-timeline-item:last-child .upcoming-episode-open::after {
+  display: none;
+}
+
+.upcoming-episode-open:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.upcoming-poster {
+  position: relative;
+  width: 54px;
+  height: 76px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary-light) 16%, var(--surface-card));
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.upcoming-poster img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.upcoming-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.upcoming-copy>strong,
+.upcoming-copy>span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upcoming-copy>strong {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.upcoming-copy>span {
+  color: var(--on-surface-muted);
+  font-size: 0.68rem;
+}
+
+.upcoming-copy .upcoming-episode-title {
+  color: var(--on-surface);
+  font-weight: 500;
+}
+
+.upcoming-countdown {
+  padding: 7px 9px;
+  border: 1px solid var(--accent-dark);
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-light);
+  font-size: 0.66rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .show-card {

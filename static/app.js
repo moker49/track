@@ -1712,6 +1712,10 @@ function filterSchedule() {
       card.hidden = !visible;
       if (visible) visibleCount += 1;
     });
+    panel.querySelectorAll("[data-upcoming-month]").forEach((month) => {
+      month.hidden = ![...month.querySelectorAll("[data-schedule-card]")]
+        .some((card) => !card.hidden);
+    });
 
     const empty = panel.querySelector("[data-schedule-empty]");
     const noResults = panel.querySelector("[data-schedule-no-results]");

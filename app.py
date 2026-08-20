@@ -293,8 +293,8 @@ def create_app(test_config: dict | None = None) -> Flask:
             (show_id, show_id),
         ).fetchall()
 
-    def get_upcoming_episodes(db: sqlite3.Connection) -> list[sqlite3.Row]:
-        return db.execute(
+    def get_upcoming_episodes(db: sqlite3.Connection) -> list[dict]:
+        rows = db.execute(
             """
             SELECT s.id AS show_id,
                    s.name AS show_name,
@@ -318,6 +318,24 @@ def create_app(test_config: dict | None = None) -> Flask:
                      sn.season_number, e.episode_number
             """
         ).fetchall()
+        today = datetime.now(timezone.utc).date()
+        upcoming = []
+        for row in rows:
+            episode = dict(row)
+            air_date = date.fromisoformat(row["air_date"])
+            episode.update(
+                month_key=air_date.strftime("%Y-%m"),
+                month_label=(
+                    air_date.strftime("%B").upper()
+                    if air_date.year == today.year
+                    else air_date.strftime("%B %Y").upper()
+                ),
+                day_label=f"{air_date.day:02d}",
+                weekday_label=air_date.strftime("%a").upper(),
+                days_until=(air_date - today).days,
+            )
+            upcoming.append(episode)
+        return upcoming
 
     def watch_payload(
         db: sqlite3.Connection, show_id: int, episode_id: int | None = None

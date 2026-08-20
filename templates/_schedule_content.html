@@ -1,4 +1,5 @@
 {% from "_schedule_episode_card.html" import schedule_episode_card %}
+{% from "_upcoming_timeline_item.html" import upcoming_timeline_item %}
 <div class="schedule-content" data-schedule-content>
   <section id="schedule-catch-up" class="schedule-panel" role="tabpanel"
     data-schedule-panel="catch-up" aria-label="Backlog">
@@ -17,8 +18,15 @@
 
   <section id="schedule-upcoming" class="schedule-panel" role="tabpanel"
     data-schedule-panel="upcoming" aria-label="Upcoming" hidden>
-    <div class="schedule-list">
-      {% for episode in upcoming_episodes %}{{ schedule_episode_card(episode, 'upcoming') }}{% endfor %}
+    <div class="upcoming-timeline">
+      {% for month in upcoming_episodes|groupby('month_key') %}
+      <section class="upcoming-month" data-upcoming-month aria-label="{{ month.list[0].month_label }}">
+        <h2>{{ month.list[0].month_label }}</h2>
+        <div class="upcoming-month-list">
+          {% for episode in month.list %}{{ upcoming_timeline_item(episode) }}{% endfor %}
+        </div>
+      </section>
+      {% endfor %}
     </div>
     <div class="schedule-empty" data-schedule-empty {% if upcoming_episodes %}hidden{% endif %}>
       <span class="material-symbols-rounded" aria-hidden="true">event_busy</span>
