@@ -1,18 +1,10 @@
-<header class="top-app-bar schedule-app-bar">
-  <form class="app-bar-search" role="search" data-view-search>
-    <span class="material-symbols-rounded" aria-hidden="true">search</span>
-    <input type="search" placeholder="Search backlog" aria-label="Search backlog episodes"
-      autocomplete="off" data-schedule-search>
-    <button class="search-clear" type="button" data-clear-search aria-label="Clear search" hidden>
-      <span class="material-symbols-rounded" aria-hidden="true">close</span>
-    </button>
-  </form>
+<div class="schedule-tabs-bar">
   <div class="schedule-tabs" role="tablist" aria-label="Schedule">
     <button class="schedule-tab is-selected" type="button" role="tab" aria-selected="true"
       aria-controls="schedule-catch-up" data-schedule-tab="catch-up">Backlog</button>
     <button class="schedule-tab" type="button" role="tab" aria-selected="false" tabindex="-1"
       aria-controls="schedule-upcoming" data-schedule-tab="upcoming">Upcoming</button>
   </div>
-</header>
+</div>
 
 {% include "_schedule_content.html" %}

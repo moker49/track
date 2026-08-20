@@ -1,5 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
+<header class="top-app-bar global-search-app-bar" data-global-search-bar>
+  <form class="app-bar-search" role="search" data-view-search>
+    <span class="material-symbols-rounded" aria-hidden="true">search</span>
+    <input type="search" placeholder="Search backlog" aria-label="Search backlog episodes"
+      autocomplete="off" data-global-search>
+    <button class="search-clear" type="button" data-clear-search aria-label="Clear search" hidden>
+      <span class="material-symbols-rounded" aria-hidden="true">close</span>
+    </button>
+  </form>
+</header>
+
 <section class="app-view is-active" data-view="schedule" aria-label="Schedule">
   {% include "schedule.html" %}
 </section>

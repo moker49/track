@@ -199,11 +199,12 @@ html.app-booting .app-boot-screen {
   background: color-mix(in srgb, var(--progress-not-started) 18%, transparent);
 }
 
-.schedule-app-bar {
-  min-height: calc(128px + env(safe-area-inset-top));
-  padding: max(12px, env(safe-area-inset-top)) 16px 0;
-  justify-content: flex-end;
-  gap: 8px;
+.schedule-tabs-bar {
+  position: sticky;
+  z-index: 9;
+  top: calc(80px + env(safe-area-inset-top));
+  padding: 0 16px;
+  background: var(--surface);
 }
 
 .schedule-tabs {

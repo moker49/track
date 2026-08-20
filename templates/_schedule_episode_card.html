@@ -1,7 +1,7 @@
 {% macro schedule_episode_card(episode, mode) %}
 <article class="schedule-card" data-schedule-card data-schedule-mode="{{ mode }}"
   data-show-id="{{ episode.show_id }}" data-episode-id="{{ episode.episode_id }}"
-  data-schedule-search="{{ episode.show_name|lower }} {{ episode.episode_name|lower }}">
+  data-schedule-search-text="{{ episode.show_name|lower }} {{ episode.episode_name|lower }}">
   <div class="schedule-card-content">
     <div class="schedule-poster{% if episode.poster_path %} has-media-image{% endif %}" aria-hidden="true">
       {% if episode.poster_path %}<img src="{{ url_for('cached_tmdb_image', image_type='poster', size='w185', tmdb_path=episode.poster_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span>{{ episode.show_name[:1]|upper }}</span></template>{% else %}<span>{{ episode.show_name[:1]|upper }}</span>{% endif %}

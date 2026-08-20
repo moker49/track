@@ -23,6 +23,8 @@ async function revealAppWhenIconsAreReady() {
 
 revealAppWhenIconsAreReady();
 const navButtons = [...document.querySelectorAll("[data-nav-view]")];
+const globalSearchBar = document.querySelector("[data-global-search-bar]");
+const globalSearchInput = document.querySelector("[data-global-search]");
 const scrollPositions = { schedule: 0, watching: 0, archive: 0, discover: 0, detail: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
@@ -32,6 +34,7 @@ const libraryViewPreferences = {
   watching: { tags: new Set(), sortField: "name", sortDirection: "asc" },
   archive: { tags: new Set(), sortField: "name", sortDirection: "asc" },
 };
+const searchQueries = { schedule: "", watching: "", archive: "", discover: "" };
 const showDetailCache = new Map();
 const showSeasonsCache = new Map();
 const showRefreshRequests = new Map();
@@ -69,6 +72,29 @@ function updateActiveNav(navView) {
   });
 }
 
+function syncGlobalSearch() {
+  if (!globalSearchBar || !globalSearchInput) return;
+  const isDetail = currentView === "detail";
+  globalSearchBar.hidden = isDetail;
+  if (isDetail) return;
+
+  const settings = {
+    schedule: {
+      placeholder: scheduleTab === "upcoming" ? "Search upcoming" : "Search backlog",
+      label: scheduleTab === "upcoming" ? "Search upcoming episodes" : "Search backlog episodes",
+    },
+    watching: { placeholder: "Search watching", label: "Search watching shows" },
+    archive: { placeholder: "Search archive", label: "Search archived shows" },
+    discover: { placeholder: "Search TMDB", label: "Search TMDB" },
+  }[currentView];
+  if (!settings) return;
+  globalSearchInput.placeholder = settings.placeholder;
+  globalSearchInput.setAttribute("aria-label", settings.label);
+  globalSearchInput.value = searchQueries[currentView];
+  const clearButton = globalSearchBar.querySelector("[data-clear-search]");
+  if (clearButton) clearButton.hidden = globalSearchInput.value.length === 0;
+}
+
 function showView(viewName, historyMode = null) {
   if (!views.has(viewName) || viewName === currentView) return;
 
@@ -81,6 +107,7 @@ function showView(viewName, historyMode = null) {
 
   updateActiveNav(viewName === "detail" ? detailParentView : viewName);
   currentView = viewName;
+  syncGlobalSearch();
   const titles = {
     schedule: "Schedule · Track",
     watching: "Watching · Track",
@@ -441,12 +468,6 @@ function formatDisplayDates(root = document) {
 function setScheduleTab(tabName) {
   scheduleTab = tabName === "upcoming" ? "upcoming" : "catch-up";
   const view = views.get("schedule");
-  const searchInput = view.querySelector("[data-schedule-search]");
-  const searchLabel = scheduleTab === "upcoming" ? "upcoming" : "backlog";
-  if (searchInput) {
-    searchInput.placeholder = `Search ${searchLabel}`;
-    searchInput.setAttribute("aria-label", `Search ${searchLabel} episodes`);
-  }
   view.querySelectorAll("[data-schedule-tab]").forEach((tab) => {
     const selected = tab.dataset.scheduleTab === scheduleTab;
     tab.classList.toggle("is-selected", selected);
@@ -456,6 +477,7 @@ function setScheduleTab(tabName) {
   view.querySelectorAll("[data-schedule-panel]").forEach((panel) => {
     panel.hidden = panel.dataset.schedulePanel !== scheduleTab;
   });
+  if (currentView === "schedule") syncGlobalSearch();
   filterSchedule();
 }
 
@@ -1412,7 +1434,7 @@ document.addEventListener("click", (event) => {
   }
 
   if (event.target.closest("[data-discover-retry]")) {
-    const query = document.querySelector("[data-discover-search]").value.trim();
+    const query = searchQueries.discover.trim();
     if (query) searchDiscover(query);
     else loadPopularShows();
     return;
@@ -1679,15 +1701,14 @@ function updateProgress(progress, data) {
 
 function filterSchedule() {
   const view = views.get("schedule");
-  const input = view?.querySelector("[data-schedule-search]");
-  if (!view || !input) return;
-  const query = input.value.trim().toLocaleLowerCase();
+  if (!view) return;
+  const query = searchQueries.schedule.trim().toLocaleLowerCase();
 
   view.querySelectorAll("[data-schedule-panel]").forEach((panel) => {
     const cards = [...panel.querySelectorAll("[data-schedule-card]")];
     let visibleCount = 0;
     cards.forEach((card) => {
-      const visible = !query || card.dataset.scheduleSearch?.includes(query);
+      const visible = !query || card.dataset.scheduleSearchText?.includes(query);
       card.hidden = !visible;
       if (visible) visibleCount += 1;
     });
@@ -1699,15 +1720,11 @@ function filterSchedule() {
   });
 }
 
-function filterShowView(viewOrInput) {
-  const view = viewOrInput?.matches?.("[data-view]")
-    ? viewOrInput
-    : viewOrInput?.closest("[data-view]");
+function filterShowView(view) {
   if (!view) return;
   const preferences = libraryViewPreferences[view.dataset.view];
   if (!preferences) return;
-  const input = view.querySelector("[data-show-search]");
-  const query = input.value.trim().toLocaleLowerCase();
+  const query = searchQueries[view.dataset.view].trim().toLocaleLowerCase();
   const cards = [...view.querySelectorAll(".show-card")];
   const list = view.querySelector(".show-list");
 
@@ -1746,22 +1763,24 @@ function filterAllShowViews() {
   ["watching", "archive"].forEach((viewName) => filterShowView(views.get(viewName)));
 }
 
-document.querySelectorAll("[data-show-search]").forEach((input) => {
-  input.addEventListener("input", () => filterShowView(input));
+globalSearchInput?.addEventListener("input", () => {
+  if (currentView === "detail") return;
+  const query = globalSearchInput.value;
+  searchQueries[currentView] = query;
+  if (currentView === "schedule") {
+    filterSchedule();
+  } else if (["watching", "archive"].includes(currentView)) {
+    filterShowView(views.get(currentView));
+  } else if (currentView === "discover") {
+    clearTimeout(discoverSearchTimer);
+    discoverSearchTimer = setTimeout(() => searchDiscover(query.trim()), 350);
+  }
 });
-
-document.querySelector("[data-schedule-search]")
-  ?.addEventListener("input", filterSchedule);
 
 filterAllShowViews();
 filterSchedule();
 formatDisplayDates(document);
-
-document.querySelector("[data-discover-search]")?.addEventListener("input", (event) => {
-  const query = event.target.value.trim();
-  clearTimeout(discoverSearchTimer);
-  discoverSearchTimer = setTimeout(() => searchDiscover(query), 350);
-});
+syncGlobalSearch();
 
 document.querySelectorAll(".app-bar-search").forEach((searchForm) => {
   const input = searchForm.querySelector('input[type="search"]');
