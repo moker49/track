@@ -91,6 +91,8 @@ function syncSearchChrome() {
   if (searchBackButton) searchBackButton.hidden = !hasText;
   if (searchProfileButton) searchProfileButton.hidden = hasText;
   if (searchClearButton) searchClearButton.hidden = !hasText;
+  const filterButton = globalSearchBar?.querySelector("[data-open-library-filter]");
+  if (filterButton) filterButton.hidden = currentView !== "tv" || hasText;
 }
 
 function syncSearchTextPosition() {
@@ -124,8 +126,6 @@ function syncGlobalSearch() {
   globalSearchInput.value = searchQueries[currentView];
   syncSearchChrome();
   syncSearchTextPosition();
-  const filterButton = globalSearchBar.querySelector("[data-open-library-filter]");
-  if (filterButton) filterButton.hidden = currentView !== "tv";
 }
 
 function showView(viewName, historyMode = null) {
@@ -1126,6 +1126,7 @@ function syncLibraryFilterDialog() {
 function openLibraryFilter(viewName) {
   const preferences = libraryViewPreferences[viewName];
   if (!libraryFilterDialog || !preferences) return;
+  globalSearchInput?.blur();
   libraryFilterView = viewName;
   libraryFilterDraft = {
     states: new Set(preferences.states),
@@ -1886,6 +1887,7 @@ datePicker?.addEventListener("close", () => {
 });
 
 libraryFilterDialog?.addEventListener("close", () => {
+  globalSearchInput?.blur();
   libraryFilterView = null;
   libraryFilterDraft = null;
 });

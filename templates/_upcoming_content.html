@@ -1,6 +1,6 @@
 {% from "_schedule_timeline_item.html" import schedule_timeline_item %}
 <div class="schedule-content" data-schedule-content="upcoming">
-  <section class="schedule-panel" aria-label="Upcoming">
+  <section class="schedule-panel" data-schedule-panel aria-label="Upcoming">
     <div class="schedule-timeline">
       {% for month in upcoming_episodes|groupby('month_key') %}
       <section class="upcoming-month" data-upcoming-month aria-label="{{ month.list[0].month_label }}">

@@ -244,6 +244,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-schedule-search-text="active test show episode 6"', home.data)
         self.assertIn(b'data-schedule-content="backlog"', home.data)
         self.assertIn(b'data-schedule-content="upcoming"', home.data)
+        self.assertEqual(home.data.count(b"data-schedule-panel"), 2)
         self.assertNotIn(b'data-schedule-now', home.data)
         self.assertIn(b'data-schedule-mode="catch-up"', home.data)
         self.assertIn(b'data-episode-id="6"', home.data)
@@ -441,6 +442,8 @@ class TrackAppTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('states: new Set(["ACTIVE"])', javascript)
+        self.assertIn('filterButton.hidden = currentView !== "tv" || hasText', javascript)
+        self.assertIn("globalSearchInput?.blur();", javascript)
         self.assertIn("preferences.tags.size === 0", javascript)
         self.assertIn('const defaultStates = preferences.states.size === 1 && preferences.states.has("ACTIVE");', javascript)
         self.assertIn("if (libraryFilterDraft.states.size > 1)", javascript)
@@ -456,7 +459,7 @@ class TrackAppTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("height: 100dvh", css)
-        self.assertIn("grid-template-columns: repeat(4, minmax(0, 1fr))", css)
+        self.assertIn("grid-template-columns: repeat(3, minmax(0, 1fr))", css)
         self.assertIn('.md-button-group button[aria-pressed="true"] {\n  border-radius: 24px;', css)
         self.assertIn("color: var(--progress-not-started);", css)
         self.assertIn(

@@ -1,6 +1,6 @@
 {% from "_schedule_timeline_item.html" import schedule_timeline_item %}
 <div class="schedule-content" data-schedule-content="backlog">
-  <section class="schedule-panel" aria-label="Queue">
+  <section class="schedule-panel" data-schedule-panel aria-label="Queue">
     <div class="schedule-timeline-list" data-catch-up-list>
       {% for episode in catch_up_episodes %}{{ schedule_timeline_item(episode, 'catch-up') }}{% endfor %}
     </div>
