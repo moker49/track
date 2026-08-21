@@ -53,10 +53,12 @@
 
 html {
   background: var(--surface-low);
+  overflow-x: clip;
 }
 
 body {
   margin: 0;
+  overflow-x: clip;
   color: var(--on-surface);
   background: var(--surface);
   font-family: "Roboto", system-ui, sans-serif;
@@ -939,7 +941,7 @@ html.app-booting .schedule-empty-reveal {
   min-height: 44px;
   padding: 0 14px;
   border: 0;
-  border-radius: 22px;
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -949,6 +951,16 @@ html.app-booting .schedule-empty-reveal {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+}
+
+.episode-navigation-switcher button:first-child {
+  border-start-start-radius: 22px;
+  border-end-start-radius: 22px;
+}
+
+.episode-navigation-switcher button:last-child {
+  border-start-end-radius: 22px;
+  border-end-end-radius: 22px;
 }
 
 .episode-navigation-switcher button:disabled {

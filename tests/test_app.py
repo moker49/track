@@ -991,6 +991,16 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("function preloadAdjacentEpisodeDetails", javascript)
         self.assertIn("function navigateAdjacentEpisode", javascript)
         self.assertIn('direction === "next" ? "-18%" : "18%"', javascript)
+        self.assertIn('}, "replace");', javascript)
+
+        stylesheet = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("overflow-x: clip;", stylesheet)
+        self.assertIn(".episode-navigation-switcher button:first-child", stylesheet)
+        self.assertIn("border-start-start-radius: 22px", stylesheet)
+        self.assertIn(".episode-navigation-switcher button:last-child", stylesheet)
+        self.assertIn("border-start-end-radius: 22px", stylesheet)
 
         connection = sqlite3.connect(self.database)
         connection.execute(

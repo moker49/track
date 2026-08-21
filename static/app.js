@@ -1525,10 +1525,9 @@ async function navigateAdjacentEpisode(button) {
   if (!detailEpisode || !page) return;
 
   episodeNavigationPending = true;
-  detailEpisode.querySelectorAll("[data-adjacent-episode]")
-    .forEach((control) => { control.disabled = true; });
   const direction = button.dataset.adjacentEpisode;
   const targetEpisodeId = button.dataset.episodeId;
+  const previousWasShow = Boolean(window.history.state?.previousWasShow);
   const exitPosition = direction === "next" ? "-18%" : "18%";
   const exitAnimation = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ? null
@@ -1550,16 +1549,14 @@ async function navigateAdjacentEpisode(button) {
       detailType: "episode",
       episodeId: String(targetEpisodeId),
       parentView: detailParentView,
-      previousWasShow: false,
-    });
+      previousWasShow,
+    }, "replace");
     scrollPositions.detail = 0;
     window.scrollTo({ top: 0, behavior: "auto" });
     lastEpisodeDetailScrollY = 0;
-    renderEpisodeDetail(episodeHtml, false, true, direction);
+    renderEpisodeDetail(episodeHtml, previousWasShow, true, direction);
   } catch (_error) {
     exitAnimation?.cancel();
-    detailEpisode.querySelectorAll("[data-adjacent-episode][data-episode-id]")
-      .forEach((control) => { control.disabled = false; });
     showSnackbar("Couldn't load this episode.", {
       actionLabel: "Retry",
       onAction: () => navigateAdjacentEpisode(button),
