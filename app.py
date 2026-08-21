@@ -302,8 +302,11 @@ def create_app(test_config: dict | None = None) -> Flask:
             SELECT s.id AS show_id,
                    s.name AS show_name,
                    s.poster_path,
+                   sn.id AS season_id,
                    sn.season_number,
                    sn.name AS season_name,
+                   (SELECT COUNT(*) FROM episodes season_episode
+                    WHERE season_episode.season_id = sn.id) AS season_episode_count,
                    e.id AS episode_id,
                    e.episode_number,
                    e.name AS episode_name,
@@ -321,11 +324,54 @@ def create_app(test_config: dict | None = None) -> Flask:
             """
         ).fetchall()
         today = datetime.now(timezone.utc).date()
-        upcoming = []
+        release_groups: dict[tuple[int, str], list[dict]] = {}
         for row in rows:
             episode = dict(row)
-            air_date = date.fromisoformat(row["air_date"])
-            episode.update(
+            release_groups.setdefault(
+                (episode["show_id"], episode["air_date"]), []
+            ).append(episode)
+
+        upcoming = []
+        for episodes in release_groups.values():
+            release = dict(episodes[0])
+            air_date = date.fromisoformat(release["air_date"])
+            season_ids = list(dict.fromkeys(episode["season_id"] for episode in episodes))
+            season_numbers = list(
+                dict.fromkeys(episode["season_number"] for episode in episodes)
+            )
+            is_grouped = len(episodes) > 1
+            is_full_season = (
+                is_grouped
+                and len(season_ids) == 1
+                and len(episodes) == release["season_episode_count"]
+            )
+            if len(season_numbers) > 1:
+                first_episode = episodes[0]
+                last_episode = episodes[-1]
+                release_metadata = (
+                    f"S{first_episode['season_number']:02d}"
+                    f"E{first_episode['episode_number']:02d}-"
+                    f"S{last_episode['season_number']:02d}"
+                    f"E{last_episode['episode_number']:02d}"
+                )
+            elif is_grouped:
+                release_metadata = (
+                    f"Season {release['season_number']} · Episodes "
+                    f"{episodes[0]['episode_number']}–{episodes[-1]['episode_number']}"
+                )
+            else:
+                release_metadata = (
+                    f"Season {release['season_number']} · "
+                    f"Episode {release['episode_number']}"
+                )
+            release_detail = (
+                "Full season"
+                if is_full_season
+                else f"{len(episodes)} episodes"
+                if is_grouped
+                else release["episode_name"]
+            )
+            release.update(
                 month_key=air_date.strftime("%Y-%m"),
                 month_label=(
                     air_date.strftime("%B").upper()
@@ -336,8 +382,15 @@ def create_app(test_config: dict | None = None) -> Flask:
                 weekday_label=air_date.strftime("%a").upper(),
                 days_until=(air_date - today).days,
                 is_live=air_date < today,
+                is_grouped=is_grouped,
+                season_ids=",".join(str(season_id) for season_id in season_ids),
+                release_metadata=release_metadata,
+                release_detail=release_detail,
+                search_text=" ".join(
+                    [release["show_name"], *(episode["episode_name"] for episode in episodes)]
+                ).lower(),
             )
-            upcoming.append(episode)
+            upcoming.append(release)
         return upcoming
 
     def watch_payload(

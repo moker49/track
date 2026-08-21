@@ -339,6 +339,56 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('{% include "_upcoming_content.html" %}', schedule_template)
         self.assertNotIn("_upcoming_timeline_item.html", schedule_template)
 
+    def test_upcoming_groups_same_show_same_day_releases(self):
+        connection = sqlite3.connect(self.database)
+        connection.executemany(
+            """
+            INSERT INTO seasons (
+                id, show_id, tmdb_id, season_number, name, air_date, episode_count
+            ) VALUES (?, 1, ?, ?, ?, '2099-01-01', ?)
+            """,
+            [
+                (20, 92020, 3, "Season 3", 3),
+                (21, 92021, 4, "Season 4", 2),
+                (22, 92022, 5, "Season 5", 1),
+                (23, 92023, 6, "Season 6", 1),
+            ],
+        )
+        connection.executemany(
+            """
+            INSERT INTO episodes (
+                id, season_id, tmdb_id, episode_number, name, air_date
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (200, 20, 93200, 3, "Partial One", "2099-02-01"),
+                (201, 20, 93201, 4, "Partial Two", "2099-02-01"),
+                (202, 20, 93202, 5, "Later Episode", "2099-02-02"),
+                (203, 21, 93203, 1, "Full One", "2099-03-01"),
+                (204, 21, 93204, 2, "Full Two", "2099-03-01"),
+                (205, 22, 93205, 6, "Season Five", "2099-04-01"),
+                (206, 23, 93206, 6, "Season Six", "2099-04-01"),
+            ],
+        )
+        connection.commit()
+        connection.close()
+
+        home = self.client.get("/")
+        self.assertIn("Season 3 · Episodes 3–4".encode(), home.data)
+        self.assertIn(b'>2 episodes</span>', home.data)
+        self.assertIn("Season 4 · Episodes 1–2".encode(), home.data)
+        self.assertIn(b'>Full season</span>', home.data)
+        self.assertIn(b">S05E06-S06E06</span>", home.data)
+        self.assertIn(b'data-season-ids="20"', home.data)
+        self.assertIn(b'data-season-ids="22,23"', home.data)
+        self.assertIn(b"data-schedule-show-open", home.data)
+
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('event.target.closest("[data-schedule-show-open]")', javascript)
+        self.assertIn("openSeasonIds,", javascript)
+
     def test_schedule_skip_advances_without_creating_watch_history(self):
         skipped = self.client.post("/api/episodes/6/skip")
         self.assertEqual(skipped.status_code, 200)

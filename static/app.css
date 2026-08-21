@@ -404,6 +404,12 @@ html.app-booting .schedule-empty-reveal {
   font-weight: 700;
 }
 
+.schedule-timeline-item.is-multi-episode .schedule-timeline-poster {
+  box-shadow:
+    3px 0 0 var(--surface),
+    6px 0 0 var(--outline-soft);
+}
+
 .schedule-timeline-poster img {
   position: absolute;
   inset: 0;

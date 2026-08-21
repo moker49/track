@@ -2356,6 +2356,18 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const scheduleShowOpen = event.target.closest("[data-schedule-show-open]");
+  if (scheduleShowOpen) {
+    const card = scheduleShowOpen.closest("[data-schedule-card]");
+    const openSeasonIds = card.dataset.seasonIds.split(",").filter(Boolean);
+    detailParentView = "upcoming";
+    openShow(card.dataset.showId, "upcoming", true, "push", {
+      openSeasonIds,
+      detailScrollY: 0,
+    });
+    return;
+  }
+
   const filterTagButton = event.target.closest("[data-filter-tag]");
   if (filterTagButton && libraryFilterDraft) {
     const tag = filterTagButton.dataset.filterTag;
