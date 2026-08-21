@@ -126,10 +126,13 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-image-viewer', home.data)
         self.assertIn(b'data-image-viewer-preview', home.data)
         self.assertIn(b'data-image-viewer-image', home.data)
+        self.assertIn(b'data-image-viewer-media', home.data)
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
         self.assertIn("function sizeImageViewerLayers()", javascript)
+        self.assertIn("function clearImageViewerMotion()", javascript)
+        self.assertIn("function closeImageViewer()", javascript)
         self.assertNotIn(b'data-view="schedule"', home.data)
         self.assertNotIn(b'data-view="archive"', home.data)
         self.assertNotIn(b'data-view="discover"', home.data)

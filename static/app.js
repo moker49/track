@@ -42,6 +42,7 @@ const removeDialog = document.querySelector("[data-remove-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
 const libraryFilterDialog = document.querySelector("[data-library-filter-dialog]");
 const imageViewer = document.querySelector("[data-image-viewer]");
+const imageViewerMedia = imageViewer?.querySelector("[data-image-viewer-media]");
 const imageViewerPreview = imageViewer?.querySelector("[data-image-viewer-preview]");
 const imageViewerImage = imageViewer?.querySelector("[data-image-viewer-image]");
 const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]");
@@ -99,6 +100,8 @@ let snackbarAction = null;
 let backgroundPrimaryViewHydrationStarted = false;
 let scheduleViewsHydrated = false;
 let imageViewerAspectRatio = null;
+let imageViewerClosing = false;
+let imageViewerSourceImage = null;
 
 if (!window.history.state?.trackApp) {
   window.history.replaceState({ trackApp: true, view: "backlog" }, "");
@@ -125,9 +128,15 @@ function sizeImageViewerLayers() {
   imageViewerStage.style.setProperty("--image-viewer-height", `${height}px`);
 }
 
+function clearImageViewerMotion() {
+  imageViewerMedia?.getAnimations().forEach((animation) => animation.cancel());
+}
+
 function openImageViewer(trigger) {
-  if (!imageViewer || !imageViewerPreview || !imageViewerImage || !imageViewerStage) return;
+  if (!imageViewer || !imageViewerMedia || !imageViewerPreview || !imageViewerImage || !imageViewerStage) return;
+  clearImageViewerMotion();
   const currentImage = trigger.querySelector("img[data-media-image]");
+  imageViewerSourceImage = currentImage || null;
   const previewSource = currentImage?.currentSrc || currentImage?.src || "";
   const currentBounds = currentImage?.getBoundingClientRect();
   imageViewerAspectRatio = currentImage?.naturalWidth && currentImage?.naturalHeight
@@ -145,9 +154,71 @@ function openImageViewer(trigger) {
     imageViewerPreview.removeAttribute("src");
   }
   imageViewerImage.alt = trigger.dataset.fullImageAlt || "Large image";
+  imageViewerClosing = false;
+  imageViewer.classList.remove("is-closing");
+  imageViewer.classList.add("is-opening");
   imageViewer.showModal();
   sizeImageViewerLayers();
+  if (currentBounds?.width && currentBounds?.height
+    && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const targetBounds = imageViewerMedia.getBoundingClientRect();
+    const translateX = currentBounds.left + (currentBounds.width / 2)
+      - targetBounds.left - (targetBounds.width / 2);
+    const translateY = currentBounds.top + (currentBounds.height / 2)
+      - targetBounds.top - (targetBounds.height / 2);
+    imageViewerMedia.animate(
+      [
+        {
+          transform: `translate(${translateX}px, ${translateY}px) scale(${currentBounds.width / targetBounds.width}, ${currentBounds.height / targetBounds.height})`,
+        },
+        { transform: "translate(0, 0) scale(1, 1)" },
+      ],
+      { duration: 240, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+    );
+  }
   imageViewerImage.src = trigger.dataset.fullImageSrc;
+}
+
+function closeImageViewer() {
+  if (!imageViewer?.open || imageViewerClosing) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    imageViewer.close();
+    return;
+  }
+  imageViewerClosing = true;
+  imageViewer.classList.remove("is-opening");
+  imageViewer.classList.add("is-closing");
+  const sourceBounds = imageViewerSourceImage?.isConnected
+    ? imageViewerSourceImage.getBoundingClientRect()
+    : null;
+  const stageBounds = imageViewerStage?.getBoundingClientRect();
+  const mediaWidth = imageViewerMedia?.offsetWidth;
+  const mediaHeight = imageViewerMedia?.offsetHeight;
+  if (imageViewerMedia && sourceBounds?.width && sourceBounds?.height
+    && stageBounds && mediaWidth && mediaHeight) {
+    const translateX = sourceBounds.left + (sourceBounds.width / 2)
+      - stageBounds.left - (stageBounds.width / 2);
+    const translateY = sourceBounds.top + (sourceBounds.height / 2)
+      - stageBounds.top - (stageBounds.height / 2);
+    const currentTransform = getComputedStyle(imageViewerMedia).transform;
+    const reverseAnimation = imageViewerMedia.animate(
+      [
+        { transform: currentTransform === "none" ? "translate(0, 0) scale(1, 1)" : currentTransform },
+        {
+          transform: `translate3d(${translateX}px, ${translateY}px, 0) scale3d(${sourceBounds.width / mediaWidth}, ${sourceBounds.height / mediaHeight}, 1)`,
+        },
+      ],
+      { duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)", fill: "forwards" },
+    );
+    reverseAnimation.finished.catch(() => undefined).finally(() => imageViewer.close());
+    return;
+  }
+
+  const fadeAnimation = imageViewer.animate(
+    [{ opacity: 1 }, { opacity: 0 }],
+    { duration: 120, easing: "ease-out", fill: "forwards" },
+  );
+  fadeAnimation.finished.catch(() => undefined).finally(() => imageViewer.close());
 }
 
 imageViewerImage?.addEventListener("load", async () => {
@@ -2418,7 +2489,7 @@ document.addEventListener("click", (event) => {
   }
 
   if (event.target.closest("[data-image-viewer-close]")) {
-    imageViewer?.close();
+    closeImageViewer();
     return;
   }
 
@@ -2958,17 +3029,26 @@ libraryFilterDialog?.addEventListener("cancel", (event) => {
 });
 
 imageViewer?.addEventListener("click", (event) => {
-  if (event.target === imageViewer || event.target === imageViewerStage) imageViewer.close();
+  if (event.target === imageViewer || event.target === imageViewerStage) closeImageViewer();
+});
+
+imageViewer?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeImageViewer();
 });
 
 imageViewer?.addEventListener("close", () => {
+  clearImageViewerMotion();
   imageViewerPreview?.removeAttribute("src");
   imageViewerPreview?.removeAttribute("hidden");
   imageViewerImage?.removeAttribute("src");
   imageViewerStage?.classList.remove("is-loaded", "has-error", "has-preview");
   imageViewerStage?.style.removeProperty("--image-viewer-width");
   imageViewerStage?.style.removeProperty("--image-viewer-height");
+  imageViewer?.classList.remove("is-opening", "is-closing");
   imageViewerAspectRatio = null;
+  imageViewerClosing = false;
+  imageViewerSourceImage = null;
 });
 
 window.addEventListener("resize", () => {
