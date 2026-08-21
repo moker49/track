@@ -340,7 +340,6 @@ function syncTvSearchPresentation() {
   const query = searchQueries.tv.trim();
   const addSection = view.querySelector("[data-tv-add-section]");
   const addResults = view.querySelector("[data-tv-add-results]");
-  const loading = view.querySelector("[data-tv-search-loading]");
   const credit = view.querySelector("[data-tv-search-credit]");
   const empty = view.querySelector("[data-tv-search-empty]");
   const error = view.querySelector("[data-tv-search-error]");
@@ -355,10 +354,9 @@ function syncTvSearchPresentation() {
     return;
   }
 
-  addSection.hidden = !tvSearchPending && addCount === 0;
-  loading.hidden = !tvSearchPending;
-  addResults.hidden = tvSearchPending;
-  credit.hidden = tvSearchPending || addCount === 0;
+  addSection.hidden = addCount === 0;
+  addResults.hidden = false;
+  credit.hidden = addCount === 0;
   error.hidden = !tvSearchError;
   if (tvSearchError) {
     error.querySelector("[data-tv-search-error-copy]").textContent = tvSearchError;
@@ -376,8 +374,9 @@ function clearTvCatalogResults() {
 
 function renderTvCatalogResults(results) {
   const available = results.filter((show) => !show.is_tracked);
-  views.get("tv").querySelector("[data-tv-add-results]")
-    .replaceChildren(...available.map(catalogCard));
+  const cards = available.map(catalogCard);
+  views.get("tv").querySelector("[data-tv-add-results]").replaceChildren(...cards);
+  staggerTvSlices(cards);
   syncTvSearchPresentation();
 }
 
@@ -565,16 +564,9 @@ function clearDetailSliceReveals(root) {
   });
 }
 
-function staggerTvFirstReveal(view) {
+function staggerTvSlices(slices) {
   const tvSliceStaggerMs = 55;
-  const slices = [];
-  view.querySelectorAll(":scope > .page-section:not([hidden])").forEach((section) => {
-    slices.push(section.querySelector(":scope > .section-heading"));
-    slices.push(...section.querySelectorAll(":scope > .show-list > .show-card:not([hidden])"));
-    slices.push(...section.querySelectorAll(":scope > .popular-grid > .popular-card:not([hidden])"));
-    slices.push(...section.querySelectorAll(":scope > .empty-state:not([hidden])"));
-  });
-  slices.push(...view.querySelectorAll(":scope > .empty-state:not([hidden])"));
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   slices.filter(Boolean).forEach((slice, index) => {
     slice.classList.add("tv-slice-reveal");
     slice.style.setProperty("--detail-slice-delay", `${index * tvSliceStaggerMs}ms`);
@@ -588,6 +580,18 @@ function staggerTvFirstReveal(view) {
     tvRevealAnimationHandlers.set(slice, finishReveal);
     slice.addEventListener("animationend", finishReveal);
   });
+}
+
+function staggerTvFirstReveal(view) {
+  const slices = [];
+  view.querySelectorAll(":scope > .page-section:not([hidden])").forEach((section) => {
+    slices.push(section.querySelector(":scope > .section-heading"));
+    slices.push(...section.querySelectorAll(":scope > .show-list > .show-card:not([hidden])"));
+    slices.push(...section.querySelectorAll(":scope > .popular-grid > .popular-card:not([hidden])"));
+    slices.push(...section.querySelectorAll(":scope > .empty-state:not([hidden])"));
+  });
+  slices.push(...view.querySelectorAll(":scope > .empty-state:not([hidden])"));
+  staggerTvSlices(slices);
   hydrateOtherPrimaryViews("tv");
 }
 

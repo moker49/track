@@ -2080,17 +2080,6 @@ html.app-booting .schedule-empty-reveal {
   color: var(--primary);
 }
 
-.tv-search-loading {
-  display: grid;
-  gap: 12px;
-}
-
-.tv-search-loading-bar {
-  height: var(--compact-card-height);
-  border-radius: var(--radius-md);
-  background: var(--surface-card);
-}
-
 .popular-card {
   position: relative;
   height: var(--compact-card-height);
