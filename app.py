@@ -427,9 +427,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             (show_id, show_id, show_id),
         ).fetchall()
 
-    @app.get("/")
-    def index():
-        db = get_db()
+    def get_tv_library_shows(db):
         shows = db.execute(
             """
             SELECT s.*,
@@ -455,10 +453,25 @@ def create_app(test_config: dict | None = None) -> Flask:
             (show for show in shows if show["state"] == "ARCHIVED"),
             key=lambda show: (natural_title_key(show["name"]), show["id"]),
         )
+        return active_shows, archived_shows
+
+    @app.get("/")
+    def index():
+        db = get_db()
+        active_shows, archived_shows = get_tv_library_shows(db)
         return render_template(
             "index.html",
             catch_up_episodes=get_catch_up_episodes(db),
             upcoming_episodes=get_upcoming_episodes(db),
+            active_shows=active_shows,
+            archived_shows=archived_shows,
+        )
+
+    @app.get("/api/tv")
+    def tv_fragment():
+        active_shows, archived_shows = get_tv_library_shows(get_db())
+        return render_template(
+            "tv.html",
             active_shows=active_shows,
             archived_shows=archived_shows,
         )

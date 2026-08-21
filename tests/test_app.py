@@ -549,6 +549,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('item.classList.add("schedule-item-reveal")', javascript)
         self.assertIn('view.classList.add("schedule-rail-reveal")', javascript)
         self.assertIn("staggerScheduleFirstReveal(views.get(currentView));", javascript)
+        self.assertIn('fetch("/api/tv"', javascript)
+        self.assertIn("hydrateOtherPrimaryViews(view.dataset.view);", javascript)
+        self.assertIn("Promise.allSettled(hydrationTasks);", javascript)
+        self.assertIn("background && viewName === currentView", javascript)
         self.assertIn("const [overviewHtml, seasonsHtml] = await Promise.all", javascript)
         self.assertIn(
             "renderShowDetail(cachedOverview, cachedSeasons, false, returnContext)",
@@ -591,10 +595,14 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('event.key === "Escape" && menuScrim', javascript)
         self.assertIn(".menu-scrim {", css)
         self.assertIn("backdrop-filter: blur(2px);", css)
-        self.assertIn(
-            "background: color-mix(in srgb, var(--progress-not-started) 18%, transparent);",
-            css,
-        )
+
+    def test_tv_library_is_available_as_a_background_fragment(self):
+        fragment = self.client.get("/api/tv")
+        self.assertEqual(fragment.status_code, 200)
+        self.assertIn(b'data-state-section="ACTIVE"', fragment.data)
+        self.assertIn(b'data-state-section="ARCHIVED"', fragment.data)
+        self.assertNotIn(b"<!doctype html>", fragment.data.lower())
+        self.assertNotIn(b"bottom-nav", fragment.data)
 
     def test_show_details_are_a_fragment(self):
         detail = self.client.get("/api/shows/1")

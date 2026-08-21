@@ -2,6 +2,9 @@ const views = new Map(
   [...document.querySelectorAll("[data-view]")].map((view) => [view.dataset.view, view]),
 );
 
+let resolveAppShellReady;
+const appShellReady = new Promise((resolve) => { resolveAppShellReady = resolve; });
+
 async function revealAppWhenIconsAreReady() {
   if (document.fonts) {
     const iconFonts = Promise.all([
@@ -21,6 +24,7 @@ async function revealAppWhenIconsAreReady() {
   }
   window.requestAnimationFrame(() => {
     document.documentElement.classList.remove("app-booting");
+    resolveAppShellReady();
   });
 }
 
@@ -85,6 +89,8 @@ let tvSearchPending = false;
 let tvSearchComplete = false;
 let tvSearchError = "";
 let snackbarAction = null;
+let backgroundPrimaryViewHydrationStarted = false;
+let scheduleViewsHydrated = false;
 
 if (!window.history.state?.trackApp) {
   window.history.replaceState({ trackApp: true, view: "backlog" }, "");
@@ -576,6 +582,7 @@ function staggerTvFirstReveal(view) {
     tvRevealAnimationHandlers.set(slice, finishReveal);
     slice.addEventListener("animationend", finishReveal);
   });
+  hydrateOtherPrimaryViews("tv");
 }
 
 function clearTvFirstReveal(view) {
@@ -595,6 +602,7 @@ function staggerScheduleFirstReveal(view) {
   const emptyState = view.querySelector(
     "[data-schedule-empty]:not([hidden]), [data-schedule-no-results]:not([hidden])",
   );
+  hydrateOtherPrimaryViews(view.dataset.view);
 
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   if (!items.length) {
@@ -735,7 +743,7 @@ function showCaughtUpScheduleState(card, data, action) {
   window.setTimeout(() => card.classList.remove("is-entering"), 240);
 }
 
-async function refreshScheduleContent() {
+async function refreshScheduleContent({ preserveView = null, background = false } = {}) {
   const response = await fetch("/api/schedule", {
     headers: { "X-Requested-With": "Track" },
   });
@@ -743,11 +751,51 @@ async function refreshScheduleContent() {
   const template = document.createElement("template");
   template.innerHTML = (await response.text()).trim();
   ["backlog", "upcoming"].forEach((viewName) => {
+    if (viewName === preserveView || (background && viewName === currentView)) return;
     const incoming = template.content.querySelector(`[data-schedule-content="${viewName}"]`);
     const current = views.get(viewName)?.querySelector(`[data-schedule-content="${viewName}"]`);
     if (incoming && current) current.replaceWith(incoming);
     formatDisplayDates(views.get(viewName));
     filterSchedule(viewName);
+  });
+  scheduleViewsHydrated = true;
+}
+
+async function refreshTvContent({ background = false } = {}) {
+  const response = await fetch("/api/tv", {
+    headers: { "X-Requested-With": "Track" },
+  });
+  if (!response.ok) throw new Error("Could not refresh TV");
+  if (background && currentView === "tv") return;
+  const view = views.get("tv");
+  if (!view) return;
+  const template = document.createElement("template");
+  template.innerHTML = (await response.text()).trim();
+  view.replaceChildren(template.content);
+  filterShowView(view);
+}
+
+function hydrateOtherPrimaryViews(currentPrimaryView = null) {
+  if (backgroundPrimaryViewHydrationStarted) return;
+  backgroundPrimaryViewHydrationStarted = true;
+  appShellReady.then(() => {
+    window.requestAnimationFrame(() => {
+      const hydrationTasks = [];
+      if (currentPrimaryView !== "tv") {
+        hydrationTasks.push(refreshTvContent({ background: true }));
+      }
+      if (!scheduleViewsHydrated) {
+        if (!["backlog", "upcoming"].includes(currentPrimaryView)) {
+          hydrationTasks.push(refreshScheduleContent({ background: true }));
+        } else {
+          hydrationTasks.push(refreshScheduleContent({
+            preserveView: currentPrimaryView,
+            background: true,
+          }));
+        }
+      }
+      Promise.allSettled(hydrationTasks);
+    });
   });
 }
 
@@ -1321,6 +1369,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
   finishDetailLoad();
   restoreShowDetailContext(detailShow.dataset.showId, returnContext);
   prefetchShowSeasonEpisodes(detailShow);
+  if (animate) hydrateOtherPrimaryViews();
 }
 
 async function openEpisode(episodeId, historyMode = "push") {
@@ -1413,6 +1462,7 @@ function renderEpisodeDetail(episodeHtml, previousWasShow, animate) {
   }
   views.get("detail").replaceChildren(episodeTemplate.content);
   finishDetailLoad();
+  if (animate) hydrateOtherPrimaryViews();
 }
 
 function syncActivityCount(log) {
