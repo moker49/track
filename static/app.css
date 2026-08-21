@@ -876,7 +876,27 @@ html.app-booting .schedule-empty-reveal {
   box-shadow: 0 4px 18px var(--shadow);
 }
 
+.tv-library-switcher::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 12px) / 2);
+  border-radius: 22px;
+  background: var(--primary-light);
+  transform: translateX(0);
+  transition: transform 80ms ease-in-out;
+}
+
+.tv-library-switcher[data-selected-state="ARCHIVED"]::before {
+  transform: translateX(calc(100% + 4px));
+}
+
 .tv-library-switcher button {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   min-height: 44px;
   padding: 0 16px;
@@ -887,11 +907,11 @@ html.app-booting .schedule-empty-reveal {
   font: inherit;
   font-weight: 500;
   cursor: pointer;
+  transition: color 160ms ease-in-out;
 }
 
 .tv-library-switcher button[aria-pressed="true"] {
   color: var(--primary-dark);
-  background: var(--primary-light);
   font-weight: 700;
 }
 

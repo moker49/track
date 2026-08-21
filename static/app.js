@@ -2639,6 +2639,7 @@ function filterShowView(view) {
   const librarySwitcher = view.querySelector("[data-tv-library-switcher]");
   if (librarySwitcher) {
     librarySwitcher.hidden = searching;
+    librarySwitcher.dataset.selectedState = preferences.state;
     librarySwitcher.querySelectorAll("[data-tv-library-state]").forEach((button) => {
       button.setAttribute("aria-pressed", String(button.dataset.tvLibraryState === preferences.state));
     });
