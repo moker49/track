@@ -988,7 +988,10 @@ class TrackAppTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("const episodeDetailRequests = new Map();", javascript)
+        self.assertIn("const mediaImagePreloads = new Map();", javascript)
         self.assertIn("function preloadAdjacentEpisodeDetails", javascript)
+        self.assertIn("function preloadEpisodeDetailImages", javascript)
+        self.assertIn(".then(preloadEpisodeDetailImages)", javascript)
         self.assertIn("function navigateAdjacentEpisode", javascript)
         self.assertIn('direction === "next" ? "-18%" : "18%"', javascript)
         self.assertIn('}, "replace");', javascript)

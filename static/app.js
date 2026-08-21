@@ -68,6 +68,7 @@ let activeSeasonEpisodePrefetches = 0;
 let seasonEpisodeCacheGeneration = 0;
 const episodeDetailCache = new Map();
 const episodeDetailRequests = new Map();
+const mediaImagePreloads = new Map();
 const showRefreshRequests = new Map();
 const pendingWatchChanges = new WeakSet();
 const hydratedLibraryViews = new Set();
@@ -1500,10 +1501,46 @@ function requestEpisodeDetailHtml(episodeId) {
   return request;
 }
 
+function preloadMediaImage(source) {
+  const absoluteSource = new URL(source, document.baseURI).href;
+  if (mediaImagePreloads.has(absoluteSource)) return mediaImagePreloads.get(absoluteSource);
+
+  const preload = new Promise((resolve) => {
+    const image = new Image();
+    let settled = false;
+    const settle = async () => {
+      if (settled) return;
+      settled = true;
+      try {
+        await image.decode();
+      } catch (_error) {
+        // A failed image is also settled; the normal media fallback handles it.
+      }
+      resolve();
+    };
+    image.addEventListener("load", settle, { once: true });
+    image.addEventListener("error", settle, { once: true });
+    image.src = absoluteSource;
+    if (image.complete) settle();
+  });
+  mediaImagePreloads.set(absoluteSource, preload);
+  return preload;
+}
+
+function preloadEpisodeDetailImages(episodeHtml) {
+  const template = document.createElement("template");
+  template.innerHTML = episodeHtml;
+  const sources = [...template.content.querySelectorAll("img[data-media-image][src]")]
+    .map((image) => image.getAttribute("src"));
+  return Promise.all(sources.map(preloadMediaImage));
+}
+
 function preloadAdjacentEpisodeDetails(detailEpisode) {
   detailEpisode?.querySelectorAll("[data-adjacent-episode][data-episode-id]")
     .forEach((button) => {
-      requestEpisodeDetailHtml(button.dataset.episodeId).catch(() => undefined);
+      requestEpisodeDetailHtml(button.dataset.episodeId)
+        .then(preloadEpisodeDetailImages)
+        .catch(() => undefined);
     });
 }
 
