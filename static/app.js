@@ -83,6 +83,7 @@ let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
 let libraryFilterView = null;
 let libraryFilterDraft = null;
+let libraryFilterTransitioning = false;
 let tvSearchTimer = null;
 let tvSearchRequest = null;
 let tvSearchPending = false;
@@ -1678,9 +1679,97 @@ function syncLibraryFilterDialog() {
   });
 }
 
-function openLibraryFilter(viewName) {
+function libraryFilterTransitionClips() {
+  const searchField = globalSearchBar?.querySelector("[data-view-search]");
+  const sourceRect = searchField?.getBoundingClientRect();
+  const dialogRect = libraryFilterDialog?.getBoundingClientRect();
+  if (!sourceRect || !dialogRect || !sourceRect.width || !dialogRect.width) return null;
+
+  const top = Math.max(0, sourceRect.top - dialogRect.top);
+  const right = Math.max(0, dialogRect.right - sourceRect.right);
+  const bottom = Math.max(0, dialogRect.bottom - sourceRect.bottom);
+  const left = Math.max(0, sourceRect.left - dialogRect.left);
+  const sourceRadius = sourceRect.height / 2;
+  const dialogRadius = getComputedStyle(libraryFilterDialog).borderRadius || "0px";
+
+  return {
+    collapsed: `inset(${top}px ${right}px ${bottom}px ${left}px round ${sourceRadius}px)`,
+    expanded: `inset(0px round ${dialogRadius})`,
+  };
+}
+
+function canAnimateLibraryFilter() {
+  return typeof libraryFilterDialog?.animate === "function"
+    && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+async function animateLibraryFilterOpen() {
+  if (!libraryFilterDialog || !canAnimateLibraryFilter()) return;
+  const clips = libraryFilterTransitionClips();
+  if (!clips) return;
+
+  const shell = libraryFilterDialog.querySelector(".filter-dialog-shell");
+  const surfaceAnimation = libraryFilterDialog.animate(
+    [{ clipPath: clips.collapsed }, { clipPath: clips.expanded }],
+    { duration: 160, easing: "cubic-bezier(0.2, 0, 0, 1)", fill: "both" },
+  );
+  const contentAnimation = shell?.animate(
+    [
+      { opacity: 0, offset: 0 },
+      { opacity: 0, offset: 0.16 },
+      { opacity: 1, offset: 1 },
+    ],
+    { duration: 160, easing: "cubic-bezier(0.2, 0, 0, 1)", fill: "both" },
+  );
+  await Promise.allSettled([
+    surfaceAnimation.finished,
+    contentAnimation?.finished || Promise.resolve(),
+  ]);
+  surfaceAnimation.cancel();
+  contentAnimation?.cancel();
+}
+
+async function closeLibraryFilter() {
+  if (!libraryFilterDialog?.open || libraryFilterTransitioning) return;
+  globalSearchInput?.blur();
+
+  if (!canAnimateLibraryFilter()) {
+    libraryFilterDialog.close();
+    return;
+  }
+  const clips = libraryFilterTransitionClips();
+  if (!clips) {
+    libraryFilterDialog.close();
+    return;
+  }
+
+  libraryFilterTransitioning = true;
+  libraryFilterDialog.classList.add("is-transitioning", "is-closing");
+  const shell = libraryFilterDialog.querySelector(".filter-dialog-shell");
+  const surfaceAnimation = libraryFilterDialog.animate(
+    [{ clipPath: clips.expanded }, { clipPath: clips.collapsed }],
+    { duration: 140, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "both" },
+  );
+  const contentAnimation = shell?.animate(
+    [
+      { opacity: 1, offset: 0 },
+      { opacity: 0, offset: 0.38 },
+      { opacity: 0, offset: 1 },
+    ],
+    { duration: 140, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "both" },
+  );
+  await Promise.allSettled([
+    surfaceAnimation.finished,
+    contentAnimation?.finished || Promise.resolve(),
+  ]);
+  if (libraryFilterDialog.open) libraryFilterDialog.close();
+  surfaceAnimation.cancel();
+  contentAnimation?.cancel();
+}
+
+async function openLibraryFilter(viewName) {
   const preferences = libraryViewPreferences[viewName];
-  if (!libraryFilterDialog || !preferences) return;
+  if (!libraryFilterDialog || !preferences || libraryFilterDialog.open) return;
   globalSearchInput?.blur();
   libraryFilterView = viewName;
   libraryFilterDraft = {
@@ -1689,7 +1778,13 @@ function openLibraryFilter(viewName) {
     sortDirection: preferences.sortDirection,
   };
   syncLibraryFilterDialog();
+  libraryFilterTransitioning = true;
+  libraryFilterDialog.classList.add("is-transitioning", "is-opening");
   libraryFilterDialog.showModal();
+  await animateLibraryFilterOpen();
+  if (!libraryFilterDialog.open) return;
+  libraryFilterDialog.classList.remove("is-transitioning", "is-opening");
+  libraryFilterTransitioning = false;
 }
 
 function updateLibraryFilterButton(viewName) {
@@ -1710,7 +1805,7 @@ function applyLibraryFilterDraft() {
   };
   updateLibraryFilterButton(libraryFilterView);
   filterShowView(views.get(libraryFilterView));
-  libraryFilterDialog.close();
+  void closeLibraryFilter();
 }
 
 function closeShowMenus(exceptMenu = null) {
@@ -2247,7 +2342,7 @@ document.addEventListener("click", (event) => {
   }
 
   if (event.target.closest("[data-library-filter-cancel]")) {
-    libraryFilterDialog.close();
+    void closeLibraryFilter();
     return;
   }
 
@@ -2587,8 +2682,15 @@ datePicker?.addEventListener("close", () => {
 
 libraryFilterDialog?.addEventListener("close", () => {
   globalSearchInput?.blur();
+  libraryFilterDialog.classList.remove("is-transitioning", "is-opening", "is-closing");
+  libraryFilterTransitioning = false;
   libraryFilterView = null;
   libraryFilterDraft = null;
+});
+
+libraryFilterDialog?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  void closeLibraryFilter();
 });
 
 imageViewer?.addEventListener("click", (event) => {

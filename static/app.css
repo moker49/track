@@ -1785,17 +1785,31 @@ html.app-booting .schedule-empty-reveal {
   border-radius: 0;
   overflow: hidden;
   color: var(--on-surface);
-  background: var(--surface);
+  background: var(--surface-high);
+  transform-origin: center;
+  will-change: clip-path;
 }
 
 .library-filter-dialog::backdrop {
   background: var(--shadow);
 }
 
+.library-filter-dialog.is-opening::backdrop {
+  animation: filter-backdrop-in 160ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.library-filter-dialog.is-closing::backdrop {
+  animation: filter-backdrop-out 160ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
 .filter-dialog-shell {
   height: 100%;
   overflow: auto;
   background: var(--surface);
+}
+
+.library-filter-dialog.is-transitioning .filter-dialog-shell {
+  pointer-events: none;
 }
 
 .filter-fullscreen-app-bar {
@@ -1808,7 +1822,8 @@ html.app-booting .schedule-empty-reveal {
   grid-template-columns: 48px minmax(0, 1fr) 48px;
   align-items: center;
   gap: 4px;
-  background: var(--surface);
+  border-bottom: 1px solid var(--outline-soft);
+  background: var(--surface-high);
 }
 
 .filter-fullscreen-app-bar h2 {
@@ -2523,5 +2538,30 @@ html.app-booting .tv-slice-reveal {
   .schedule-empty-reveal,
   .media-image-reveal {
     animation: none;
+  }
+
+  .library-filter-dialog.is-opening::backdrop,
+  .library-filter-dialog.is-closing::backdrop {
+    animation: none;
+  }
+}
+
+@keyframes filter-backdrop-in {
+  from {
+    background: transparent;
+  }
+
+  to {
+    background: var(--shadow);
+  }
+}
+
+@keyframes filter-backdrop-out {
+  from {
+    background: var(--shadow);
+  }
+
+  to {
+    background: transparent;
   }
 }

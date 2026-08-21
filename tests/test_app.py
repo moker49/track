@@ -514,7 +514,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b">Sort by</h3>", home.data)
         self.assertNotIn(b">Direction</h3>", home.data)
         self.assertIn(b'class="filter-fullscreen-app-bar"', home.data)
-        self.assertIn(b">Done</button>", home.data)
+        self.assertIn(b">Save</button>", home.data)
         self.assertIn(b"<span>New</span>", home.data)
         self.assertIn(b"<span>Started</span>", home.data)
         self.assertNotIn(b'data-filter-tag="stopped"', home.data)
