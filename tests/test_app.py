@@ -581,6 +581,12 @@ class TrackAppTest(unittest.TestCase):
         )
         self.assertIn('image.dataset.mediaImagePending = "";', javascript)
         self.assertIn('image.classList.add("media-image-reveal")', javascript)
+        self.assertIn('const menuScrim = document.querySelector("[data-menu-scrim]")', javascript)
+        self.assertIn("openMenu.parentElement.insertBefore(menuScrim, openMenu)", javascript)
+        self.assertIn('event.target === imageViewerStage', javascript)
+        self.assertIn('event.key === "Escape" && menuScrim', javascript)
+        self.assertIn(".menu-scrim {", css)
+        self.assertIn("backdrop-filter: blur(2px);", css)
         self.assertIn(
             "background: color-mix(in srgb, var(--progress-not-started) 18%, transparent);",
             css,

@@ -40,6 +40,8 @@ const libraryFilterDialog = document.querySelector("[data-library-filter-dialog]
 const imageViewer = document.querySelector("[data-image-viewer]");
 const imageViewerImage = imageViewer?.querySelector("[data-image-viewer-image]");
 const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]");
+const menuScrim = document.querySelector("[data-menu-scrim]");
+const menuScrimHome = menuScrim?.parentElement;
 const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   tv: {
@@ -67,6 +69,7 @@ const hydratedLibraryViews = new Set();
 const revealedViewAnimations = new Set();
 const tvRevealAnimationHandlers = new WeakMap();
 const scheduleRevealAnimationHandlers = new WeakMap();
+const detailRevealAnimationHandlers = new WeakMap();
 let currentView = "backlog";
 let detailParentView = "backlog";
 let detailRequest = null;
@@ -528,6 +531,25 @@ function staggerDetailSlices(sections, startIndex = 0) {
   sections.filter(Boolean).forEach((section, index) => {
     section.classList.add("detail-slice-reveal");
     section.style.setProperty("--detail-slice-delay", `${(startIndex + index) * 25}ms`);
+    const finishReveal = (event) => {
+      if (event.target !== section || event.animationName !== "detail-slice-reveal") return;
+      section.classList.remove("detail-slice-reveal");
+      section.style.removeProperty("--detail-slice-delay");
+      section.removeEventListener("animationend", finishReveal);
+      detailRevealAnimationHandlers.delete(section);
+    };
+    detailRevealAnimationHandlers.set(section, finishReveal);
+    section.addEventListener("animationend", finishReveal);
+  });
+}
+
+function clearDetailSliceReveals(root) {
+  root?.querySelectorAll(".detail-slice-reveal").forEach((section) => {
+    const finishReveal = detailRevealAnimationHandlers.get(section);
+    if (finishReveal) section.removeEventListener("animationend", finishReveal);
+    detailRevealAnimationHandlers.delete(section);
+    section.classList.remove("detail-slice-reveal");
+    section.style.removeProperty("--detail-slice-delay");
   });
 }
 
@@ -1649,6 +1671,23 @@ function closeShowMenus(exceptMenu = null) {
     menu.parentElement.querySelector("[data-show-menu-button]")
       ?.setAttribute("aria-expanded", "false");
   });
+  syncMenuScrim();
+}
+
+function syncMenuScrim() {
+  if (!menuScrim || !menuScrimHome) return;
+  const openMenu = document.querySelector(
+    "[data-show-menu]:not([hidden]), [data-watch-menu]:not([hidden])",
+  );
+  if (!openMenu) {
+    menuScrim.hidden = true;
+    if (menuScrim.parentElement !== menuScrimHome) menuScrimHome.append(menuScrim);
+    return;
+  }
+  if (menuScrim.parentElement !== openMenu.parentElement) {
+    openMenu.parentElement.insertBefore(menuScrim, openMenu);
+  }
+  menuScrim.hidden = false;
 }
 
 function toggleShowMenu(button) {
@@ -1656,25 +1695,31 @@ function toggleShowMenu(button) {
     || button.closest("[data-show-id]")?.querySelector("[data-show-menu]");
   if (!menu) return;
   const willOpen = menu.hidden;
+  clearTvFirstReveal(views.get("tv"));
+  clearDetailSliceReveals(views.get("detail"));
   closeWatchMenus();
   closeShowMenus(menu);
   menu.hidden = !willOpen;
   button.setAttribute("aria-expanded", String(willOpen));
+  syncMenuScrim();
 }
 
 function closeWatchMenus(exceptMenu = null) {
   document.querySelectorAll("[data-watch-menu]").forEach((menu) => {
     if (menu !== exceptMenu) menu.hidden = true;
   });
+  syncMenuScrim();
 }
 
 function toggleWatchMenu(control) {
   const menu = control.parentElement.querySelector("[data-watch-menu]");
   if (!menu) return;
   const willOpen = menu.hidden;
+  clearDetailSliceReveals(views.get("detail"));
   closeShowMenus();
   closeWatchMenus(menu);
   menu.hidden = !willOpen;
+  syncMenuScrim();
 }
 
 function syncProgressState(showElement) {
@@ -2001,6 +2046,12 @@ document.addEventListener("toggle", (event) => {
 }, true);
 
 document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-menu-scrim]")) {
+    closeShowMenus();
+    closeWatchMenus();
+    return;
+  }
+
   const imageTrigger = event.target.closest("[data-full-image-src]");
   if (imageTrigger) {
     event.preventDefault();
@@ -2307,6 +2358,11 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && menuScrim && !menuScrim.hidden) {
+    closeShowMenus();
+    closeWatchMenus();
+    return;
+  }
   const card = event.target.closest(".popular-card[data-tmdb-id]");
   if (!card || event.target.closest("button") || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
@@ -2480,7 +2536,7 @@ libraryFilterDialog?.addEventListener("close", () => {
 });
 
 imageViewer?.addEventListener("click", (event) => {
-  if (event.target === imageViewer) imageViewer.close();
+  if (event.target === imageViewer || event.target === imageViewerStage) imageViewer.close();
 });
 
 imageViewer?.addEventListener("close", () => {
