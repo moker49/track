@@ -1,8 +1,7 @@
 {% for season in seasons %}
 <details class="season" data-season-id="{{ season.id }}" data-episode-count="{{ season.episode_count }}"
   data-watched-count="{{ season.watched_count }}" data-min-watch-count="{{ season.minimum_watch_count }}"
-  data-progress-counted="{{ 'true' if season.is_progress_counted else 'false' }}"
-  data-episodes-loaded="false">
+  data-progress-counted="{{ 'true' if season.is_progress_counted else 'false' }}" data-episodes-loaded="false">
   <summary>
     <span class="season-chevron material-symbols-rounded" aria-hidden="true">expand_more</span>
     {% if season.poster_path %}<button class="season-image-button" type="button"
@@ -10,12 +9,12 @@
       data-full-image-alt="{{ season.name }} poster" aria-label="View {{ season.name }} poster"><span
         class="season-poster-shell has-media-image" aria-hidden="true"><img class="season-poster"
           src="{{ url_for('cached_tmdb_image', image_type='season', size='w185', tmdb_path=season.poster_path[1:]) }}"
-          alt="" loading="lazy" decoding="async" data-media-image><template
-          data-media-fallback-template><span class="season-poster-fallback">S{{ season.season_number }}</span></template></span></button>{% endif %}
+          alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span
+            class="season-poster-fallback">S{{ season.season_number }}</span></template></span></button>{% endif %}
     <span class="season-title">
       <strong>{{ season.name }}</strong>
-      <small>{% if season.is_progress_counted %}{{ season.watched_count }} of {{ season.episode_count }}{% else %}Not
-        counted in progress{% endif %}</small>
+      <small>{% if season.is_progress_counted %}{{ season.watched_count }} of {{ season.episode_count }}{% endif
+        %}</small>
     </span>
     <span class="season-watch-control watch-control-wrap">
       <button class="check-control" type="button" role="checkbox"
@@ -27,8 +26,8 @@
             (season.watched_count and season.watched_count < season.episode_count) %}hidden{% endif %}>check</span>
           <span class="material-symbols-rounded watch-check" data-watch-mixed {% if not season.watched_count or
             season.watched_count==season.episode_count %}hidden{% endif %}>remove</span>
-          <span class="watch-counter" data-watch-counter {% if season.minimum_watch_count <=1 or
-            season.watched_count < season.episode_count %}hidden{% endif %}>{{ season.minimum_watch_count }}</span>
+          <span class="watch-counter" data-watch-counter {% if season.minimum_watch_count <=1 or season.watched_count <
+            season.episode_count %}hidden{% endif %}>{{ season.minimum_watch_count }}</span>
         </span>
       </button>
       <span class="show-menu watch-menu" data-watch-menu hidden>

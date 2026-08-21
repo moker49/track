@@ -1457,6 +1457,16 @@ async function openEpisode(episodeId, historyMode = "push") {
   }
 }
 
+function fitEpisodeDetailTitle(detailView) {
+  const title = detailView.querySelector("[data-responsive-episode-title]");
+  if (!title) return;
+  title.classList.remove("long-title");
+  const lineHeight = Number.parseFloat(getComputedStyle(title).lineHeight);
+  if (Number.isFinite(lineHeight) && title.scrollHeight > (lineHeight * 2) + 1) {
+    title.classList.add("long-title");
+  }
+}
+
 function renderEpisodeDetail(episodeHtml, previousWasShow, animate) {
   const episodeTemplate = document.createElement("template");
   episodeTemplate.innerHTML = episodeHtml;
@@ -1469,6 +1479,7 @@ function renderEpisodeDetail(episodeHtml, previousWasShow, animate) {
     staggerDetailSlices([episodeHero, ...episodeContent.children]);
   }
   views.get("detail").replaceChildren(episodeTemplate.content);
+  fitEpisodeDetailTitle(views.get("detail"));
   finishDetailLoad();
   if (animate) hydrateOtherPrimaryViews();
 }
@@ -2534,7 +2545,8 @@ document.addEventListener("submit", (event) => {
 function updateProgress(progress, data) {
   if (!progress) return;
   progress.querySelector("[data-progress-copy]").textContent =
-    `${data.watched_count} of ${data.episode_count}`;
+    `${data.watched_count}/${data.episode_count}`;
+  progress.querySelector("[data-progress-percent]").textContent = `${data.percent}%`;
   const bar = progress.querySelector(".progress-track");
   bar.setAttribute("aria-valuenow", data.percent);
   bar.querySelector("span").style.width = `${data.percent}%`;
@@ -2662,7 +2674,10 @@ searchBackButton?.addEventListener("click", () => {
   globalSearchInput.blur();
 });
 
-window.addEventListener("resize", syncSearchTextPosition);
+window.addEventListener("resize", () => {
+  syncSearchTextPosition();
+  fitEpisodeDetailTitle(views.get("detail"));
+});
 document.fonts?.ready.then(syncSearchTextPosition);
 
 filterAllShowViews();

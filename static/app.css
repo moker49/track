@@ -1051,6 +1051,14 @@ html.app-booting .schedule-empty-reveal {
   font-size: 1.7rem;
 }
 
+.episode-hero h1 {
+  line-height: 1.15;
+}
+
+.episode-hero h1.long-title {
+  font-size: 1.2rem;
+}
+
 .hero p {
   margin: 0;
   color: var(--on-surface-muted);
@@ -1290,6 +1298,7 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .episode-title {
+  min-width: 0;
   display: flex;
   align-items: baseline;
   padding-left: 27px;
@@ -1307,6 +1316,8 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .episode-title strong {
+  min-width: 0;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

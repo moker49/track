@@ -628,6 +628,9 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-activity-log', detail.data)
         self.assertIn(b"Added to My Shows", detail.data)
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Watching</span>', detail.data)
+        self.assertIn(b'<span data-progress-copy>5/13</span>', detail.data)
+        self.assertIn(b'<strong data-progress-percent>38%</strong>', detail.data)
+        self.assertNotIn(b"Your progress", detail.data)
         self.assertNotIn(b"data-show-state-label", detail.data)
         self.assertNotIn(b'<details class="activity-log" open', detail.data)
         self.assertNotIn(b"<!doctype html>", detail.data.lower())
@@ -917,11 +920,17 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"<!doctype html>", detail.data.lower())
 
         connection = sqlite3.connect(self.database)
-        connection.execute("UPDATE episodes SET runtime_minutes = NULL WHERE id = 2")
+        connection.execute(
+            "UPDATE episodes SET air_date = NULL, runtime_minutes = NULL WHERE id = 2"
+        )
         connection.commit()
         connection.close()
         no_duration = self.client.get("/api/episodes/2")
         self.assertNotIn(b"None min", no_duration.data)
+        self.assertNotIn(b'datetime="None"', no_duration.data)
+        episode_list = self.client.get("/api/seasons/1/episodes")
+        self.assertNotIn(b"None min", episode_list.data)
+        self.assertNotIn(b'datetime="None"', episode_list.data)
 
         self.client.post(
             "/api/episodes/1/watch-count", json={"action": "increment"}
@@ -1446,6 +1455,10 @@ class TrackAppTest(unittest.TestCase):
 
         self.assertEqual(json.loads(imported_show["tmdb_payload"])["networks"][0]["name"], "A Network")
         self.assertEqual([tuple(row) for row in season_flags], [(0, 0), (1, 1)])
+        season_list = self.client.get(
+            f"/api/shows/{imported_show['id']}/seasons"
+        ).data
+        self.assertLess(season_list.find(b">Season 1</strong>"), season_list.find(b">Specials</strong>"))
         watched_special = self.client.post(
             f"/api/episodes/{special_episode_id}/watched", json={"watched": True}
         )

@@ -727,7 +727,8 @@ def create_app(test_config: dict | None = None) -> Flask:
             LEFT JOIN episode_counts ec ON ec.season_id = sn.id
             WHERE sn.show_id = ?
             GROUP BY sn.id
-            ORDER BY sn.season_number
+            ORDER BY CASE WHEN sn.season_number = 0 THEN 1 ELSE 0 END,
+                     sn.season_number
             """,
             (show_id, show_id),
         ).fetchall()

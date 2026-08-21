@@ -7,14 +7,16 @@
       <span>{{ episode.episode_number }}</span>
       <strong>{{ episode.name }}</strong>
     </div>
-    <p><time datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date }}</time>{% if
-      episode.runtime_minutes is not none %} Â· {{ episode.runtime_minutes }} min{% endif %}</p>
+    {% if episode.air_date or episode.runtime_minutes %}<p>{% if episode.air_date %}<time
+        datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date }}</time>{% endif %}{% if
+      episode.air_date and episode.runtime_minutes %} · {% endif %}{% if episode.runtime_minutes %}{{
+      episode.runtime_minutes }} min{% endif %}</p>{% endif %}
   </button>
   <div class="watch-control-wrap">
     <button class="check-control" type="button" role="checkbox"
       aria-checked="{{ 'true' if episode.watch_count else 'false' }}"
-      aria-label="Watch options for episode {{ episode.episode_number }} {{ episode.name }}"
-      data-episode-watch data-watch-count="{{ episode.watch_count }}">
+      aria-label="Watch options for episode {{ episode.episode_number }} {{ episode.name }}" data-episode-watch
+      data-watch-count="{{ episode.watch_count }}">
       <span class="checkbox-visual" aria-hidden="true">
         <span class="material-symbols-rounded watch-check" data-watch-check {% if episode.watch_count> 1
           %}hidden{% endif %}>check</span>

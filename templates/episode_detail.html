@@ -18,9 +18,11 @@
     {% if episode.still_path %}</button>{% endif %}
     <div class="hero-copy">
       <span class="state-label">Episode {{ episode.episode_number }}</span>
-      <h1>{{ episode.name }}</h1>
-      <p>{{ episode.season_name }}<br><time datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date
-          }}</time>{% if episode.runtime_minutes is not none %} · {{ episode.runtime_minutes }} min{% endif %}</p>
+      <h1 data-responsive-episode-title>{{ episode.name }}</h1>
+      <p>{{ episode.season_name }}{% if episode.air_date or episode.runtime_minutes %}<br>{% if episode.air_date
+          %}<time datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date }}</time>{% endif %}{% if
+          episode.air_date and episode.runtime_minutes %} · {% endif %}{% if episode.runtime_minutes %}{{
+          episode.runtime_minutes }} min{% endif %}{% endif %}</p>
     </div>
   </section>
 
