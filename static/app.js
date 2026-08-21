@@ -309,7 +309,7 @@ function inspectMediaImages(root) {
 function catalogActions() {
   const actions = document.createElement("div");
   actions.className = "popular-card-actions";
-  [["ACTIVE", "Add to Active"], ["ARCHIVED", "Archive"]].forEach(([state, label]) => {
+  [["ACTIVE", "Add"], ["ARCHIVED", "Archive"]].forEach(([state, label]) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "catalog-action";
@@ -1467,7 +1467,7 @@ function addActivityItem({
   icon.setAttribute("aria-hidden", "true");
   icon.textContent = {
     archived: "archive",
-    activated: "play_arrow",
+    activated: "resume",
     season_watched: "done_all",
   }[type] || "history";
 
@@ -2583,7 +2583,7 @@ if (window.history.state?.trackApp && window.history.state.view !== "backlog") {
 }
 
 if (["backlog", "upcoming"].includes(currentView)
-    && !revealedViewAnimations.has(currentView)) {
+  && !revealedViewAnimations.has(currentView)) {
   revealedViewAnimations.add(currentView);
   staggerScheduleFirstReveal(views.get(currentView));
 }

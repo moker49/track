@@ -102,7 +102,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Archived", home.data)
         self.assertIn(b"Finished", home.data)
         self.assertIn(b"more_vert", home.data)
-        self.assertIn(b"Make active", home.data)
+        self.assertIn(b"Resume", home.data)
         self.assertIn(b"Remove", home.data)
         self.assertIn(b"Add show", home.data)
         self.assertIn(b'data-tv-add-results', home.data)
@@ -642,7 +642,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(archived_detail.status_code, 200)
         self.assertIn(b"Archived Test Show", archived_detail.data)
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Finished</span>', archived_detail.data)
-        self.assertIn(b"Make active", archived_detail.data)
+        self.assertIn(b"Resume", archived_detail.data)
         self.assertIn(b"more_vert", archived_detail.data)
         move_position = archived_detail.data.index(b'data-show-action="move"')
         refresh_position = archived_detail.data.index(b'data-show-action="refresh"')
@@ -1088,7 +1088,7 @@ class TrackAppTest(unittest.TestCase):
             "/api/shows/1/state", json={"state": "ARCHIVED"}
         )
         self.assertEqual(archive.status_code, 200)
-        self.assertEqual(archive.get_json()["move_label"], "Make active")
+        self.assertEqual(archive.get_json()["move_label"], "Resume")
 
         make_active = self.client.post(
             "/api/shows/1/state", json={"state": "ACTIVE"}

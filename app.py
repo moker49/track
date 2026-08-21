@@ -841,8 +841,8 @@ def create_app(test_config: dict | None = None) -> Flask:
                 if newly_tracked
                 else None
             ),
-            move_label=("Make active" if target_state == "ARCHIVED" else "Archive"),
-            move_icon=("play_arrow" if target_state == "ARCHIVED" else "archive"),
+            move_label=("Resume" if target_state == "ARCHIVED" else "Archive"),
+            move_icon=("resume" if target_state == "ARCHIVED" else "archive"),
             activity_title=("Archived" if target_state == "ARCHIVED" else "Made active"),
             activity_type=("archived" if target_state == "ARCHIVED" else "activated"),
             changed_at=changed_at,

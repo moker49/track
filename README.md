@@ -21,7 +21,7 @@ TMDB_READ_ACCESS_TOKEN=your-token
 
 After that, start the app normally with `python app.py`. An already-defined system environment variable takes precedence over the value in `.env`.
 
-Searching in TV matches Active and Archived shows locally while also searching TMDB. During a search, library filters are ignored and matching tracked shows appear in their respective sections. The Add show section contains only shows that have never been added or shows that were previously removed. Opening a new result imports it as an untracked local preview; it enters the library only after choosing Add to Active or Archive.
+Searching in TV matches Active and Archived shows locally while also searching TMDB. During a search, library filters are ignored and matching tracked shows appear in their respective sections. The Add show section contains only shows that have never been added or shows that were previously removed. Opening a new result imports it as an untracked local preview; it enters the library only after choosing Add or Archive.
 
 TMDB poster, season, and episode images are downloaded on demand through the local Flask server. Completed files are stored under `instance/images/`, indexed in SQLite, and reused with long-lived browser caching. Image failures fall back to the built-in text artwork and never fail a metadata import.
 
