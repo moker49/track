@@ -84,6 +84,7 @@ let datePickerMonth = new Date();
 let libraryFilterView = null;
 let libraryFilterDraft = null;
 let libraryFilterTransitioning = false;
+let lastTvScrollY = 0;
 let tvSearchTimer = null;
 let tvSearchRequest = null;
 let tvSearchPending = false;
@@ -215,6 +216,11 @@ function showView(viewName, historyMode = null) {
   };
   document.title = titles[viewName] || "Track";
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
+  if (viewName === "tv") {
+    views.get("tv").querySelector("[data-tv-library-switcher]")
+      ?.classList.remove("is-scroll-hidden");
+    lastTvScrollY = window.scrollY;
+  }
   if (["backlog", "upcoming"].includes(viewName)) {
     if (firstScheduleDataReady) {
       staggerScheduleFirstReveal(views.get(viewName));
@@ -2695,6 +2701,15 @@ window.addEventListener("resize", () => {
   syncSearchTextPosition();
   fitEpisodeDetailTitle(views.get("detail"));
 });
+
+window.addEventListener("scroll", () => {
+  if (currentView !== "tv") return;
+  const currentScrollY = window.scrollY;
+  const switcher = views.get("tv")?.querySelector("[data-tv-library-switcher]");
+  if (currentScrollY > lastTvScrollY) switcher?.classList.add("is-scroll-hidden");
+  else if (currentScrollY < lastTvScrollY) switcher?.classList.remove("is-scroll-hidden");
+  lastTvScrollY = currentScrollY;
+}, { passive: true });
 document.fonts?.ready.then(syncSearchTextPosition);
 
 filterAllShowViews();

@@ -534,6 +534,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("const customized = preferences.tags.size > 0;", javascript)
         self.assertIn("preferences.state = nextState;", javascript)
         self.assertIn("librarySwitcher.hidden = searching;", javascript)
+        self.assertIn('switcher?.classList.add("is-scroll-hidden")', javascript)
+        self.assertIn('switcher?.classList.remove("is-scroll-hidden")', javascript)
         self.assertNotIn(b">swap_vert</span>", home.data)
         self.assertIn('filterShowView(views.get("tv"))', javascript)
         self.assertNotIn("preferences.sortField !==", javascript)

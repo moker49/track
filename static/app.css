@@ -866,7 +866,7 @@ html.app-booting .schedule-empty-reveal {
   width: min(calc(100% - 32px), 488px);
   min-height: 52px;
   padding: 4px;
-  transform: translateX(-50%);
+  transform: translate(-50%, 0);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
@@ -874,6 +874,12 @@ html.app-booting .schedule-empty-reveal {
   border-radius: 28px;
   background: var(--surface-high);
   box-shadow: 0 4px 18px var(--shadow);
+  transition: transform 160ms ease-in-out;
+  will-change: transform;
+}
+
+.tv-library-switcher.is-scroll-hidden {
+  transform: translate(-50%, calc(100% + 16px));
 }
 
 .tv-library-switcher::before {
@@ -918,10 +924,6 @@ html.app-booting .schedule-empty-reveal {
 .tv-library-switcher button:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
-}
-
-[data-view="tv"] {
-  padding-bottom: 72px;
 }
 
 [data-view="tv"].is-searching {
