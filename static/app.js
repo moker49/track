@@ -2347,6 +2347,11 @@ document.addEventListener("click", (event) => {
     clearTvFirstReveal(views.get("tv"));
     preferences.state = nextState;
     filterShowView(views.get("tv"));
+    scrollPositions.tv = 0;
+    window.scrollTo({ top: 0, behavior: "auto" });
+    lastTvScrollY = 0;
+    views.get("tv").querySelector("[data-tv-library-switcher]")
+      ?.classList.remove("is-scroll-hidden");
     revealTvStateOnce(views.get("tv"));
     return;
   }
