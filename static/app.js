@@ -1382,6 +1382,10 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
   const activity = detailContent.querySelector("[data-activity-log]");
   seasonList.innerHTML = seasonsHtml;
   seasonList.removeAttribute("aria-busy");
+  (returnContext?.openSeasonIds || []).forEach((seasonId) => {
+    const season = seasonList.querySelector(`[data-season-id="${seasonId}"]`);
+    if (season) season.open = true;
+  });
   if (animate) {
     const slices = [
       hero,
