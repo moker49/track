@@ -186,9 +186,12 @@ function showView(viewName, historyMode = null) {
   }
   const firstScheduleReveal = ["backlog", "upcoming"].includes(viewName)
     && !revealedViewAnimations.has(viewName);
+  const firstScheduleDataReady = firstScheduleReveal && scheduleViewsHydrated;
   if (firstScheduleReveal) {
     revealedViewAnimations.add(viewName);
-    views.get(viewName).classList.add("schedule-first-reveal-pending");
+    if (!firstScheduleDataReady) {
+      views.get(viewName).classList.add("schedule-first-reveal-pending");
+    }
   }
   if (viewName === "tv" && !revealedViewAnimations.has("tv")) {
     staggerTvFirstReveal(views.get("tv"));
@@ -213,12 +216,16 @@ function showView(viewName, historyMode = null) {
   document.title = titles[viewName] || "Track";
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
   if (["backlog", "upcoming"].includes(viewName)) {
-    const scheduleRefresh = refreshScheduleContent().catch(() => undefined);
-    if (firstScheduleReveal) {
-      scheduleRefresh.finally(() => {
-        if (currentView === viewName) staggerScheduleFirstReveal(views.get(viewName));
-        else clearScheduleFirstReveal(views.get(viewName));
-      });
+    if (firstScheduleDataReady) {
+      staggerScheduleFirstReveal(views.get(viewName));
+    } else {
+      const scheduleRefresh = refreshScheduleContent().catch(() => undefined);
+      if (firstScheduleReveal) {
+        scheduleRefresh.finally(() => {
+          if (currentView === viewName) staggerScheduleFirstReveal(views.get(viewName));
+          else clearScheduleFirstReveal(views.get(viewName));
+        });
+      }
     }
   }
   if (historyMode && viewName !== "detail") {

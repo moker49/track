@@ -553,6 +553,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("hydrateOtherPrimaryViews(view.dataset.view);", javascript)
         self.assertIn("Promise.allSettled(hydrationTasks);", javascript)
         self.assertIn("background && viewName === currentView", javascript)
+        self.assertIn("const firstScheduleDataReady = firstScheduleReveal && scheduleViewsHydrated;", javascript)
+        self.assertIn("if (firstScheduleDataReady) {\n      staggerScheduleFirstReveal", javascript)
         self.assertIn("const [overviewHtml, seasonsHtml] = await Promise.all", javascript)
         self.assertIn(
             "renderShowDetail(cachedOverview, cachedSeasons, false, returnContext)",
