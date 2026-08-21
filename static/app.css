@@ -200,29 +200,6 @@ html.app-booting .app-boot-screen {
   gap: 4px;
 }
 
-.tv-list-heading-toggle {
-  min-height: 48px;
-  margin: -8px;
-  padding: 8px;
-  border: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-}
-
-.tv-list-heading-toggle .material-symbols-rounded {
-  font-size: 21px;
-}
-
-.tv-list-heading-toggle:disabled {
-  color: inherit;
-  cursor: default;
-}
-
 .filter-button {
   color: var(--on-surface-muted);
 }
@@ -873,8 +850,68 @@ html.app-booting .schedule-empty-reveal {
   gap: 12px;
 }
 
+.tv-library-section {
+  padding-top: 12px;
+}
+
 .archived-section {
+  padding-top: 12px;
+}
+
+.tv-library-switcher {
+  position: fixed;
+  z-index: 19;
+  left: 50%;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  width: min(calc(100% - 32px), 488px);
+  min-height: 52px;
+  padding: 4px;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  border: 1px solid var(--outline-soft);
+  border-radius: 28px;
+  background: var(--surface-high);
+  box-shadow: 0 4px 18px var(--shadow);
+}
+
+.tv-library-switcher button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 22px;
+  color: var(--on-surface-muted);
+  background: transparent;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tv-library-switcher button[aria-pressed="true"] {
+  color: var(--primary-dark);
+  background: var(--primary-light);
+  font-weight: 700;
+}
+
+.tv-library-switcher button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+[data-view="tv"] {
+  padding-bottom: 72px;
+}
+
+[data-view="tv"].is-searching {
+  padding-top: 12px;
+}
+
+[data-view="tv"].is-searching .tv-library-section,
+[data-view="tv"].is-searching .tv-add-section {
   padding-top: 0;
+  padding-bottom: 12px;
 }
 
 .card-menu-button {
@@ -2519,6 +2556,10 @@ html.app-booting .tv-slice-reveal {
   .bottom-nav {
     bottom: 24px;
     border-radius: 0 0 28px 28px;
+  }
+
+  .tv-library-switcher {
+    bottom: calc(108px + env(safe-area-inset-bottom));
   }
 
   .library-filter-dialog {

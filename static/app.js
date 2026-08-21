@@ -10,7 +10,7 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list more_vert resume event tv done_all arrow_forward menu account_circle arrow_back close swap_vert",
+        "filter_list more_vert resume event tv done_all arrow_forward menu account_circle arrow_back close",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
@@ -194,10 +194,6 @@ function showView(viewName, historyMode = null) {
       views.get(viewName).classList.add("schedule-first-reveal-pending");
     }
   }
-  if (viewName === "tv" && !revealedViewAnimations.has("tv")) {
-    staggerTvFirstReveal(views.get("tv"));
-    revealedViewAnimations.add("tv");
-  }
   scrollPositions[currentView] = window.scrollY;
   views.forEach((view, name) => {
     const active = name === viewName;
@@ -208,6 +204,9 @@ function showView(viewName, historyMode = null) {
   updateActiveNav(viewName === "detail" ? detailParentView : viewName);
   currentView = viewName;
   syncGlobalSearch();
+  if (viewName === "tv") {
+    window.requestAnimationFrame(() => revealTvStateOnce(views.get("tv")));
+  }
   const titles = {
     backlog: "Queue · Track",
     upcoming: "Upcoming · Track",
@@ -360,7 +359,6 @@ function syncTvSearchPresentation() {
   loading.hidden = !tvSearchPending;
   addResults.hidden = tvSearchPending;
   credit.hidden = tvSearchPending || addCount === 0;
-  addSection.querySelector("[data-tv-add-count]").textContent = addCount;
   error.hidden = !tvSearchError;
   if (tvSearchError) {
     error.querySelector("[data-tv-search-error-copy]").textContent = tvSearchError;
@@ -591,6 +589,15 @@ function staggerTvFirstReveal(view) {
     slice.addEventListener("animationend", finishReveal);
   });
   hydrateOtherPrimaryViews("tv");
+}
+
+function revealTvStateOnce(view) {
+  if (!view || currentView !== "tv" || searchQueries.tv.trim()) return;
+  const state = libraryViewPreferences.tv.state;
+  const revealKey = `tv:${state}`;
+  if (revealedViewAnimations.has(revealKey)) return;
+  revealedViewAnimations.add(revealKey);
+  staggerTvFirstReveal(view);
 }
 
 function clearTvFirstReveal(view) {
@@ -1914,7 +1921,8 @@ function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
 function syncStateSections() {
   document.querySelectorAll("[data-state-section]").forEach((section) => {
     const count = section.querySelectorAll(".show-card").length;
-    section.querySelector("[data-state-count]").textContent = count;
+    const countElement = section.querySelector("[data-state-count]");
+    if (countElement) countElement.textContent = count;
     section.querySelector("[data-state-empty]").hidden = count > 0;
   });
 }
@@ -2321,11 +2329,15 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const archiveToggle = event.target.closest("[data-tv-archive-toggle]");
-  if (archiveToggle) {
+  const libraryStateButton = event.target.closest("[data-tv-library-state]");
+  if (libraryStateButton) {
     const preferences = libraryViewPreferences.tv;
-    preferences.state = preferences.state === "ACTIVE" ? "ARCHIVED" : "ACTIVE";
+    const nextState = libraryStateButton.dataset.tvLibraryState;
+    if (preferences.state === nextState) return;
+    clearTvFirstReveal(views.get("tv"));
+    preferences.state = nextState;
     filterShowView(views.get("tv"));
+    revealTvStateOnce(views.get("tv"));
     return;
   }
 
@@ -2584,6 +2596,7 @@ function filterShowView(view) {
   if (!preferences) return;
   const query = searchQueries[view.dataset.view].trim().toLocaleLowerCase();
   const searching = view.dataset.view === "tv" && Boolean(query);
+  view.classList.toggle("is-searching", searching);
   view.querySelectorAll("[data-state-section]").forEach((section) => {
     const state = section.dataset.stateSection;
     const stateSelected = searching || preferences.state === state;
@@ -2619,17 +2632,13 @@ function filterShowView(view) {
     const count = section.querySelector("[data-state-count]");
     if (count) count.textContent = searching ? visibleCount : cards.length;
   });
-  view.querySelectorAll("[data-tv-archive-toggle]").forEach((button) => {
-    button.disabled = searching;
-    const icon = button.querySelector("[data-tv-archive-toggle-icon]");
-    if (icon) icon.hidden = searching;
-    const showingArchived = preferences.state === "ARCHIVED";
-    button.setAttribute("aria-pressed", String(showingArchived));
-    button.setAttribute(
-      "aria-label",
-      showingArchived ? "Show active shows" : "Show archived shows",
-    );
-  });
+  const librarySwitcher = view.querySelector("[data-tv-library-switcher]");
+  if (librarySwitcher) {
+    librarySwitcher.hidden = searching;
+    librarySwitcher.querySelectorAll("[data-tv-library-state]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.tvLibraryState === preferences.state));
+    });
+  }
   hydratedLibraryViews.add(view.dataset.view);
   if (view.dataset.view === "tv") syncTvSearchPresentation();
 }
@@ -2648,6 +2657,9 @@ globalSearchInput?.addEventListener("input", () => {
     filterSchedule(currentView);
   } else if (currentView === "tv") {
     filterShowView(views.get(currentView));
+    if (!query.trim()) {
+      window.requestAnimationFrame(() => revealTvStateOnce(views.get("tv")));
+    }
     clearTimeout(tvSearchTimer);
     if (tvSearchRequest) tvSearchRequest.abort();
     tvSearchPending = false;

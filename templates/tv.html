@@ -1,19 +1,5 @@
 {% from "_show_card.html" import show_card %}
-<section class="page-section" data-state-section="ACTIVE" aria-labelledby="active-title">
-  <div class="section-heading">
-    <div>
-      <h2 id="active-title">
-        <button class="tv-list-heading-toggle" type="button" data-tv-archive-toggle
-          aria-label="Show archived shows" aria-pressed="false">
-          <span>Active</span>
-          <span class="material-symbols-rounded" data-tv-archive-toggle-icon aria-hidden="true">swap_vert</span>
-        </button>
-      </h2>
-    </div>
-    <div class="section-heading-actions">
-      <span class="count-badge" data-state-count>{{ active_shows|length }}</span>
-    </div>
-  </div>
+<section class="page-section tv-library-section" data-state-section="ACTIVE" aria-label="Active shows">
   <div class="show-list" data-show-list="ACTIVE">
     {% for show in active_shows %}{{ show_card(show) }}{% endfor %}
   </div>
@@ -24,21 +10,8 @@
   </div>
 </section>
 
-<section class="page-section archived-section" data-state-section="ARCHIVED" aria-labelledby="archived-title" hidden>
-  <div class="section-heading">
-    <div>
-      <h2 id="archived-title">
-        <button class="tv-list-heading-toggle" type="button" data-tv-archive-toggle
-          aria-label="Show active shows" aria-pressed="true">
-          <span>Archived</span>
-          <span class="material-symbols-rounded" data-tv-archive-toggle-icon aria-hidden="true">swap_vert</span>
-        </button>
-      </h2>
-    </div>
-    <div class="section-heading-actions">
-      <span class="count-badge" data-state-count>{{ archived_shows|length }}</span>
-    </div>
-  </div>
+<section class="page-section tv-library-section archived-section" data-state-section="ARCHIVED"
+  aria-label="Archived shows" hidden>
   <div class="show-list" data-show-list="ARCHIVED">
     {% for show in archived_shows %}{{ show_card(show) }}{% endfor %}
   </div>
@@ -49,15 +22,12 @@
   </div>
 </section>
 
-<section class="page-section tv-add-section" data-tv-add-section aria-labelledby="tv-add-title" hidden>
-  <div class="section-heading">
-    <div>
-      <h2 id="tv-add-title">Add show</h2>
-    </div>
-    <div class="section-heading-actions">
-      <span class="count-badge" data-tv-add-count>0</span>
-    </div>
-  </div>
+<div class="tv-library-switcher" data-tv-library-switcher role="group" aria-label="TV list">
+  <button type="button" data-tv-library-state="ACTIVE" aria-pressed="true">Active</button>
+  <button type="button" data-tv-library-state="ARCHIVED" aria-pressed="false">Archived</button>
+</div>
+
+<section class="page-section tv-add-section" data-tv-add-section aria-label="TMDB results" hidden>
   <div class="tv-search-loading" data-tv-search-loading aria-label="Searching TMDB" aria-busy="true" hidden>
     <span class="tv-search-loading-bar"></span>
     <span class="tv-search-loading-bar"></span>
