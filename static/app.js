@@ -42,6 +42,7 @@ const removeDialog = document.querySelector("[data-remove-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
 const libraryFilterDialog = document.querySelector("[data-library-filter-dialog]");
 const imageViewer = document.querySelector("[data-image-viewer]");
+const imageViewerPreview = imageViewer?.querySelector("[data-image-viewer-preview]");
 const imageViewerImage = imageViewer?.querySelector("[data-image-viewer-image]");
 const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]");
 const menuScrim = document.querySelector("[data-menu-scrim]");
@@ -97,6 +98,7 @@ let tvSearchError = "";
 let snackbarAction = null;
 let backgroundPrimaryViewHydrationStarted = false;
 let scheduleViewsHydrated = false;
+let imageViewerAspectRatio = null;
 
 if (!window.history.state?.trackApp) {
   window.history.replaceState({ trackApp: true, view: "backlog" }, "");
@@ -107,23 +109,69 @@ function writeHistory(state, mode = "push") {
   window.history[method]({ trackApp: true, ...state }, "");
 }
 
-function openImageViewer(trigger) {
-  if (!imageViewer || !imageViewerImage || !imageViewerStage) return;
-  imageViewerStage.setAttribute("aria-busy", "true");
-  imageViewerStage.classList.remove("is-loaded", "has-error");
-  imageViewerImage.alt = trigger.dataset.fullImageAlt || "Large image";
-  imageViewerImage.src = trigger.dataset.fullImageSrc;
-  imageViewer.showModal();
+function sizeImageViewerLayers() {
+  if (!imageViewerStage || !imageViewerAspectRatio) return;
+  const availableWidth = imageViewerStage.clientWidth;
+  const availableHeight = imageViewerStage.clientHeight;
+  if (!availableWidth || !availableHeight) return;
+
+  let width = availableWidth;
+  let height = width / imageViewerAspectRatio;
+  if (height > availableHeight) {
+    height = availableHeight;
+    width = height * imageViewerAspectRatio;
+  }
+  imageViewerStage.style.setProperty("--image-viewer-width", `${width}px`);
+  imageViewerStage.style.setProperty("--image-viewer-height", `${height}px`);
 }
 
-imageViewerImage?.addEventListener("load", () => {
-  imageViewerStage?.classList.add("is-loaded");
-  imageViewerStage?.removeAttribute("aria-busy");
+function openImageViewer(trigger) {
+  if (!imageViewer || !imageViewerPreview || !imageViewerImage || !imageViewerStage) return;
+  const currentImage = trigger.querySelector("img[data-media-image]");
+  const previewSource = currentImage?.currentSrc || currentImage?.src || "";
+  const currentBounds = currentImage?.getBoundingClientRect();
+  imageViewerAspectRatio = currentImage?.naturalWidth && currentImage?.naturalHeight
+    ? currentImage.naturalWidth / currentImage.naturalHeight
+    : currentBounds?.width && currentBounds?.height
+      ? currentBounds.width / currentBounds.height
+      : null;
+  imageViewerStage.setAttribute("aria-busy", "true");
+  imageViewerStage.classList.remove("is-loaded", "has-error", "has-preview");
+  imageViewerPreview.toggleAttribute("hidden", !previewSource);
+  if (previewSource) {
+    imageViewerPreview.src = previewSource;
+    imageViewerStage.classList.add("has-preview");
+  } else {
+    imageViewerPreview.removeAttribute("src");
+  }
+  imageViewerImage.alt = trigger.dataset.fullImageAlt || "Large image";
+  imageViewer.showModal();
+  sizeImageViewerLayers();
+  imageViewerImage.src = trigger.dataset.fullImageSrc;
+}
+
+imageViewerImage?.addEventListener("load", async () => {
+  const loadedSource = imageViewerImage.currentSrc;
+  try {
+    await imageViewerImage.decode();
+  } catch (_error) {
+    // A completed load can still be painted when explicit decoding is unavailable.
+  }
+  window.requestAnimationFrame(() => {
+    if (!imageViewer?.open || imageViewerImage.currentSrc !== loadedSource) return;
+    imageViewerStage?.classList.add("is-loaded");
+    imageViewerStage?.removeAttribute("aria-busy");
+  });
 });
 
 imageViewerImage?.addEventListener("error", () => {
   imageViewerStage?.classList.add("has-error");
   imageViewerStage?.removeAttribute("aria-busy");
+});
+
+imageViewerImage?.addEventListener("transitionend", (event) => {
+  if (event.propertyName !== "opacity" || !imageViewerStage?.classList.contains("is-loaded")) return;
+  imageViewerPreview?.setAttribute("hidden", "");
 });
 
 function updateActiveNav(navView) {
@@ -2914,8 +2962,17 @@ imageViewer?.addEventListener("click", (event) => {
 });
 
 imageViewer?.addEventListener("close", () => {
+  imageViewerPreview?.removeAttribute("src");
+  imageViewerPreview?.removeAttribute("hidden");
   imageViewerImage?.removeAttribute("src");
-  imageViewerStage?.classList.remove("is-loaded", "has-error");
+  imageViewerStage?.classList.remove("is-loaded", "has-error", "has-preview");
+  imageViewerStage?.style.removeProperty("--image-viewer-width");
+  imageViewerStage?.style.removeProperty("--image-viewer-height");
+  imageViewerAspectRatio = null;
+});
+
+window.addEventListener("resize", () => {
+  if (imageViewer?.open) sizeImageViewerLayers();
 });
 
 function restoreHistoryState(state) {
