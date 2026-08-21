@@ -7,7 +7,7 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list more_vert resume event tv done_all arrow_forward menu account_circle arrow_back close",
+        "filter_list more_vert resume event tv done_all arrow_forward menu account_circle arrow_back close swap_vert",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
@@ -45,7 +45,7 @@ const menuScrimHome = menuScrim?.parentElement;
 const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   tv: {
-    states: new Set(["ACTIVE"]),
+    state: "ACTIVE",
     tags: new Set(),
     sortField: "name",
     sortDirection: "asc",
@@ -1601,12 +1601,6 @@ async function saveWatchDate() {
 
 function syncLibraryFilterDialog() {
   if (!libraryFilterDialog || !libraryFilterDraft) return;
-  libraryFilterDialog.querySelectorAll("[data-filter-state]").forEach((button) => {
-    button.setAttribute(
-      "aria-pressed",
-      String(libraryFilterDraft.states.has(button.dataset.filterState)),
-    );
-  });
   libraryFilterDialog.querySelectorAll("[data-filter-tag]").forEach((button) => {
     button.setAttribute(
       "aria-pressed",
@@ -1633,7 +1627,6 @@ function openLibraryFilter(viewName) {
   globalSearchInput?.blur();
   libraryFilterView = viewName;
   libraryFilterDraft = {
-    states: new Set(preferences.states),
     tags: new Set(preferences.tags),
     sortField: preferences.sortField,
     sortDirection: preferences.sortDirection,
@@ -1646,15 +1639,14 @@ function updateLibraryFilterButton(viewName) {
   const preferences = libraryViewPreferences[viewName];
   const button = document.querySelector(`[data-open-library-filter="${viewName}"]`);
   if (!preferences || !button) return;
-  const defaultStates = preferences.states.size === 1 && preferences.states.has("ACTIVE");
-  const customized = !defaultStates || preferences.tags.size > 0;
+  const customized = preferences.tags.size > 0;
   button.classList.toggle("has-active-filter", customized);
 }
 
 function applyLibraryFilterDraft() {
   if (!libraryFilterView || !libraryFilterDraft) return;
   libraryViewPreferences[libraryFilterView] = {
-    states: new Set(libraryFilterDraft.states),
+    state: libraryViewPreferences[libraryFilterView].state,
     tags: new Set(libraryFilterDraft.tags),
     sortField: libraryFilterDraft.sortField,
     sortDirection: libraryFilterDraft.sortDirection,
@@ -2166,15 +2158,11 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const filterStateButton = event.target.closest("[data-filter-state]");
-  if (filterStateButton && libraryFilterDraft) {
-    const state = filterStateButton.dataset.filterState;
-    if (libraryFilterDraft.states.has(state)) {
-      if (libraryFilterDraft.states.size > 1) libraryFilterDraft.states.delete(state);
-    } else {
-      libraryFilterDraft.states.add(state);
-    }
-    syncLibraryFilterDialog();
+  const archiveToggle = event.target.closest("[data-tv-archive-toggle]");
+  if (archiveToggle) {
+    const preferences = libraryViewPreferences.tv;
+    preferences.state = preferences.state === "ACTIVE" ? "ARCHIVED" : "ACTIVE";
+    filterShowView(views.get("tv"));
     return;
   }
 
@@ -2434,7 +2422,7 @@ function filterShowView(view) {
   const searching = view.dataset.view === "tv" && Boolean(query);
   view.querySelectorAll("[data-state-section]").forEach((section) => {
     const state = section.dataset.stateSection;
-    const stateSelected = searching || preferences.states.has(state);
+    const stateSelected = searching || preferences.state === state;
     const list = section.querySelector(".show-list");
     const cards = [...section.querySelectorAll(".show-card")];
 
@@ -2466,6 +2454,17 @@ function filterShowView(view) {
     section.hidden = searching ? visibleCount === 0 : !stateSelected;
     const count = section.querySelector("[data-state-count]");
     if (count) count.textContent = searching ? visibleCount : cards.length;
+  });
+  view.querySelectorAll("[data-tv-archive-toggle]").forEach((button) => {
+    button.disabled = searching;
+    const icon = button.querySelector("[data-tv-archive-toggle-icon]");
+    if (icon) icon.hidden = searching;
+    const showingArchived = preferences.state === "ARCHIVED";
+    button.setAttribute("aria-pressed", String(showingArchived));
+    button.setAttribute(
+      "aria-label",
+      showingArchived ? "Show active shows" : "Show archived shows",
+    );
   });
   hydratedLibraryViews.add(view.dataset.view);
   if (view.dataset.view === "tv") syncTvSearchPresentation();
