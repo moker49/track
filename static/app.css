@@ -1805,7 +1805,7 @@ html.app-booting .schedule-empty-reveal {
 .filter-dialog-shell {
   height: 100%;
   overflow: auto;
-  background: var(--surface);
+  background: var(--surface-card);
 }
 
 .library-filter-dialog.is-transitioning .filter-dialog-shell {
