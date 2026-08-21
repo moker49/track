@@ -8,6 +8,7 @@
     <span class="detail-app-bar-title">Episode details</span>
   </header>
 
+  <div class="episode-detail-page-content" data-episode-page-content>
   <section class="hero episode-hero">
     {% if episode.still_path %}<button class="image-preview-button hero-image-button" type="button"
       data-full-image-src="https://image.tmdb.org/t/p/w780{{ episode.still_path }}"
@@ -61,4 +62,19 @@
     {% set activity_empty = 'This episode has not been watched yet.' %}
     {% include '_activity_log.html' %}
   </section>
+  </div>
+
+  <div class="bottom-context-switcher episode-navigation-switcher" data-episode-navigation role="group"
+    aria-label="Episode navigation">
+    <button type="button" data-adjacent-episode="previous"
+      {% if episode.previous_episode_id %}data-episode-id="{{ episode.previous_episode_id }}"{% else %}disabled{% endif %}>
+      <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
+      <span>Previous</span>
+    </button>
+    <button type="button" data-adjacent-episode="next"
+      {% if episode.next_episode_id %}data-episode-id="{{ episode.next_episode_id }}"{% else %}disabled{% endif %}>
+      <span>Next</span>
+      <span class="material-symbols-rounded" aria-hidden="true">chevron_right</span>
+    </button>
+  </div>
 </div>

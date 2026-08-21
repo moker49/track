@@ -816,6 +816,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             SELECT e.*,
                    sn.season_number,
                    sn.name AS season_name,
+                   sn.is_progress_counted,
                    s.id AS show_id,
                    s.name AS show_name,
                    s.status AS show_status,
@@ -833,6 +834,45 @@ def create_app(test_config: dict | None = None) -> Flask:
         ).fetchone()
         if episode is None:
             abort(404)
+
+        episode = dict(episode)
+        neighbor_parameters = (
+            episode["show_id"],
+            episode["is_progress_counted"],
+            episode["season_number"],
+            episode["season_number"],
+            episode["episode_number"],
+        )
+        previous_episode = db.execute(
+            """
+            SELECT e.id
+            FROM episodes e
+            JOIN seasons sn ON sn.id = e.season_id
+            WHERE sn.show_id = ?
+              AND sn.is_progress_counted = ?
+              AND (sn.season_number < ?
+                   OR (sn.season_number = ? AND e.episode_number < ?))
+            ORDER BY sn.season_number DESC, e.episode_number DESC
+            LIMIT 1
+            """,
+            neighbor_parameters,
+        ).fetchone()
+        next_episode = db.execute(
+            """
+            SELECT e.id
+            FROM episodes e
+            JOIN seasons sn ON sn.id = e.season_id
+            WHERE sn.show_id = ?
+              AND sn.is_progress_counted = ?
+              AND (sn.season_number > ?
+                   OR (sn.season_number = ? AND e.episode_number > ?))
+            ORDER BY sn.season_number, e.episode_number
+            LIMIT 1
+            """,
+            neighbor_parameters,
+        ).fetchone()
+        episode["previous_episode_id"] = previous_episode["id"] if previous_episode else None
+        episode["next_episode_id"] = next_episode["id"] if next_episode else None
 
         watch_log = db.execute(
             """

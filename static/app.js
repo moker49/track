@@ -67,6 +67,7 @@ const seasonEpisodeHydrationTargets = new Map();
 let activeSeasonEpisodePrefetches = 0;
 let seasonEpisodeCacheGeneration = 0;
 const episodeDetailCache = new Map();
+const episodeDetailRequests = new Map();
 const showRefreshRequests = new Map();
 const pendingWatchChanges = new WeakSet();
 const hydratedLibraryViews = new Set();
@@ -85,6 +86,8 @@ let libraryFilterView = null;
 let libraryFilterDraft = null;
 let libraryFilterTransitioning = false;
 let lastTvScrollY = 0;
+let lastEpisodeDetailScrollY = 0;
+let episodeNavigationPending = false;
 let tvSearchTimer = null;
 let tvSearchRequest = null;
 let tvSearchPending = false;
@@ -1474,6 +1477,98 @@ async function openEpisode(episodeId, historyMode = "push") {
   }
 }
 
+function requestEpisodeDetailHtml(episodeId) {
+  const cacheKey = String(episodeId);
+  if (episodeDetailCache.has(cacheKey)) {
+    return Promise.resolve(episodeDetailCache.get(cacheKey));
+  }
+  if (episodeDetailRequests.has(cacheKey)) return episodeDetailRequests.get(cacheKey);
+
+  const request = fetch(`/api/episodes/${episodeId}`, {
+    headers: { "X-Requested-With": "Track" },
+  }).then(async (response) => {
+    if (!response.ok) throw new Error("Could not load episode");
+    const episodeHtml = await response.text();
+    episodeDetailCache.set(cacheKey, episodeHtml);
+    return episodeHtml;
+  }).finally(() => episodeDetailRequests.delete(cacheKey));
+  episodeDetailRequests.set(cacheKey, request);
+  return request;
+}
+
+function preloadAdjacentEpisodeDetails(detailEpisode) {
+  detailEpisode?.querySelectorAll("[data-adjacent-episode][data-episode-id]")
+    .forEach((button) => {
+      requestEpisodeDetailHtml(button.dataset.episodeId).catch(() => undefined);
+    });
+}
+
+function animateEpisodePageEntry(detailView, direction) {
+  if (!direction || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const page = detailView.querySelector("[data-episode-page-content]");
+  if (!page) return;
+  const startPosition = direction === "next" ? "18%" : "-18%";
+  page.animate(
+    [
+      { transform: `translateX(${startPosition})`, opacity: 0 },
+      { transform: "translateX(0)", opacity: 1 },
+    ],
+    { duration: 180, easing: "ease-out" },
+  );
+}
+
+async function navigateAdjacentEpisode(button) {
+  if (episodeNavigationPending || !button.dataset.episodeId) return;
+  const detailView = views.get("detail");
+  const detailEpisode = button.closest("[data-detail-episode]");
+  const page = detailEpisode?.querySelector("[data-episode-page-content]");
+  if (!detailEpisode || !page) return;
+
+  episodeNavigationPending = true;
+  detailEpisode.querySelectorAll("[data-adjacent-episode]")
+    .forEach((control) => { control.disabled = true; });
+  const direction = button.dataset.adjacentEpisode;
+  const targetEpisodeId = button.dataset.episodeId;
+  const exitPosition = direction === "next" ? "-18%" : "18%";
+  const exitAnimation = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? null
+    : page.animate(
+      [
+        { transform: "translateX(0)", opacity: 1 },
+        { transform: `translateX(${exitPosition})`, opacity: 0 },
+      ],
+      { duration: 140, easing: "ease-in", fill: "both" },
+    );
+
+  try {
+    const [episodeHtml] = await Promise.all([
+      requestEpisodeDetailHtml(targetEpisodeId),
+      exitAnimation?.finished.catch(() => undefined) || Promise.resolve(),
+    ]);
+    writeHistory({
+      view: "detail",
+      detailType: "episode",
+      episodeId: String(targetEpisodeId),
+      parentView: detailParentView,
+      previousWasShow: false,
+    });
+    scrollPositions.detail = 0;
+    window.scrollTo({ top: 0, behavior: "auto" });
+    lastEpisodeDetailScrollY = 0;
+    renderEpisodeDetail(episodeHtml, false, true, direction);
+  } catch (_error) {
+    exitAnimation?.cancel();
+    detailEpisode.querySelectorAll("[data-adjacent-episode][data-episode-id]")
+      .forEach((control) => { control.disabled = false; });
+    showSnackbar("Couldn't load this episode.", {
+      actionLabel: "Retry",
+      onAction: () => navigateAdjacentEpisode(button),
+    });
+  } finally {
+    episodeNavigationPending = false;
+  }
+}
+
 function fitEpisodeDetailTitle(detailView) {
   const title = detailView.querySelector("[data-responsive-episode-title]");
   if (!title) return;
@@ -1484,7 +1579,7 @@ function fitEpisodeDetailTitle(detailView) {
   }
 }
 
-function renderEpisodeDetail(episodeHtml, previousWasShow, animate) {
+function renderEpisodeDetail(episodeHtml, previousWasShow, animate, entryDirection = null) {
   const episodeTemplate = document.createElement("template");
   episodeTemplate.innerHTML = episodeHtml;
   if (previousWasShow) {
@@ -1497,6 +1592,10 @@ function renderEpisodeDetail(episodeHtml, previousWasShow, animate) {
   }
   views.get("detail").replaceChildren(episodeTemplate.content);
   fitEpisodeDetailTitle(views.get("detail"));
+  const detailEpisode = views.get("detail").querySelector("[data-detail-episode]");
+  lastEpisodeDetailScrollY = window.scrollY;
+  preloadAdjacentEpisodeDetails(detailEpisode);
+  animateEpisodePageEntry(views.get("detail"), entryDirection);
   finishDetailLoad();
   if (animate) hydrateOtherPrimaryViews();
 }
@@ -2530,6 +2629,12 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const adjacentEpisodeButton = event.target.closest("[data-adjacent-episode]");
+  if (adjacentEpisodeButton) {
+    navigateAdjacentEpisode(adjacentEpisodeButton);
+    return;
+  }
+
   const episodeOpenButton = event.target.closest("[data-open-episode]");
   if (episodeOpenButton) {
     openEpisode(episodeOpenButton.closest("[data-episode-id]").dataset.episodeId);
@@ -2720,12 +2825,21 @@ window.addEventListener("resize", () => {
 });
 
 window.addEventListener("scroll", () => {
-  if (currentView !== "tv") return;
   const currentScrollY = window.scrollY;
-  const switcher = views.get("tv")?.querySelector("[data-tv-library-switcher]");
-  if (currentScrollY > lastTvScrollY) switcher?.classList.add("is-scroll-hidden");
-  else if (currentScrollY < lastTvScrollY) switcher?.classList.remove("is-scroll-hidden");
-  lastTvScrollY = currentScrollY;
+  if (currentView === "tv") {
+    const switcher = views.get("tv")?.querySelector("[data-tv-library-switcher]");
+    if (currentScrollY > lastTvScrollY) switcher?.classList.add("is-scroll-hidden");
+    else if (currentScrollY < lastTvScrollY) switcher?.classList.remove("is-scroll-hidden");
+    lastTvScrollY = currentScrollY;
+    return;
+  }
+  if (currentView === "detail") {
+    const switcher = views.get("detail")?.querySelector("[data-episode-navigation]");
+    if (!switcher) return;
+    if (currentScrollY > lastEpisodeDetailScrollY) switcher.classList.add("is-scroll-hidden");
+    else if (currentScrollY < lastEpisodeDetailScrollY) switcher.classList.remove("is-scroll-hidden");
+    lastEpisodeDetailScrollY = currentScrollY;
+  }
 }, { passive: true });
 document.fonts?.ready.then(syncSearchTextPosition);
 

@@ -970,10 +970,27 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'<details class="activity-log watch-log"', detail.data)
         self.assertIn(b'data-watch-log-entry', detail.data)
         self.assertIn(b'data-episode-detail-watch', detail.data)
+        self.assertIn(b'data-episode-navigation', detail.data)
+        self.assertIn(b'data-adjacent-episode="previous"', detail.data)
+        self.assertIn(b'data-adjacent-episode="next"', detail.data)
+        self.assertIn(b'data-episode-id="2"', detail.data)
         self.assertIn(b'data-watch-action="increment"', detail.data)
         self.assertIn(b'data-watch-action="decrement"', detail.data)
         self.assertNotIn(b"season-list", detail.data)
         self.assertNotIn(b"<!doctype html>", detail.data.lower())
+
+        season_boundary = self.client.get("/api/episodes/6")
+        self.assertIn(b'data-adjacent-episode="previous"', season_boundary.data)
+        self.assertIn(b'data-episode-id="5"', season_boundary.data)
+        self.assertIn(b'data-episode-id="7"', season_boundary.data)
+
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("const episodeDetailRequests = new Map();", javascript)
+        self.assertIn("function preloadAdjacentEpisodeDetails", javascript)
+        self.assertIn("function navigateAdjacentEpisode", javascript)
+        self.assertIn('direction === "next" ? "-18%" : "18%"', javascript)
 
         connection = sqlite3.connect(self.database)
         connection.execute(
@@ -1515,6 +1532,10 @@ class TrackAppTest(unittest.TestCase):
             f"/api/shows/{imported_show['id']}/seasons"
         ).data
         self.assertLess(season_list.find(b">Season 1</strong>"), season_list.find(b">Specials</strong>"))
+        special_detail = self.client.get(f"/api/episodes/{special_episode_id}")
+        self.assertNotIn(
+            f'data-episode-id="{regular_episode_id}"'.encode(), special_detail.data
+        )
         watched_special = self.client.post(
             f"/api/episodes/{special_episode_id}/watched", json={"watched": True}
         )

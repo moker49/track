@@ -864,7 +864,7 @@ html.app-booting .schedule-empty-reveal {
   padding-top: 12px;
 }
 
-.tv-library-switcher {
+.bottom-context-switcher {
   position: fixed;
   z-index: 19;
   left: 50%;
@@ -884,7 +884,7 @@ html.app-booting .schedule-empty-reveal {
   will-change: transform;
 }
 
-.tv-library-switcher.is-scroll-hidden {
+.bottom-context-switcher.is-scroll-hidden {
   transform: translate(-50%, calc(100% + 16px));
 }
 
@@ -928,6 +928,37 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .tv-library-switcher button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.episode-navigation-switcher button {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--primary-dark);
+  background: var(--primary-light);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.episode-navigation-switcher button:disabled {
+  color: var(--on-surface-muted);
+  background: transparent;
+  cursor: default;
+  opacity: 0.55;
+}
+
+.episode-navigation-switcher button:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
 }
@@ -2575,7 +2606,7 @@ html.app-booting .tv-slice-reveal {
     border-radius: 0 0 28px 28px;
   }
 
-  .tv-library-switcher {
+  .bottom-context-switcher {
     bottom: calc(108px + env(safe-area-inset-bottom));
   }
 
