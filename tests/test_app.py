@@ -597,6 +597,11 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('event.key === "Escape" && menuScrim', javascript)
         self.assertIn(".menu-scrim {", css)
         self.assertIn("backdrop-filter: blur(2px);", css)
+        self.assertIn(
+            ".filter-fullscreen-app-bar {\n  position: sticky;\n  z-index: 2;\n  top: 0;\n  min-height: calc(80px + env(safe-area-inset-top));",
+            css,
+        )
+        self.assertIn("grid-template-columns: 48px minmax(0, 1fr) 48px;", css)
 
     def test_tv_library_is_available_as_a_background_fragment(self):
         fragment = self.client.get("/api/tv")

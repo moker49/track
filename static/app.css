@@ -1802,25 +1802,25 @@ html.app-booting .schedule-empty-reveal {
   position: sticky;
   z-index: 2;
   top: 0;
-  min-height: calc(72px + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) 12px 0 8px;
-  display: flex;
+  min-height: calc(80px + env(safe-area-inset-top));
+  padding: max(12px, env(safe-area-inset-top)) 24px 12px 4px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
   background: var(--surface);
 }
 
 .filter-fullscreen-app-bar h2 {
-  flex: 1;
   margin: 0;
   font-size: 1.4rem;
   font-weight: 500;
 }
 
 .filter-done-button {
-  min-width: 64px;
+  width: 48px;
   min-height: 48px;
-  padding: 0 12px;
+  padding: 0;
   border: 0;
   border-radius: 24px;
   color: var(--primary);
