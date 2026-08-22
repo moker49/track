@@ -1729,11 +1729,11 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .image-viewer.is-closing {
-  animation: image-viewer-exit 120ms ease-out both;
+  animation: image-viewer-exit 180ms ease-out both;
 }
 
 .image-viewer.is-closing::backdrop {
-  animation: image-viewer-backdrop-out 120ms ease-out both;
+  animation: image-viewer-backdrop-out 180ms ease-out both;
 }
 
 .image-viewer-close {
