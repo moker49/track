@@ -26,9 +26,9 @@
       </span>
       <span class="schedule-timeline-copy">
         <strong>{{ episode.show_name }}</strong>
-        <span>{% if is_backlog %}Season {{ episode.season_number }} · Episode {{ episode.episode_number }}{% else %}{{
+        <span{% if is_backlog %} data-schedule-advance-line{% endif %}>{% if is_backlog %}Season {{ episode.season_number }} · Episode {{ episode.episode_number }}{% else %}{{
           episode.release_metadata }}{% endif %}</span>
-        <span class="schedule-timeline-episode-title">{{ episode.episode_name if is_backlog else episode.release_detail
+        <span class="schedule-timeline-episode-title"{% if is_backlog %} data-schedule-advance-line{% endif %}>{{ episode.episode_name if is_backlog else episode.release_detail
           }}</span>
       </span>
       {% if not is_backlog %}

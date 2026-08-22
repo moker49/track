@@ -541,12 +541,16 @@ html.app-booting .schedule-empty-reveal {
   font-size: 1.5rem;
 }
 
-.schedule-timeline-item.is-leaving .schedule-timeline-content {
-  animation: schedule-content-out 180ms ease forwards;
+.schedule-timeline-item.is-advancing [data-schedule-advance-line] {
+  animation: schedule-advance-reveal 280ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
-.schedule-timeline-item.is-entering .schedule-timeline-content {
-  animation: schedule-content-in 180ms ease both;
+.schedule-timeline-item.is-advancing .schedule-timeline-episode-title {
+  animation-delay: 24ms;
+}
+
+.schedule-timeline-item.is-advancing .schedule-timeline-progress {
+  animation: schedule-progress-reveal 300ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .schedule-empty {
@@ -2609,17 +2613,27 @@ html.app-booting .tv-slice-reveal {
   }
 }
 
-@keyframes schedule-content-out {
-  to {
+@keyframes schedule-advance-reveal {
+  from {
     opacity: 0;
-    transform: translateY(-6px);
+    clip-path: inset(0 100% 0 0);
+    transform: translateX(-6px);
+  }
+
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: translateX(0);
   }
 }
 
-@keyframes schedule-content-in {
+@keyframes schedule-progress-reveal {
   from {
-    opacity: 0;
-    transform: translateY(6px);
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }
 
@@ -2690,6 +2704,8 @@ html.app-booting .tv-slice-reveal {
   .schedule-item-reveal .schedule-timeline-marker,
   .schedule-item-reveal .schedule-timeline-content,
   .schedule-item-reveal .schedule-timeline-rail>span,
+  .schedule-timeline-item.is-advancing [data-schedule-advance-line],
+  .schedule-timeline-item.is-advancing .schedule-timeline-progress,
   .schedule-empty-reveal,
   .media-image-reveal {
     animation: none;

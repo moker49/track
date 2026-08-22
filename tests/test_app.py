@@ -310,8 +310,13 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('if (!snackbar || !actionLabel || !onAction) return;', javascript)
         self.assertIn('function showCaughtUpScheduleState(card, data, action)', javascript)
         self.assertIn('function clearCaughtUpScheduleItems()', javascript)
+        self.assertIn('function advanceScheduleCard(card, nextCard)', javascript)
+        self.assertIn('playScheduleAdvanceTransition(card);', javascript)
+        self.assertNotIn('card.classList.add("is-leaving")', javascript)
         self.assertIn('aria-label="Caught up">done_all', javascript)
-        self.assertIn('function applyShowProgress(data) {\n  invalidateShowCache(data.show_id, true);', javascript)
+        self.assertIn("function invalidateWatchCaches({", javascript)
+        self.assertIn("invalidateWatchCaches({ showId, episodeId });", javascript)
+        self.assertIn("invalidateWatchCaches({ showId, allEpisodes: true });", javascript)
         self.assertNotIn('Caught up with this show', javascript)
 
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
@@ -324,6 +329,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('.schedule-timeline-poster {', css)
         self.assertIn('width: 72px;\n  height: 120px;', css)
         self.assertIn('.schedule-timeline-actions {\n  position: absolute;', css)
+        self.assertIn('.schedule-timeline-item.is-advancing [data-schedule-advance-line]', css)
+        self.assertIn('@keyframes schedule-advance-reveal', css)
+        self.assertIn('@keyframes schedule-progress-reveal', css)
+        self.assertNotIn('@keyframes schedule-content-out', css)
         self.assertIn('.catalog-action.catalog-action-secondary {', css)
         self.assertIn('.schedule-skip-button {\n  color: var(--primary);\n  background: transparent;', css)
         self.assertIn('.schedule-timeline-rail::before {', css)
@@ -585,7 +594,7 @@ class TrackAppTest(unittest.TestCase):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
-        self.assertIn('state: "ACTIVE"', javascript)
+        self.assertIn("state: TRACKING_STATE.ACTIVE", javascript)
         self.assertIn('filterButton.hidden = currentView !== "tv" || hasText', javascript)
         self.assertIn("globalSearchInput?.blur();", javascript)
         self.assertIn("preferences.tags.size === 0", javascript)
@@ -1396,7 +1405,7 @@ class TrackAppTest(unittest.TestCase):
             self.assertEqual(show["active_at"], "2026-01-02")
             self.assertEqual(json.loads(show["tmdb_payload"]), {"id": 1234})
             self.assertEqual(tuple(history), ("ACTIVE", "2026-01-02"))
-            self.assertEqual([row[0] for row in versions], [1, 2, 3, 4, 5, 6])
+            self.assertEqual([row[0] for row in versions], [1, 2, 3, 4, 5, 6, 7])
             self.assertIn("active_at", columns)
             self.assertNotIn("watching_at", columns)
 

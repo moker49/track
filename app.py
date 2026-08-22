@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import re
 import sqlite3
 import threading
 from datetime import date, datetime, timedelta, timezone
@@ -11,10 +10,32 @@ from urllib.request import urlopen
 from flask import Flask, abort, g, jsonify, redirect, render_template, request, send_file, url_for
 from dotenv import load_dotenv
 
-from migrations import migrate_database
+from database import connect_database, initialize_database
+from domain import (
+    TRACKING_ARCHIVED,
+    TRACKING_STATES,
+    effective_watch_date_sql,
+    move_presentation,
+    progress_presentation,
+)
 from image_cache import ImageCacheError, cached_image
 from tmdb import TMDBClient, TMDBError
 from tmdb_import import import_or_refresh_show
+from queries import (
+    get_catch_up_episodes,
+    get_library_show,
+    get_show_activity,
+    get_tv_library_shows,
+    get_upcoming_episodes,
+)
+from refresh_service import refresh_stale_tracked_shows as refresh_stale_records
+from watch_service import (
+    WatchNotFoundError,
+    change_episode_watch_count as change_episode_watch_count_record,
+    change_season_watch_count as change_season_watch_count_records,
+    set_episode_watched as set_episode_watched_record,
+    set_watch_history_date as set_watch_history_date_record,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -27,71 +48,12 @@ ASSET_VERSION = str(
 )
 
 
-def natural_title_key(value: str) -> tuple:
-    return tuple(
-        (0, int(part)) if part.isdigit() else (1, part.casefold())
-        for part in re.split(r"(\d+)", value)
-        if part
-    )
-
-
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def precise_utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds")
-
-
-def migrate_watch_history_tables(db: sqlite3.Connection) -> None:
-    table_definitions = {
-        "episode_watch_history": ("episode_id", "episodes"),
-        "season_watch_history": ("season_id", "seasons"),
-    }
-    for table, (parent_column, parent_table) in table_definitions.items():
-        exists = db.execute(
-            "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?",
-            (table,),
-        ).fetchone()
-        if exists is None:
-            continue
-
-        columns = {
-            row["name"] for row in db.execute(f"PRAGMA table_info({table})")
-        }
-        if {"added_at", "watch_date"}.issubset(columns) and not {
-            "watched_at",
-            "unwatched_at",
-        }.intersection(columns):
-            continue
-
-        legacy_table = f"{table}_legacy"
-        db.execute(f"ALTER TABLE {table} RENAME TO {legacy_table}")
-        db.execute(
-            f"""
-            CREATE TABLE {table} (
-                id INTEGER PRIMARY KEY,
-                {parent_column} INTEGER NOT NULL
-                    REFERENCES {parent_table}(id) ON DELETE CASCADE,
-                added_at TEXT NOT NULL,
-                watch_date TEXT
-            )
-            """
-        )
-        added_source = "added_at" if "added_at" in columns else "watched_at"
-        date_source = "watch_date" if "watch_date" in columns else "NULL"
-        active_filter = (
-            "WHERE unwatched_at IS NULL" if "unwatched_at" in columns else ""
-        )
-        db.execute(
-            f"""
-            INSERT INTO {table} (id, {parent_column}, added_at, watch_date)
-            SELECT id, {parent_column}, {added_source}, {date_source}
-            FROM {legacy_table}
-            {active_filter}
-            """
-        )
-        db.execute(f"DROP TABLE {legacy_table}")
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -110,6 +72,11 @@ def create_app(test_config: dict | None = None) -> Flask:
     if test_config:
         app.config.update(test_config)
 
+    app.jinja_env.globals.update(
+        progress_for=progress_presentation,
+        move_for=move_presentation,
+    )
+
     if app.config["IMAGE_CACHE_DIR"] is None:
         app.config["IMAGE_CACHE_DIR"] = str(
             Path(app.config["DATABASE"]).parent / "images"
@@ -119,9 +86,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     def get_db() -> sqlite3.Connection:
         if "db" not in g:
-            g.db = sqlite3.connect(app.config["DATABASE"])
-            g.db.row_factory = sqlite3.Row
-            g.db.execute("PRAGMA foreign_keys = ON")
+            g.db = connect_database(app.config["DATABASE"])
         return g.db
 
     @app.teardown_appcontext
@@ -136,30 +101,6 @@ def create_app(test_config: dict | None = None) -> Flask:
             "current_year": datetime.now().year,
             "asset_version": ASSET_VERSION,
         }
-
-    def get_show_progress(db: sqlite3.Connection, show_id: int) -> sqlite3.Row:
-        return db.execute(
-            """
-            SELECT COUNT(DISTINCT e.id) AS episode_count,
-                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
-            FROM seasons sn
-            JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
-            LEFT JOIN episode_watch_history wh
-              ON wh.episode_id = e.id
-            WHERE sn.show_id = ? AND sn.is_progress_counted = 1
-            """,
-            (show_id,),
-        ).fetchone()
-
-    def get_episode_watch_count(db: sqlite3.Connection, episode_id: int) -> int:
-        return db.execute(
-            """
-            SELECT COUNT(*)
-            FROM episode_watch_history
-            WHERE episode_id = ?
-            """,
-            (episode_id,),
-        ).fetchone()[0]
 
     def get_tmdb_client() -> TMDBClient:
         return app.config["TMDB_CLIENT_FACTORY"](
@@ -214,299 +155,11 @@ def create_app(test_config: dict | None = None) -> Flask:
             item["state"] = local["state"] if local and local["is_tracked"] else None
         return results
 
-    def get_library_show(db: sqlite3.Connection, show_id: int) -> sqlite3.Row | None:
-        return db.execute(
-            """
-            SELECT s.*,
-                   COUNT(DISTINCT e.id) AS episode_count,
-                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
-            FROM shows s
-            LEFT JOIN seasons sn ON sn.show_id = s.id
-            LEFT JOIN episodes e ON e.season_id = sn.id
-              AND sn.is_progress_counted = 1
-              AND e.air_date <= date('now')
-            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
-            WHERE s.id = ?
-            GROUP BY s.id
-            """,
-            (show_id,),
-        ).fetchone()
 
-    def get_catch_up_episodes(
-        db: sqlite3.Connection, show_id: int | None = None
-    ) -> list[sqlite3.Row]:
-        return db.execute(
-            """
-            WITH show_progress AS (
-                SELECT s.id AS show_id,
-                       COUNT(DISTINCT e.id) AS episode_count,
-                       COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
-                FROM shows s
-                JOIN seasons sn ON sn.show_id = s.id
-                  AND sn.is_progress_counted = 1
-                JOIN episodes e ON e.season_id = sn.id
-                  AND e.air_date <= date('now')
-                LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
-                WHERE s.is_tracked = 1
-                  AND s.state = 'ACTIVE'
-                GROUP BY s.id
-            ),
-            unresolved AS (
-                SELECT s.id AS show_id,
-                       s.name AS show_name,
-                       s.poster_path,
-                       sn.season_number,
-                       sn.name AS season_name,
-                       e.id AS episode_id,
-                       e.episode_number,
-                       e.name AS episode_name,
-                       e.air_date,
-                       e.runtime_minutes,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY s.id
-                           ORDER BY CASE WHEN sk.episode_id IS NULL THEN 0 ELSE 1 END,
-                                    sk.skipped_at,
-                                    e.air_date,
-                                    sn.season_number,
-                                    e.episode_number
-                       ) AS episode_rank
-                FROM shows s
-                JOIN seasons sn ON sn.show_id = s.id
-                JOIN episodes e ON e.season_id = sn.id
-                LEFT JOIN episode_skips sk ON sk.episode_id = e.id
-                WHERE s.is_tracked = 1
-                  AND s.state = 'ACTIVE'
-                  AND sn.is_progress_counted = 1
-                  AND e.air_date IS NOT NULL
-                  AND e.air_date <= date('now')
-                  AND (? IS NULL OR s.id = ?)
-                  AND NOT EXISTS (
-                      SELECT 1 FROM episode_watch_history wh
-                      WHERE wh.episode_id = e.id
-                  )
-            )
-            SELECT unresolved.*,
-                   show_progress.episode_count,
-                   show_progress.watched_count
-            FROM unresolved
-            JOIN show_progress ON show_progress.show_id = unresolved.show_id
-            WHERE unresolved.episode_rank = 1
-            ORDER BY unresolved.air_date DESC, unresolved.show_name COLLATE NOCASE
-            """,
-            (show_id, show_id),
-        ).fetchall()
 
-    def get_upcoming_episodes(db: sqlite3.Connection) -> list[dict]:
-        rows = db.execute(
-            """
-            SELECT s.id AS show_id,
-                   s.name AS show_name,
-                   s.poster_path,
-                   sn.id AS season_id,
-                   sn.season_number,
-                   sn.name AS season_name,
-                   (SELECT COUNT(*) FROM episodes season_episode
-                    WHERE season_episode.season_id = sn.id) AS season_episode_count,
-                   e.id AS episode_id,
-                   e.episode_number,
-                   e.name AS episode_name,
-                   e.air_date,
-                   e.runtime_minutes
-            FROM shows s
-            JOIN seasons sn ON sn.show_id = s.id
-            JOIN episodes e ON e.season_id = sn.id
-            WHERE s.is_tracked = 1
-              AND sn.is_progress_counted = 1
-              AND e.air_date IS NOT NULL
-              AND e.air_date >= date('now', '-7 days')
-            ORDER BY e.air_date, s.name COLLATE NOCASE,
-                     sn.season_number, e.episode_number
-            """
-        ).fetchall()
-        today = datetime.now(timezone.utc).date()
-        release_groups: dict[tuple[int, str], list[dict]] = {}
-        for row in rows:
-            episode = dict(row)
-            release_groups.setdefault(
-                (episode["show_id"], episode["air_date"]), []
-            ).append(episode)
 
-        upcoming = []
-        for episodes in release_groups.values():
-            release = dict(episodes[0])
-            air_date = date.fromisoformat(release["air_date"])
-            season_ids = list(dict.fromkeys(episode["season_id"] for episode in episodes))
-            season_numbers = list(
-                dict.fromkeys(episode["season_number"] for episode in episodes)
-            )
-            is_grouped = len(episodes) > 1
-            is_full_season = (
-                is_grouped
-                and len(season_ids) == 1
-                and len(episodes) == release["season_episode_count"]
-            )
-            if len(season_numbers) > 1:
-                first_episode = episodes[0]
-                last_episode = episodes[-1]
-                release_metadata = (
-                    f"S{first_episode['season_number']:02d}"
-                    f"E{first_episode['episode_number']:02d}-"
-                    f"S{last_episode['season_number']:02d}"
-                    f"E{last_episode['episode_number']:02d}"
-                )
-            elif is_grouped:
-                release_metadata = (
-                    f"Season {release['season_number']} · Episodes "
-                    f"{episodes[0]['episode_number']}–{episodes[-1]['episode_number']}"
-                )
-            else:
-                release_metadata = (
-                    f"Season {release['season_number']} · "
-                    f"Episode {release['episode_number']}"
-                )
-            release_detail = (
-                "Full season"
-                if is_full_season
-                else f"{len(episodes)} episodes"
-                if is_grouped
-                else release["episode_name"]
-            )
-            release.update(
-                month_key=air_date.strftime("%Y-%m"),
-                month_label=(
-                    air_date.strftime("%B").upper()
-                    if air_date.year == today.year
-                    else air_date.strftime("%B %Y").upper()
-                ),
-                day_label=f"{air_date.day:02d}",
-                weekday_label=air_date.strftime("%a").upper(),
-                days_until=(air_date - today).days,
-                is_live=air_date < today,
-                is_grouped=is_grouped,
-                season_ids=",".join(str(season_id) for season_id in season_ids),
-                release_metadata=release_metadata,
-                release_detail=release_detail,
-                search_text=" ".join(
-                    [release["show_name"], *(episode["episode_name"] for episode in episodes)]
-                ).lower(),
-            )
-            upcoming.append(release)
-        return upcoming
 
-    def watch_payload(
-        db: sqlite3.Connection, show_id: int, episode_id: int | None = None
-    ) -> dict:
-        progress = get_show_progress(db, show_id)
-        episode_count = progress["episode_count"]
-        watched_count = progress["watched_count"]
-        payload = {
-            "show_id": show_id,
-            "watched_count": watched_count,
-            "episode_count": episode_count,
-            "percent": (
-                round(watched_count / episode_count * 100) if episode_count else 0
-            ),
-        }
-        if episode_id is not None:
-            episode_watch_count = get_episode_watch_count(db, episode_id)
-            payload.update(
-                episode_id=episode_id,
-                watched=episode_watch_count > 0,
-                watch_count=episode_watch_count,
-            )
-        return payload
 
-    def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]:
-        return db.execute(
-            """
-            WITH ordered_states AS (
-                SELECT state,
-                       entered_at,
-                       LAG(state) OVER (ORDER BY entered_at, id) AS previous_state
-                FROM show_state_history
-                WHERE show_id = ?
-            ),
-            activity AS (
-                SELECT 'added' AS event_type,
-                       'Added to My Shows' AS title,
-                       added_at AS occurred_at,
-                       NULL AS season_id,
-                       NULL AS watch_record_id,
-                       NULL AS watch_kind,
-                       NULL AS watch_added_at,
-                       NULL AS watch_date
-                FROM shows
-                WHERE id = ? AND is_tracked = 1
-
-                UNION ALL
-
-                SELECT CASE state
-                           WHEN 'ARCHIVED' THEN 'archived'
-                           ELSE 'activated'
-                       END AS event_type,
-                       CASE state
-                           WHEN 'ARCHIVED' THEN 'Archived'
-                           ELSE 'Made active'
-                       END AS title,
-                       entered_at AS occurred_at,
-                       NULL AS season_id,
-                       NULL AS watch_record_id,
-                       NULL AS watch_kind,
-                       NULL AS watch_added_at,
-                       NULL AS watch_date
-                FROM ordered_states
-                WHERE state = 'ARCHIVED'
-                   OR (state = 'ACTIVE' AND previous_state = 'ARCHIVED')
-
-                UNION ALL
-
-                SELECT 'season_watched' AS event_type,
-                       sn.name || ' watched' AS title,
-                       COALESCE(swh.watch_date, substr(swh.added_at, 1, 10)) AS occurred_at,
-                       sn.id AS season_id,
-                       swh.id AS watch_record_id,
-                       'season' AS watch_kind,
-                       swh.added_at AS watch_added_at,
-                       swh.watch_date AS watch_date
-                FROM season_watch_history swh
-                JOIN seasons sn ON sn.id = swh.season_id
-                WHERE sn.show_id = ?
-            )
-            SELECT event_type, title, occurred_at, season_id,
-                   watch_record_id, watch_kind, watch_added_at, watch_date
-            FROM activity
-            ORDER BY occurred_at DESC, watch_added_at DESC
-            """,
-            (show_id, show_id, show_id),
-        ).fetchall()
-
-    def get_tv_library_shows(db):
-        shows = db.execute(
-            """
-            SELECT s.*,
-                   COUNT(DISTINCT e.id) AS episode_count,
-                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
-            FROM shows s
-            LEFT JOIN seasons sn ON sn.show_id = s.id
-            LEFT JOIN episodes e ON e.season_id = sn.id
-              AND sn.is_progress_counted = 1
-              AND e.air_date <= date('now')
-            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
-            WHERE s.is_tracked = 1
-              AND s.state IN ('ACTIVE', 'ARCHIVED')
-            GROUP BY s.id
-            ORDER BY CASE s.state WHEN 'ACTIVE' THEN 0 ELSE 1 END, s.id ASC
-            """
-        ).fetchall()
-        active_shows = sorted(
-            (show for show in shows if show["state"] == "ACTIVE"),
-            key=lambda show: (natural_title_key(show["name"]), show["id"]),
-        )
-        archived_shows = sorted(
-            (show for show in shows if show["state"] == "ARCHIVED"),
-            key=lambda show: (natural_title_key(show["name"]), show["id"]),
-        )
-        return active_shows, archived_shows
 
     @app.get("/")
     def index():
@@ -585,7 +238,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     def import_tv_show(tmdb_id: int):
         payload = request.get_json(silent=True) or {}
         target_state = payload.get("state")
-        if target_state not in {None, "ACTIVE", "ARCHIVED"}:
+        if target_state is not None and target_state not in TRACKING_STATES:
             return jsonify(error="state must be ACTIVE, ARCHIVED, or null"), 400
         try:
             show, seasons = get_tmdb_client().show_bundle(tmdb_id)
@@ -658,58 +311,16 @@ def create_app(test_config: dict | None = None) -> Flask:
     def refresh_stale_tracked_show_records(
         include_card_html: bool = False,
     ) -> dict:
-        db = get_db()
-        tracked_shows = db.execute(
-            """
-            SELECT id, tmdb_id, state, tmdb_refreshed_at
-            FROM shows
-            WHERE is_tracked = 1
-            ORDER BY id
-            """
-        ).fetchall()
-        stale_shows = [
-            show
-            for show in tracked_shows
-            if not show_metadata_is_fresh(show["tmdb_refreshed_at"])
-        ]
-        refreshed_shows = []
-        failures = []
-        client = get_tmdb_client() if stale_shows else None
+        return refresh_stale_records(
+            get_db(),
+            client_factory=get_tmdb_client,
+            metadata_is_fresh=show_metadata_is_fresh,
+            include_card_html=include_card_html,
+            render_card=(
+                lambda show: render_template("_show_card_fragment.html", show=show)
+            ),
+        )
 
-        for local_show in stale_shows:
-            try:
-                show, seasons = client.show_bundle(local_show["tmdb_id"])
-                if show.get("id") != local_show["tmdb_id"]:
-                    raise TMDBError("TMDB returned the wrong show")
-                refreshed_id, _created, _newly_tracked = import_or_refresh_show(
-                    db,
-                    show,
-                    seasons,
-                    local_show["state"],
-                )
-                refreshed_show = get_library_show(db, refreshed_id)
-                refreshed_result = {
-                    "show_id": refreshed_id,
-                    "refreshed_at": refreshed_show["tmdb_refreshed_at"],
-                }
-                if include_card_html:
-                    refreshed_result["card_html"] = render_template(
-                        "_show_card_fragment.html", show=refreshed_show
-                    )
-                refreshed_shows.append(refreshed_result)
-            except (TMDBError, ValueError, sqlite3.Error) as error:
-                failures.append(
-                    {
-                        "show_id": local_show["id"],
-                        "error": str(error),
-                    }
-                )
-
-        return {
-            "refreshed": refreshed_shows,
-            "failures": failures,
-            "skipped": len(tracked_shows) - len(stale_shows),
-        }
 
     app.extensions["refresh_stale_tracked_shows"] = (
         refresh_stale_tracked_show_records
@@ -875,11 +486,11 @@ def create_app(test_config: dict | None = None) -> Flask:
         episode["next_episode_id"] = next_episode["id"] if next_episode else None
 
         watch_log = db.execute(
-            """
+            f"""
             SELECT id AS watch_record_id,
                    added_at,
                    watch_date,
-                   COALESCE(watch_date, substr(added_at, 1, 10)) AS display_date
+                   {effective_watch_date_sql()} AS display_date
             FROM episode_watch_history
             WHERE episode_id = ?
             ORDER BY display_date DESC, added_at DESC, id DESC
@@ -902,7 +513,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     def set_show_state(show_id: int):
         payload = request.get_json(silent=True) or {}
         target_state = payload.get("state")
-        if target_state not in {"ACTIVE", "ARCHIVED"}:
+        if target_state not in TRACKING_STATES:
             return jsonify(error="state must be ACTIVE or ARCHIVED"), 400
 
         db = get_db()
@@ -917,7 +528,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if newly_tracked or show["state"] != target_state:
             changed_at = utc_now()
             timestamp_column = (
-                "archived_at" if target_state == "ARCHIVED" else "active_at"
+                "archived_at" if target_state == TRACKING_ARCHIVED else "active_at"
             )
             db.execute(
                 f"""
@@ -939,6 +550,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             db.commit()
 
         library_show = get_library_show(db, show_id)
+        move = move_presentation(target_state)
         return jsonify(
             show_id=show_id,
             state=target_state,
@@ -948,10 +560,10 @@ def create_app(test_config: dict | None = None) -> Flask:
                 if newly_tracked
                 else None
             ),
-            move_label=("Resume" if target_state == "ARCHIVED" else "Archive"),
-            move_icon=("resume" if target_state == "ARCHIVED" else "archive"),
-            activity_title=("Archived" if target_state == "ARCHIVED" else "Made active"),
-            activity_type=("archived" if target_state == "ARCHIVED" else "activated"),
+            move_label=move.label,
+            move_icon=move.icon,
+            activity_title=("Archived" if target_state == TRACKING_ARCHIVED else "Made active"),
+            activity_type=("archived" if target_state == TRACKING_ARCHIVED else "activated"),
             changed_at=changed_at,
         )
 
@@ -976,49 +588,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         payload = request.get_json(silent=True) or {}
         if type(payload.get("watched")) is not bool:
             return jsonify(error="watched must be a boolean"), 400
-
-        db = get_db()
-        episode = db.execute(
-            """
-            SELECT e.id, sn.show_id
-            FROM episodes e JOIN seasons sn ON sn.id = e.season_id
-            WHERE e.id = ?
-            """,
-            (episode_id,),
-        ).fetchone()
-        if episode is None:
-            return jsonify(error="Episode not found"), 404
-
-        if payload["watched"]:
-            db.execute("DELETE FROM episode_skips WHERE episode_id = ?", (episode_id,))
-            watched = db.execute(
-                "SELECT 1 FROM episode_watch_history WHERE episode_id = ? LIMIT 1",
-                (episode_id,),
-            ).fetchone()
-            if watched is None:
-                db.execute(
-                    "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
-                    (episode_id, utc_now()),
-                )
-        else:
-            db.execute(
-                """
-                DELETE FROM episode_watch_history
-                WHERE id = (
-                    SELECT id
-                    FROM episode_watch_history
-                    WHERE episode_id = ?
-                    ORDER BY COALESCE(watch_date, substr(added_at, 1, 10)) DESC,
-                             added_at DESC,
-                             id DESC
-                    LIMIT 1
-                )
-                """,
-                (episode_id,),
+        try:
+            return jsonify(
+                set_episode_watched_record(get_db(), episode_id, payload["watched"])
             )
-        db.commit()
+        except WatchNotFoundError as error:
+            return jsonify(error=str(error)), 404
 
-        return jsonify(watch_payload(db, episode["show_id"], episode_id))
 
     @app.post("/api/episodes/<int:episode_id>/watch-count")
     def change_episode_watch_count(episode_id: int):
@@ -1026,55 +602,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         action = payload.get("action")
         if action not in {"increment", "decrement"}:
             return jsonify(error="action must be increment or decrement"), 400
+        try:
+            return jsonify(
+                change_episode_watch_count_record(get_db(), episode_id, action)
+            )
+        except WatchNotFoundError as error:
+            return jsonify(error=str(error)), 404
 
-        db = get_db()
-        episode = db.execute(
-            """
-            SELECT e.id, sn.show_id
-            FROM episodes e
-            JOIN seasons sn ON sn.id = e.season_id
-            WHERE e.id = ?
-            """,
-            (episode_id,),
-        ).fetchone()
-        if episode is None:
-            return jsonify(error="Episode not found"), 404
-
-        changed_at = utc_now()
-        watch_record_id = None
-        if action == "increment":
-            db.execute("DELETE FROM episode_skips WHERE episode_id = ?", (episode_id,))
-            watch_record_id = db.execute(
-                """
-                INSERT INTO episode_watch_history (episode_id, added_at)
-                VALUES (?, ?)
-                """,
-                (episode_id, changed_at),
-            ).lastrowid
-        else:
-            latest_watch = db.execute(
-                """
-                SELECT id
-                FROM episode_watch_history
-                WHERE episode_id = ?
-                ORDER BY COALESCE(watch_date, substr(added_at, 1, 10)) DESC,
-                         added_at DESC,
-                         id DESC
-                LIMIT 1
-                """,
-                (episode_id,),
-            ).fetchone()
-            if latest_watch is not None:
-                watch_record_id = latest_watch["id"]
-                db.execute("DELETE FROM episode_watch_history WHERE id = ?", (latest_watch["id"],))
-        db.commit()
-        response_payload = watch_payload(db, episode["show_id"], episode_id)
-        response_payload.update(
-            action=action,
-            changed_at=changed_at,
-            watch_record_id=watch_record_id,
-        )
-        return jsonify(response_payload)
 
     @app.post("/api/episodes/<int:episode_id>/skip")
     def skip_episode(episode_id: int):
@@ -1139,127 +673,18 @@ def create_app(test_config: dict | None = None) -> Flask:
         action = payload.get("action")
         if action not in {"increment", "decrement"}:
             return jsonify(error="action must be increment or decrement"), 400
-
-        db = get_db()
-        season = db.execute(
-            "SELECT id, show_id, name FROM seasons WHERE id = ?", (season_id,)
-        ).fetchone()
-        if season is None:
-            return jsonify(error="Season not found"), 404
-
-        episode_ids = [
-            row["id"]
-            for row in db.execute(
-                "SELECT id FROM episodes WHERE season_id = ? ORDER BY episode_number",
-                (season_id,),
-            ).fetchall()
-        ]
-        changed_at = utc_now()
-        if action == "increment":
-            if episode_ids:
-                placeholders = ",".join("?" for _episode_id in episode_ids)
-                db.execute(
-                    f"DELETE FROM episode_skips WHERE episode_id IN ({placeholders})",
-                    episode_ids,
-                )
-            db.executemany(
-                """
-                INSERT INTO episode_watch_history (episode_id, added_at)
-                VALUES (?, ?)
-                """,
-                [(episode_id, changed_at) for episode_id in episode_ids],
+        try:
+            return jsonify(
+                change_season_watch_count_records(get_db(), season_id, action)
             )
-            season_watch_record_id = None
-            if episode_ids:
-                season_watch_record_id = db.execute(
-                    """
-                    INSERT INTO season_watch_history (season_id, added_at)
-                    VALUES (?, ?)
-                    """,
-                    (season_id, changed_at),
-                ).lastrowid
-        else:
-            latest_watches = db.execute(
-                """
-                SELECT id
-                FROM (
-                    SELECT wh.id,
-                           ROW_NUMBER() OVER (
-                               PARTITION BY wh.episode_id
-                               ORDER BY COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) DESC,
-                                        wh.added_at DESC,
-                                        wh.id DESC
-                           ) AS row_number
-                    FROM episode_watch_history wh
-                    JOIN episodes e ON e.id = wh.episode_id
-                    WHERE e.season_id = ?
-                )
-                WHERE row_number = 1
-                """,
-                (season_id,),
-            ).fetchall()
-            db.executemany(
-                "DELETE FROM episode_watch_history WHERE id = ?",
-                [(row["id"],) for row in latest_watches],
-            )
-            latest_season_watch = db.execute(
-                """
-                SELECT id
-                FROM season_watch_history
-                WHERE season_id = ?
-                ORDER BY COALESCE(watch_date, substr(added_at, 1, 10)) DESC,
-                         added_at DESC,
-                         id DESC
-                LIMIT 1
-                """,
-                (season_id,),
-            ).fetchone()
-            season_watch_record_id = (
-                latest_season_watch["id"] if latest_season_watch is not None else None
-            )
-            if latest_season_watch is not None:
-                db.execute(
-                    "DELETE FROM season_watch_history WHERE id = ?",
-                    (latest_season_watch["id"],),
-                )
-        db.commit()
+        except WatchNotFoundError as error:
+            return jsonify(error=str(error)), 404
 
-        episode_counts = [
-            {
-                "episode_id": episode_id,
-                "watch_count": get_episode_watch_count(db, episode_id),
-            }
-            for episode_id in episode_ids
-        ]
-        response = watch_payload(db, season["show_id"])
-        response.update(
-            season_id=season_id,
-            season_name=season["name"],
-            episodes=episode_counts,
-            season_episode_count=len(episode_counts),
-            season_watched_count=sum(
-                1 for episode in episode_counts if episode["watch_count"] > 0
-            ),
-            season_min_watch_count=(
-                min(episode["watch_count"] for episode in episode_counts)
-                if episode_counts
-                and all(episode["watch_count"] > 0 for episode in episode_counts)
-                else 0
-            ),
-            season_watched_at=(changed_at if action == "increment" and episode_ids else None),
-            season_watch_record_id=season_watch_record_id,
-        )
-        return jsonify(response)
 
     @app.patch("/api/watch-history/<string:watch_kind>/<int:record_id>/date")
     def set_watch_history_date(watch_kind: str, record_id: int):
-        table = {
-            "episode": "episode_watch_history",
-            "season": "season_watch_history",
-        }.get(watch_kind)
-        if table is None:
+        if watch_kind not in {"episode", "season"}:
             return jsonify(error="Unknown watch history type"), 404
-
         payload = request.get_json(silent=True) or {}
         watch_date = payload.get("watch_date")
         if watch_date is not None:
@@ -1269,32 +694,15 @@ def create_app(test_config: dict | None = None) -> Flask:
                 date.fromisoformat(watch_date)
             except ValueError:
                 return jsonify(error="watch_date must be an ISO date or null"), 400
+        try:
+            return jsonify(
+                set_watch_history_date_record(
+                    get_db(), watch_kind, record_id, watch_date
+                )
+            )
+        except WatchNotFoundError as error:
+            return jsonify(error=str(error)), 404
 
-        db = get_db()
-        cursor = db.execute(
-            f"UPDATE {table} SET watch_date = ? WHERE id = ?",
-            (watch_date, record_id),
-        )
-        if cursor.rowcount == 0:
-            return jsonify(error="Watch entry not found"), 404
-        row = db.execute(
-            f"""
-            SELECT added_at,
-                   watch_date,
-                   COALESCE(watch_date, substr(added_at, 1, 10)) AS display_date
-            FROM {table}
-            WHERE id = ?
-            """,
-            (record_id,),
-        ).fetchone()
-        db.commit()
-        return jsonify(
-            watch_kind=watch_kind,
-            record_id=record_id,
-            added_at=row["added_at"],
-            watch_date=row["watch_date"],
-            display_date=row["display_date"],
-        )
 
     @app.errorhandler(404)
     def not_found(_error):
@@ -1302,12 +710,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     with app.app_context():
         db = get_db()
-        migrate_watch_history_tables(db)
-        schema = (BASE_DIR / "schema.sql").read_text(encoding="utf-8")
-        db.executescript(schema)
-        migrate_database(db)
-        db.executescript(schema)
-        db.execute("PRAGMA optimize")
+        initialize_database(db, BASE_DIR / "schema.sql")
 
     return app
 

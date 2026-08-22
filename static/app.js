@@ -2,6 +2,24 @@ const views = new Map(
   [...document.querySelectorAll("[data-view]")].map((view) => [view.dataset.view, view]),
 );
 
+const TRACKING_STATE = Object.freeze({ ACTIVE: "ACTIVE", ARCHIVED: "ARCHIVED" });
+const PROGRESS_STATE = Object.freeze({
+  NEW: "not-started",
+  STARTED: "started",
+  FINISHED: "finished",
+});
+
+function progressPresentation(trackingState, watchedCount, episodeCount) {
+  if (watchedCount <= 0) return { state: PROGRESS_STATE.NEW, label: "New" };
+  if (episodeCount > 0 && watchedCount >= episodeCount) {
+    return { state: PROGRESS_STATE.FINISHED, label: "Finished" };
+  }
+  return {
+    state: PROGRESS_STATE.STARTED,
+    label: trackingState === TRACKING_STATE.ARCHIVED ? "Stopped" : "Watching",
+  };
+}
+
 let resolveAppShellReady;
 const appShellReady = new Promise((resolve) => { resolveAppShellReady = resolve; });
 
@@ -51,7 +69,7 @@ const menuScrimHome = menuScrim?.parentElement;
 const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   tv: {
-    state: "ACTIVE",
+    state: TRACKING_STATE.ACTIVE,
     tags: new Set(),
     sortField: "name",
     sortDirection: "asc",
@@ -424,15 +442,16 @@ function inspectMediaImages(root) {
 function catalogActions() {
   const actions = document.createElement("div");
   actions.className = "popular-card-actions";
-  [["ACTIVE", "Add"], ["ARCHIVED", "Archive"]].forEach(([state, label]) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "catalog-action";
-    if (state === "ARCHIVED") button.classList.add("catalog-action-secondary");
-    button.dataset.importState = state;
-    button.textContent = label;
-    actions.append(button);
-  });
+  [[TRACKING_STATE.ACTIVE, "Add"], [TRACKING_STATE.ARCHIVED, "Archive"]]
+    .forEach(([state, label]) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "catalog-action";
+      if (state === TRACKING_STATE.ARCHIVED) button.classList.add("catalog-action-secondary");
+      button.dataset.importState = state;
+      button.textContent = label;
+      actions.append(button);
+    });
   return actions;
 }
 
@@ -813,20 +832,6 @@ function formatDisplayDates(root = document) {
   });
 }
 
-function waitForScheduleAnimation(card) {
-  return new Promise((resolve) => {
-    let finished = false;
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      resolve();
-    };
-    card.querySelector(".schedule-timeline-content")
-      ?.addEventListener("animationend", finish, { once: true });
-    window.setTimeout(finish, 240);
-  });
-}
-
 function syncCatchUpEmptyState() {
   const view = views.get("backlog");
   const cards = view.querySelectorAll('[data-schedule-mode="catch-up"]');
@@ -843,8 +848,7 @@ function clearCaughtUpScheduleItems() {
 }
 
 function showCaughtUpScheduleState(card, data, action) {
-  card.classList.remove("is-leaving");
-  card.classList.add("is-caught-up", "is-entering");
+  card.classList.add("is-caught-up");
 
   if (action === "watch") {
     const percent = card.querySelector(".schedule-timeline-marker strong");
@@ -861,7 +865,48 @@ function showCaughtUpScheduleState(card, data, action) {
       <span class="schedule-caught-up-icon material-symbols-rounded"
         role="img" aria-label="Caught up">done_all</span>`;
   }
-  window.setTimeout(() => card.classList.remove("is-entering"), 240);
+  playScheduleAdvanceTransition(card);
+}
+
+function playScheduleAdvanceTransition(card) {
+  card.classList.remove("is-advancing");
+  void card.offsetWidth;
+  card.classList.add("is-advancing");
+  window.setTimeout(() => card.classList.remove("is-advancing"), 320);
+}
+
+function advanceScheduleCard(card, nextCard) {
+  card.dataset.episodeId = nextCard.dataset.episodeId;
+  card.dataset.scheduleSearchText = nextCard.dataset.scheduleSearchText;
+
+  const currentOpen = card.querySelector(".schedule-timeline-open");
+  const nextOpen = nextCard.querySelector(".schedule-timeline-open");
+  if (currentOpen && nextOpen) {
+    currentOpen.setAttribute("aria-label", nextOpen.getAttribute("aria-label"));
+  }
+
+  const currentLines = card.querySelectorAll("[data-schedule-advance-line]");
+  const nextLines = nextCard.querySelectorAll("[data-schedule-advance-line]");
+  currentLines.forEach((line, index) => {
+    if (nextLines[index]) line.textContent = nextLines[index].textContent;
+  });
+
+  const currentMarker = card.querySelector(".schedule-timeline-marker");
+  const nextMarker = nextCard.querySelector(".schedule-timeline-marker");
+  if (currentMarker && nextMarker) currentMarker.replaceChildren(...nextMarker.childNodes);
+
+  const currentProgress = card.querySelector(".schedule-timeline-progress");
+  const nextProgress = nextCard.querySelector(".schedule-timeline-progress");
+  if (currentProgress && nextProgress) {
+    currentProgress.setAttribute("aria-label", nextProgress.getAttribute("aria-label"));
+    const currentFill = currentProgress.querySelector(".progress-track span");
+    const nextFill = nextProgress.querySelector(".progress-track span");
+    if (currentFill && nextFill) currentFill.style.width = nextFill.style.width;
+  }
+
+  card.querySelectorAll("[data-schedule-action]")
+    .forEach((button) => { button.disabled = false; });
+  playScheduleAdvanceTransition(card);
 }
 
 async function refreshScheduleContent({ preserveView = null, background = false } = {}) {
@@ -946,8 +991,7 @@ async function processScheduleEpisode(card, action) {
     if (!response.ok) throw new Error(data.error || `Could not ${action} episode`);
     processed = true;
     if (action === "watch") {
-      episodeDetailCache.delete(String(episodeId));
-      clearSeasonEpisodeCaches();
+      invalidateWatchCaches({ showId, episodeId });
       applyShowProgress(data);
     }
 
@@ -958,18 +1002,12 @@ async function processScheduleEpisode(card, action) {
       throw new Error("Could not load the next episode");
     }
     const nextHtml = nextResponse.status === 204 ? "" : await nextResponse.text();
-    card.classList.add("is-leaving");
-    await waitForScheduleAnimation(card);
-
     if (nextHtml.trim()) {
       const template = document.createElement("template");
       template.innerHTML = nextHtml.trim();
       const nextCard = template.content.firstElementChild;
-      nextCard.classList.add("is-entering");
-      card.replaceWith(nextCard);
-      formatDisplayDates(nextCard);
+      advanceScheduleCard(card, nextCard);
       filterSchedule();
-      window.setTimeout(() => nextCard.classList.remove("is-entering"), 240);
     } else if (
       action === "watch"
       && data.episode_count > 0
@@ -993,7 +1031,6 @@ async function processScheduleEpisode(card, action) {
       await refreshScheduleContent().catch(() => undefined);
       showSnackbar("Episode processed; Schedule was refreshed");
     } else {
-      card.classList.remove("is-leaving");
       buttons.forEach((button) => { button.disabled = false; });
       showSnackbar(error.message);
     }
@@ -1014,6 +1051,16 @@ function invalidateShowCache(showId, includeSeasons = false) {
     showSeasonsCache.delete(String(showId));
     clearSeasonEpisodeCaches();
   }
+}
+
+function invalidateEpisodeCache(episodeId) {
+  episodeDetailCache.delete(String(episodeId));
+}
+
+function invalidateWatchCaches({ showId, episodeId = null, allEpisodes = false }) {
+  if (allEpisodes) episodeDetailCache.clear();
+  else if (episodeId !== null) invalidateEpisodeCache(episodeId);
+  invalidateShowCache(showId, true);
 }
 
 function setSeasonEpisodesCache(seasonId, html) {
@@ -1341,7 +1388,7 @@ async function refreshShowMetadata(showId, { force = false, trigger = null } = {
     if (!response.ok) throw new Error(data.error || "Could not refresh show");
 
     if (data.refreshed) {
-      episodeDetailCache.clear();
+      invalidateWatchCaches({ showId, allEpisodes: true });
       await fetchRefreshedShowFragments(showId);
       replaceLibraryCard(showId, data.card_html);
     } else {
@@ -1905,7 +1952,7 @@ async function saveWatchDate() {
     const detailShow = datePickerTarget.closest("[data-detail-show]");
     if (detailShow) invalidateShowCache(detailShow.dataset.showId);
     const detailEpisode = datePickerTarget.closest("[data-detail-episode]");
-    if (detailEpisode) episodeDetailCache.delete(detailEpisode.dataset.episodeId);
+    if (detailEpisode) invalidateEpisodeCache(detailEpisode.dataset.episodeId);
     datePicker.close();
   } catch (_error) {
     showSnackbar("Couldn't update the watch date. Try again.");
@@ -2128,28 +2175,24 @@ function syncProgressState(showElement) {
   const episodeCount = Number(showElement.dataset.episodeCount);
   if (!Number.isFinite(watchedCount) || !Number.isFinite(episodeCount)) return;
 
-  let progressState = "started";
-  let progressLabel = "Watching";
-  if (watchedCount === 0) {
-    progressState = "not-started";
-    progressLabel = "New";
-  } else if (episodeCount > 0 && watchedCount >= episodeCount) {
-    progressState = "finished";
-    progressLabel = "Finished";
-  } else if (showElement.dataset.showState === "ARCHIVED") {
-    progressLabel = "Stopped";
-  }
+  const progress = progressPresentation(
+    showElement.dataset.showState,
+    watchedCount,
+    episodeCount,
+  );
 
-  showElement.dataset.progressState = progressState;
+  showElement.dataset.progressState = progress.state;
   const tag = showElement.querySelector("[data-progress-tag]");
-  if (tag) tag.textContent = progressLabel;
+  if (tag) tag.textContent = progress.label;
 }
 
 function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
   document.querySelectorAll(`[data-show-id="${showId}"]`).forEach((showElement) => {
     showElement.dataset.showState = state;
     showElement.querySelectorAll('[data-show-action="move"]').forEach((moveButton) => {
-      moveButton.dataset.targetState = state === "ARCHIVED" ? "ACTIVE" : "ARCHIVED";
+      moveButton.dataset.targetState = state === TRACKING_STATE.ARCHIVED
+        ? TRACKING_STATE.ACTIVE
+        : TRACKING_STATE.ARCHIVED;
       moveButton.querySelector("[data-move-label]").textContent = moveLabel;
       moveButton.querySelector(".material-symbols-rounded").textContent = moveIcon;
     });
@@ -2286,7 +2329,6 @@ function updateEpisodeWatchUi(episode, watchCount, syncSeason = true) {
 }
 
 function applyShowProgress(data) {
-  invalidateShowCache(data.show_id, true);
   updateProgress(document.querySelector("[data-progress-summary]"), data);
   const showCard = document.querySelector(`.show-card[data-show-id="${data.show_id}"]`);
   if (showCard) {
@@ -2321,7 +2363,10 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
     });
     if (!response.ok) throw new Error("Could not update episode");
     const data = await response.json();
-    episodeDetailCache.delete(String(episode.dataset.episodeId));
+    invalidateWatchCaches({
+      showId: data.show_id,
+      episodeId: episode.dataset.episodeId,
+    });
     updateEpisodeWatchUi(episode, data.watch_count);
     applyShowProgress(data);
     cacheCurrentSeasonEpisodes(episode.closest(".season"));
@@ -2369,8 +2414,10 @@ async function changeEpisodeDetailWatchCount(detailEpisode, action) {
     });
     if (!response.ok) throw new Error("Could not update episode");
     const data = await response.json();
-    episodeDetailCache.delete(String(detailEpisode.dataset.episodeId));
-    clearSeasonEpisodeCaches();
+    invalidateWatchCaches({
+      showId: data.show_id,
+      episodeId: detailEpisode.dataset.episodeId,
+    });
     updateEpisodeDetailWatchUi(detailEpisode, data.watch_count);
     applyShowProgress(data);
     if (data.action === "increment") {
@@ -2403,7 +2450,7 @@ async function changeSeasonWatchCount(season, action, trigger) {
     });
     if (!response.ok) throw new Error("Could not update season");
     const data = await response.json();
-    episodeDetailCache.clear();
+    invalidateWatchCaches({ showId: data.show_id, allEpisodes: true });
     if (season.dataset.episodesLoaded === "true") {
       data.episodes.forEach((episodeData) => {
         const episode = season.querySelector(`[data-episode-id="${episodeData.episode_id}"]`);

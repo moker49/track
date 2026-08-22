@@ -296,6 +296,52 @@ def _rename_watching_to_active(db: sqlite3.Connection) -> None:
         db.execute("PRAGMA foreign_keys = ON")
 
 
+def _migrate_watch_history_tables(db: sqlite3.Connection) -> None:
+    table_definitions = {
+        "episode_watch_history": ("episode_id", "episodes"),
+        "season_watch_history": ("season_id", "seasons"),
+    }
+    for table, (parent_column, parent_table) in table_definitions.items():
+        exists = db.execute(
+            "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?",
+            (table,),
+        ).fetchone()
+        if exists is None:
+            continue
+        columns = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
+        if {"added_at", "watch_date"}.issubset(columns) and not {
+            "watched_at",
+            "unwatched_at",
+        }.intersection(columns):
+            continue
+
+        legacy_table = f"{table}_legacy"
+        db.execute(f"ALTER TABLE {table} RENAME TO {legacy_table}")
+        db.execute(
+            f"""
+            CREATE TABLE {table} (
+                id INTEGER PRIMARY KEY,
+                {parent_column} INTEGER NOT NULL
+                    REFERENCES {parent_table}(id) ON DELETE CASCADE,
+                added_at TEXT NOT NULL,
+                watch_date TEXT
+            )
+            """
+        )
+        added_source = "added_at" if "added_at" in columns else "watched_at"
+        date_source = "watch_date" if "watch_date" in columns else "NULL"
+        active_filter = "WHERE unwatched_at IS NULL" if "unwatched_at" in columns else ""
+        db.execute(
+            f"""
+            INSERT INTO {table} (id, {parent_column}, added_at, watch_date)
+            SELECT id, {parent_column}, {added_source}, {date_source}
+            FROM {legacy_table}
+            {active_filter}
+            """
+        )
+        db.execute(f"DROP TABLE {legacy_table}")
+
+
 def migrate_database(db: sqlite3.Connection) -> None:
     db.execute(
         """
@@ -312,6 +358,7 @@ def migrate_database(db: sqlite3.Connection) -> None:
         (4, _rename_active_to_watching),
         (5, _add_image_cache),
         (6, _rename_watching_to_active),
+        (7, _migrate_watch_history_tables),
     )
     applied = {
         row[0] for row in db.execute("SELECT version FROM schema_migrations")

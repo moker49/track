@@ -1,27 +1,13 @@
 {% macro show_card(show) %}
 {% set percent = ((show.watched_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
-{% if show.watched_count == 0 %}
-{% set progress_tag = "New" %}
-{% set progress_state = "not-started" %}
-{% elif show.episode_count and show.watched_count >= show.episode_count %}
-{% set progress_tag = "Finished" %}
-{% set progress_state = "finished" %}
-{% elif show.state == 'ARCHIVED' %}
-{% set progress_tag = "Stopped" %}
-{% set progress_state = "started" %}
-{% else %}
-{% set progress_tag = "Watching" %}
-{% set progress_state = "started" %}
-{% endif %}
-{% set target_state = 'ACTIVE' if show.state == 'ARCHIVED' else 'ARCHIVED' %}
-{% set move_label = 'Resume' if show.state == 'ARCHIVED' else 'Archive' %}
-{% set move_icon = 'resume' if show.state == 'ARCHIVED' else 'archive' %}
+{% set progress = progress_for(show.state, show.watched_count, show.episode_count) %}
+{% set move = move_for(show.state) %}
 
 <article class="show-card" data-show-id="{{ show.id }}" data-tmdb-id="{{ show.tmdb_id }}"
   data-show-name="{{ show.name|lower }}" data-date-added="{{ show.added_at }}"
   data-release-date="{{ show.first_air_date }}" data-show-state="{{ show.state }}"
   data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
-  data-progress-state="{{ progress_state }}">
+  data-progress-state="{{ progress.css_state }}">
   <button class="show-card-open" type="button" data-show-open aria-label="Open {{ show.name }}">
     <div class="poster poster-purple{% if show.poster_path %} has-media-image{% endif %}" aria-hidden="true">
       {% if show.poster_path %}<img class="poster-image"
@@ -34,7 +20,7 @@
     <div class="show-card-body">
       <div class="show-card-heading">
         <div class="show-card-meta">
-          <span class="state-label progress-tag" data-progress-tag>{{ progress_tag }}</span>
+          <span class="state-label progress-tag" data-progress-tag>{{ progress.label }}</span>
         </div>
         <h3>{{ show.name }}</h3>
         <span class="show-card-year">{{ show.first_air_date[:4] }}</span>
@@ -56,9 +42,9 @@
     <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
   </button>
   <div class="show-menu card-show-menu" data-show-menu hidden>
-    <button type="button" data-show-action="move" data-target-state="{{ target_state }}">
-      <span class="material-symbols-rounded" aria-hidden="true">{{ move_icon }}</span>
-      <span data-move-label>{{ move_label }}</span>
+    <button type="button" data-show-action="move" data-target-state="{{ move.target_state }}">
+      <span class="material-symbols-rounded" aria-hidden="true">{{ move.icon }}</span>
+      <span data-move-label>{{ move.label }}</span>
     </button>
     <button class="danger-action" type="button" data-show-action="remove">
       <span class="material-symbols-rounded" aria-hidden="true">delete</span>

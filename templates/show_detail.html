@@ -1,25 +1,11 @@
-{% set target_state = 'ACTIVE' if show.state == 'ARCHIVED' else 'ARCHIVED' %}
-{% set move_label = 'Resume' if show.state == 'ARCHIVED' else 'Archive' %}
-{% set move_icon = 'resume' if show.state == 'ARCHIVED' else 'archive' %}
-{% if show.watched_count == 0 %}
-{% set progress_state = 'not-started' %}
-{% set progress_tag = "New" %}
-{% elif show.episode_count and show.watched_count >= show.episode_count %}
-{% set progress_state = 'finished' %}
-{% set progress_tag = 'Finished' %}
-{% elif show.state == 'ARCHIVED' %}
-{% set progress_state = 'started' %}
-{% set progress_tag = 'Stopped' %}
-{% else %}
-{% set progress_state = 'started' %}
-{% set progress_tag = 'Watching' %}
-{% endif %}
+{% set progress = progress_for(show.state, show.watched_count, show.episode_count) %}
+{% set move = move_for(show.state) %}
 <div data-detail-show data-detail-title="{{ show.name }}" data-show-id="{{ show.id }}" data-tmdb-id="{{ show.tmdb_id }}"
   data-show-state="{{ show.state }}" data-show-tracked="{{ 'true' if show.is_tracked else 'false' }}"
   data-tmdb-refreshed-at="{{ show.tmdb_refreshed_at or '' }}"
   data-metadata-refresh-due="{{ 'true' if metadata_refresh_due else 'false' }}"
   data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
-  data-progress-state="{{ progress_state }}">
+  data-progress-state="{{ progress.css_state }}">
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back aria-label="Back">
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
@@ -31,9 +17,9 @@
         <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
       </button>
       <div class="show-menu detail-show-menu" data-show-menu hidden>
-        <button type="button" data-show-action="move" data-target-state="{{ target_state }}">
-          <span class="material-symbols-rounded" aria-hidden="true">{{ move_icon }}</span>
-          <span data-move-label>{{ move_label }}</span>
+        <button type="button" data-show-action="move" data-target-state="{{ move.target_state }}">
+          <span class="material-symbols-rounded" aria-hidden="true">{{ move.icon }}</span>
+          <span data-move-label>{{ move.label }}</span>
         </button>
         <button type="button" data-show-action="refresh">
           <span class="material-symbols-rounded" aria-hidden="true">refresh</span>
@@ -63,7 +49,7 @@
       {% if show.poster_path %}
     </button>{% endif %}
     <div class="hero-copy">
-      {% if show.is_tracked %}<span class="state-label progress-tag" data-progress-tag>{{ progress_tag }}</span>{% endif
+      {% if show.is_tracked %}<span class="state-label progress-tag" data-progress-tag>{{ progress.label }}</span>{% endif
       %}
       <h1>{{ show.name }}</h1>
       <p>{{ show.first_air_date[:4] }} · {{ show.status }}<br>{{ show.genres }}</p>
@@ -101,100 +87,7 @@
     </div>
     {% endif %}
 
-    <div class="season-list" data-season-list data-show-id="{{ show.id }}" aria-busy="true">
-      {% for season in seasons %}
-      {% set episodes = episodes_by_season[season.id] %}
-      {% set watched_in_season = episodes|selectattr('watch_count', 'gt', 0)|list|length %}
-      {% set watch_counts = episodes|map(attribute='watch_count')|list %}
-      {% set minimum_watch_count = watch_counts|min if watch_counts else 0 %}
-      <details class="season" data-season-id="{{ season.id }}" data-episode-count="{{ episodes|length }}"
-        data-watched-count="{{ watched_in_season }}" data-min-watch-count="{{ minimum_watch_count }}"
-        data-progress-counted="{{ 'true' if season.is_progress_counted else 'false' }}">
-        <summary>
-          <span class="season-chevron material-symbols-rounded" aria-hidden="true">expand_more</span>
-          {% if season.poster_path %}<button class="season-image-button" type="button"
-            data-full-image-src="https://image.tmdb.org/t/p/w780{{ season.poster_path }}"
-            data-full-image-alt="{{ season.name }} poster" aria-label="View {{ season.name }} poster"><span
-              class="season-poster-shell has-media-image" aria-hidden="true"><img class="season-poster"
-                src="{{ url_for('cached_tmdb_image', image_type='season', size='w185', tmdb_path=season.poster_path[1:]) }}"
-                alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span
-                  class="season-poster-fallback">S{{ season.season_number }}</span></template></span></button>{% endif
-          %}
-          <span class="season-title">
-            <strong>{{ season.name }}</strong>
-            <small>{% if season.is_progress_counted %}{{ watched_in_season }} of {{ episodes|length }}{% endif
-              %}</small>
-          </span>
-          <span class="season-watch-control watch-control-wrap">
-            <button class="check-control" type="button" role="checkbox"
-              aria-checked="{{ 'true' if watched_in_season == episodes|length and episodes else ('mixed' if watched_in_season else 'false') }}"
-              aria-label="Watch options for {{ season.name }}" data-season-watch
-              data-watch-count="{{ minimum_watch_count if watched_in_season == episodes|length else 0 }}">
-              <span class="checkbox-visual" aria-hidden="true">
-                <span class="material-symbols-rounded watch-check" data-watch-check {% if minimum_watch_count> 1 or
-                  (watched_in_season and watched_in_season < episodes|length) %}hidden{% endif %}>check</span>
-                <span class="material-symbols-rounded watch-check" data-watch-mixed {% if not watched_in_season or
-                  watched_in_season==episodes|length %}hidden{% endif %}>remove</span>
-                <span class="watch-counter" data-watch-counter {% if minimum_watch_count <=1 or watched_in_season <
-                  episodes|length %}hidden{% endif %}>{{ minimum_watch_count }}</span>
-              </span>
-            </button>
-            <span class="show-menu watch-menu" data-watch-menu hidden>
-              <button type="button" data-watch-action="increment">
-                <span class="material-symbols-rounded" aria-hidden="true">add</span>
-                <span>rewatch</span>
-              </button>
-              <button type="button" data-watch-action="decrement">
-                <span class="material-symbols-rounded" aria-hidden="true">remove</span>
-                <span>unwatch</span>
-              </button>
-            </span>
-          </span>
-        </summary>
-        <div class="episode-list">
-          {% for episode in episodes %}
-          <article class="episode {{ 'is-watched' if episode.watch_count else '' }}" data-episode-id="{{ episode.id }}"
-            data-watch-count="{{ episode.watch_count }}">
-            <button class="episode-copy episode-open" type="button" data-open-episode
-              aria-label="Open {{ episode.name }} details">
-              <div class="episode-title">
-                <span>{{ episode.episode_number }}</span>
-                <strong>{{ episode.name }}</strong>
-              </div>
-              {% if episode.air_date or episode.runtime_minutes %}<p>{% if episode.air_date %}<time
-                  datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date }}</time>{% endif %}{% if
-                episode.air_date and episode.runtime_minutes %} · {% endif %}{% if episode.runtime_minutes %}{{
-                episode.runtime_minutes }} min{% endif %}</p>{% endif %}
-            </button>
-            <div class="watch-control-wrap">
-              <button class="check-control" type="button" role="checkbox"
-                aria-checked="{{ 'true' if episode.watch_count else 'false' }}"
-                aria-label="Watch options for episode {{ episode.episode_number }} {{ episode.name }}"
-                data-episode-watch data-watch-count="{{ episode.watch_count }}">
-                <span class="checkbox-visual" aria-hidden="true">
-                  <span class="material-symbols-rounded watch-check" data-watch-check {% if episode.watch_count> 1
-                    %}hidden{% endif %}>check</span>
-                  <span class="watch-counter" data-watch-counter {% if episode.watch_count <=1 %}hidden{% endif %}>{{
-                    episode.watch_count }}</span>
-                </span>
-              </button>
-              <div class="show-menu watch-menu" data-watch-menu hidden>
-                <button type="button" data-watch-action="increment">
-                  <span class="material-symbols-rounded" aria-hidden="true">add</span>
-                  <span>rewatch</span>
-                </button>
-                <button type="button" data-watch-action="decrement">
-                  <span class="material-symbols-rounded" aria-hidden="true">remove</span>
-                  <span>unwatch</span>
-                </button>
-              </div>
-            </div>
-          </article>
-          {% endfor %}
-        </div>
-      </details>
-      {% endfor %}
-    </div>
+    <div class="season-list" data-season-list data-show-id="{{ show.id }}" aria-busy="true"></div>
 
     {% if show.is_tracked %}{% set activity_title = 'Activity' %}
     {% set activity_items = activity %}

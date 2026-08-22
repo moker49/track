@@ -46,3 +46,21 @@ Schema changes are applied through the small versioned migration runner. TMDB re
 Removing a show demotes it to an untracked preview. It disappears from Active and Archived while its imported metadata and complete watch history remain available through TV search for later re-adding.
 
 Episode and season controls support individual rewatches. Watch logs use the chosen watch date when present and otherwise fall back to the added date. Unwatching removes the latest effective entry. Tapping a watch-log entry opens the date picker without changing normal watch behavior.
+
+The canonical product vocabulary and state rules are documented in [docs/domain-model.md](docs/domain-model.md). Code ownership, cache invalidation, database startup, and test boundaries are documented in [docs/architecture.md](docs/architecture.md).
+
+## Tests
+
+Run the full server, domain, migration, and workflow suite with:
+
+```powershell
+python -m unittest discover -s tests -q
+```
+
+The optional browser smoke tests exercise the persistent shell in headless Chromium. They skip cleanly during the standard suite when Playwright is not installed.
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m playwright install chromium
+python -m unittest tests.test_browser_smoke -v
+```
