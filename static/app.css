@@ -1731,19 +1731,11 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .image-viewer.is-closing {
-  animation: image-viewer-background-out 180ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: image-viewer-exit 120ms ease-out both;
 }
 
 .image-viewer.is-closing::backdrop {
-  animation: image-viewer-backdrop-out 180ms cubic-bezier(0.2, 0, 0, 1) both;
-}
-
-.image-viewer.is-closing .image-viewer-close {
-  animation: image-viewer-control-out 90ms ease-out both;
-}
-
-.image-viewer.is-closing .image-viewer-media {
-  animation: image-viewer-media-out 90ms 45ms ease-in both;
+  animation: image-viewer-backdrop-out 120ms ease-out both;
 }
 
 .image-viewer-close {
@@ -1814,27 +1806,15 @@ html.app-booting .schedule-empty-reveal {
   }
 }
 
-@keyframes image-viewer-background-out {
+@keyframes image-viewer-exit {
   to {
-    background: transparent;
+    opacity: 0;
   }
 }
 
 @keyframes image-viewer-backdrop-out {
   to {
     background: transparent;
-  }
-}
-
-@keyframes image-viewer-control-out {
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes image-viewer-media-out {
-  to {
-    opacity: 0;
   }
 }
 
@@ -2724,9 +2704,7 @@ html.app-booting .tv-slice-reveal {
   .image-viewer.is-opening,
   .image-viewer.is-opening::backdrop,
   .image-viewer.is-closing,
-  .image-viewer.is-closing::backdrop,
-  .image-viewer.is-closing .image-viewer-close,
-  .image-viewer.is-closing .image-viewer-media {
+  .image-viewer.is-closing::backdrop {
     animation: none;
   }
 }

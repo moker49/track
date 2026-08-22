@@ -101,7 +101,6 @@ let backgroundPrimaryViewHydrationStarted = false;
 let scheduleViewsHydrated = false;
 let imageViewerAspectRatio = null;
 let imageViewerClosing = false;
-let imageViewerSourceImage = null;
 
 if (!window.history.state?.trackApp) {
   window.history.replaceState({ trackApp: true, view: "backlog" }, "");
@@ -136,7 +135,6 @@ function openImageViewer(trigger) {
   if (!imageViewer || !imageViewerMedia || !imageViewerPreview || !imageViewerImage || !imageViewerStage) return;
   clearImageViewerMotion();
   const currentImage = trigger.querySelector("img[data-media-image]");
-  imageViewerSourceImage = currentImage || null;
   const previewSource = currentImage?.currentSrc || currentImage?.src || "";
   const currentBounds = currentImage?.getBoundingClientRect();
   imageViewerAspectRatio = currentImage?.naturalWidth && currentImage?.naturalHeight
@@ -188,37 +186,12 @@ function closeImageViewer() {
   imageViewerClosing = true;
   imageViewer.classList.remove("is-opening");
   imageViewer.classList.add("is-closing");
-  const sourceBounds = imageViewerSourceImage?.isConnected
-    ? imageViewerSourceImage.getBoundingClientRect()
-    : null;
-  const stageBounds = imageViewerStage?.getBoundingClientRect();
-  const mediaWidth = imageViewerMedia?.offsetWidth;
-  const mediaHeight = imageViewerMedia?.offsetHeight;
-  if (imageViewerMedia && sourceBounds?.width && sourceBounds?.height
-    && stageBounds && mediaWidth && mediaHeight) {
-    const translateX = sourceBounds.left + (sourceBounds.width / 2)
-      - stageBounds.left - (stageBounds.width / 2);
-    const translateY = sourceBounds.top + (sourceBounds.height / 2)
-      - stageBounds.top - (stageBounds.height / 2);
-    const currentTransform = getComputedStyle(imageViewerMedia).transform;
-    const reverseAnimation = imageViewerMedia.animate(
-      [
-        { transform: currentTransform === "none" ? "translate(0, 0) scale(1, 1)" : currentTransform },
-        {
-          transform: `translate3d(${translateX}px, ${translateY}px, 0) scale3d(${sourceBounds.width / mediaWidth}, ${sourceBounds.height / mediaHeight}, 1)`,
-        },
-      ],
-      { duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)", fill: "forwards" },
-    );
-    reverseAnimation.finished.catch(() => undefined).finally(() => imageViewer.close());
-    return;
-  }
-
-  const fadeAnimation = imageViewer.animate(
-    [{ opacity: 1 }, { opacity: 0 }],
-    { duration: 120, easing: "ease-out", fill: "forwards" },
-  );
-  fadeAnimation.finished.catch(() => undefined).finally(() => imageViewer.close());
+  const finishClose = (event) => {
+    if (event.target !== imageViewer || event.animationName !== "image-viewer-exit") return;
+    imageViewer.removeEventListener("animationend", finishClose);
+    imageViewer.close();
+  };
+  imageViewer.addEventListener("animationend", finishClose);
 }
 
 imageViewerImage?.addEventListener("load", async () => {
@@ -3048,7 +3021,6 @@ imageViewer?.addEventListener("close", () => {
   imageViewer?.classList.remove("is-opening", "is-closing");
   imageViewerAspectRatio = null;
   imageViewerClosing = false;
-  imageViewerSourceImage = null;
 });
 
 window.addEventListener("resize", () => {
