@@ -1715,15 +1715,13 @@ html.app-booting .schedule-empty-reveal {
   border: 0;
   overflow: hidden;
   color: var(--on-surface);
-  background: color-mix(in srgb, var(--surface-low) 96%, transparent);
+  background: transparent;
 }
 
 .image-viewer::backdrop {
-  background: var(--surface-low);
-}
-
-.image-viewer.is-opening {
-  animation: image-viewer-background-in 180ms ease-out both;
+  background: color-mix(in srgb, var(--surface-low) 72%, transparent);
+  -webkit-backdrop-filter: blur(6px) brightness(0.68);
+  backdrop-filter: blur(6px) brightness(0.68);
 }
 
 .image-viewer.is-opening::backdrop {
@@ -1794,15 +1792,11 @@ html.app-booting .schedule-empty-reveal {
   display: none;
 }
 
-@keyframes image-viewer-background-in {
-  from {
-    background: transparent;
-  }
-}
-
 @keyframes image-viewer-backdrop-in {
   from {
     background: transparent;
+    -webkit-backdrop-filter: blur(0) brightness(1);
+    backdrop-filter: blur(0) brightness(1);
   }
 }
 
@@ -1815,6 +1809,8 @@ html.app-booting .schedule-empty-reveal {
 @keyframes image-viewer-backdrop-out {
   to {
     background: transparent;
+    -webkit-backdrop-filter: blur(0) brightness(1);
+    backdrop-filter: blur(0) brightness(1);
   }
 }
 
@@ -2701,7 +2697,6 @@ html.app-booting .tv-slice-reveal {
 
   .library-filter-dialog.is-opening::backdrop,
   .library-filter-dialog.is-closing::backdrop,
-  .image-viewer.is-opening,
   .image-viewer.is-opening::backdrop,
   .image-viewer.is-closing,
   .image-viewer.is-closing::backdrop {
