@@ -512,8 +512,51 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .schedule-watch-button {
+  width: 100%;
+  min-width: 58px;
   color: var(--on-primary);
   background: var(--primary);
+}
+
+.schedule-watch-slot {
+  position: relative;
+  min-width: 58px;
+  min-height: 36px;
+  display: grid;
+}
+
+.schedule-watch-slot .schedule-watch-confirmation {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--primary);
+  font-size: 1.45rem;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.schedule-timeline-item.is-watch-confirming .schedule-timeline-actions button {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.schedule-timeline-item.is-watch-confirming .schedule-watch-confirmation {
+  opacity: 1;
+}
+
+.schedule-timeline-item.is-revealing-actions .schedule-timeline-actions button {
+  opacity: 0;
+  animation: schedule-action-reveal 180ms cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+.schedule-timeline-item.is-revealing-actions .schedule-watch-button {
+  animation-delay: 70ms;
+}
+
+.schedule-timeline-item.is-revealing-actions .schedule-watch-confirmation {
+  opacity: 1;
+  animation: schedule-confirmation-out 140ms ease-out 70ms forwards;
 }
 
 .schedule-timeline-progress {
@@ -547,10 +590,6 @@ html.app-booting .schedule-empty-reveal {
 
 .schedule-timeline-item.is-advancing .schedule-timeline-episode-title {
   animation-delay: 24ms;
-}
-
-.schedule-timeline-item.is-advancing .schedule-timeline-progress {
-  animation: schedule-progress-reveal 300ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .schedule-empty {
@@ -2627,13 +2666,20 @@ html.app-booting .tv-slice-reveal {
   }
 }
 
-@keyframes schedule-progress-reveal {
+@keyframes schedule-action-reveal {
   from {
-    clip-path: inset(0 100% 0 0);
+    opacity: 0;
   }
 
   to {
-    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+@keyframes schedule-confirmation-out {
+  to {
+    opacity: 0;
+    transform: scale(0.82);
   }
 }
 
@@ -2705,7 +2751,8 @@ html.app-booting .tv-slice-reveal {
   .schedule-item-reveal .schedule-timeline-content,
   .schedule-item-reveal .schedule-timeline-rail>span,
   .schedule-timeline-item.is-advancing [data-schedule-advance-line],
-  .schedule-timeline-item.is-advancing .schedule-timeline-progress,
+  .schedule-timeline-item.is-revealing-actions .schedule-timeline-actions button,
+  .schedule-timeline-item.is-revealing-actions .schedule-watch-confirmation,
   .schedule-empty-reveal,
   .media-image-reveal {
     animation: none;

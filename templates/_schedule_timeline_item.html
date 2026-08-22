@@ -3,6 +3,7 @@
 {% set progress_percent = ((episode.watched_count * 100) / episode.episode_count)|round|int if is_backlog else 0 %}
 <article class="schedule-timeline-item{% if not is_backlog and episode.is_grouped %} is-multi-episode{% endif %}"
   data-schedule-card data-schedule-mode="{{ mode }}" data-show-id="{{ episode.show_id }}"
+  {% if is_backlog %}data-watched-count="{{ episode.watched_count }}" data-episode-count="{{ episode.episode_count }}"{% endif %}
   {% if not is_backlog and episode.is_grouped %}data-season-ids="{{ episode.season_ids }}"{% else
   %}data-episode-id="{{ episode.episode_id }}"{% endif %}
   data-schedule-search-text="{{ episode.search_text if not is_backlog else (episode.show_name|lower ~ ' ' ~ episode.episode_name|lower) }}">
@@ -40,7 +41,10 @@
     {% if is_backlog %}
     <div class="schedule-timeline-actions">
       <button class="schedule-skip-button" type="button" data-schedule-action="skip">Skip</button>
-      <button class="schedule-watch-button" type="button" data-schedule-action="watch">Watch</button>
+      <span class="schedule-watch-slot">
+        <button class="schedule-watch-button" type="button" data-schedule-action="watch">Watch</button>
+        <span class="schedule-watch-confirmation material-symbols-rounded" aria-hidden="true">check</span>
+      </span>
     </div>
     <div class="schedule-timeline-progress" aria-label="{{ episode.watched_count }} of {{ episode.episode_count }} episodes watched">
       <div class="progress-track" aria-hidden="true">
