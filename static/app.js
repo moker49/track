@@ -28,7 +28,7 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list more_vert resume event tv done_all arrow_forward menu account_circle arrow_back close",
+        "filter_list more_vert resume event tv done_all step_over arrow_forward menu account_circle arrow_back close",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
@@ -848,7 +848,8 @@ function clearCaughtUpScheduleItems() {
 }
 
 function showCaughtUpScheduleState(card, data, action) {
-  card.classList.remove("is-watch-confirming", "is-revealing-actions");
+  card.classList.remove("is-watch-confirming", "is-skip-confirming", "is-revealing-actions");
+  delete card.dataset.scheduleConfirmation;
   card.classList.add("is-caught-up");
 
   if (action === "watch") {
@@ -876,10 +877,12 @@ function playScheduleAdvanceTransition(card) {
   window.setTimeout(() => card.classList.remove("is-advancing"), 320);
 }
 
-function showScheduleWatchConfirmation(card) {
+function showScheduleActionConfirmation(card, action) {
   const watchedCount = Number(card.dataset.watchedCount);
   const episodeCount = Number(card.dataset.episodeCount);
-  const nextWatchedCount = Math.min(watchedCount + 1, episodeCount);
+  const nextWatchedCount = action === "watch"
+    ? Math.min(watchedCount + 1, episodeCount)
+    : watchedCount;
   const nextPercent = episodeCount
     ? Math.round((nextWatchedCount / episodeCount) * 100)
     : 0;
@@ -894,7 +897,8 @@ function showScheduleWatchConfirmation(card) {
     progressWidth: progressFill?.style.width,
   };
 
-  card.classList.add("is-watch-confirming");
+  card.classList.add(action === "watch" ? "is-watch-confirming" : "is-skip-confirming");
+  card.dataset.scheduleConfirmation = action;
   card.dataset.watchedCount = nextWatchedCount;
   if (marker?.querySelector("strong")) {
     marker.querySelector("strong").textContent = `${nextPercent}%`;
@@ -910,11 +914,12 @@ function showScheduleWatchConfirmation(card) {
   return snapshot;
 }
 
-function restoreScheduleWatchConfirmation(card, snapshot) {
+function restoreScheduleActionConfirmation(card, snapshot) {
   if (!snapshot) return;
   const marker = card.querySelector(".schedule-timeline-marker");
   const progress = card.querySelector(".schedule-timeline-progress");
-  card.classList.remove("is-watch-confirming", "is-revealing-actions");
+  card.classList.remove("is-watch-confirming", "is-skip-confirming", "is-revealing-actions");
+  delete card.dataset.scheduleConfirmation;
   card.dataset.watchedCount = snapshot.watchedCount;
   if (marker?.querySelector("strong")) marker.querySelector("strong").textContent = snapshot.percent;
   if (marker?.querySelector("span")) marker.querySelector("span").textContent = snapshot.count;
@@ -925,8 +930,11 @@ function restoreScheduleWatchConfirmation(card, snapshot) {
 
 function revealScheduleActions(card) {
   card.classList.add("is-revealing-actions");
-  card.classList.remove("is-watch-confirming");
-  window.setTimeout(() => card.classList.remove("is-revealing-actions"), 360);
+  card.classList.remove("is-watch-confirming", "is-skip-confirming");
+  window.setTimeout(() => {
+    card.classList.remove("is-revealing-actions");
+    delete card.dataset.scheduleConfirmation;
+  }, 360);
 }
 
 function advanceScheduleCard(card, nextCard, { revealActions = false } = {}) {
@@ -1036,9 +1044,7 @@ async function processScheduleEpisode(card, action) {
   const showId = card.dataset.showId;
   const buttons = card.querySelectorAll("[data-schedule-action]");
   let processed = false;
-  const watchConfirmation = action === "watch"
-    ? showScheduleWatchConfirmation(card)
-    : null;
+  const actionConfirmation = showScheduleActionConfirmation(card, action);
   const progressStartedAt = performance.now();
   buttons.forEach((button) => { button.disabled = true; });
 
@@ -1071,7 +1077,7 @@ async function processScheduleEpisode(card, action) {
       const template = document.createElement("template");
       template.innerHTML = nextHtml.trim();
       const nextCard = template.content.firstElementChild;
-      advanceScheduleCard(card, nextCard, { revealActions: action === "watch" });
+      advanceScheduleCard(card, nextCard, { revealActions: true });
       filterSchedule();
     } else if (
       action === "watch"
@@ -1096,7 +1102,7 @@ async function processScheduleEpisode(card, action) {
       await refreshScheduleContent().catch(() => undefined);
       showSnackbar("Episode processed; Schedule was refreshed");
     } else {
-      restoreScheduleWatchConfirmation(card, watchConfirmation);
+      restoreScheduleActionConfirmation(card, actionConfirmation);
       buttons.forEach((button) => { button.disabled = false; });
       showSnackbar(error.message);
     }

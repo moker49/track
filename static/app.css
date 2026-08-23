@@ -507,6 +507,7 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .schedule-skip-button {
+  width: 100%;
   color: var(--primary);
   background: transparent;
 }
@@ -518,14 +519,21 @@ html.app-booting .schedule-empty-reveal {
   background: var(--primary);
 }
 
-.schedule-watch-slot {
+.schedule-action-slot {
   position: relative;
-  min-width: 58px;
   min-height: 36px;
   display: grid;
 }
 
-.schedule-watch-slot .schedule-watch-confirmation {
+.schedule-skip-slot {
+  min-width: 48px;
+}
+
+.schedule-watch-slot {
+  min-width: 58px;
+}
+
+.schedule-action-slot .schedule-action-confirmation {
   position: absolute;
   inset: 0;
   display: grid;
@@ -536,12 +544,14 @@ html.app-booting .schedule-empty-reveal {
   pointer-events: none;
 }
 
-.schedule-timeline-item.is-watch-confirming .schedule-timeline-actions button {
+.schedule-timeline-item.is-watch-confirming .schedule-timeline-actions button,
+.schedule-timeline-item.is-skip-confirming .schedule-timeline-actions button {
   opacity: 0;
   pointer-events: none;
 }
 
-.schedule-timeline-item.is-watch-confirming .schedule-watch-confirmation {
+.schedule-timeline-item.is-watch-confirming .schedule-watch-confirmation,
+.schedule-timeline-item.is-skip-confirming .schedule-skip-confirmation {
   opacity: 1;
 }
 
@@ -554,9 +564,10 @@ html.app-booting .schedule-empty-reveal {
   animation-delay: 70ms;
 }
 
-.schedule-timeline-item.is-revealing-actions .schedule-watch-confirmation {
+.schedule-timeline-item.is-revealing-actions[data-schedule-confirmation="watch"] .schedule-watch-confirmation,
+.schedule-timeline-item.is-revealing-actions[data-schedule-confirmation="skip"] .schedule-skip-confirmation {
   opacity: 1;
-  animation: schedule-confirmation-out 140ms ease-out 70ms forwards;
+  animation: schedule-confirmation-out 55ms ease-out 40ms forwards;
 }
 
 .schedule-timeline-progress {
@@ -2752,7 +2763,7 @@ html.app-booting .tv-slice-reveal {
   .schedule-item-reveal .schedule-timeline-rail>span,
   .schedule-timeline-item.is-advancing [data-schedule-advance-line],
   .schedule-timeline-item.is-revealing-actions .schedule-timeline-actions button,
-  .schedule-timeline-item.is-revealing-actions .schedule-watch-confirmation,
+  .schedule-timeline-item.is-revealing-actions .schedule-action-confirmation,
   .schedule-empty-reveal,
   .media-image-reveal {
     animation: none;

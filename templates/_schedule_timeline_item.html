@@ -40,10 +40,15 @@
     </button>
     {% if is_backlog %}
     <div class="schedule-timeline-actions">
-      <button class="schedule-skip-button" type="button" data-schedule-action="skip">Skip</button>
-      <span class="schedule-watch-slot">
+      <span class="schedule-action-slot schedule-skip-slot">
+        <button class="schedule-skip-button" type="button" data-schedule-action="skip">Skip</button>
+        <span class="schedule-action-confirmation schedule-skip-confirmation material-symbols-rounded"
+          aria-hidden="true">step_over</span>
+      </span>
+      <span class="schedule-action-slot schedule-watch-slot">
         <button class="schedule-watch-button" type="button" data-schedule-action="watch">Watch</button>
-        <span class="schedule-watch-confirmation material-symbols-rounded" aria-hidden="true">check</span>
+        <span class="schedule-action-confirmation schedule-watch-confirmation material-symbols-rounded"
+          aria-hidden="true">check</span>
       </span>
     </div>
     <div class="schedule-timeline-progress" aria-label="{{ episode.watched_count }} of {{ episode.episode_count }} episodes watched">
