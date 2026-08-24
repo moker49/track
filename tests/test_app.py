@@ -3,6 +3,7 @@ import tempfile
 import unittest
 import json
 import os
+import re
 import threading
 from email.message import Message
 from io import BytesIO
@@ -567,6 +568,33 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("display: inline-flex", css)
         self.assertIn("align-items: center", css)
         self.assertIn("flex: 0 0 5px", css)
+
+    def test_upcoming_uses_the_browser_local_calendar_date(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            """
+            INSERT INTO episodes (
+                id, season_id, tmdb_id, episode_number, name, air_date
+            ) VALUES (104, 2, 99104, 11, 'Boundary Episode', '2099-06-15')
+            """
+        )
+        connection.commit()
+        connection.close()
+
+        def boundary_card(local_date):
+            response = self.client.get(
+                "/api/schedule", headers={"X-Track-Local-Date": local_date}
+            )
+            html = response.data.decode("utf-8")
+            match = re.search(
+                r'<article[^>]*>.*?Boundary Episode.*?</article>', html, re.DOTALL
+            )
+            self.assertIsNotNone(match)
+            return match.group(0)
+
+        self.assertRegex(boundary_card("2099-06-14"), r">\s*tomorrow\s*</span>")
+        self.assertRegex(boundary_card("2099-06-15"), r">\s*today\s*</span>")
+        self.assertRegex(boundary_card("2099-06-16"), r">\s*live\s*</span>")
 
     def test_library_filter_and_sort_dialog_is_in_the_shell(self):
         home = self.client.get("/")

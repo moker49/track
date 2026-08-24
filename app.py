@@ -107,6 +107,13 @@ def create_app(test_config: dict | None = None) -> Flask:
             app.config["TMDB_READ_ACCESS_TOKEN"]
         )
 
+    def request_local_date() -> date:
+        value = request.headers.get("X-Track-Local-Date", "")
+        try:
+            return date.fromisoformat(value) if value else datetime.now().astimezone().date()
+        except ValueError:
+            return datetime.now().astimezone().date()
+
     def show_metadata_is_fresh(refreshed_at: str | None) -> bool:
         if not refreshed_at:
             return False
@@ -164,11 +171,12 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.get("/")
     def index():
         db = get_db()
+        local_date = request_local_date()
         active_shows, archived_shows = get_tv_library_shows(db)
         return render_template(
             "index.html",
-            catch_up_episodes=get_catch_up_episodes(db),
-            upcoming_episodes=get_upcoming_episodes(db),
+            catch_up_episodes=get_catch_up_episodes(db, local_date=local_date),
+            upcoming_episodes=get_upcoming_episodes(db, local_date),
             active_shows=active_shows,
             archived_shows=archived_shows,
         )
@@ -185,15 +193,18 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.get("/api/schedule")
     def schedule_fragment():
         db = get_db()
+        local_date = request_local_date()
         return render_template(
             "_schedule_content.html",
-            catch_up_episodes=get_catch_up_episodes(db),
-            upcoming_episodes=get_upcoming_episodes(db),
+            catch_up_episodes=get_catch_up_episodes(db, local_date=local_date),
+            upcoming_episodes=get_upcoming_episodes(db, local_date),
         )
 
     @app.get("/api/schedule/shows/<int:show_id>/catch-up")
     def schedule_catch_up_card(show_id: int):
-        episodes = get_catch_up_episodes(get_db(), show_id)
+        episodes = get_catch_up_episodes(
+            get_db(), show_id, local_date=request_local_date()
+        )
         if not episodes:
             return "", 204
         return render_template(
@@ -342,12 +353,12 @@ def create_app(test_config: dict | None = None) -> Flask:
             LEFT JOIN seasons sn ON sn.show_id = s.id
             LEFT JOIN episodes e ON e.season_id = sn.id
               AND sn.is_progress_counted = 1
-              AND e.air_date <= date('now')
+              AND e.air_date <= ?
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             WHERE s.id = ?
             GROUP BY s.id
             """,
-            (show_id,),
+            (request_local_date().isoformat(), show_id),
         ).fetchone()
         if show is None:
             abort(404)
@@ -621,7 +632,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             JOIN shows s ON s.id = sn.show_id
             WHERE e.id = ?
               AND e.air_date IS NOT NULL
-              AND e.air_date <= date('now')
+              AND e.air_date <= ?
               AND sn.is_progress_counted = 1
               AND s.is_tracked = 1
               AND s.state = 'ACTIVE'
@@ -630,7 +641,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                   WHERE wh.episode_id = e.id
               )
             """,
-            (episode_id,),
+            (episode_id, request_local_date().isoformat()),
         ).fetchone()
         if episode is None:
             return jsonify(error="Episode cannot be skipped"), 409

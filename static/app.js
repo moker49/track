@@ -117,6 +117,7 @@ let tvSearchError = "";
 let snackbarAction = null;
 let backgroundPrimaryViewHydrationStarted = false;
 let scheduleViewsHydrated = false;
+let scheduleCalendarDate = toIsoDate(new Date());
 let imageViewerAspectRatio = null;
 let imageViewerClosing = false;
 
@@ -815,6 +816,13 @@ function toIsoDate(date) {
   return `${year}-${month}-${day}`;
 }
 
+function scheduleRequestHeaders(extraHeaders = {}) {
+  return {
+    ...extraHeaders,
+    "X-Track-Local-Date": toIsoDate(new Date()),
+  };
+}
+
 function formatDisplayDate(value) {
   const date = parseIsoDate(value);
   if (!date) return value;
@@ -976,8 +984,9 @@ function advanceScheduleCard(card, nextCard, { revealActions = false } = {}) {
 }
 
 async function refreshScheduleContent({ preserveView = null, background = false } = {}) {
+  scheduleCalendarDate = toIsoDate(new Date());
   const response = await fetch("/api/schedule", {
-    headers: { "X-Requested-With": "Track" },
+    headers: scheduleRequestHeaders({ "X-Requested-With": "Track" }),
   });
   if (!response.ok) throw new Error("Could not refresh Schedule");
   const template = document.createElement("template");
@@ -991,6 +1000,14 @@ async function refreshScheduleContent({ preserveView = null, background = false 
     filterSchedule(viewName);
   });
   scheduleViewsHydrated = true;
+}
+
+function refreshScheduleForLocalDayChange() {
+  const localDate = toIsoDate(new Date());
+  if (localDate === scheduleCalendarDate) return;
+  scheduleCalendarDate = localDate;
+  scheduleViewsHydrated = false;
+  refreshScheduleContent().catch(() => undefined);
 }
 
 async function refreshTvContent({ background = false } = {}) {
@@ -1052,7 +1069,10 @@ async function processScheduleEpisode(card, action) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "increment" }),
       })
-      : await fetch(`/api/episodes/${episodeId}/skip`, { method: "POST" });
+      : await fetch(`/api/episodes/${episodeId}/skip`, {
+        method: "POST",
+        headers: scheduleRequestHeaders(),
+      });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `Could not ${action} episode`);
     processed = true;
@@ -1062,7 +1082,7 @@ async function processScheduleEpisode(card, action) {
     }
 
     const nextResponse = await fetch(`/api/schedule/shows/${showId}/catch-up`, {
-      headers: { "X-Requested-With": "Track" },
+      headers: scheduleRequestHeaders({ "X-Requested-With": "Track" }),
     });
     if (!nextResponse.ok && nextResponse.status !== 204) {
       throw new Error("Could not load the next episode");
@@ -3072,6 +3092,11 @@ searchBackButton?.addEventListener("click", () => {
 window.addEventListener("resize", () => {
   syncSearchTextPosition();
   fitEpisodeDetailTitle(views.get("detail"));
+});
+
+window.addEventListener("focus", refreshScheduleForLocalDayChange);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") refreshScheduleForLocalDayChange();
 });
 
 window.addEventListener("scroll", () => {

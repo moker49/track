@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
-from datetime import date, datetime, timezone
+from datetime import date
 
 from domain import TRACKING_ACTIVE, TRACKING_ARCHIVED, effective_watch_date_sql
 
@@ -76,8 +76,12 @@ def get_library_show(
 
 
 def get_catch_up_episodes(
-    db: sqlite3.Connection, show_id: int | None = None
+    db: sqlite3.Connection,
+    show_id: int | None = None,
+    local_date: date | None = None,
 ) -> list[sqlite3.Row]:
+    local_date = local_date or date.today()
+    local_date_value = local_date.isoformat()
     return db.execute(
         """
         WITH show_progress AS (
@@ -86,7 +90,7 @@ def get_catch_up_episodes(
                    COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
             FROM shows s
             JOIN seasons sn ON sn.show_id = s.id AND sn.is_progress_counted = 1
-            JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
+            JOIN episodes e ON e.season_id = sn.id AND e.air_date <= ?
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             WHERE s.is_tracked = 1 AND s.state = 'ACTIVE'
             GROUP BY s.id
@@ -110,7 +114,7 @@ def get_catch_up_episodes(
               AND s.state = 'ACTIVE'
               AND sn.is_progress_counted = 1
               AND e.air_date IS NOT NULL
-              AND e.air_date <= date('now')
+              AND e.air_date <= ?
               AND (? IS NULL OR s.id = ?)
               AND NOT EXISTS (
                   SELECT 1 FROM episode_watch_history wh WHERE wh.episode_id = e.id
@@ -122,11 +126,15 @@ def get_catch_up_episodes(
         WHERE unresolved.episode_rank = 1
         ORDER BY unresolved.air_date DESC, unresolved.show_name COLLATE NOCASE
         """,
-        (show_id, show_id),
+        (local_date_value, local_date_value, show_id, show_id),
     ).fetchall()
 
 
-def get_upcoming_episodes(db: sqlite3.Connection) -> list[dict]:
+def get_upcoming_episodes(
+    db: sqlite3.Connection, local_date: date | None = None
+) -> list[dict]:
+    local_date = local_date or date.today()
+    local_date_value = local_date.isoformat()
     rows = db.execute(
         """
         SELECT s.id AS show_id, s.name AS show_name, s.poster_path,
@@ -141,12 +149,13 @@ def get_upcoming_episodes(db: sqlite3.Connection) -> list[dict]:
         WHERE s.is_tracked = 1
           AND sn.is_progress_counted = 1
           AND e.air_date IS NOT NULL
-          AND e.air_date >= date('now', '-7 days')
+          AND e.air_date >= date(?, '-7 days')
         ORDER BY e.air_date, s.name COLLATE NOCASE,
                  sn.season_number, e.episode_number
-        """
+        """,
+        (local_date_value,),
     ).fetchall()
-    today = datetime.now(timezone.utc).date()
+    today = local_date
     release_groups: dict[tuple[int, str], list[dict]] = {}
     for row in rows:
         episode = dict(row)
