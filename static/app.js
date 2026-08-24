@@ -930,6 +930,9 @@ function revealScheduleActions(card) {
   card.classList.add("is-revealing-actions");
   card.classList.remove("is-watch-confirming");
   window.setTimeout(() => {
+    card.querySelectorAll("[data-schedule-action]")
+      .forEach((button) => { button.disabled = false; });
+    delete card.dataset.scheduleProcessing;
     card.classList.remove("is-revealing-actions");
     delete card.dataset.scheduleConfirmation;
   }, 360);
@@ -1028,13 +1031,6 @@ function hydrateOtherPrimaryViews(currentPrimaryView = null) {
   });
 }
 
-async function undoScheduleSkip(episodeId) {
-  const response = await fetch(`/api/episodes/${episodeId}/skip`, { method: "DELETE" });
-  if (!response.ok) throw new Error("Could not undo skip");
-  await refreshScheduleContent();
-  showSnackbar("Skip undone");
-}
-
 async function processScheduleEpisode(card, action) {
   if (card.dataset.scheduleProcessing === "true") return;
   card.dataset.scheduleProcessing = "true";
@@ -1093,17 +1089,14 @@ async function processScheduleEpisode(card, action) {
     }
 
     if (action === "skip") {
-      showSnackbar("Episode skipped", {
-        actionLabel: "Undo",
-        onAction: () => undoScheduleSkip(episodeId),
-      });
-    } else {
-      showSnackbar("Episode watched");
-    }
-    window.setTimeout(() => {
+      window.setTimeout(() => {
+        delete card.dataset.scheduleProcessing;
+        buttons.forEach((button) => { button.disabled = false; });
+      }, 250);
+    } else if (!nextHtml.trim()) {
       delete card.dataset.scheduleProcessing;
       buttons.forEach((button) => { button.disabled = false; });
-    }, action === "skip" ? 420 : 500);
+    }
   } catch (error) {
     if (processed) {
       await refreshScheduleContent().catch(() => undefined);
