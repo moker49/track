@@ -202,15 +202,6 @@ html.app-booting .app-boot-screen {
   gap: 4px;
 }
 
-.filter-button {
-  color: var(--on-surface-muted);
-}
-
-.filter-button.has-active-filter {
-  color: var(--progress-complete);
-  background: color-mix(in srgb, var(--progress-complete) 18%, transparent);
-}
-
 .schedule-content {
   padding: 0 16px 28px;
 }
@@ -1988,103 +1979,10 @@ html.app-booting .schedule-empty-reveal {
   opacity: 0.5;
 }
 
-.library-filter-dialog {
-  width: min(100%, 520px);
-  max-width: none;
-  height: 100dvh;
-  max-height: none;
-  margin: auto;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  overflow: hidden;
-  color: var(--on-surface);
-  background: var(--surface-high);
-  transform-origin: center;
-  will-change: clip-path;
-}
-
-.library-filter-dialog::backdrop {
-  background: var(--shadow);
-}
-
-.library-filter-dialog.is-opening::backdrop {
-  animation: filter-backdrop-in 160ms cubic-bezier(0.2, 0, 0, 1) both;
-}
-
-.library-filter-dialog.is-closing::backdrop {
-  animation: filter-backdrop-out 160ms cubic-bezier(0.4, 0, 1, 1) both;
-}
-
-.filter-dialog-shell {
-  height: 100%;
-  overflow: auto;
-  background: var(--surface-card);
-}
-
-.library-filter-dialog.is-transitioning .filter-dialog-shell {
-  pointer-events: none;
-}
-
-.filter-fullscreen-app-bar {
-  position: sticky;
-  z-index: 2;
-  top: 0;
-  min-height: calc(80px + env(safe-area-inset-top));
-  padding: max(12px, env(safe-area-inset-top)) 24px 12px 4px;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 48px;
-  align-items: center;
-  gap: 4px;
-  border-bottom: 1px solid var(--outline-soft);
-  background: var(--surface-high);
-}
-
-.filter-fullscreen-app-bar h2 {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 500;
-}
-
-.filter-done-button {
-  width: 48px;
-  min-height: 48px;
-  padding: 0;
-  border: 0;
-  border-radius: 24px;
-  color: var(--primary);
-  background: transparent;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.filter-dialog-content {
-  padding: 12px 24px calc(40px + env(safe-area-inset-bottom));
-}
-
-.filter-dialog-section {
-  padding: 22px 0 30px;
-}
-
-.filter-dialog-section h3 {
-  margin: 0 0 14px;
-  font-size: 1rem;
-  font-weight: 500;
-}
-
-.filter-dialog-divider {
-  height: 1px;
-  background: var(--outline-soft);
-}
-
 .md-button-group {
   width: 100%;
   display: grid;
   gap: 4px;
-}
-
-.filter-dialog-section .md-button-group+.md-button-group {
-  margin-top: 12px;
 }
 
 .md-button-group button {
@@ -2129,18 +2027,6 @@ html.app-booting .schedule-empty-reveal {
 
 .md-button-group button[aria-pressed="true"]>.material-symbols-rounded {
   display: inline-block;
-}
-
-.direction-button-group {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.status-button-group {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.sort-field-button-group {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .app-bar-search {
@@ -2194,26 +2080,105 @@ html.app-booting .schedule-empty-reveal {
   display: none;
 }
 
-.search-filter-decorator {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 40px;
-  height: 40px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
+.tv-control-bar {
+  position: relative;
+  z-index: 5;
+  padding: 8px 16px 12px;
   display: grid;
-  flex: 0 0 40px;
-  place-items: center;
-  background: transparent;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tv-control-bar:has(.tv-dropdown-menu:not([hidden])) {
+  z-index: 30;
+}
+
+.tv-dropdown {
+  position: relative;
+  min-width: 0;
+}
+
+.tv-dropdown-toggle {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--outline-soft);
+  border-radius: 24px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 8px;
+  color: var(--on-surface);
+  background: var(--surface-high);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  text-align: left;
   cursor: pointer;
 }
 
-.search-filter-decorator:focus-visible {
+.tv-dropdown-toggle>.material-symbols-rounded {
+  color: var(--on-surface-muted);
+  font-size: 20px;
+}
+
+.tv-dropdown-toggle .tv-dropdown-chevron {
+  justify-self: end;
+  transition: transform 140ms ease-in-out;
+}
+
+.tv-dropdown-toggle[aria-expanded="true"] .tv-dropdown-chevron {
+  transform: rotate(180deg);
+}
+
+.tv-dropdown-toggle:focus-visible,
+.tv-dropdown-menu button:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+.tv-dropdown-menu {
+  position: absolute;
+  z-index: 25;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  min-width: 156px;
+  padding: 8px 0;
+  border: 1px solid var(--outline-soft);
+  border-radius: 16px;
+  overflow: hidden;
+  color: var(--on-surface);
+  background: var(--surface-high);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.tv-dropdown:last-child .tv-dropdown-menu {
+  right: 0;
+  left: auto;
+}
+
+.tv-dropdown-menu button {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 0;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tv-dropdown-selection {
+  color: var(--primary);
+  font-size: 18px;
 }
 
 .popular-grid {
@@ -2734,10 +2699,6 @@ html.app-booting .tv-slice-reveal {
     bottom: calc(108px + env(safe-area-inset-bottom));
   }
 
-  .library-filter-dialog {
-    height: calc(100dvh - 48px);
-    border-radius: 28px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2767,8 +2728,6 @@ html.app-booting .tv-slice-reveal {
     animation: none;
   }
 
-  .library-filter-dialog.is-opening::backdrop,
-  .library-filter-dialog.is-closing::backdrop,
   .image-viewer.is-opening::backdrop,
   .image-viewer.is-closing,
   .image-viewer.is-closing::backdrop {
@@ -2776,22 +2735,3 @@ html.app-booting .tv-slice-reveal {
   }
 }
 
-@keyframes filter-backdrop-in {
-  from {
-    background: transparent;
-  }
-
-  to {
-    background: var(--shadow);
-  }
-}
-
-@keyframes filter-backdrop-out {
-  from {
-    background: var(--shadow);
-  }
-
-  to {
-    background: transparent;
-  }
-}

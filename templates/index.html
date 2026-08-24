@@ -11,10 +11,6 @@
   <form class="app-bar-search" role="search" data-view-search>
     <input type="search" placeholder="Search queue" aria-label="Search queue episodes" autocomplete="off"
       data-global-search>
-    <button class="search-filter-decorator filter-button" type="button" data-open-library-filter="tv"
-      aria-label="Filter and sort TV shows" hidden>
-      <span class="material-symbols-rounded" aria-hidden="true">filter_list</span>
-    </button>
   </form>
   <button class="icon-button top-bar-action" type="button" data-search-profile aria-label="Profile">
     <span class="material-symbols-rounded" aria-hidden="true">account_circle</span>
@@ -108,66 +104,4 @@
   </div>
 </dialog>
 
-<dialog class="library-filter-dialog" data-library-filter-dialog aria-labelledby="library-filter-title">
-  <div class="filter-dialog-shell">
-    <header class="filter-fullscreen-app-bar">
-      <button class="icon-button" type="button" data-library-filter-cancel aria-label="Close filters">
-        <span class="material-symbols-rounded" aria-hidden="true">close</span>
-      </button>
-      <h2 id="library-filter-title">Filters</h2>
-      <button class="filter-done-button" type="button" data-library-filter-apply>Save</button>
-    </header>
-
-    <div class="filter-dialog-content">
-      <section class="filter-dialog-section" aria-labelledby="filter-options-title">
-        <h3 id="filter-options-title">Filter</h3>
-        <div class="md-button-group status-button-group" data-filter-tag-group>
-          <button type="button" data-filter-tag="not-started" aria-pressed="false">
-            <span class="material-symbols-rounded" aria-hidden="true">check</span>
-            <span>New</span>
-          </button>
-          <button type="button" data-filter-tag="started" aria-pressed="false">
-            <span class="material-symbols-rounded" aria-hidden="true">check</span>
-            <span>Started</span>
-          </button>
-          <button type="button" data-filter-tag="caught-up" aria-pressed="false">
-            <span class="material-symbols-rounded" aria-hidden="true">check</span>
-            <span>Caught-up</span>
-          </button>
-        </div>
-      </section>
-
-      <div class="filter-dialog-divider"></div>
-
-      <section class="filter-dialog-section" aria-labelledby="filter-sort-title">
-        <h3 id="filter-sort-title">Sort</h3>
-        <div class="md-button-group sort-field-button-group" data-sort-field-group aria-label="Sort field">
-          <button type="button" data-sort-field="name" aria-pressed="true">
-            <span class="material-symbols-rounded" aria-hidden="true">check</span>
-            <span>Name</span>
-          </button>
-          <button type="button" data-sort-field="dateAdded" aria-pressed="false">
-            <span class="material-symbols-rounded" aria-hidden="true">check</span>
-            <span>Date added</span>
-          </button>
-          <button type="button" data-sort-field="releaseDate" aria-pressed="false">
-            <span class="material-symbols-rounded" aria-hidden="true">check</span>
-            <span>Release date</span>
-          </button>
-        </div>
-
-        <div class="md-button-group direction-button-group" data-sort-direction-group aria-label="Sort direction">
-          <button type="button" data-sort-direction="asc" aria-pressed="true">
-            <span class="material-symbols-rounded" aria-hidden="true">check</span>
-            <span>Ascending</span>
-          </button>
-          <button type="button" data-sort-direction="desc" aria-pressed="false">
-            <span class="material-symbols-rounded" aria-hidden="true">check</span>
-            <span>Descending</span>
-          </button>
-        </div>
-      </section>
-    </div>
-  </div>
-</dialog>
 {% endblock %}

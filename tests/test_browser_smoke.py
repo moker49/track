@@ -86,17 +86,26 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
             search.fill("Active")
             self.assertTrue(page.locator('[data-search-back]').is_visible())
             self.assertTrue(page.locator('[data-clear-search]').is_visible())
-            self.assertFalse(page.locator('[data-open-library-filter]').is_visible())
+            self.assertFalse(page.locator('[data-tv-control-bar]').is_visible())
             page.locator('[data-search-back]').click()
             self.assertEqual(search.input_value(), "")
             self.assertFalse(search.evaluate("element => element === document.activeElement"))
 
-            page.locator('[data-open-library-filter]').click()
-            dialog = page.locator('[data-library-filter-dialog]')
-            self.assertTrue(dialog.is_visible())
-            page.locator('[data-filter-tag="started"]').click()
-            page.locator('[data-library-filter-apply]').click()
-            dialog.wait_for(state="hidden")
+            progress_toggle = page.locator('[data-tv-dropdown-toggle="progress"]')
+            progress_toggle.click()
+            progress_menu = page.locator('[data-tv-dropdown-menu="progress"]')
+            self.assertTrue(progress_menu.is_visible())
+            page.locator('[data-tv-progress-option="started"]').click()
+            self.assertFalse(progress_menu.is_visible())
+            self.assertIn("Started", progress_toggle.inner_text())
+
+            sort_toggle = page.locator('[data-tv-dropdown-toggle="sort"]')
+            sort_toggle.click()
+            page.locator('[data-tv-sort-option="name"]').click()
+            self.assertEqual(
+                sort_toggle.locator('[data-tv-sort-icon]').inner_text(),
+                "arrow_downward",
+            )
         finally:
             page.close()
 

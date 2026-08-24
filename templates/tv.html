@@ -1,4 +1,40 @@
 {% from "_show_card.html" import show_card %}
+<div class="tv-control-bar" data-tv-control-bar>
+  <div class="tv-dropdown">
+    <button class="tv-dropdown-toggle" type="button" data-tv-dropdown-toggle="progress" aria-expanded="false">
+      <span class="material-symbols-rounded" aria-hidden="true">filter_list</span>
+      <span data-tv-progress-label>All</span>
+      <span class="material-symbols-rounded tv-dropdown-chevron" aria-hidden="true">expand_more</span>
+    </button>
+    <div class="tv-dropdown-menu" data-tv-dropdown-menu="progress" role="menu" hidden>
+      {% for value, label in [('', 'All'), ('not-started', 'New'), ('started', 'Started'), ('caught-up', 'Caught-up')] %}
+      <button type="button" data-tv-progress-option="{{ value }}" role="menuitemradio"
+        aria-checked="{{ 'true' if not value else 'false' }}">
+        <span class="material-symbols-rounded tv-dropdown-selection" aria-hidden="true">check_box</span>
+        <span>{{ label }}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="tv-dropdown">
+    <button class="tv-dropdown-toggle" type="button" data-tv-dropdown-toggle="sort" aria-expanded="false">
+      <span class="material-symbols-rounded" data-tv-sort-icon aria-hidden="true">arrow_upward</span>
+      <span data-tv-sort-label>Name</span>
+      <span class="material-symbols-rounded tv-dropdown-chevron" aria-hidden="true">expand_more</span>
+    </button>
+    <div class="tv-dropdown-menu" data-tv-dropdown-menu="sort" role="menu" hidden>
+      {% for value, label in [('name', 'Name'), ('dateAdded', 'Date added'), ('releaseDate', 'Release date')] %}
+      <button type="button" data-tv-sort-option="{{ value }}" role="menuitemradio"
+        aria-checked="{{ 'true' if value == 'name' else 'false' }}">
+        <span class="material-symbols-rounded tv-dropdown-selection" aria-hidden="true">arrow_upward</span>
+        <span>{{ label }}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
 <section class="page-section tv-library-section" data-state-section="ACTIVE" aria-label="Active shows">
   <div class="show-list" data-show-list="ACTIVE">
     {% for show in active_shows %}{{ show_card(show) }}{% endfor %}

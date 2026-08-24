@@ -33,7 +33,7 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list more_vert resume event tv done_all arrow_forward menu account_circle arrow_back close",
+        "filter_list expand_more check_box arrow_upward arrow_downward more_vert resume event tv done_all arrow_forward menu account_circle arrow_back close",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
@@ -63,7 +63,6 @@ const searchTextMeasureContext = document.createElement("canvas").getContext("2d
 const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, detail: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
-const libraryFilterDialog = document.querySelector("[data-library-filter-dialog]");
 const imageViewer = document.querySelector("[data-image-viewer]");
 const imageViewerMedia = imageViewer?.querySelector("[data-image-viewer-media]");
 const imageViewerPreview = imageViewer?.querySelector("[data-image-viewer-preview]");
@@ -75,7 +74,7 @@ const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   tv: {
     state: TRACKING_STATE.ACTIVE,
-    tags: new Set(),
+    progress: "",
     sortField: "name",
     sortDirection: "asc",
   },
@@ -108,9 +107,6 @@ let pendingRemoveShowId = null;
 let datePickerTarget = null;
 let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
-let libraryFilterView = null;
-let libraryFilterDraft = null;
-let libraryFilterTransitioning = false;
 let lastTvScrollY = 0;
 let lastEpisodeDetailScrollY = 0;
 let episodeNavigationPending = false;
@@ -257,8 +253,6 @@ function syncSearchChrome() {
   if (searchBackButton) searchBackButton.hidden = !hasText;
   if (searchProfileButton) searchProfileButton.hidden = hasText;
   if (searchClearButton) searchClearButton.hidden = !hasText;
-  const filterButton = globalSearchBar?.querySelector("[data-open-library-filter]");
-  if (filterButton) filterButton.hidden = currentView !== "tv" || hasText;
 }
 
 function syncSearchTextPosition() {
@@ -2059,155 +2053,70 @@ async function saveWatchDate() {
   }
 }
 
-function syncLibraryFilterDialog() {
-  if (!libraryFilterDialog || !libraryFilterDraft) return;
-  libraryFilterDialog.querySelectorAll("[data-filter-tag]").forEach((button) => {
-    button.setAttribute(
-      "aria-pressed",
-      String(libraryFilterDraft.tags.has(button.dataset.filterTag)),
-    );
-  });
-  libraryFilterDialog.querySelectorAll("[data-sort-field]").forEach((button) => {
-    button.setAttribute(
-      "aria-pressed",
-      String(button.dataset.sortField === libraryFilterDraft.sortField),
-    );
-  });
-  libraryFilterDialog.querySelectorAll("[data-sort-direction]").forEach((button) => {
-    button.setAttribute(
-      "aria-pressed",
-      String(button.dataset.sortDirection === libraryFilterDraft.sortDirection),
-    );
-  });
-}
+const progressFilterLabels = {
+  "": "All",
+  [PROGRESS_STATE.NEW]: "New",
+  [PROGRESS_STATE.STARTED]: "Started",
+  [PROGRESS_STATE.CAUGHT_UP]: "Caught-up",
+};
 
-function libraryFilterTransitionClips() {
-  const searchField = globalSearchBar?.querySelector("[data-view-search]");
-  const sourceRect = searchField?.getBoundingClientRect();
-  const dialogRect = libraryFilterDialog?.getBoundingClientRect();
-  if (!sourceRect || !dialogRect || !sourceRect.width || !dialogRect.width) return null;
+const sortFieldLabels = {
+  name: "Name",
+  dateAdded: "Date added",
+  releaseDate: "Release date",
+};
 
-  const top = Math.max(0, sourceRect.top - dialogRect.top);
-  const right = Math.max(0, dialogRect.right - sourceRect.right);
-  const bottom = Math.max(0, dialogRect.bottom - sourceRect.bottom);
-  const left = Math.max(0, sourceRect.left - dialogRect.left);
-  const sourceRadius = sourceRect.height / 2;
-  const dialogRadius = getComputedStyle(libraryFilterDialog).borderRadius || "0px";
-
-  return {
-    collapsed: `inset(${top}px ${right}px ${bottom}px ${left}px round ${sourceRadius}px)`,
-    expanded: `inset(0px round ${dialogRadius})`,
-  };
-}
-
-function canAnimateLibraryFilter() {
-  return typeof libraryFilterDialog?.animate === "function"
-    && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-async function animateLibraryFilterOpen() {
-  if (!libraryFilterDialog || !canAnimateLibraryFilter()) return;
-  const clips = libraryFilterTransitionClips();
-  if (!clips) return;
-
-  const shell = libraryFilterDialog.querySelector(".filter-dialog-shell");
-  const surfaceAnimation = libraryFilterDialog.animate(
-    [{ clipPath: clips.collapsed }, { clipPath: clips.expanded }],
-    { duration: 160, easing: "cubic-bezier(0.2, 0, 0, 1)", fill: "both" },
-  );
-  const contentAnimation = shell?.animate(
-    [
-      { opacity: 0, offset: 0 },
-      { opacity: 0, offset: 0.16 },
-      { opacity: 1, offset: 1 },
-    ],
-    { duration: 160, easing: "cubic-bezier(0.2, 0, 0, 1)", fill: "both" },
-  );
-  await Promise.allSettled([
-    surfaceAnimation.finished,
-    contentAnimation?.finished || Promise.resolve(),
-  ]);
-  surfaceAnimation.cancel();
-  contentAnimation?.cancel();
-}
-
-async function closeLibraryFilter() {
-  if (!libraryFilterDialog?.open || libraryFilterTransitioning) return;
-  globalSearchInput?.blur();
-
-  if (!canAnimateLibraryFilter()) {
-    libraryFilterDialog.close();
-    return;
-  }
-  const clips = libraryFilterTransitionClips();
-  if (!clips) {
-    libraryFilterDialog.close();
-    return;
+function syncTvControlBar(view = views.get("tv")) {
+  if (!view) return;
+  const preferences = libraryViewPreferences.tv;
+  const progressLabel = view.querySelector("[data-tv-progress-label]");
+  const sortLabel = view.querySelector("[data-tv-sort-label]");
+  const sortIcon = view.querySelector("[data-tv-sort-icon]");
+  if (progressLabel) progressLabel.textContent = progressFilterLabels[preferences.progress];
+  if (sortLabel) sortLabel.textContent = sortFieldLabels[preferences.sortField];
+  if (sortIcon) {
+    sortIcon.textContent = preferences.sortDirection === "asc"
+      ? "arrow_upward"
+      : "arrow_downward";
   }
 
-  libraryFilterTransitioning = true;
-  libraryFilterDialog.classList.add("is-transitioning", "is-closing");
-  const shell = libraryFilterDialog.querySelector(".filter-dialog-shell");
-  const surfaceAnimation = libraryFilterDialog.animate(
-    [{ clipPath: clips.expanded }, { clipPath: clips.collapsed }],
-    { duration: 140, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "both" },
-  );
-  const contentAnimation = shell?.animate(
-    [
-      { opacity: 1, offset: 0 },
-      { opacity: 0, offset: 0.38 },
-      { opacity: 0, offset: 1 },
-    ],
-    { duration: 140, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "both" },
-  );
-  await Promise.allSettled([
-    surfaceAnimation.finished,
-    contentAnimation?.finished || Promise.resolve(),
-  ]);
-  if (libraryFilterDialog.open) libraryFilterDialog.close();
-  surfaceAnimation.cancel();
-  contentAnimation?.cancel();
+  view.querySelectorAll("[data-tv-progress-option]").forEach((button) => {
+    const selected = button.dataset.tvProgressOption === preferences.progress;
+    button.setAttribute("aria-checked", String(selected));
+    button.querySelector(".tv-dropdown-selection").hidden = !selected;
+  });
+  view.querySelectorAll("[data-tv-sort-option]").forEach((button) => {
+    const selected = button.dataset.tvSortOption === preferences.sortField;
+    button.setAttribute("aria-checked", String(selected));
+    const indicator = button.querySelector(".tv-dropdown-selection");
+    indicator.hidden = !selected;
+    indicator.textContent = preferences.sortDirection === "asc"
+      ? "arrow_upward"
+      : "arrow_downward";
+  });
 }
 
-async function openLibraryFilter(viewName) {
-  const preferences = libraryViewPreferences[viewName];
-  if (!libraryFilterDialog || !preferences || libraryFilterDialog.open) return;
+function closeTvDropdowns(exceptMenu = null) {
+  document.querySelectorAll("[data-tv-dropdown-menu]").forEach((menu) => {
+    if (menu === exceptMenu) return;
+    menu.hidden = true;
+    menu.parentElement.querySelector("[data-tv-dropdown-toggle]")
+      ?.setAttribute("aria-expanded", "false");
+  });
+  syncMenuScrim();
+}
+
+function toggleTvDropdown(button) {
+  const menu = button.parentElement.querySelector("[data-tv-dropdown-menu]");
+  if (!menu) return;
+  const willOpen = menu.hidden;
   globalSearchInput?.blur();
-  libraryFilterView = viewName;
-  libraryFilterDraft = {
-    tags: new Set(preferences.tags),
-    sortField: preferences.sortField,
-    sortDirection: preferences.sortDirection,
-  };
-  syncLibraryFilterDialog();
-  libraryFilterTransitioning = true;
-  libraryFilterDialog.classList.add("is-transitioning", "is-opening");
-  libraryFilterDialog.showModal();
-  await animateLibraryFilterOpen();
-  if (!libraryFilterDialog.open) return;
-  libraryFilterDialog.classList.remove("is-transitioning", "is-opening");
-  libraryFilterTransitioning = false;
-}
-
-function updateLibraryFilterButton(viewName) {
-  const preferences = libraryViewPreferences[viewName];
-  const button = document.querySelector(`[data-open-library-filter="${viewName}"]`);
-  if (!preferences || !button) return;
-  const customized = preferences.tags.size > 0;
-  button.classList.toggle("has-active-filter", customized);
-}
-
-function applyLibraryFilterDraft() {
-  if (!libraryFilterView || !libraryFilterDraft) return;
-  libraryViewPreferences[libraryFilterView] = {
-    state: libraryViewPreferences[libraryFilterView].state,
-    tags: new Set(libraryFilterDraft.tags),
-    sortField: libraryFilterDraft.sortField,
-    sortDirection: libraryFilterDraft.sortDirection,
-  };
-  updateLibraryFilterButton(libraryFilterView);
-  filterShowView(views.get(libraryFilterView));
-  void closeLibraryFilter();
+  closeShowMenus();
+  closeWatchMenus();
+  closeTvDropdowns(menu);
+  menu.hidden = !willOpen;
+  button.setAttribute("aria-expanded", String(willOpen));
+  syncMenuScrim();
 }
 
 function closeShowMenus(exceptMenu = null) {
@@ -2223,7 +2132,7 @@ function closeShowMenus(exceptMenu = null) {
 function syncMenuScrim() {
   if (!menuScrim || !menuScrimHome) return;
   const openMenu = document.querySelector(
-    "[data-show-menu]:not([hidden]), [data-watch-menu]:not([hidden])",
+    "[data-show-menu]:not([hidden]), [data-watch-menu]:not([hidden]), [data-tv-dropdown-menu]:not([hidden])",
   );
   if (!openMenu) {
     menuScrim.hidden = true;
@@ -2597,6 +2506,7 @@ document.addEventListener("click", (event) => {
   if (event.target.closest("[data-menu-scrim]")) {
     closeShowMenus();
     closeWatchMenus();
+    closeTvDropdowns();
     return;
   }
 
@@ -2708,9 +2618,31 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const openFilterButton = event.target.closest("[data-open-library-filter]");
-  if (openFilterButton) {
-    openLibraryFilter(openFilterButton.dataset.openLibraryFilter);
+  const tvDropdownToggle = event.target.closest("[data-tv-dropdown-toggle]");
+  if (tvDropdownToggle) {
+    toggleTvDropdown(tvDropdownToggle);
+    return;
+  }
+
+  const progressOption = event.target.closest("[data-tv-progress-option]");
+  if (progressOption) {
+    libraryViewPreferences.tv.progress = progressOption.dataset.tvProgressOption;
+    closeTvDropdowns();
+    filterShowView(views.get("tv"));
+    return;
+  }
+
+  const sortOption = event.target.closest("[data-tv-sort-option]");
+  if (sortOption) {
+    const preferences = libraryViewPreferences.tv;
+    const nextField = sortOption.dataset.tvSortOption;
+    if (preferences.sortField === nextField) {
+      preferences.sortDirection = preferences.sortDirection === "asc" ? "desc" : "asc";
+    } else {
+      preferences.sortField = nextField;
+    }
+    closeTvDropdowns();
+    filterShowView(views.get("tv"));
     return;
   }
 
@@ -2740,39 +2672,6 @@ document.addEventListener("click", (event) => {
       openSeasonIds,
       detailScrollY: 0,
     });
-    return;
-  }
-
-  const filterTagButton = event.target.closest("[data-filter-tag]");
-  if (filterTagButton && libraryFilterDraft) {
-    const tag = filterTagButton.dataset.filterTag;
-    if (libraryFilterDraft.tags.has(tag)) libraryFilterDraft.tags.delete(tag);
-    else libraryFilterDraft.tags.add(tag);
-    syncLibraryFilterDialog();
-    return;
-  }
-
-  const sortFieldButton = event.target.closest("[data-sort-field]");
-  if (sortFieldButton && libraryFilterDraft) {
-    libraryFilterDraft.sortField = sortFieldButton.dataset.sortField;
-    syncLibraryFilterDialog();
-    return;
-  }
-
-  const sortDirectionButton = event.target.closest("[data-sort-direction]");
-  if (sortDirectionButton && libraryFilterDraft) {
-    libraryFilterDraft.sortDirection = sortDirectionButton.dataset.sortDirection;
-    syncLibraryFilterDialog();
-    return;
-  }
-
-  if (event.target.closest("[data-library-filter-cancel]")) {
-    void closeLibraryFilter();
-    return;
-  }
-
-  if (event.target.closest("[data-library-filter-apply]")) {
-    applyLibraryFilterDraft();
     return;
   }
 
@@ -2926,12 +2825,14 @@ document.addEventListener("click", (event) => {
 
   closeShowMenus();
   closeWatchMenus();
+  closeTvDropdowns();
 });
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && menuScrim && !menuScrim.hidden) {
     closeShowMenus();
     closeWatchMenus();
+    closeTvDropdowns();
     return;
   }
   const card = event.target.closest(".popular-card[data-tmdb-id]");
@@ -3030,13 +2931,13 @@ function filterShowView(view) {
     let visibleCount = 0;
     cards.forEach((card) => {
       const matchesSearch = card.dataset.showName.includes(query);
-      const matchesTags = searching || preferences.tags.size === 0
-        || preferences.tags.has(card.dataset.progressState)
+      const matchesProgress = searching || !preferences.progress
+        || card.dataset.progressState === preferences.progress
         || (
           card.dataset.progressState === PROGRESS_STATE.FINISHED
-          && preferences.tags.has(PROGRESS_STATE.CAUGHT_UP)
+          && preferences.progress === PROGRESS_STATE.CAUGHT_UP
         );
-      const visible = stateSelected && matchesSearch && matchesTags;
+      const visible = stateSelected && matchesSearch && matchesProgress;
       card.hidden = !visible;
       if (visible) visibleCount += 1;
     });
@@ -3052,6 +2953,9 @@ function filterShowView(view) {
       button.setAttribute("aria-pressed", String(button.dataset.tvLibraryState === preferences.state));
     });
   }
+  const controlBar = view.querySelector("[data-tv-control-bar]");
+  if (controlBar) controlBar.hidden = searching;
+  syncTvControlBar(view);
   hydratedLibraryViews.add(view.dataset.view);
   if (view.dataset.view === "tv") syncTvSearchPresentation();
 }
@@ -3141,19 +3045,6 @@ removeDialog?.addEventListener("close", () => {
 datePicker?.addEventListener("close", () => {
   datePickerTarget = null;
   datePickerSelectedDate = null;
-});
-
-libraryFilterDialog?.addEventListener("close", () => {
-  globalSearchInput?.blur();
-  libraryFilterDialog.classList.remove("is-transitioning", "is-opening", "is-closing");
-  libraryFilterTransitioning = false;
-  libraryFilterView = null;
-  libraryFilterDraft = null;
-});
-
-libraryFilterDialog?.addEventListener("cancel", (event) => {
-  event.preventDefault();
-  void closeLibraryFilter();
 });
 
 imageViewer?.addEventListener("click", (event) => {
