@@ -9,8 +9,12 @@ TRACKING_STATES = frozenset({TRACKING_ACTIVE, TRACKING_ARCHIVED})
 
 PROGRESS_NEW = "new"
 PROGRESS_STARTED = "started"
+PROGRESS_CAUGHT_UP = "caught-up"
 PROGRESS_FINISHED = "finished"
-PROGRESS_STATES = frozenset({PROGRESS_NEW, PROGRESS_STARTED, PROGRESS_FINISHED})
+PROGRESS_STATES = frozenset(
+    {PROGRESS_NEW, PROGRESS_STARTED, PROGRESS_CAUGHT_UP, PROGRESS_FINISHED}
+)
+TERMINAL_SHOW_STATUSES = frozenset({"ended", "canceled", "cancelled"})
 
 
 @dataclass(frozen=True)
@@ -28,11 +32,16 @@ class MovePresentation:
 
 
 def progress_presentation(
-    tracking_state: str, watched_count: int, episode_count: int
+    tracking_state: str,
+    watched_count: int,
+    episode_count: int,
+    series_status: str | None,
 ) -> ProgressPresentation:
     if watched_count <= 0:
         return ProgressPresentation(PROGRESS_NEW, "not-started", "New")
     if episode_count > 0 and watched_count >= episode_count:
+        if (series_status or "").strip().casefold() not in TERMINAL_SHOW_STATUSES:
+            return ProgressPresentation(PROGRESS_CAUGHT_UP, "caught-up", "Caught up")
         return ProgressPresentation(PROGRESS_FINISHED, "finished", "Finished")
     label = "Stopped" if tracking_state == TRACKING_ARCHIVED else "Watching"
     return ProgressPresentation(PROGRESS_STARTED, "started", label)

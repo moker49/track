@@ -27,10 +27,15 @@ Progress is derived from released, non-special episodes. It is never stored.
 | --- | --- | --- |
 | `new` | No counted episode has ever been watched | New |
 | `started` | At least one, but not all, counted episodes have been watched | Watching when Active; Stopped when Archived |
-| `finished` | Every available counted episode has been watched | Finished |
+| `caught-up` | Every released counted episode has been watched and the series is not ended | Caught up |
+| `finished` | Every released counted episode has been watched and the series is ended or canceled | Finished |
 
 `Watching` and `Stopped` are presentation labels for the same canonical
 `started` progress state. They are not tracking states.
+
+`Caught up` and `Finished` share the completion color and the `Caught-up`
+filter option, while remaining distinct canonical states for display and future
+statistics.
 
 Specials remain watchable but have `is_progress_counted = 0`; they do not
 affect these calculations, Queue, or Upcoming.

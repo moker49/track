@@ -6,12 +6,17 @@ const TRACKING_STATE = Object.freeze({ ACTIVE: "ACTIVE", ARCHIVED: "ARCHIVED" })
 const PROGRESS_STATE = Object.freeze({
   NEW: "not-started",
   STARTED: "started",
+  CAUGHT_UP: "caught-up",
   FINISHED: "finished",
 });
 
-function progressPresentation(trackingState, watchedCount, episodeCount) {
+function progressPresentation(trackingState, watchedCount, episodeCount, seriesStatus) {
   if (watchedCount <= 0) return { state: PROGRESS_STATE.NEW, label: "New" };
   if (episodeCount > 0 && watchedCount >= episodeCount) {
+    const terminalStatuses = new Set(["ended", "canceled", "cancelled"]);
+    if (!terminalStatuses.has(String(seriesStatus || "").trim().toLocaleLowerCase())) {
+      return { state: PROGRESS_STATE.CAUGHT_UP, label: "Caught up" };
+    }
     return { state: PROGRESS_STATE.FINISHED, label: "Finished" };
   }
   return {
@@ -2272,6 +2277,7 @@ function syncProgressState(showElement) {
     showElement.dataset.showState,
     watchedCount,
     episodeCount,
+    showElement.dataset.showStatus,
   );
 
   showElement.dataset.progressState = progress.state;
@@ -3025,7 +3031,11 @@ function filterShowView(view) {
     cards.forEach((card) => {
       const matchesSearch = card.dataset.showName.includes(query);
       const matchesTags = searching || preferences.tags.size === 0
-        || preferences.tags.has(card.dataset.progressState);
+        || preferences.tags.has(card.dataset.progressState)
+        || (
+          card.dataset.progressState === PROGRESS_STATE.FINISHED
+          && preferences.tags.has(PROGRESS_STATE.CAUGHT_UP)
+        );
       const visible = stateSelected && matchesSearch && matchesTags;
       card.hidden = !visible;
       if (visible) visibleCount += 1;

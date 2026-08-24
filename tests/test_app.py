@@ -621,6 +621,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b">Save</button>", home.data)
         self.assertIn(b"<span>New</span>", home.data)
         self.assertIn(b"<span>Started</span>", home.data)
+        self.assertIn(b"<span>Caught-up</span>", home.data)
+        self.assertNotIn(b'data-filter-tag="finished"', home.data)
         self.assertNotIn(b'data-filter-tag="stopped"', home.data)
         self.assertNotIn(b"Haven&#39;t started", home.data)
         self.assertNotIn(b"In progress", home.data)
@@ -1159,6 +1161,26 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b">Stopped</span>", home.data)
         self.assertIn(b'data-progress-state="started"', home.data)
 
+    def test_fully_watched_ongoing_show_is_caught_up(self):
+        db = sqlite3.connect(self.database)
+        db.execute("UPDATE shows SET status = 'Returning Series' WHERE id = 1")
+        db.executemany(
+            "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
+            [(episode_id, "2026-08-24T12:00:00+00:00") for episode_id in range(6, 14)],
+        )
+        db.commit()
+        db.close()
+
+        home = self.client.get("/")
+        match = re.search(
+            rb'<article class="show-card" data-show-id="1".*?</article>',
+            home.data,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        self.assertIn(b'data-progress-state="caught-up"', match.group(0))
+        self.assertIn(b">Caught up</span>", match.group(0))
+
     def test_progress_colors_share_status_variables(self):
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
             encoding="utf-8"
@@ -1167,6 +1189,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("--progress-not-started:", css)
         self.assertIn("--progress-started: var(--primary)", css)
         self.assertIn("--progress-stopped: var(--error)", css)
+        self.assertIn('[data-progress-state="caught-up"],', css)
         self.assertIn("background: var(--progress-color", css)
 
     def test_watch_records_have_added_and_optional_user_dates(self):

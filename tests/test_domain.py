@@ -12,10 +12,12 @@ from domain import (
 
 class DomainRulesTest(unittest.TestCase):
     def test_progress_vocabulary_is_consistent(self):
-        self.assertEqual(progress_presentation(TRACKING_ACTIVE, 0, 10).label, "New")
-        self.assertEqual(progress_presentation(TRACKING_ACTIVE, 3, 10).label, "Watching")
-        self.assertEqual(progress_presentation(TRACKING_ARCHIVED, 3, 10).label, "Stopped")
-        self.assertEqual(progress_presentation(TRACKING_ARCHIVED, 10, 10).label, "Finished")
+        self.assertEqual(progress_presentation(TRACKING_ACTIVE, 0, 10, "Ended").label, "New")
+        self.assertEqual(progress_presentation(TRACKING_ACTIVE, 3, 10, "Ended").label, "Watching")
+        self.assertEqual(progress_presentation(TRACKING_ARCHIVED, 3, 10, "Ended").label, "Stopped")
+        self.assertEqual(progress_presentation(TRACKING_ACTIVE, 10, 10, "Returning Series").label, "Caught up")
+        self.assertEqual(progress_presentation(TRACKING_ARCHIVED, 10, 10, "Ended").label, "Finished")
+        self.assertEqual(progress_presentation(TRACKING_ACTIVE, 10, 10, "Canceled").label, "Finished")
 
     def test_move_actions_describe_the_destination(self):
         self.assertEqual(move_presentation(TRACKING_ACTIVE).label, "Archive")

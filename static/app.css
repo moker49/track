@@ -791,6 +791,7 @@ html.app-booting .schedule-empty-reveal {
   --progress-color: var(--progress-started);
 }
 
+[data-progress-state="caught-up"],
 [data-progress-state="finished"] {
   --progress-color: var(--progress-complete);
 }

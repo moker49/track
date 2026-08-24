@@ -1,7 +1,8 @@
-{% set progress = progress_for(show.state, show.watched_count, show.episode_count) %}
+{% set progress = progress_for(show.state, show.watched_count, show.episode_count, show.status) %}
 {% set move = move_for(show.state) %}
 <div data-detail-show data-detail-title="{{ show.name }}" data-show-id="{{ show.id }}" data-tmdb-id="{{ show.tmdb_id }}"
   data-show-state="{{ show.state }}" data-show-tracked="{{ 'true' if show.is_tracked else 'false' }}"
+  data-show-status="{{ show.status or '' }}"
   data-tmdb-refreshed-at="{{ show.tmdb_refreshed_at or '' }}"
   data-metadata-refresh-due="{{ 'true' if metadata_refresh_due else 'false' }}"
   data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
