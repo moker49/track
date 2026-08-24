@@ -544,14 +544,12 @@ html.app-booting .schedule-empty-reveal {
   pointer-events: none;
 }
 
-.schedule-timeline-item.is-watch-confirming .schedule-timeline-actions button,
-.schedule-timeline-item.is-skip-confirming .schedule-timeline-actions button {
+.schedule-timeline-item.is-watch-confirming .schedule-timeline-actions button {
   opacity: 0;
   pointer-events: none;
 }
 
-.schedule-timeline-item.is-watch-confirming .schedule-watch-confirmation,
-.schedule-timeline-item.is-skip-confirming .schedule-skip-confirmation {
+.schedule-timeline-item.is-watch-confirming .schedule-watch-confirmation {
   opacity: 1;
 }
 
@@ -564,8 +562,7 @@ html.app-booting .schedule-empty-reveal {
   animation-delay: 70ms;
 }
 
-.schedule-timeline-item.is-revealing-actions[data-schedule-confirmation="watch"] .schedule-watch-confirmation,
-.schedule-timeline-item.is-revealing-actions[data-schedule-confirmation="skip"] .schedule-skip-confirmation {
+.schedule-timeline-item.is-revealing-actions[data-schedule-confirmation="watch"] .schedule-watch-confirmation {
   opacity: 1;
   animation: schedule-confirmation-out 55ms ease-out 40ms forwards;
 }
