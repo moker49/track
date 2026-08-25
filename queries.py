@@ -156,37 +156,25 @@ def get_upcoming_episodes(
         (local_date_value,),
     ).fetchall()
     today = local_date
-    release_groups: dict[tuple[int, str], list[dict]] = {}
+    release_groups: dict[tuple[int, str, int], list[dict]] = {}
     for row in rows:
         episode = dict(row)
-        release_groups.setdefault((episode["show_id"], episode["air_date"]), []).append(
-            episode
-        )
+        release_groups.setdefault(
+            (episode["show_id"], episode["air_date"], episode["season_id"]),
+            [],
+        ).append(episode)
 
     upcoming = []
     for episodes in release_groups.values():
         release = dict(episodes[0])
         air_date = date.fromisoformat(release["air_date"])
         season_ids = list(dict.fromkeys(episode["season_id"] for episode in episodes))
-        season_numbers = list(
-            dict.fromkeys(episode["season_number"] for episode in episodes)
-        )
         is_grouped = len(episodes) > 1
         is_full_season = (
             is_grouped
-            and len(season_ids) == 1
             and len(episodes) == release["season_episode_count"]
         )
-        if len(season_numbers) > 1:
-            first_episode = episodes[0]
-            last_episode = episodes[-1]
-            release_metadata = (
-                f"S{first_episode['season_number']:02d}"
-                f"E{first_episode['episode_number']:02d}-"
-                f"S{last_episode['season_number']:02d}"
-                f"E{last_episode['episode_number']:02d}"
-            )
-        elif is_grouped:
+        if is_grouped:
             release_metadata = (
                 f"Season {release['season_number']} · Episodes "
                 f"{episodes[0]['episode_number']}–{episodes[-1]['episode_number']}"

@@ -395,8 +395,8 @@ class TrackAppTest(unittest.TestCase):
             [
                 (20, 92020, 3, "Season 3", 3),
                 (21, 92021, 4, "Season 4", 2),
-                (22, 92022, 5, "Season 5", 1),
-                (23, 92023, 6, "Season 6", 1),
+                (22, 92022, 5, "Season 5", 2),
+                (23, 92023, 6, "Season 6", 2),
             ],
         )
         connection.executemany(
@@ -411,8 +411,10 @@ class TrackAppTest(unittest.TestCase):
                 (202, 20, 93202, 5, "Later Episode", "2099-02-02"),
                 (203, 21, 93203, 1, "Full One", "2099-03-01"),
                 (204, 21, 93204, 2, "Full Two", "2099-03-01"),
-                (205, 22, 93205, 6, "Season Five", "2099-04-01"),
-                (206, 23, 93206, 6, "Season Six", "2099-04-01"),
+                (205, 22, 93205, 5, "Season Five A", "2099-04-01"),
+                (206, 22, 93206, 6, "Season Five B", "2099-04-01"),
+                (207, 23, 93207, 5, "Season Six A", "2099-04-01"),
+                (208, 23, 93208, 6, "Season Six B", "2099-04-01"),
             ],
         )
         connection.commit()
@@ -423,9 +425,14 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'>2 episodes</span>', home.data)
         self.assertIn("Season 4 · Episodes 1–2".encode(), home.data)
         self.assertIn(b'>Full season</span>', home.data)
-        self.assertIn(b">S05E06-S06E06</span>", home.data)
+        self.assertNotIn(b">S05E05-S06E06</span>", home.data)
+        self.assertIn("Season 5 · Episodes 5–6".encode(), home.data)
+        self.assertIn("Season 6 · Episodes 5–6".encode(), home.data)
+        self.assertEqual(home.data.count(b'>Full season</span>'), 3)
         self.assertIn(b'data-season-ids="20"', home.data)
-        self.assertIn(b'data-season-ids="22,23"', home.data)
+        self.assertNotIn(b'data-season-ids="22,23"', home.data)
+        self.assertIn(b'data-season-ids="22"', home.data)
+        self.assertIn(b'data-season-ids="23"', home.data)
         self.assertIn(b"data-schedule-show-open", home.data)
 
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
