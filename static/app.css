@@ -65,6 +65,12 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+html.menu-open,
+body.menu-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 button,
 input {
   font: inherit;
@@ -1030,6 +1036,7 @@ html.app-booting .schedule-empty-reveal {
   background: transparent;
   -webkit-backdrop-filter: blur(1px);
   backdrop-filter: blur(1px);
+  touch-action: none;
   cursor: default;
 }
 

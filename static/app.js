@@ -69,7 +69,6 @@ const imageViewerPreview = imageViewer?.querySelector("[data-image-viewer-previe
 const imageViewerImage = imageViewer?.querySelector("[data-image-viewer-image]");
 const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]");
 const menuScrim = document.querySelector("[data-menu-scrim]");
-const menuScrimHome = menuScrim?.parentElement;
 const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   tv: {
@@ -2145,19 +2144,14 @@ function closeShowMenus(exceptMenu = null) {
 }
 
 function syncMenuScrim() {
-  if (!menuScrim || !menuScrimHome) return;
+  if (!menuScrim) return;
   const openMenu = document.querySelector(
     "[data-show-menu]:not([hidden]), [data-watch-menu]:not([hidden]), [data-tv-dropdown-menu]:not([hidden])",
   );
-  if (!openMenu) {
-    menuScrim.hidden = true;
-    if (menuScrim.parentElement !== menuScrimHome) menuScrimHome.append(menuScrim);
-    return;
-  }
-  if (menuScrim.parentElement !== openMenu.parentElement) {
-    openMenu.parentElement.insertBefore(menuScrim, openMenu);
-  }
-  menuScrim.hidden = false;
+  const menuOpen = Boolean(openMenu);
+  menuScrim.hidden = !menuOpen;
+  document.documentElement.classList.toggle("menu-open", menuOpen);
+  document.body.classList.toggle("menu-open", menuOpen);
 }
 
 function toggleShowMenu(button) {
