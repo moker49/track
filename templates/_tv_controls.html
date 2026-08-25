@@ -13,14 +13,13 @@
       aria-expanded="false" aria-label="Progress and sorting">
       <span class="material-symbols-rounded" aria-hidden="true">filter_list</span>
       <span data-tv-progress-label>Filter</span>
-      <span class="tv-combined-divider" data-tv-combined-divider aria-hidden="true">/</span>
+      <span class="tv-combined-divider" data-tv-combined-divider aria-hidden="true">·</span>
       <span class="material-symbols-rounded tv-combined-part-hidden" data-tv-sort-icon
         aria-hidden="true">arrow_upward</span>
       <span data-tv-sort-label>Sort</span>
       <span class="material-symbols-rounded tv-dropdown-chevron" aria-hidden="true">expand_more</span>
     </button>
-    <div class="tv-dropdown-menu tv-combined-menu" data-tv-dropdown-menu="combined" role="menu"
-      popover="manual" hidden>
+    <div class="tv-dropdown-menu tv-combined-menu" data-tv-dropdown-menu="combined" role="menu" popover="manual" hidden>
       <div class="tv-dropdown-menu-section" role="group" aria-label="Progress">
         {% for value, label in [('', 'All'), ('not-started', 'New'), ('started', 'Started'), ('caught-up', 'Caught-up')]
         %}
