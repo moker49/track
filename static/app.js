@@ -71,6 +71,7 @@ const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]")
 const menuScrim = document.querySelector("[data-menu-scrim]");
 const tvControlBar = document.querySelector("[data-tv-control-bar]");
 const menuIsolatedElements = new Set();
+const floatingMenuAnimations = new WeakMap();
 let menuScrollLockPosition = null;
 const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
@@ -2114,6 +2115,8 @@ function syncTvControlVisibility() {
 }
 
 function showFloatingMenu(menu, trigger) {
+  menu.getAnimations().forEach((animation) => animation.cancel());
+  floatingMenuAnimations.delete(menu);
   menu.hidden = false;
   if (typeof menu.showPopover !== "function") return;
   menu.style.position = "fixed";
@@ -2137,16 +2140,58 @@ function showFloatingMenu(menu, trigger) {
   menu.style.top = `${top}px`;
   menu.style.left = `${left}px`;
   menu.style.width = `${bounds.width}px`;
+  const collapsedScale = Math.min(1, 48 / Math.max(bounds.height, 48));
+  const transformOrigin = top < triggerBounds.top ? "bottom right" : "top right";
+  menu.dataset.menuCollapsedScale = String(collapsedScale);
+  menu.style.transformOrigin = transformOrigin;
+  const animation = menu.animate([
+    { opacity: 0, transform: `scaleY(${collapsedScale})` },
+    { opacity: 1, transform: "scaleY(1)" },
+  ], {
+    duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 120,
+    easing: "cubic-bezier(0.2, 0, 0, 1)",
+    fill: "both",
+  });
+  const animationState = { animation, direction: "open" };
+  floatingMenuAnimations.set(menu, animationState);
+  animation.finished.then(() => {
+    if (floatingMenuAnimations.get(menu) !== animationState) return;
+    floatingMenuAnimations.delete(menu);
+    animation.cancel();
+  }).catch(() => undefined);
 }
 
 function hideFloatingMenu(menu) {
-  if (typeof menu.hidePopover === "function" && menu.matches(":popover-open")) {
-    menu.hidePopover();
-  }
-  menu.hidden = true;
-  ["position", "inset", "margin", "top", "left", "width"].forEach((property) => {
-    menu.style.removeProperty(property);
+  if (menu.hidden) return;
+  const currentAnimation = floatingMenuAnimations.get(menu);
+  if (currentAnimation?.direction === "close") return;
+  currentAnimation?.animation.cancel();
+  const computedStyle = window.getComputedStyle(menu);
+  const collapsedScale = Number(menu.dataset.menuCollapsedScale) || 1;
+  const animation = menu.animate([
+    { opacity: computedStyle.opacity, transform: computedStyle.transform },
+    { opacity: 0, transform: `scaleY(${collapsedScale})` },
+  ], {
+    duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 90,
+    easing: "cubic-bezier(0.4, 0, 1, 1)",
+    fill: "both",
   });
+  const animationState = { animation, direction: "close" };
+  floatingMenuAnimations.set(menu, animationState);
+  animation.finished.then(() => {
+    if (floatingMenuAnimations.get(menu) !== animationState) return;
+    floatingMenuAnimations.delete(menu);
+    if (typeof menu.hidePopover === "function" && menu.matches(":popover-open")) {
+      menu.hidePopover();
+    }
+    menu.hidden = true;
+    delete menu.dataset.menuCollapsedScale;
+    ["position", "inset", "margin", "top", "left", "width", "transform-origin"].forEach((property) => {
+      menu.style.removeProperty(property);
+    });
+    animation.cancel();
+    syncMenuScrim();
+  }).catch(() => undefined);
 }
 
 function preserveMenuScrollPosition(position) {

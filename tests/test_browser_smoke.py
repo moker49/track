@@ -96,6 +96,7 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
             combined_menu = page.locator('[data-tv-dropdown-menu="combined"]')
             self.assertTrue(combined_menu.is_visible())
             page.locator('[data-tv-progress-option="started"]').click()
+            combined_menu.wait_for(state="hidden")
             self.assertFalse(combined_menu.is_visible())
             self.assertIn("Started", combined_toggle.inner_text())
 
