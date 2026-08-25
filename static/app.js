@@ -70,6 +70,7 @@ const imageViewerImage = imageViewer?.querySelector("[data-image-viewer-image]")
 const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]");
 const menuScrim = document.querySelector("[data-menu-scrim]");
 const tvControlBar = document.querySelector("[data-tv-control-bar]");
+const menuIsolatedElements = new Set();
 const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   tv: {
@@ -2144,15 +2145,41 @@ function closeShowMenus(exceptMenu = null) {
   syncMenuScrim();
 }
 
+function clearMenuIsolation() {
+  menuIsolatedElements.forEach((element) => {
+    element.inert = false;
+  });
+  menuIsolatedElements.clear();
+}
+
+function isolateOpenMenu(openMenu) {
+  let activeBranch = openMenu;
+  while (activeBranch && activeBranch !== document.body) {
+    const parent = activeBranch.parentElement;
+    if (!parent) break;
+    [...parent.children].forEach((sibling) => {
+      if (sibling === activeBranch || sibling === menuScrim || sibling.inert) return;
+      sibling.inert = true;
+      menuIsolatedElements.add(sibling);
+    });
+    activeBranch = parent;
+  }
+}
+
 function syncMenuScrim() {
   if (!menuScrim) return;
   const openMenu = document.querySelector(
     "[data-show-menu]:not([hidden]), [data-watch-menu]:not([hidden]), [data-tv-dropdown-menu]:not([hidden])",
   );
   const menuOpen = Boolean(openMenu);
+  clearMenuIsolation();
+  if (openMenu) isolateOpenMenu(openMenu);
   menuScrim.hidden = !menuOpen;
   document.documentElement.classList.toggle("menu-open", menuOpen);
   document.body.classList.toggle("menu-open", menuOpen);
+  if (openMenu && !openMenu.contains(document.activeElement)) {
+    openMenu.querySelector("button:not([disabled])")?.focus({ preventScroll: true });
+  }
 }
 
 function toggleShowMenu(button) {
