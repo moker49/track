@@ -29,7 +29,9 @@
   <button class="menu-scrim" type="button" data-menu-scrim aria-label="Close menu" hidden></button>
   <div class="app-shell">
     <main class="app-content">{% block content %}{% endblock %}</main>
-    <nav class="bottom-nav" aria-label="Primary navigation">
+    <div class="bottom-chrome">
+      {% include "_tv_controls.html" %}
+      <nav class="bottom-nav" aria-label="Primary navigation">
       <button class="nav-item active" type="button" data-nav-view="backlog" aria-current="page">
         <span class="nav-icon" aria-hidden="true">
           <span class="material-symbols-rounded">resume</span>
@@ -48,7 +50,8 @@
         </span>
         <span>TV</span>
       </button>
-    </nav>
+      </nav>
+    </div>
   </div>
 </body>
 

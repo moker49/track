@@ -69,6 +69,7 @@ const imageViewerPreview = imageViewer?.querySelector("[data-image-viewer-previe
 const imageViewerImage = imageViewer?.querySelector("[data-image-viewer-image]");
 const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]");
 const menuScrim = document.querySelector("[data-menu-scrim]");
+const tvControlBar = document.querySelector("[data-tv-control-bar]");
 const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   tv: {
@@ -106,7 +107,6 @@ let pendingRemoveShowId = null;
 let datePickerTarget = null;
 let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
-let lastTvScrollY = 0;
 let lastEpisodeDetailScrollY = 0;
 let episodeNavigationPending = false;
 let tvSearchTimer = null;
@@ -120,12 +120,6 @@ let scheduleViewsHydrated = false;
 let scheduleCalendarDate = toIsoDate(new Date());
 let imageViewerAspectRatio = null;
 let imageViewerClosing = false;
-let tvScrollControlsReady = false;
-
-if ("scrollRestoration" in window.history) {
-  window.history.scrollRestoration = "manual";
-}
-
 if (!window.history.state?.trackApp) {
   window.history.replaceState({ trackApp: true, view: "backlog" }, "");
 }
@@ -303,7 +297,6 @@ function showView(viewName, historyMode = null) {
   }
   if (currentView === "tv" && viewName !== "tv") {
     clearTvFirstReveal(views.get("tv"));
-    tvScrollControlsReady = false;
   }
   const firstScheduleReveal = ["backlog", "upcoming"].includes(viewName)
     && !revealedViewAnimations.has(viewName);
@@ -324,6 +317,7 @@ function showView(viewName, historyMode = null) {
   updateActiveNav(viewName === "detail" ? detailParentView : viewName);
   currentView = viewName;
   syncGlobalSearch();
+  syncTvControlVisibility();
   if (viewName === "tv") {
     window.requestAnimationFrame(() => revealTvStateOnce(views.get("tv")));
   }
@@ -335,17 +329,6 @@ function showView(viewName, historyMode = null) {
   };
   document.title = titles[viewName] || "Track";
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
-  if (viewName === "tv") {
-    views.get("tv").querySelectorAll(
-      "[data-tv-library-switcher], [data-tv-control-bar]",
-    ).forEach((control) => control.classList.remove("is-scroll-hidden"));
-    lastTvScrollY = window.scrollY;
-    window.requestAnimationFrame(() => {
-      if (currentView !== "tv") return;
-      lastTvScrollY = window.scrollY;
-      tvScrollControlsReady = true;
-    });
-  }
   if (["backlog", "upcoming"].includes(viewName)) {
     if (firstScheduleDataReady) {
       staggerScheduleFirstReveal(views.get(viewName));
@@ -2078,12 +2061,12 @@ const sortFieldLabels = {
 };
 
 function syncTvControlBar(view = views.get("tv")) {
-  if (!view) return;
+  if (!view || !tvControlBar) return;
   const preferences = libraryViewPreferences.tv;
-  const progressLabel = view.querySelector("[data-tv-progress-label]");
-  const sortLabel = view.querySelector("[data-tv-sort-label]");
-  const sortIcon = view.querySelector("[data-tv-sort-icon]");
-  const divider = view.querySelector("[data-tv-combined-divider]");
+  const progressLabel = tvControlBar.querySelector("[data-tv-progress-label]");
+  const sortLabel = tvControlBar.querySelector("[data-tv-sort-label]");
+  const sortIcon = tvControlBar.querySelector("[data-tv-sort-icon]");
+  const divider = tvControlBar.querySelector("[data-tv-combined-divider]");
   const defaultControls = preferences.progress === ""
     && preferences.sortField === "name"
     && preferences.sortDirection === "asc";
@@ -2105,12 +2088,12 @@ function syncTvControlBar(view = views.get("tv")) {
   }
   divider?.classList.toggle("tv-combined-part-hidden", !defaultControls);
 
-  view.querySelectorAll("[data-tv-progress-option]").forEach((button) => {
+  tvControlBar.querySelectorAll("[data-tv-progress-option]").forEach((button) => {
     const selected = button.dataset.tvProgressOption === preferences.progress;
     button.setAttribute("aria-checked", String(selected));
     button.querySelector(".tv-dropdown-selection").classList.toggle("is-hidden", !selected);
   });
-  view.querySelectorAll("[data-tv-sort-option]").forEach((button) => {
+  tvControlBar.querySelectorAll("[data-tv-sort-option]").forEach((button) => {
     const selected = button.dataset.tvSortOption === preferences.sortField;
     button.setAttribute("aria-checked", String(selected));
     const indicator = button.querySelector(".tv-dropdown-selection");
@@ -2119,6 +2102,13 @@ function syncTvControlBar(view = views.get("tv")) {
       ? "arrow_upward"
       : "arrow_downward";
   });
+}
+
+function syncTvControlVisibility() {
+  if (!tvControlBar) return;
+  const visible = currentView === "tv" && !searchQueries.tv.trim();
+  tvControlBar.hidden = !visible;
+  if (!visible) closeTvDropdowns();
 }
 
 function closeTvDropdowns(exceptMenu = null) {
@@ -2676,11 +2666,6 @@ document.addEventListener("click", (event) => {
     filterShowView(views.get("tv"));
     scrollPositions.tv = 0;
     window.scrollTo({ top: 0, behavior: "auto" });
-    lastTvScrollY = 0;
-    views.get("tv").querySelector("[data-tv-library-switcher]")
-      ?.classList.remove("is-scroll-hidden");
-    views.get("tv").querySelector("[data-tv-control-bar]")
-      ?.classList.remove("is-scroll-hidden");
     revealTvStateOnce(views.get("tv"));
     return;
   }
@@ -2967,17 +2952,15 @@ function filterShowView(view) {
     const count = section.querySelector("[data-state-count]");
     if (count) count.textContent = searching ? visibleCount : cards.length;
   });
-  const librarySwitcher = view.querySelector("[data-tv-library-switcher]");
+  const librarySwitcher = tvControlBar;
   if (librarySwitcher) {
-    librarySwitcher.hidden = searching;
     librarySwitcher.dataset.selectedState = preferences.state;
     librarySwitcher.querySelectorAll("[data-tv-library-state]").forEach((button) => {
       const selected = button.dataset.tvLibraryState === preferences.state;
       button.setAttribute("aria-pressed", String(selected));
     });
   }
-  const controlBar = view.querySelector("[data-tv-control-bar]");
-  if (controlBar) controlBar.hidden = searching;
+  syncTvControlVisibility();
   syncTvControlBar(view);
   hydratedLibraryViews.add(view.dataset.view);
   if (view.dataset.view === "tv") syncTvSearchPresentation();
@@ -3038,26 +3021,6 @@ document.addEventListener("visibilitychange", () => {
 
 window.addEventListener("scroll", () => {
   const currentScrollY = window.scrollY;
-  if (currentView === "tv") {
-    const switcher = views.get("tv")?.querySelector("[data-tv-library-switcher]");
-    const controlBar = views.get("tv")?.querySelector("[data-tv-control-bar]");
-    if (!tvScrollControlsReady) {
-      lastTvScrollY = currentScrollY;
-      return;
-    }
-    if (currentScrollY > lastTvScrollY) {
-      switcher?.classList.add("is-scroll-hidden");
-      controlBar?.classList.add("is-scroll-hidden");
-      if (controlBar?.querySelector("[data-tv-dropdown-menu]:not([hidden])")) {
-        closeTvDropdowns();
-      }
-    } else if (currentScrollY < lastTvScrollY) {
-      switcher?.classList.remove("is-scroll-hidden");
-      controlBar?.classList.remove("is-scroll-hidden");
-    }
-    lastTvScrollY = currentScrollY;
-    return;
-  }
   if (currentView === "detail") {
     const switcher = views.get("detail")?.querySelector("[data-episode-navigation]");
     if (!switcher) return;

@@ -849,21 +849,31 @@ html.app-booting .schedule-empty-reveal {
   margin-top: 6px;
 }
 
-.bottom-nav {
+.bottom-chrome {
   position: fixed;
   z-index: 20;
   bottom: 0;
   left: 50%;
   width: min(100%, 520px);
+  transform: translateX(-50%);
+  background: var(--nav-surface);
+  backdrop-filter: blur(14px);
+}
+
+.bottom-chrome:has(.tv-dropdown-menu:not([hidden])) {
+  z-index: 30;
+}
+
+.bottom-nav {
+  position: relative;
+  width: 100%;
   height: calc(72px + env(safe-area-inset-bottom));
   padding: 8px 20px env(safe-area-inset-bottom);
-  transform: translateX(-50%);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   border-top: 1px solid var(--outline-soft);
-  background: var(--nav-surface);
-  backdrop-filter: blur(14px);
+  background: transparent;
 }
 
 .nav-item {
@@ -2048,25 +2058,14 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .tv-inline-bar {
-  position: fixed;
-  z-index: 19;
-  left: 50%;
-  bottom: calc(72px + env(safe-area-inset-bottom));
-  width: min(100%, 520px);
+  position: relative;
+  width: 100%;
   padding: 8px 12px;
-  transform: translate(-50%, 0);
   display: grid;
   grid-template-columns: minmax(132px, 0.9fr) minmax(0, 1.25fr);
   gap: 8px;
   border-top: 1px solid var(--outline-soft);
-  background: var(--nav-surface);
-  backdrop-filter: blur(14px);
-  transition: transform 160ms ease-in-out;
-  will-change: transform;
-}
-
-.tv-inline-bar.is-scroll-hidden {
-  transform: translate(-50%, calc(100% + 16px));
+  background: transparent;
 }
 
 .tv-inline-bar:has(.tv-dropdown-menu:not([hidden])) {
@@ -2767,14 +2766,13 @@ html.app-booting .tv-slice-reveal {
     overflow: hidden;
   }
 
-  .bottom-nav {
+  .bottom-chrome {
     bottom: 24px;
     border-radius: 0 0 28px 28px;
   }
 
-  .bottom-context-switcher,
-  .tv-inline-bar {
-    bottom: calc(96px + env(safe-area-inset-bottom));
+  .bottom-context-switcher {
+    bottom: calc(108px + env(safe-area-inset-bottom));
   }
 
 }

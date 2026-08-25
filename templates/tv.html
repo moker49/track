@@ -23,53 +23,6 @@
   </div>
 </section>
 
-<div class="tv-inline-bar" data-tv-control-bar data-tv-library-switcher data-selected-state="ACTIVE">
-  <div class="tv-library-button-group" role="group" aria-label="TV list">
-    <button type="button" data-tv-library-state="ACTIVE" aria-pressed="true">
-      <span>Active</span>
-    </button>
-    <button type="button" data-tv-library-state="ARCHIVED" aria-pressed="false">
-      <span>Archived</span>
-    </button>
-  </div>
-
-  <div class="tv-dropdown">
-    <button class="tv-dropdown-toggle tv-combined-toggle" type="button" data-tv-dropdown-toggle="combined"
-      aria-expanded="false" aria-label="Progress and sorting">
-      <span class="material-symbols-rounded" aria-hidden="true">filter_list</span>
-      <span data-tv-progress-label>Filter</span>
-      <span class="tv-combined-divider" data-tv-combined-divider aria-hidden="true">/</span>
-      <span class="material-symbols-rounded tv-combined-part-hidden" data-tv-sort-icon
-        aria-hidden="true">arrow_upward</span>
-      <span data-tv-sort-label>Sort</span>
-      <span class="material-symbols-rounded tv-dropdown-chevron" aria-hidden="true">expand_more</span>
-    </button>
-    <div class="tv-dropdown-menu tv-combined-menu" data-tv-dropdown-menu="combined" role="menu" hidden>
-      <div class="tv-dropdown-menu-section" role="group" aria-label="Progress">
-        {% for value, label in [('', 'All'), ('not-started', 'New'), ('started', 'Started'), ('caught-up', 'Caught-up')]
-        %}
-        <button type="button" data-tv-progress-option="{{ value }}" role="menuitemradio"
-          aria-checked="{{ 'true' if not value else 'false' }}">
-          <span class="material-symbols-rounded tv-dropdown-selection{% if value %} is-hidden{% endif %}"
-            aria-hidden="true">check</span>
-          <span>{{ label }}</span>
-        </button>
-        {% endfor %}
-      </div>
-      <div class="tv-dropdown-menu-section" role="group" aria-label="Sort">
-        {% for value, label in [('name', 'Name'), ('dateAdded', 'Date added'), ('releaseDate', 'Release date')] %}
-        <button type="button" data-tv-sort-option="{{ value }}" role="menuitemradio"
-          aria-checked="{{ 'true' if value == 'name' else 'false' }}">
-          <span class="material-symbols-rounded tv-dropdown-selection{% if value != 'name' %} is-hidden{% endif %}"
-            aria-hidden="true">arrow_upward</span>
-          <span>{{ label }}</span>
-        </button>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-</div>
-
 <section class="page-section tv-add-section" data-tv-add-section aria-label="TMDB results" hidden>
   <div class="popular-grid" data-tv-add-results></div>
   <p class="tmdb-credit" data-tv-search-credit>
