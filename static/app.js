@@ -71,6 +71,7 @@ const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]")
 const menuScrim = document.querySelector("[data-menu-scrim]");
 const tvControlBar = document.querySelector("[data-tv-control-bar]");
 const menuIsolatedElements = new Set();
+let menuScrollLockPosition = null;
 const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   tv: {
@@ -2148,6 +2149,16 @@ function hideFloatingMenu(menu) {
   });
 }
 
+function preserveMenuScrollPosition(position) {
+  const restore = () => window.scrollTo({
+    left: position.x,
+    top: position.y,
+    behavior: "instant",
+  });
+  restore();
+  window.requestAnimationFrame(restore);
+}
+
 function closeTvDropdowns(exceptMenu = null) {
   document.querySelectorAll("[data-tv-dropdown-menu]").forEach((menu) => {
     if (menu === exceptMenu) return;
@@ -2159,6 +2170,7 @@ function closeTvDropdowns(exceptMenu = null) {
 }
 
 function toggleTvDropdown(button) {
+  const scrollPosition = { x: window.scrollX, y: window.scrollY };
   const menu = button.parentElement.querySelector("[data-tv-dropdown-menu]");
   if (!menu) return;
   const willOpen = menu.hidden;
@@ -2166,10 +2178,12 @@ function toggleTvDropdown(button) {
   closeShowMenus();
   closeWatchMenus();
   closeTvDropdowns(menu);
+  if (willOpen) menuScrollLockPosition = scrollPosition;
   if (willOpen) showFloatingMenu(menu, button);
   else hideFloatingMenu(menu);
   button.setAttribute("aria-expanded", String(willOpen));
   syncMenuScrim();
+  preserveMenuScrollPosition(scrollPosition);
 }
 
 function closeShowMenus(exceptMenu = null) {
@@ -2210,16 +2224,35 @@ function syncMenuScrim() {
   );
   const menuOpen = Boolean(openMenu);
   clearMenuIsolation();
-  if (openMenu) isolateOpenMenu(openMenu);
   menuScrim.hidden = !menuOpen;
   document.documentElement.classList.toggle("menu-open", menuOpen);
   document.body.classList.toggle("menu-open", menuOpen);
   if (openMenu && !openMenu.contains(document.activeElement)) {
     openMenu.querySelector("button:not([disabled])")?.focus({ preventScroll: true });
   }
+  if (openMenu) isolateOpenMenu(openMenu);
+  if (!menuOpen) menuScrollLockPosition = null;
 }
 
+function preventOpenMenuScroll(event) {
+  if (!menuScrim?.hidden) event.preventDefault();
+}
+
+document.addEventListener("wheel", preventOpenMenuScroll, { passive: false });
+document.addEventListener("touchmove", preventOpenMenuScroll, { passive: false });
+window.addEventListener("scroll", () => {
+  if (!menuScrollLockPosition) return;
+  if (window.scrollX === menuScrollLockPosition.x
+    && window.scrollY === menuScrollLockPosition.y) return;
+  window.scrollTo({
+    left: menuScrollLockPosition.x,
+    top: menuScrollLockPosition.y,
+    behavior: "instant",
+  });
+}, { passive: true });
+
 function toggleShowMenu(button) {
+  const scrollPosition = { x: window.scrollX, y: window.scrollY };
   const menu = button.parentElement.querySelector("[data-show-menu]")
     || button.closest("[data-show-id]")?.querySelector("[data-show-menu]");
   if (!menu) return;
@@ -2228,10 +2261,12 @@ function toggleShowMenu(button) {
   clearDetailSliceReveals(views.get("detail"));
   closeWatchMenus();
   closeShowMenus(menu);
+  if (willOpen) menuScrollLockPosition = scrollPosition;
   if (willOpen) showFloatingMenu(menu, button);
   else hideFloatingMenu(menu);
   button.setAttribute("aria-expanded", String(willOpen));
   syncMenuScrim();
+  preserveMenuScrollPosition(scrollPosition);
 }
 
 function closeWatchMenus(exceptMenu = null) {
@@ -2242,15 +2277,18 @@ function closeWatchMenus(exceptMenu = null) {
 }
 
 function toggleWatchMenu(control) {
+  const scrollPosition = { x: window.scrollX, y: window.scrollY };
   const menu = control.parentElement.querySelector("[data-watch-menu]");
   if (!menu) return;
   const willOpen = menu.hidden;
   clearDetailSliceReveals(views.get("detail"));
   closeShowMenus();
   closeWatchMenus(menu);
+  if (willOpen) menuScrollLockPosition = scrollPosition;
   if (willOpen) showFloatingMenu(menu, control);
   else hideFloatingMenu(menu);
   syncMenuScrim();
+  preserveMenuScrollPosition(scrollPosition);
 }
 
 function syncProgressState(showElement) {
@@ -2902,6 +2940,10 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  const scrollKeys = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
+  if (menuScrim && !menuScrim.hidden && scrollKeys.has(event.key)) {
+    if (event.key !== " " || !event.target.closest("button")) event.preventDefault();
+  }
   if (event.key === "Escape" && menuScrim && !menuScrim.hidden) {
     closeShowMenus();
     closeWatchMenus();

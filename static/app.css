@@ -65,12 +65,6 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-html.menu-open,
-body.menu-open {
-  overflow: hidden;
-  overscroll-behavior: none;
-}
-
 button,
 input {
   font: inherit;
