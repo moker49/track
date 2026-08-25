@@ -53,6 +53,8 @@ async function revealAppWhenIconsAreReady() {
 
 revealAppWhenIconsAreReady();
 const navButtons = [...document.querySelectorAll("[data-nav-view]")];
+const appContent = document.querySelector(".app-content");
+const bottomChrome = document.querySelector(".bottom-chrome");
 const globalSearchBar = document.querySelector("[data-global-search-bar]");
 const globalSearchInput = document.querySelector("[data-global-search]");
 const searchMenuButton = document.querySelector("[data-search-menu]");
@@ -60,7 +62,7 @@ const searchBackButton = document.querySelector("[data-search-back]");
 const searchProfileButton = document.querySelector("[data-search-profile]");
 const searchClearButton = document.querySelector("[data-clear-search]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
-const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, detail: 0 };
+const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, detail: 0, profile: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
 const imageViewer = document.querySelector("[data-image-viewer]");
@@ -105,6 +107,7 @@ const scheduleRevealAnimationHandlers = new WeakMap();
 const detailRevealAnimationHandlers = new WeakMap();
 let currentView = "backlog";
 let detailParentView = "backlog";
+let profileParentView = "backlog";
 let detailRequest = null;
 let pendingRemoveShowId = null;
 let datePickerTarget = null;
@@ -272,9 +275,9 @@ function syncSearchTextPosition() {
 
 function syncGlobalSearch() {
   if (!globalSearchBar || !globalSearchInput) return;
-  const isDetail = currentView === "detail";
-  globalSearchBar.hidden = isDetail;
-  if (isDetail) return;
+  const hasDedicatedAppBar = ["detail", "profile"].includes(currentView);
+  globalSearchBar.hidden = hasDedicatedAppBar;
+  if (hasDedicatedAppBar) return;
 
   const settings = {
     backlog: { placeholder: "Search queue", label: "Search queue episodes" },
@@ -287,6 +290,51 @@ function syncGlobalSearch() {
   globalSearchInput.value = searchQueries[currentView];
   syncSearchChrome();
   syncSearchTextPosition();
+}
+
+function selectProfileTab(tabName, { focus = false } = {}) {
+  const profileView = views.get("profile");
+  const selectedTab = profileView?.querySelector(`[data-profile-tab="${tabName}"]`);
+  if (!profileView || !selectedTab) return;
+  profileView.querySelectorAll("[data-profile-tab]").forEach((tab) => {
+    const selected = tab === selectedTab;
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  });
+  profileView.querySelectorAll("[data-profile-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.profilePanel !== tabName;
+  });
+  if (focus) selectedTab.focus();
+}
+
+function openProfileFromTrigger(trigger) {
+  profileParentView = ["backlog", "upcoming", "tv"].includes(currentView)
+    ? currentView
+    : "backlog";
+  scrollPositions.profile = 0;
+  const revealProfile = () => showView("profile", "push");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!document.startViewTransition || reduceMotion) {
+    revealProfile();
+    return;
+  }
+
+  const bounds = trigger.getBoundingClientRect();
+  const originX = bounds.left + bounds.width / 2;
+  const originY = bounds.top + bounds.height / 2;
+  const radius = Math.hypot(
+    Math.max(originX, window.innerWidth - originX),
+    Math.max(originY, window.innerHeight - originY),
+  );
+  document.documentElement.style.setProperty("--profile-reveal-x", `${originX}px`);
+  document.documentElement.style.setProperty("--profile-reveal-y", `${originY}px`);
+  document.documentElement.style.setProperty("--profile-reveal-radius", `${radius}px`);
+  const transition = document.startViewTransition(revealProfile);
+  transition.finished.finally(() => {
+    document.documentElement.style.removeProperty("--profile-reveal-x");
+    document.documentElement.style.removeProperty("--profile-reveal-y");
+    document.documentElement.style.removeProperty("--profile-reveal-radius");
+  });
 }
 
 function showView(viewName, historyMode = null) {
@@ -317,8 +365,13 @@ function showView(viewName, historyMode = null) {
     view.classList.toggle("is-active", active);
   });
 
-  updateActiveNav(viewName === "detail" ? detailParentView : viewName);
+  updateActiveNav(viewName === "detail" ? detailParentView
+    : viewName === "profile" ? profileParentView
+      : viewName);
   currentView = viewName;
+  const profileOpen = viewName === "profile";
+  if (bottomChrome) bottomChrome.hidden = profileOpen;
+  appContent?.classList.toggle("is-profile-view", profileOpen);
   syncGlobalSearch();
   syncTvControlVisibility();
   if (viewName === "tv") {
@@ -329,6 +382,7 @@ function showView(viewName, historyMode = null) {
     upcoming: "Upcoming · Track",
     tv: "TV · Track",
     detail: "Track",
+    profile: "Profile · Track",
   };
   document.title = titles[viewName] || "Track";
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
@@ -346,7 +400,10 @@ function showView(viewName, historyMode = null) {
     }
   }
   if (historyMode && viewName !== "detail") {
-    writeHistory({ view: viewName }, historyMode);
+    const state = viewName === "profile"
+      ? { view: viewName, parentView: profileParentView }
+      : { view: viewName };
+    writeHistory(state, historyMode);
   }
 }
 
@@ -2669,6 +2726,27 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const profileTrigger = event.target.closest("[data-search-profile]");
+  if (profileTrigger) {
+    openProfileFromTrigger(profileTrigger);
+    return;
+  }
+
+  if (event.target.closest("[data-profile-back]")) {
+    if (window.history.state?.trackApp && window.history.state.view === "profile") {
+      window.history.back();
+    } else {
+      showView(profileParentView);
+    }
+    return;
+  }
+
+  const profileTab = event.target.closest("[data-profile-tab]");
+  if (profileTab) {
+    selectProfileTab(profileTab.dataset.profileTab);
+    return;
+  }
+
   const imageTrigger = event.target.closest("[data-full-image-src]");
   if (imageTrigger) {
     event.preventDefault();
@@ -2995,6 +3073,17 @@ document.addEventListener("keydown", (event) => {
     closeTvDropdowns();
     return;
   }
+  const profileTab = event.target.closest("[data-profile-tab]");
+  if (profileTab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    const tabs = [...profileTab.parentElement.querySelectorAll("[data-profile-tab]")];
+    const currentIndex = tabs.indexOf(profileTab);
+    const nextIndex = event.key === "Home" ? 0
+      : event.key === "End" ? tabs.length - 1
+        : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+    selectProfileTab(tabs[nextIndex].dataset.profileTab, { focus: true });
+    return;
+  }
   const card = event.target.closest(".popular-card[data-tmdb-id]");
   if (!card || event.target.closest("button") || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
@@ -3233,6 +3322,14 @@ function restoreHistoryState(state) {
 
   const legacyViews = { schedule: "backlog", watching: "tv", archive: "tv", discover: "tv" };
   const restoredView = legacyViews[state.view] || state.view;
+  if (restoredView === "profile") {
+    const restoredParent = legacyViews[state.parentView] || state.parentView;
+    profileParentView = ["backlog", "upcoming", "tv"].includes(restoredParent)
+      ? restoredParent
+      : "backlog";
+    showView("profile");
+    return;
+  }
   if (restoredView !== "detail") {
     showView(restoredView);
     return;

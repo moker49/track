@@ -57,6 +57,27 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
             page.locator('[data-nav-view="tv"]').click()
             self.assertTrue(page.locator('[data-view="tv"]').is_visible())
 
+            page.locator('[data-search-profile]').click()
+            page.locator('[data-view="profile"]').wait_for(state="visible")
+            self.assertTrue(page.locator('[data-view="profile"]').is_visible())
+            self.assertFalse(page.locator('.bottom-chrome').is_visible())
+            self.assertTrue(page.locator('[data-profile-panel="diary"]').is_visible())
+            self.assertFalse(page.locator('[data-profile-panel="statistics"]').is_visible())
+            page.locator('[data-profile-tab="statistics"]').click()
+            self.assertEqual(
+                page.locator('[data-profile-tab="statistics"]').get_attribute("aria-selected"),
+                "true",
+            )
+            self.assertTrue(page.locator('[data-profile-panel="statistics"]').is_visible())
+            page.locator('[data-profile-back]').click()
+            page.locator('[data-view="tv"]').wait_for(state="visible")
+            self.assertTrue(page.locator('.bottom-chrome').is_visible())
+
+            page.locator('[data-search-profile]').click()
+            page.locator('[data-view="profile"]').wait_for(state="visible")
+            page.go_back()
+            page.locator('[data-view="tv"]').wait_for(state="visible")
+
             page.locator('.show-card[data-show-id="1"] [data-show-open]').click()
             page.locator('[data-detail-show][data-show-id="1"]').wait_for()
             first_season = page.locator('details.season[data-season-id="1"]')

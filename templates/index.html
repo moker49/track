@@ -13,7 +13,7 @@
       data-global-search>
   </form>
   <button class="icon-button top-bar-action" type="button" data-search-profile aria-label="Profile">
-    <span class="material-symbols-rounded" aria-hidden="true">account_circle</span>
+    <span class="material-symbols-rounded is-filled" aria-hidden="true">account_circle</span>
   </button>
   <button class="icon-button top-bar-action" type="button" data-clear-search aria-label="Clear search" hidden>
     <span class="material-symbols-rounded" aria-hidden="true">close</span>
@@ -33,6 +33,33 @@
 </section>
 
 <section class="app-view" data-view="detail" aria-label="Show details" aria-live="polite" hidden></section>
+
+<section class="app-view profile-view" data-view="profile" aria-label="Profile" hidden>
+  <div class="profile-top-app-bar">
+    <div class="profile-title-row">
+      <button class="icon-button" type="button" data-profile-back aria-label="Back">
+        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+      </button>
+      <h1>Profile</h1>
+    </div>
+    <div class="profile-tabs" role="tablist" aria-label="Profile sections">
+      <button type="button" role="tab" id="profile-tab-diary" aria-selected="true"
+        aria-controls="profile-panel-diary" data-profile-tab="diary">
+        <span class="material-symbols-rounded" aria-hidden="true">menu_book</span>
+        <span>Diary</span>
+      </button>
+      <button type="button" role="tab" id="profile-tab-statistics" aria-selected="false"
+        aria-controls="profile-panel-statistics" data-profile-tab="statistics" tabindex="-1">
+        <span class="material-symbols-rounded" aria-hidden="true">bar_chart</span>
+        <span>Statistics</span>
+      </button>
+    </div>
+  </div>
+  <section class="profile-tab-panel" id="profile-panel-diary" role="tabpanel"
+    aria-labelledby="profile-tab-diary" data-profile-panel="diary"></section>
+  <section class="profile-tab-panel" id="profile-panel-statistics" role="tabpanel"
+    aria-labelledby="profile-tab-statistics" data-profile-panel="statistics" hidden></section>
+</section>
 
 <template id="detail-loading-template">
   <header class="detail-app-bar">
