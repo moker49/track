@@ -2073,24 +2073,38 @@ function syncTvControlBar(view = views.get("tv")) {
   const progressLabel = view.querySelector("[data-tv-progress-label]");
   const sortLabel = view.querySelector("[data-tv-sort-label]");
   const sortIcon = view.querySelector("[data-tv-sort-icon]");
-  if (progressLabel) progressLabel.textContent = progressFilterLabels[preferences.progress];
-  if (sortLabel) sortLabel.textContent = sortFieldLabels[preferences.sortField];
+  const divider = view.querySelector("[data-tv-combined-divider]");
+  const defaultControls = preferences.progress === ""
+    && preferences.sortField === "name"
+    && preferences.sortDirection === "asc";
+  if (progressLabel) {
+    progressLabel.textContent = defaultControls
+      ? "Filter"
+      : progressFilterLabels[preferences.progress];
+  }
+  if (sortLabel) {
+    sortLabel.textContent = defaultControls
+      ? "Sort"
+      : sortFieldLabels[preferences.sortField];
+  }
   if (sortIcon) {
+    sortIcon.classList.toggle("tv-combined-part-hidden", defaultControls);
     sortIcon.textContent = preferences.sortDirection === "asc"
       ? "arrow_upward"
       : "arrow_downward";
   }
+  divider?.classList.toggle("tv-combined-part-hidden", !defaultControls);
 
   view.querySelectorAll("[data-tv-progress-option]").forEach((button) => {
     const selected = button.dataset.tvProgressOption === preferences.progress;
     button.setAttribute("aria-checked", String(selected));
-    button.querySelector(".tv-dropdown-selection").hidden = !selected;
+    button.querySelector(".tv-dropdown-selection").classList.toggle("is-hidden", !selected);
   });
   view.querySelectorAll("[data-tv-sort-option]").forEach((button) => {
     const selected = button.dataset.tvSortOption === preferences.sortField;
     button.setAttribute("aria-checked", String(selected));
     const indicator = button.querySelector(".tv-dropdown-selection");
-    indicator.hidden = !selected;
+    indicator.classList.toggle("is-hidden", !selected);
     indicator.textContent = preferences.sortDirection === "asc"
       ? "arrow_upward"
       : "arrow_downward";

@@ -29,37 +29,39 @@
     <button type="button" data-tv-library-state="ARCHIVED" aria-pressed="false">Archived</button>
   </div>
 
-  <div class="tv-dropdown">
-    <button class="tv-dropdown-toggle" type="button" data-tv-dropdown-toggle="progress" aria-expanded="false">
+  <div class="tv-dropdown tv-combined-dropdown">
+    <button class="tv-dropdown-toggle tv-combined-toggle" type="button" data-tv-dropdown-toggle="combined"
+      aria-expanded="false" aria-label="Progress and sorting">
       <span class="material-symbols-rounded" aria-hidden="true">filter_list</span>
-      <span data-tv-progress-label>All</span>
+      <span data-tv-progress-label>Filter</span>
+      <span class="tv-combined-divider" data-tv-combined-divider aria-hidden="true">/</span>
+      <span class="material-symbols-rounded tv-combined-part-hidden" data-tv-sort-icon
+        aria-hidden="true">arrow_upward</span>
+      <span data-tv-sort-label>Sort</span>
       <span class="material-symbols-rounded tv-dropdown-chevron" aria-hidden="true">expand_more</span>
     </button>
-    <div class="tv-dropdown-menu" data-tv-dropdown-menu="progress" role="menu" hidden>
-      {% for value, label in [('', 'All'), ('not-started', 'New'), ('started', 'Started'), ('caught-up', 'Caught-up')] %}
-      <button type="button" data-tv-progress-option="{{ value }}" role="menuitemradio"
-        aria-checked="{{ 'true' if not value else 'false' }}">
-        <span class="material-symbols-rounded tv-dropdown-selection" aria-hidden="true">check_box</span>
-        <span>{{ label }}</span>
-      </button>
-      {% endfor %}
-    </div>
-  </div>
-
-  <div class="tv-dropdown">
-    <button class="tv-dropdown-toggle" type="button" data-tv-dropdown-toggle="sort" aria-expanded="false">
-      <span class="material-symbols-rounded" data-tv-sort-icon aria-hidden="true">arrow_upward</span>
-      <span data-tv-sort-label>Name</span>
-      <span class="material-symbols-rounded tv-dropdown-chevron" aria-hidden="true">expand_more</span>
-    </button>
-    <div class="tv-dropdown-menu" data-tv-dropdown-menu="sort" role="menu" hidden>
-      {% for value, label in [('name', 'Name'), ('dateAdded', 'Date added'), ('releaseDate', 'Release date')] %}
-      <button type="button" data-tv-sort-option="{{ value }}" role="menuitemradio"
-        aria-checked="{{ 'true' if value == 'name' else 'false' }}">
-        <span class="material-symbols-rounded tv-dropdown-selection" aria-hidden="true">arrow_upward</span>
-        <span>{{ label }}</span>
-      </button>
-      {% endfor %}
+    <div class="tv-dropdown-menu tv-combined-menu" data-tv-dropdown-menu="combined" role="menu" hidden>
+      <div class="tv-dropdown-menu-section" role="group" aria-label="Progress">
+        {% for value, label in [('', 'All'), ('not-started', 'New'), ('started', 'Started'), ('caught-up', 'Caught-up')]
+        %}
+        <button type="button" data-tv-progress-option="{{ value }}" role="menuitemradio"
+          aria-checked="{{ 'true' if not value else 'false' }}">
+          <span class="material-symbols-rounded tv-dropdown-selection{% if value %} is-hidden{% endif %}"
+            aria-hidden="true">check</span>
+          <span>{{ label }}</span>
+        </button>
+        {% endfor %}
+      </div>
+      <div class="tv-dropdown-menu-section" role="group" aria-label="Sort">
+        {% for value, label in [('name', 'Name'), ('dateAdded', 'Date added'), ('releaseDate', 'Release date')] %}
+        <button type="button" data-tv-sort-option="{{ value }}" role="menuitemradio"
+          aria-checked="{{ 'true' if value == 'name' else 'false' }}">
+          <span class="material-symbols-rounded tv-dropdown-selection{% if value != 'name' %} is-hidden{% endif %}"
+            aria-hidden="true">arrow_upward</span>
+          <span>{{ label }}</span>
+        </button>
+        {% endfor %}
+      </div>
     </div>
   </div>
 </div>

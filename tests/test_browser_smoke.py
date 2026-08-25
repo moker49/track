@@ -91,19 +91,18 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
             self.assertEqual(search.input_value(), "")
             self.assertFalse(search.evaluate("element => element === document.activeElement"))
 
-            progress_toggle = page.locator('[data-tv-dropdown-toggle="progress"]')
-            progress_toggle.click()
-            progress_menu = page.locator('[data-tv-dropdown-menu="progress"]')
-            self.assertTrue(progress_menu.is_visible())
+            combined_toggle = page.locator('[data-tv-dropdown-toggle="combined"]')
+            combined_toggle.click()
+            combined_menu = page.locator('[data-tv-dropdown-menu="combined"]')
+            self.assertTrue(combined_menu.is_visible())
             page.locator('[data-tv-progress-option="started"]').click()
-            self.assertFalse(progress_menu.is_visible())
-            self.assertIn("Started", progress_toggle.inner_text())
+            self.assertFalse(combined_menu.is_visible())
+            self.assertIn("Started", combined_toggle.inner_text())
 
-            sort_toggle = page.locator('[data-tv-dropdown-toggle="sort"]')
-            sort_toggle.click()
+            combined_toggle.click()
             page.locator('[data-tv-sort-option="name"]').click()
             self.assertEqual(
-                sort_toggle.locator('[data-tv-sort-icon]').inner_text(),
+                combined_toggle.locator('[data-tv-sort-icon]').inner_text(),
                 "arrow_downward",
             )
         finally:

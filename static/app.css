@@ -2050,7 +2050,7 @@ html.app-booting .schedule-empty-reveal {
   padding: 8px 12px;
   transform: translate(-50%, 0);
   display: grid;
-  grid-template-columns: minmax(132px, 1.4fr) repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(132px, 0.9fr) minmax(0, 1.25fr);
   gap: 8px;
   border-top: 1px solid var(--outline-soft);
   background: var(--nav-surface);
@@ -2121,7 +2121,7 @@ html.app-booting .schedule-empty-reveal {
   width: 100%;
   min-width: 0;
   min-height: 48px;
-  padding: 0 8px;
+  padding: 0 12px;
   border: 1px solid var(--outline-soft);
   border-radius: 24px;
   display: grid;
@@ -2137,9 +2137,33 @@ html.app-booting .schedule-empty-reveal {
   cursor: pointer;
 }
 
+.tv-combined-toggle {
+  display: flex;
+  justify-content: flex-start;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.tv-combined-divider {
+  color: var(--outline);
+}
+
+.tv-combined-part-hidden {
+  display: none;
+}
+
+.tv-combined-divider.tv-combined-part-hidden+[data-tv-sort-icon] {
+  margin-left: 5px;
+}
+
 .tv-dropdown-toggle>.material-symbols-rounded {
-  color: var(--on-surface-muted);
+  color: var(--primary);
   font-size: 18px;
+}
+
+.tv-combined-toggle .tv-dropdown-chevron {
+  margin-left: auto;
+  color: var(--outline);
 }
 
 .tv-dropdown-toggle .tv-dropdown-chevron {
@@ -2178,6 +2202,26 @@ html.app-booting .schedule-empty-reveal {
   left: auto;
 }
 
+.tv-combined-menu {
+  width: min(240px, calc(100vw - 24px));
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  display: grid;
+  gap: 4px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.tv-dropdown-menu-section {
+  padding: 8px 0;
+  border: 1px solid var(--outline-soft);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface-high);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
 .tv-dropdown-menu button {
   width: 100%;
   min-height: 48px;
@@ -2198,6 +2242,10 @@ html.app-booting .schedule-empty-reveal {
 .tv-dropdown-selection {
   color: var(--primary);
   font-size: 18px;
+}
+
+.tv-dropdown-selection.is-hidden {
+  visibility: hidden;
 }
 
 .popular-grid {
@@ -2754,4 +2802,3 @@ html.app-booting .tv-slice-reveal {
     animation: none;
   }
 }
-
