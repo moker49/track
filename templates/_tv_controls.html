@@ -19,7 +19,8 @@
       <span data-tv-sort-label>Sort</span>
       <span class="material-symbols-rounded tv-dropdown-chevron" aria-hidden="true">expand_more</span>
     </button>
-    <div class="tv-dropdown-menu tv-combined-menu" data-tv-dropdown-menu="combined" role="menu" hidden>
+    <div class="tv-dropdown-menu tv-combined-menu" data-tv-dropdown-menu="combined" role="menu"
+      popover="manual" hidden>
       <div class="tv-dropdown-menu-section" role="group" aria-label="Progress">
         {% for value, label in [('', 'All'), ('not-started', 'New'), ('started', 'Started'), ('caught-up', 'Caught-up')]
         %}

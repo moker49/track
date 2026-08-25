@@ -44,7 +44,7 @@
         <span><strong data-episode-detail-watch-count>{{ episode.watch_count }}</strong>
           <span data-episode-detail-watch-label>{{ 'watches' if episode.watch_count != 1 else 'watch' }}</span></span>
       </button>
-      <div class="show-menu watch-menu episode-detail-watch-menu" data-watch-menu hidden>
+      <div class="show-menu watch-menu episode-detail-watch-menu" data-watch-menu popover="manual" hidden>
         <button type="button" data-watch-action="increment">
           <span class="material-symbols-rounded" aria-hidden="true">add</span>
           <span>rewatch</span>

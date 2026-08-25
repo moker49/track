@@ -2112,10 +2112,46 @@ function syncTvControlVisibility() {
   if (!visible) closeTvDropdowns();
 }
 
+function showFloatingMenu(menu, trigger) {
+  menu.hidden = false;
+  if (typeof menu.showPopover !== "function") return;
+  menu.style.position = "fixed";
+  menu.style.inset = "auto";
+  menu.style.margin = "0";
+  menu.showPopover();
+  const bounds = menu.getBoundingClientRect();
+  const triggerBounds = trigger.getBoundingClientRect();
+  const viewportInset = 8;
+  const left = Math.max(
+    viewportInset,
+    Math.min(triggerBounds.right - bounds.width, window.innerWidth - bounds.width - viewportInset),
+  );
+  const desiredTop = menu.matches("[data-tv-dropdown-menu]")
+    ? triggerBounds.top - bounds.height - 8
+    : triggerBounds.bottom + 4;
+  const top = Math.max(
+    viewportInset,
+    Math.min(desiredTop, window.innerHeight - bounds.height - viewportInset),
+  );
+  menu.style.top = `${top}px`;
+  menu.style.left = `${left}px`;
+  menu.style.width = `${bounds.width}px`;
+}
+
+function hideFloatingMenu(menu) {
+  if (typeof menu.hidePopover === "function" && menu.matches(":popover-open")) {
+    menu.hidePopover();
+  }
+  menu.hidden = true;
+  ["position", "inset", "margin", "top", "left", "width"].forEach((property) => {
+    menu.style.removeProperty(property);
+  });
+}
+
 function closeTvDropdowns(exceptMenu = null) {
   document.querySelectorAll("[data-tv-dropdown-menu]").forEach((menu) => {
     if (menu === exceptMenu) return;
-    menu.hidden = true;
+    hideFloatingMenu(menu);
     menu.parentElement.querySelector("[data-tv-dropdown-toggle]")
       ?.setAttribute("aria-expanded", "false");
   });
@@ -2130,7 +2166,8 @@ function toggleTvDropdown(button) {
   closeShowMenus();
   closeWatchMenus();
   closeTvDropdowns(menu);
-  menu.hidden = !willOpen;
+  if (willOpen) showFloatingMenu(menu, button);
+  else hideFloatingMenu(menu);
   button.setAttribute("aria-expanded", String(willOpen));
   syncMenuScrim();
 }
@@ -2138,7 +2175,7 @@ function toggleTvDropdown(button) {
 function closeShowMenus(exceptMenu = null) {
   document.querySelectorAll("[data-show-menu]").forEach((menu) => {
     if (menu === exceptMenu) return;
-    menu.hidden = true;
+    hideFloatingMenu(menu);
     menu.parentElement.querySelector("[data-show-menu-button]")
       ?.setAttribute("aria-expanded", "false");
   });
@@ -2191,14 +2228,15 @@ function toggleShowMenu(button) {
   clearDetailSliceReveals(views.get("detail"));
   closeWatchMenus();
   closeShowMenus(menu);
-  menu.hidden = !willOpen;
+  if (willOpen) showFloatingMenu(menu, button);
+  else hideFloatingMenu(menu);
   button.setAttribute("aria-expanded", String(willOpen));
   syncMenuScrim();
 }
 
 function closeWatchMenus(exceptMenu = null) {
   document.querySelectorAll("[data-watch-menu]").forEach((menu) => {
-    if (menu !== exceptMenu) menu.hidden = true;
+    if (menu !== exceptMenu) hideFloatingMenu(menu);
   });
   syncMenuScrim();
 }
@@ -2210,7 +2248,8 @@ function toggleWatchMenu(control) {
   clearDetailSliceReveals(views.get("detail"));
   closeShowMenus();
   closeWatchMenus(menu);
-  menu.hidden = !willOpen;
+  if (willOpen) showFloatingMenu(menu, control);
+  else hideFloatingMenu(menu);
   syncMenuScrim();
 }
 

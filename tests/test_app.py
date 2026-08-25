@@ -722,10 +722,11 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("@keyframes schedule-rail-reveal", css)
         self.assertIn("@keyframes schedule-dot-reveal", css)
         self.assertIn("@keyframes media-image-reveal", css)
-        self.assertIn(
-            ".episode-watch-summary-wrap:has(.episode-detail-watch-menu:not([hidden]))",
-            css,
-        )
+        self.assertNotIn(":has(.episode-detail-watch-menu:not([hidden]))", css)
+        self.assertIn(".show-menu:popover-open,", css)
+        self.assertIn("function showFloatingMenu(menu, trigger)", javascript)
+        self.assertIn("menu.showPopover();", javascript)
+        self.assertIn("function hideFloatingMenu(menu)", javascript)
         self.assertIn('image.dataset.mediaImagePending = "";', javascript)
         self.assertIn('image.classList.add("media-image-reveal")', javascript)
         self.assertIn('const menuScrim = document.querySelector("[data-menu-scrim]")', javascript)
@@ -901,10 +902,11 @@ class TrackAppTest(unittest.TestCase):
         second.close()
         unsupported.close()
 
-    def test_open_watch_menu_elevates_its_season(self):
+    def test_open_watch_menu_uses_top_layer_without_elevating_its_season(self):
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text()
-        self.assertIn('.season:has(.watch-menu:not([hidden]))', css)
-        self.assertIn("z-index: 30", css)
+        self.assertNotIn('.season:has(.watch-menu:not([hidden]))', css)
+        home = self.client.get("/")
+        self.assertIn(b'popover="manual"', home.data)
 
     def test_season_cards_form_an_attached_stack(self):
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(

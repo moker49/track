@@ -860,10 +860,6 @@ html.app-booting .schedule-empty-reveal {
   backdrop-filter: blur(14px);
 }
 
-.bottom-chrome:has(.tv-dropdown-menu:not([hidden])) {
-  z-index: 30;
-}
-
 .bottom-nav {
   position: relative;
   width: 100%;
@@ -1050,9 +1046,9 @@ html.app-booting .schedule-empty-reveal {
   cursor: default;
 }
 
-.show-card:has(.show-menu:not([hidden])),
-.detail-app-bar:has(.show-menu:not([hidden])) {
-  z-index: 30;
+.show-menu:popover-open,
+.tv-dropdown-menu:popover-open {
+  margin: 0;
 }
 
 .card-show-menu {
@@ -1288,10 +1284,6 @@ html.app-booting .schedule-empty-reveal {
 .season:not(:last-child) {
   border-end-start-radius: 4px;
   border-end-end-radius: 4px;
-}
-
-.season:has(.watch-menu:not([hidden])) {
-  z-index: 30;
 }
 
 .season summary {
@@ -1582,10 +1574,6 @@ html.app-booting .schedule-empty-reveal {
 .episode-watch-summary-wrap {
   width: 100%;
   height: auto;
-}
-
-.episode-watch-summary-wrap:has(.episode-detail-watch-menu:not([hidden])) {
-  z-index: 30;
 }
 
 .episode-watch-summary:focus-visible {
@@ -2066,10 +2054,6 @@ html.app-booting .schedule-empty-reveal {
   gap: 8px;
   border-top: 1px solid var(--outline-soft);
   background: transparent;
-}
-
-.tv-inline-bar:has(.tv-dropdown-menu:not([hidden])) {
-  z-index: 30;
 }
 
 .tv-library-button-group {
