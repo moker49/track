@@ -1029,7 +1029,7 @@ html.app-booting .schedule-empty-reveal {
   z-index: 25;
   padding: 8px 0;
   border: 1px solid var(--outline-soft);
-  border-radius: var(--radius-sm);
+  border-radius: 20px;
   color: var(--on-surface);
   background: var(--surface-high);
   box-shadow: 0 6px 18px var(--shadow);
@@ -2199,7 +2199,7 @@ html.app-booting .schedule-empty-reveal {
   min-width: 156px;
   padding: 8px 0;
   border: 1px solid var(--outline-soft);
-  border-radius: 16px;
+  border-radius: 20px;
   overflow: hidden;
   color: var(--on-surface);
   background: var(--surface-high);
@@ -2212,7 +2212,7 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .tv-combined-menu {
-  width: min(240px, calc(100vw - 24px));
+  width: min(200px, calc(100vw - 24px));
   padding: 0;
   border: 0;
   overflow: visible;
@@ -2225,10 +2225,18 @@ html.app-booting .schedule-empty-reveal {
 .tv-dropdown-menu-section {
   padding: 8px 0;
   border: 1px solid var(--outline-soft);
-  border-radius: 16px;
+  border-radius: 20px;
   overflow: hidden;
   background: var(--surface-high);
   box-shadow: 0 8px 24px var(--shadow);
+}
+
+.tv-dropdown-menu-section:first-child:not(:only-child) {
+  border-radius: 20px 20px 6px 6px;
+}
+
+.tv-dropdown-menu-section:last-child:not(:only-child) {
+  border-radius: 6px 6px 20px 20px;
 }
 
 .tv-dropdown-menu button {
@@ -2246,6 +2254,14 @@ html.app-booting .schedule-empty-reveal {
   font-size: 0.88rem;
   text-align: left;
   cursor: pointer;
+}
+
+.tv-dropdown-menu button[aria-checked="true"] {
+  width: calc(100% - 16px);
+  margin-inline: 8px;
+  border-radius: 14px;
+  color: var(--primary);
+  background: var(--primary-light);
 }
 
 .tv-dropdown-selection {
