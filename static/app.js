@@ -2961,7 +2961,8 @@ function filterShowView(view) {
     librarySwitcher.hidden = searching;
     librarySwitcher.dataset.selectedState = preferences.state;
     librarySwitcher.querySelectorAll("[data-tv-library-state]").forEach((button) => {
-      button.setAttribute("aria-pressed", String(button.dataset.tvLibraryState === preferences.state));
+      const selected = button.dataset.tvLibraryState === preferences.state;
+      button.setAttribute("aria-pressed", String(selected));
     });
   }
   const controlBar = view.querySelector("[data-tv-control-bar]");

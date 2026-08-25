@@ -2085,9 +2085,13 @@ html.app-booting .schedule-empty-reveal {
   min-width: 0;
   min-height: 48px;
   padding: 0 10px;
-  border: 1px solid var(--outline);
-  color: var(--on-surface);
-  background: transparent;
+  border: 0 solid red;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary-light) 72%, var(--surface-high));
   font: inherit;
   font-size: 0.78rem;
   font-weight: 600;
@@ -2105,10 +2109,10 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .tv-library-button-group button[aria-pressed="true"] {
-  border-color: var(--primary-light);
+  border-color: var(--primary-mid);
   border-radius: 24px;
-  color: var(--primary-dark);
-  background: var(--primary-light);
+  color: var(--on-surface);
+  background: var(--primary-mid);
   font-weight: 700;
 }
 

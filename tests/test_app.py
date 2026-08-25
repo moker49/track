@@ -704,6 +704,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("transform: translate(-50%, calc(100% + 16px));", css)
         self.assertIn(".tv-library-button-group {", css)
         self.assertIn('.tv-library-button-group button[aria-pressed="true"] {', css)
+        self.assertIn("background: var(--primary-mid);", css)
         self.assertIn("border-radius: 24px;", css)
         self.assertIn("bottom: calc(100% + 8px);", css)
         self.assertNotIn(".tv-control-bar {", css)
