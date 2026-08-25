@@ -2053,7 +2053,6 @@ html.app-booting .schedule-empty-reveal {
   left: 50%;
   bottom: calc(72px + env(safe-area-inset-bottom));
   width: min(100%, 520px);
-  min-height: 64px;
   padding: 8px 12px;
   transform: translate(-50%, 0);
   display: grid;
@@ -2083,7 +2082,7 @@ html.app-booting .schedule-empty-reveal {
 
 .tv-library-button-group button {
   min-width: 0;
-  min-height: 48px;
+  min-height: 36px;
   padding: 0 10px;
   border: 0 solid red;
   display: inline-flex;
@@ -2131,7 +2130,7 @@ html.app-booting .schedule-empty-reveal {
 .tv-dropdown-toggle {
   width: 100%;
   min-width: 0;
-  min-height: 48px;
+  min-height: 36px;
   padding: 0 12px;
   border: 1px solid var(--outline-soft);
   border-radius: 24px;

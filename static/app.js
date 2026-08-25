@@ -120,6 +120,11 @@ let scheduleViewsHydrated = false;
 let scheduleCalendarDate = toIsoDate(new Date());
 let imageViewerAspectRatio = null;
 let imageViewerClosing = false;
+let tvScrollControlsReady = false;
+
+if ("scrollRestoration" in window.history) {
+  window.history.scrollRestoration = "manual";
+}
 
 if (!window.history.state?.trackApp) {
   window.history.replaceState({ trackApp: true, view: "backlog" }, "");
@@ -298,6 +303,7 @@ function showView(viewName, historyMode = null) {
   }
   if (currentView === "tv" && viewName !== "tv") {
     clearTvFirstReveal(views.get("tv"));
+    tvScrollControlsReady = false;
   }
   const firstScheduleReveal = ["backlog", "upcoming"].includes(viewName)
     && !revealedViewAnimations.has(viewName);
@@ -334,6 +340,11 @@ function showView(viewName, historyMode = null) {
       "[data-tv-library-switcher], [data-tv-control-bar]",
     ).forEach((control) => control.classList.remove("is-scroll-hidden"));
     lastTvScrollY = window.scrollY;
+    window.requestAnimationFrame(() => {
+      if (currentView !== "tv") return;
+      lastTvScrollY = window.scrollY;
+      tvScrollControlsReady = true;
+    });
   }
   if (["backlog", "upcoming"].includes(viewName)) {
     if (firstScheduleDataReady) {
@@ -3030,6 +3041,10 @@ window.addEventListener("scroll", () => {
   if (currentView === "tv") {
     const switcher = views.get("tv")?.querySelector("[data-tv-library-switcher]");
     const controlBar = views.get("tv")?.querySelector("[data-tv-control-bar]");
+    if (!tvScrollControlsReady) {
+      lastTvScrollY = currentScrollY;
+      return;
+    }
     if (currentScrollY > lastTvScrollY) {
       switcher?.classList.add("is-scroll-hidden");
       controlBar?.classList.add("is-scroll-hidden");
