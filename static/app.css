@@ -2081,12 +2081,20 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .tv-control-bar {
-  position: relative;
-  z-index: 5;
+  position: sticky;
+  z-index: 9;
+  top: calc(80px + env(safe-area-inset-top));
   padding: 8px 16px 12px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  background: var(--surface);
+  transition: transform 160ms ease-in-out;
+  will-change: transform;
+}
+
+.tv-control-bar.is-scroll-hidden {
+  transform: translateY(calc(-100% - 12px));
 }
 
 .tv-control-bar:has(.tv-dropdown-menu:not([hidden])) {

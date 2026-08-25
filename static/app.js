@@ -331,8 +331,9 @@ function showView(viewName, historyMode = null) {
   document.title = titles[viewName] || "Track";
   window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
   if (viewName === "tv") {
-    views.get("tv").querySelector("[data-tv-library-switcher]")
-      ?.classList.remove("is-scroll-hidden");
+    views.get("tv").querySelectorAll(
+      "[data-tv-library-switcher], [data-tv-control-bar]",
+    ).forEach((control) => control.classList.remove("is-scroll-hidden"));
     lastTvScrollY = window.scrollY;
   }
   if (["backlog", "upcoming"].includes(viewName)) {
@@ -2659,6 +2660,8 @@ document.addEventListener("click", (event) => {
     lastTvScrollY = 0;
     views.get("tv").querySelector("[data-tv-library-switcher]")
       ?.classList.remove("is-scroll-hidden");
+    views.get("tv").querySelector("[data-tv-control-bar]")
+      ?.classList.remove("is-scroll-hidden");
     revealTvStateOnce(views.get("tv"));
     return;
   }
@@ -3017,8 +3020,17 @@ window.addEventListener("scroll", () => {
   const currentScrollY = window.scrollY;
   if (currentView === "tv") {
     const switcher = views.get("tv")?.querySelector("[data-tv-library-switcher]");
-    if (currentScrollY > lastTvScrollY) switcher?.classList.add("is-scroll-hidden");
-    else if (currentScrollY < lastTvScrollY) switcher?.classList.remove("is-scroll-hidden");
+    const controlBar = views.get("tv")?.querySelector("[data-tv-control-bar]");
+    if (currentScrollY > lastTvScrollY) {
+      switcher?.classList.add("is-scroll-hidden");
+      controlBar?.classList.add("is-scroll-hidden");
+      if (controlBar?.querySelector("[data-tv-dropdown-menu]:not([hidden])")) {
+        closeTvDropdowns();
+      }
+    } else if (currentScrollY < lastTvScrollY) {
+      switcher?.classList.remove("is-scroll-hidden");
+      controlBar?.classList.remove("is-scroll-hidden");
+    }
     lastTvScrollY = currentScrollY;
     return;
   }
