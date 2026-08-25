@@ -217,29 +217,70 @@ def get_diary_entries(db: sqlite3.Connection) -> list[dict]:
     effective_date = effective_watch_date_sql("wh")
     rows = db.execute(
         f"""
-        SELECT wh.id AS watch_record_id, wh.added_at, wh.watch_date,
-               {effective_date} AS watched_date,
-               s.id AS show_id, s.name AS show_name, s.poster_path,
-               sn.id AS season_id, sn.season_number,
-               e.id AS episode_id, e.episode_number
-        FROM episode_watch_history wh
-        JOIN episodes e ON e.id = wh.episode_id
-        JOIN seasons sn ON sn.id = e.season_id
-        JOIN shows s ON s.id = sn.show_id
-        ORDER BY watched_date DESC, wh.added_at DESC, wh.id DESC
+        WITH diary_watches AS (
+            SELECT wh.id AS watch_record_id, wh.added_at, wh.watch_date,
+                   {effective_date} AS watched_date,
+                   s.id AS show_id, s.name AS show_name, s.poster_path,
+                   sn.id AS season_id, sn.season_number,
+                   e.id AS episode_id, e.episode_number,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY e.id, {effective_date}
+                       ORDER BY wh.added_at, wh.id
+                   ) AS watch_iteration
+            FROM episode_watch_history wh
+            JOIN episodes e ON e.id = wh.episode_id
+            JOIN seasons sn ON sn.id = e.season_id
+            JOIN shows s ON s.id = sn.show_id
+        )
+        SELECT * FROM diary_watches
+        ORDER BY watched_date DESC, added_at DESC, watch_record_id DESC
         """
     ).fetchall()
-    entries = []
+    release_groups: dict[tuple[str, int, int, int], list[dict]] = {}
     for row in rows:
-        entry = dict(row)
+        watch = dict(row)
+        release_groups.setdefault(
+            (
+                watch["watched_date"],
+                watch["show_id"],
+                watch["season_id"],
+                watch["watch_iteration"],
+            ),
+            [],
+        ).append(watch)
+
+    entries = []
+    for watches in release_groups.values():
+        watches.sort(key=lambda watch: (watch["episode_number"], watch["watch_record_id"]))
+        entry = dict(watches[0])
         watched_date = date.fromisoformat(entry["watched_date"])
+        is_grouped = len(watches) > 1
+        release_metadata = (
+            f"Season {entry['season_number']} · Episodes "
+            f"{watches[0]['episode_number']}–{watches[-1]['episode_number']}"
+            if is_grouped
+            else f"Season {entry['season_number']} · Episode {entry['episode_number']}"
+        )
         entry.update(
-            month_key=watched_date.strftime("%Y-%m"),
+            month_key=f"{9999 - watched_date.year:04d}-{13 - watched_date.month:02d}",
             month_label=watched_date.strftime("%B %Y").upper(),
             day_label=f"{watched_date.day:02d}",
             weekday_label=watched_date.strftime("%a").upper(),
+            is_grouped=is_grouped,
+            season_ids=str(entry["season_id"]),
+            watch_record_ids=",".join(str(watch["watch_record_id"]) for watch in watches),
+            release_metadata=release_metadata,
+            latest_added_at=max(watch["added_at"] for watch in watches),
         )
         entries.append(entry)
+    entries.sort(
+        key=lambda entry: (
+            entry["watched_date"],
+            entry["latest_added_at"],
+            entry["watch_record_id"],
+        ),
+        reverse=True,
+    )
     return entries
 
 

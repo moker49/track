@@ -2932,8 +2932,9 @@ document.addEventListener("click", (event) => {
   if (scheduleShowOpen) {
     const card = scheduleShowOpen.closest("[data-schedule-card]");
     const openSeasonIds = card.dataset.seasonIds.split(",").filter(Boolean);
-    detailParentView = "upcoming";
-    openShow(card.dataset.showId, "upcoming", true, "push", {
+    const parentView = currentView === "profile" ? "profile" : "upcoming";
+    detailParentView = parentView;
+    openShow(card.dataset.showId, parentView, true, "push", {
       openSeasonIds,
       detailScrollY: 0,
     });

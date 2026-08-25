@@ -272,17 +272,27 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"MAY 2026", diary.data)
         self.assertIn(b"Active Test Show", diary.data)
         self.assertIn("Season 1 · Episode 1".encode(), diary.data)
-        self.assertIn(b'data-watch-record-id="1"', diary.data)
+        self.assertIn(b'data-watch-record-ids="1"', diary.data)
         self.assertNotIn(b"Opening Episode", diary.data)
         self.assertNotIn(b"schedule-timeline-countdown", diary.data)
         self.assertNotIn(b"schedule-timeline-episode-title", diary.data)
+
+        grouped_date = self.client.patch(
+            "/api/watch-history/episode/2/date", json={"watch_date": "2026-05-04"}
+        )
+        self.assertEqual(grouped_date.status_code, 200)
+        grouped_diary = self.client.get("/api/profile/diary")
+        self.assertIn("Season 1 · Episodes 1–2".encode(), grouped_diary.data)
+        self.assertNotIn(b">2 episodes</span>", grouped_diary.data)
+        self.assertIn(b'data-season-ids="1"', grouped_diary.data)
+        self.assertIn(b'data-watch-record-ids="1,2"', grouped_diary.data)
 
         rewatch = self.client.post(
             "/api/episodes/1/watch-count", json={"action": "increment"}
         )
         self.assertEqual(rewatch.status_code, 200)
         rewatched_diary = self.client.get("/api/profile/diary")
-        self.assertEqual(rewatched_diary.data.count(b'data-episode-id="1"'), 2)
+        self.assertEqual(rewatched_diary.data.count(b'data-episode-id="1"'), 1)
 
         dated = self.client.patch(
             "/api/watch-history/episode/1/date", json={"watch_date": "2008-01-20"}
@@ -298,6 +308,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("min-height: 76px;", css)
         self.assertIn("grid-template-columns: 36px minmax(0, 1fr);", css)
         self.assertIn("width: 36px;\n  height: 60px;", css)
+        self.assertNotIn(".diary-group-detail", css)
 
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
