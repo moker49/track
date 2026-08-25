@@ -108,6 +108,9 @@ const detailRevealAnimationHandlers = new WeakMap();
 let currentView = "backlog";
 let detailParentView = "backlog";
 let profileParentView = "backlog";
+let diaryRevision = 0;
+let renderedDiaryRevision = 0;
+let diaryRequest = null;
 let detailRequest = null;
 let pendingRemoveShowId = null;
 let datePickerTarget = null;
@@ -307,6 +310,26 @@ function selectProfileTab(tabName, { focus = false } = {}) {
   if (focus) selectedTab.focus();
 }
 
+async function refreshDiaryContent() {
+  if (diaryRequest) return diaryRequest;
+  const panel = views.get("profile")?.querySelector('[data-profile-panel="diary"]');
+  if (!panel) return undefined;
+  const requestedRevision = diaryRevision;
+  panel.setAttribute("aria-busy", "true");
+  diaryRequest = (async () => {
+    const response = await fetch("/api/profile/diary", {
+      headers: { "X-Requested-With": "Track" },
+    });
+    if (!response.ok) throw new Error("Could not refresh diary");
+    panel.innerHTML = await response.text();
+    renderedDiaryRevision = requestedRevision;
+  })().catch(() => undefined).finally(() => {
+    panel.removeAttribute("aria-busy");
+    diaryRequest = null;
+  });
+  return diaryRequest;
+}
+
 function openProfileFromTrigger(trigger) {
   profileParentView = ["backlog", "upcoming", "tv"].includes(currentView)
     ? currentView
@@ -365,7 +388,8 @@ function showView(viewName, historyMode = null) {
     view.classList.toggle("is-active", active);
   });
 
-  updateActiveNav(viewName === "detail" ? detailParentView
+  updateActiveNav(viewName === "detail"
+    ? (detailParentView === "profile" ? profileParentView : detailParentView)
     : viewName === "profile" ? profileParentView
       : viewName);
   currentView = viewName;
@@ -376,6 +400,9 @@ function showView(viewName, historyMode = null) {
   syncTvControlVisibility();
   if (viewName === "tv") {
     window.requestAnimationFrame(() => revealTvStateOnce(views.get("tv")));
+  }
+  if (viewName === "profile" && renderedDiaryRevision !== diaryRevision) {
+    refreshDiaryContent();
   }
   const titles = {
     backlog: "Queue · Track",
@@ -1204,6 +1231,7 @@ function invalidateEpisodeCache(episodeId) {
 }
 
 function invalidateWatchCaches({ showId, episodeId = null, allEpisodes = false }) {
+  diaryRevision += 1;
   if (allEpisodes) episodeDetailCache.clear();
   else if (episodeId !== null) invalidateEpisodeCache(episodeId);
   invalidateShowCache(showId, true);
@@ -1590,7 +1618,7 @@ async function openShow(
   returnContext = null,
 ) {
   const cacheKey = String(showId);
-  detailParentView = ["backlog", "upcoming", "tv"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "profile"].includes(parentView)
     ? parentView
     : "backlog";
   if (historyMode) {
@@ -2099,6 +2127,7 @@ async function saveWatchDate() {
     if (detailShow) invalidateShowCache(detailShow.dataset.showId);
     const detailEpisode = datePickerTarget.closest("[data-detail-episode]");
     if (detailEpisode) invalidateEpisodeCache(detailEpisode.dataset.episodeId);
+    if (data.watch_kind === "episode") diaryRevision += 1;
     datePicker.close();
   } catch (_error) {
     showSnackbar("Couldn't update the watch date. Try again.");
@@ -2779,7 +2808,9 @@ document.addEventListener("click", (event) => {
 
   const scheduleEpisodeOpen = event.target.closest("[data-schedule-episode-open]");
   if (scheduleEpisodeOpen) {
-    detailParentView = currentView === "upcoming" ? "upcoming" : "backlog";
+    detailParentView = ["upcoming", "profile"].includes(currentView)
+      ? currentView
+      : "backlog";
     openEpisode(scheduleEpisodeOpen.closest("[data-episode-id]").dataset.episodeId);
     return;
   }
@@ -3336,7 +3367,7 @@ function restoreHistoryState(state) {
   }
 
   const restoredParent = legacyViews[state.parentView] || state.parentView;
-  detailParentView = ["backlog", "upcoming", "tv"].includes(restoredParent)
+  detailParentView = ["backlog", "upcoming", "tv", "profile"].includes(restoredParent)
     ? restoredParent
     : "backlog";
   if (state.detailType === "show" && state.showId) {

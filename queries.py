@@ -213,6 +213,36 @@ def get_upcoming_episodes(
     return upcoming
 
 
+def get_diary_entries(db: sqlite3.Connection) -> list[dict]:
+    effective_date = effective_watch_date_sql("wh")
+    rows = db.execute(
+        f"""
+        SELECT wh.id AS watch_record_id, wh.added_at, wh.watch_date,
+               {effective_date} AS watched_date,
+               s.id AS show_id, s.name AS show_name, s.poster_path,
+               sn.id AS season_id, sn.season_number,
+               e.id AS episode_id, e.episode_number
+        FROM episode_watch_history wh
+        JOIN episodes e ON e.id = wh.episode_id
+        JOIN seasons sn ON sn.id = e.season_id
+        JOIN shows s ON s.id = sn.show_id
+        ORDER BY watched_date DESC, wh.added_at DESC, wh.id DESC
+        """
+    ).fetchall()
+    entries = []
+    for row in rows:
+        entry = dict(row)
+        watched_date = date.fromisoformat(entry["watched_date"])
+        entry.update(
+            month_key=watched_date.strftime("%Y-%m"),
+            month_label=watched_date.strftime("%B %Y").upper(),
+            day_label=f"{watched_date.day:02d}",
+            weekday_label=watched_date.strftime("%a").upper(),
+        )
+        entries.append(entry)
+    return entries
+
+
 def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]:
     effective_date = effective_watch_date_sql("swh")
     return db.execute(

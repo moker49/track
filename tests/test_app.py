@@ -266,6 +266,46 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".episode.is-returned-to", css)
         self.assertIn("@keyframes episode-return-highlight", css)
 
+    def test_diary_renders_compact_dated_watch_entries_and_rewatches(self):
+        diary = self.client.get("/api/profile/diary")
+        self.assertEqual(diary.status_code, 200)
+        self.assertIn(b"MAY 2026", diary.data)
+        self.assertIn(b"Active Test Show", diary.data)
+        self.assertIn("Season 1 · Episode 1".encode(), diary.data)
+        self.assertIn(b'data-watch-record-id="1"', diary.data)
+        self.assertNotIn(b"Opening Episode", diary.data)
+        self.assertNotIn(b"schedule-timeline-countdown", diary.data)
+        self.assertNotIn(b"schedule-timeline-episode-title", diary.data)
+
+        rewatch = self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "increment"}
+        )
+        self.assertEqual(rewatch.status_code, 200)
+        rewatched_diary = self.client.get("/api/profile/diary")
+        self.assertEqual(rewatched_diary.data.count(b'data-episode-id="1"'), 2)
+
+        dated = self.client.patch(
+            "/api/watch-history/episode/1/date", json={"watch_date": "2008-01-20"}
+        )
+        self.assertEqual(dated.status_code, 200)
+        dated_diary = self.client.get("/api/profile/diary")
+        self.assertIn(b"JANUARY 2008", dated_diary.data)
+
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(".diary-timeline-item,", css)
+        self.assertIn("min-height: 76px;", css)
+        self.assertIn("grid-template-columns: 36px minmax(0, 1fr);", css)
+        self.assertIn("width: 36px;\n  height: 60px;", css)
+
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("async function refreshDiaryContent()", javascript)
+        self.assertIn('fetch("/api/profile/diary"', javascript)
+        self.assertIn("diaryRevision += 1;", javascript)
+
     def test_backlog_and_upcoming_are_independent_primary_views(self):
         connection = sqlite3.connect(self.database)
         connection.execute(
@@ -1414,7 +1454,8 @@ class TrackAppTest(unittest.TestCase):
         db.close()
         self.assertEqual(tracked, 0)
         self.assertEqual((season_count, episode_count, history_count), before)
-        self.assertNotIn(b"Archived Test Show", self.client.get("/").data)
+        self.assertNotIn(b"Archived Test Show", self.client.get("/api/tv").data)
+        self.assertIn(b"Archived Test Show", self.client.get("/api/profile/diary").data)
         detail = self.client.get("/api/shows/2")
         self.assertIn(b'data-track-show-state="ACTIVE"', detail.data)
 

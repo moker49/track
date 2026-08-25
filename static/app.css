@@ -549,6 +549,31 @@ html.app-booting .schedule-empty-reveal {
   font-weight: 500;
 }
 
+.diary-timeline-item,
+.diary-timeline-item .schedule-timeline-content,
+.diary-timeline-item .schedule-timeline-open {
+  min-height: 76px;
+}
+
+.diary-timeline-item .schedule-timeline-open {
+  padding: 8px 0 8px 8px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.diary-timeline-item .schedule-timeline-poster {
+  width: 36px;
+  height: 60px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.diary-timeline-item .schedule-timeline-copy {
+  padding-top: 0;
+  gap: 4px;
+}
+
 .schedule-timeline-countdown {
   align-self: center;
   margin-right: 2px;

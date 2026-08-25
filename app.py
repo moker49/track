@@ -23,6 +23,7 @@ from tmdb import TMDBClient, TMDBError
 from tmdb_import import import_or_refresh_show
 from queries import (
     get_catch_up_episodes,
+    get_diary_entries,
     get_library_show,
     get_show_activity,
     get_tv_library_shows,
@@ -177,6 +178,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "index.html",
             catch_up_episodes=get_catch_up_episodes(db, local_date=local_date),
             upcoming_episodes=get_upcoming_episodes(db, local_date),
+            diary_entries=get_diary_entries(db),
             active_shows=active_shows,
             archived_shows=archived_shows,
         )
@@ -198,6 +200,13 @@ def create_app(test_config: dict | None = None) -> Flask:
             "_schedule_content.html",
             catch_up_episodes=get_catch_up_episodes(db, local_date=local_date),
             upcoming_episodes=get_upcoming_episodes(db, local_date),
+        )
+
+    @app.get("/api/profile/diary")
+    def diary_fragment():
+        return render_template(
+            "_diary_content.html",
+            diary_entries=get_diary_entries(get_db()),
         )
 
     @app.get("/api/schedule/shows/<int:show_id>/catch-up")
