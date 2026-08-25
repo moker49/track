@@ -905,6 +905,10 @@ html.app-booting .schedule-empty-reveal {
   padding-top: 12px;
 }
 
+[data-view="tv"] {
+  padding-bottom: 76px;
+}
+
 .archived-section {
   padding-top: 12px;
 }
@@ -931,50 +935,6 @@ html.app-booting .schedule-empty-reveal {
 
 .bottom-context-switcher.is-scroll-hidden {
   transform: translate(-50%, calc(100% + 16px));
-}
-
-.tv-library-switcher::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  top: 4px;
-  bottom: 4px;
-  left: 4px;
-  width: calc((100% - 12px) / 2);
-  border-radius: 22px;
-  background: var(--primary-light);
-  transform: translateX(0);
-  transition: transform 80ms ease-in-out;
-}
-
-.tv-library-switcher[data-selected-state="ARCHIVED"]::before {
-  transform: translateX(calc(100% + 4px));
-}
-
-.tv-library-switcher button {
-  position: relative;
-  z-index: 1;
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 22px;
-  color: var(--on-surface-muted);
-  background: transparent;
-  font: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  transition: color 160ms ease-in-out;
-}
-
-.tv-library-switcher button[aria-pressed="true"] {
-  color: var(--primary-dark);
-  font-weight: 700;
-}
-
-.tv-library-switcher button:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 1px;
 }
 
 .episode-navigation-switcher button {
@@ -2080,25 +2040,76 @@ html.app-booting .schedule-empty-reveal {
   display: none;
 }
 
-.tv-control-bar {
-  position: sticky;
-  z-index: 9;
-  top: calc(80px + env(safe-area-inset-top));
-  padding: 8px 16px 12px;
+.tv-inline-bar {
+  position: fixed;
+  z-index: 19;
+  left: 50%;
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  width: min(100%, 520px);
+  min-height: 64px;
+  padding: 8px 12px;
+  transform: translate(-50%, 0);
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(132px, 1.4fr) repeat(2, minmax(0, 1fr));
   gap: 8px;
-  background: var(--surface);
+  border-top: 1px solid var(--outline-soft);
+  background: var(--nav-surface);
+  backdrop-filter: blur(14px);
   transition: transform 160ms ease-in-out;
   will-change: transform;
 }
 
-.tv-control-bar.is-scroll-hidden {
-  transform: translateY(calc(-100% - 12px));
+.tv-inline-bar.is-scroll-hidden {
+  transform: translate(-50%, calc(100% + 16px));
 }
 
-.tv-control-bar:has(.tv-dropdown-menu:not([hidden])) {
+.tv-inline-bar:has(.tv-dropdown-menu:not([hidden])) {
   z-index: 30;
+}
+
+.tv-library-button-group {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.tv-library-button-group button {
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 10px;
+  border: 1px solid var(--outline);
+  color: var(--on-surface);
+  background: transparent;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-radius 160ms ease-in-out, color 160ms ease-in-out,
+    background-color 160ms ease-in-out;
+}
+
+.tv-library-button-group button:first-child {
+  border-radius: 24px 8px 8px 24px;
+}
+
+.tv-library-button-group button:last-child {
+  border-radius: 8px 24px 24px 8px;
+}
+
+.tv-library-button-group button[aria-pressed="true"] {
+  border-color: var(--primary-light);
+  border-radius: 24px;
+  color: var(--primary-dark);
+  background: var(--primary-light);
+  font-weight: 700;
+}
+
+.tv-library-button-group button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
 }
 
 .tv-dropdown {
@@ -2110,17 +2121,17 @@ html.app-booting .schedule-empty-reveal {
   width: 100%;
   min-width: 0;
   min-height: 48px;
-  padding: 0 12px;
+  padding: 0 8px;
   border: 1px solid var(--outline-soft);
   border-radius: 24px;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) 22px;
+  grid-template-columns: 18px minmax(0, 1fr) 18px;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   color: var(--on-surface);
-  background: var(--surface-high);
+  background: var(--surface-card);
   font: inherit;
-  font-size: 0.84rem;
+  font-size: 0.76rem;
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -2128,7 +2139,7 @@ html.app-booting .schedule-empty-reveal {
 
 .tv-dropdown-toggle>.material-symbols-rounded {
   color: var(--on-surface-muted);
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .tv-dropdown-toggle .tv-dropdown-chevron {
@@ -2149,7 +2160,7 @@ html.app-booting .schedule-empty-reveal {
 .tv-dropdown-menu {
   position: absolute;
   z-index: 25;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 8px);
   left: 0;
   width: 100%;
   min-width: 156px;
@@ -2703,8 +2714,9 @@ html.app-booting .tv-slice-reveal {
     border-radius: 0 0 28px 28px;
   }
 
-  .bottom-context-switcher {
-    bottom: calc(108px + env(safe-area-inset-bottom));
+  .bottom-context-switcher,
+  .tv-inline-bar {
+    bottom: calc(96px + env(safe-area-inset-bottom));
   }
 
 }

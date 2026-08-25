@@ -1,5 +1,34 @@
 {% from "_show_card.html" import show_card %}
-<div class="tv-control-bar" data-tv-control-bar>
+
+<section class="page-section tv-library-section" data-state-section="ACTIVE" aria-label="Active shows">
+  <div class="show-list" data-show-list="ACTIVE">
+    {% for show in active_shows %}{{ show_card(show) }}{% endfor %}
+  </div>
+  <div class="empty-state state-empty" data-state-empty {% if active_shows %}hidden{% endif %}>
+    <span class="empty-icon material-symbols-rounded" aria-hidden="true">tv_off</span>
+    <h3>Nothing active</h3>
+    <p>Add a show when you’re ready to start watching.</p>
+  </div>
+</section>
+
+<section class="page-section tv-library-section archived-section" data-state-section="ARCHIVED"
+  aria-label="Archived shows" hidden>
+  <div class="show-list" data-show-list="ARCHIVED">
+    {% for show in archived_shows %}{{ show_card(show) }}{% endfor %}
+  </div>
+  <div class="empty-state state-empty" data-state-empty {% if archived_shows %}hidden{% endif %}>
+    <span class="empty-icon material-symbols-rounded" aria-hidden="true">inventory_2</span>
+    <h3>No archived shows</h3>
+    <p>Shows you archive will appear here.</p>
+  </div>
+</section>
+
+<div class="tv-inline-bar" data-tv-control-bar data-tv-library-switcher data-selected-state="ACTIVE">
+  <div class="tv-library-button-group" role="group" aria-label="TV list">
+    <button type="button" data-tv-library-state="ACTIVE" aria-pressed="true">Active</button>
+    <button type="button" data-tv-library-state="ARCHIVED" aria-pressed="false">Archived</button>
+  </div>
+
   <div class="tv-dropdown">
     <button class="tv-dropdown-toggle" type="button" data-tv-dropdown-toggle="progress" aria-expanded="false">
       <span class="material-symbols-rounded" aria-hidden="true">filter_list</span>
@@ -33,35 +62,6 @@
       {% endfor %}
     </div>
   </div>
-</div>
-
-<section class="page-section tv-library-section" data-state-section="ACTIVE" aria-label="Active shows">
-  <div class="show-list" data-show-list="ACTIVE">
-    {% for show in active_shows %}{{ show_card(show) }}{% endfor %}
-  </div>
-  <div class="empty-state state-empty" data-state-empty {% if active_shows %}hidden{% endif %}>
-    <span class="empty-icon material-symbols-rounded" aria-hidden="true">tv_off</span>
-    <h3>Nothing active</h3>
-    <p>Add a show when you’re ready to start watching.</p>
-  </div>
-</section>
-
-<section class="page-section tv-library-section archived-section" data-state-section="ARCHIVED"
-  aria-label="Archived shows" hidden>
-  <div class="show-list" data-show-list="ARCHIVED">
-    {% for show in archived_shows %}{{ show_card(show) }}{% endfor %}
-  </div>
-  <div class="empty-state state-empty" data-state-empty {% if archived_shows %}hidden{% endif %}>
-    <span class="empty-icon material-symbols-rounded" aria-hidden="true">inventory_2</span>
-    <h3>No archived shows</h3>
-    <p>Shows you archive will appear here.</p>
-  </div>
-</section>
-
-<div class="bottom-context-switcher tv-library-switcher" data-tv-library-switcher data-selected-state="ACTIVE" role="group"
-  aria-label="TV list">
-  <button type="button" data-tv-library-state="ACTIVE" aria-pressed="true">Active</button>
-  <button type="button" data-tv-library-state="ARCHIVED" aria-pressed="false">Archived</button>
 </div>
 
 <section class="page-section tv-add-section" data-tv-add-section aria-label="TMDB results" hidden>
