@@ -1448,6 +1448,8 @@ class TrackAppTest(unittest.TestCase):
         home = self.client.get("/")
         self.assertIn(b'data-date-picker', home.data)
         self.assertIn(b"Select watch date", home.data)
+        self.assertIn(b'data-date-picker-year-toggle', home.data)
+        self.assertIn(b'data-date-picker-years', home.data)
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
@@ -1455,6 +1457,15 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('month: "short"', javascript)
         self.assertNotIn("ordinalSuffix", javascript)
         self.assertNotIn("timeStyle", javascript)
+        self.assertIn("dataset.datePickerYear", javascript)
+        self.assertIn("optionYear = 2000", javascript)
+        click_handler = javascript.index('document.addEventListener("click"')
+        year_toggle_handler = javascript.index(
+            'if (event.target.closest("[data-date-picker-year-toggle]"))'
+        )
+        keyboard_handler = javascript.index('document.addEventListener("keydown"')
+        self.assertLess(click_handler, year_toggle_handler)
+        self.assertLess(year_toggle_handler, keyboard_handler)
 
     def test_show_can_be_archived_and_made_active_with_history(self):
         archive = self.client.post(

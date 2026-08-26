@@ -118,6 +118,7 @@ let pendingRemoveShowId = null;
 let datePickerTarget = null;
 let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
+let datePickerYearVisible = false;
 let lastEpisodeDetailScrollY = 0;
 let episodeNavigationPending = false;
 let tvSearchTimer = null;
@@ -2083,6 +2084,17 @@ function renderDatePicker() {
     new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" })
       .format(datePickerMonth);
 
+  const calendar = datePicker.querySelector(".date-picker-calendar");
+  const yearToggle = datePicker.querySelector("[data-date-picker-year-toggle]");
+  const yearGrid = datePicker.querySelector("[data-date-picker-years]");
+  const dayGrid = datePicker.querySelector("[data-date-picker-days]");
+  calendar.classList.toggle("is-year-view", datePickerYearVisible);
+  yearToggle.setAttribute("aria-expanded", String(datePickerYearVisible));
+  yearGrid.setAttribute("aria-hidden", String(!datePickerYearVisible));
+  yearGrid.inert = !datePickerYearVisible;
+  dayGrid.setAttribute("aria-hidden", String(datePickerYearVisible));
+  dayGrid.inert = datePickerYearVisible;
+
   const grid = datePicker.querySelector("[data-date-picker-grid]");
   grid.replaceChildren();
   const year = datePickerMonth.getFullYear();
@@ -2091,6 +2103,27 @@ function renderDatePicker() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const todayIso = toIsoDate(new Date());
   const selectedIso = datePickerSelectedDate ? toIsoDate(datePickerSelectedDate) : null;
+
+  if (datePickerYearVisible) {
+    yearGrid.replaceChildren();
+    const finalYear = Math.max(new Date().getFullYear() + 10, year);
+    for (let optionYear = 2000; optionYear <= finalYear; optionYear += 1) {
+      const button = document.createElement("button");
+      button.className = "date-picker-year";
+      button.type = "button";
+      button.dataset.datePickerYear = optionYear;
+      button.textContent = optionYear;
+      button.setAttribute("role", "option");
+      button.setAttribute("aria-selected", String(optionYear === year));
+      button.classList.toggle("is-selected", optionYear === year);
+      yearGrid.append(button);
+    }
+    const selectedYear = yearGrid.querySelector(".is-selected");
+    if (selectedYear) {
+      yearGrid.scrollTop = selectedYear.offsetTop
+        - ((yearGrid.clientHeight - selectedYear.offsetHeight) / 2);
+    }
+  }
 
   for (let index = 0; index < firstWeekday; index += 1) {
     grid.append(document.createElement("span"));
@@ -2118,11 +2151,13 @@ function openWatchDatePicker(item) {
   datePickerSelectedDate = parseIsoDate(item.dataset.watchDate);
   const visibleDate = datePickerSelectedDate || parseIsoDate(item.dataset.sortDate) || new Date();
   datePickerMonth = new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1);
+  datePickerYearVisible = false;
   renderDatePicker();
   datePicker.showModal();
 }
 
 function shiftDatePickerMonth(offset) {
+  datePickerYearVisible = false;
   datePickerMonth = new Date(
     datePickerMonth.getFullYear(),
     datePickerMonth.getMonth() + offset,
@@ -2898,6 +2933,24 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const datePickerYear = event.target.closest("[data-date-picker-year]");
+  if (datePickerYear) {
+    datePickerMonth = new Date(
+      Number(datePickerYear.dataset.datePickerYear),
+      datePickerMonth.getMonth(),
+      1,
+    );
+    datePickerYearVisible = false;
+    renderDatePicker();
+    return;
+  }
+
+  if (event.target.closest("[data-date-picker-year-toggle]")) {
+    datePickerYearVisible = !datePickerYearVisible;
+    renderDatePicker();
+    return;
+  }
+
   if (event.target.closest("[data-date-picker-previous]")) {
     shiftDatePickerMonth(-1);
     return;
@@ -3143,6 +3196,7 @@ document.addEventListener("keydown", (event) => {
     closeTvDropdowns();
     return;
   }
+
   const profileTab = event.target.closest("[data-profile-tab]");
   if (profileTab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
     event.preventDefault();
@@ -3356,6 +3410,7 @@ removeDialog?.addEventListener("close", () => {
 datePicker?.addEventListener("close", () => {
   datePickerTarget = null;
   datePickerSelectedDate = null;
+  datePickerYearVisible = false;
 });
 
 imageViewer?.addEventListener("click", (event) => {
