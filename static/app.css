@@ -3067,14 +3067,6 @@ html.app-booting .schedule-empty-reveal {
   backdrop-filter: blur(2px);
 }
 
-.dialog-icon {
-  color: var(--error);
-}
-
-.finished-archive-icon {
-  color: var(--progress-complete);
-}
-
 .confirm-dialog h2 {
   margin: 16px 0 10px;
   font-size: 1.5rem;
