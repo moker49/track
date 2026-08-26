@@ -508,7 +508,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('.schedule-skip-button {\n  width: 100%;\n  color: var(--primary);\n  background: transparent;', css)
         self.assertIn('.schedule-timeline-rail::before {', css)
         self.assertIn('.schedule-timeline-list>.schedule-timeline-item:first-child .schedule-timeline-rail::before {', css)
-        self.assertIn('.schedule-timeline-list>.schedule-timeline-item:last-child .schedule-timeline-rail::before {', css)
+        self.assertIn('.schedule-timeline-list>.schedule-timeline-item:last-child .schedule-timeline-rail::before,', css)
         self.assertIn('.schedule-timeline-list>.schedule-timeline-item:only-child .schedule-timeline-rail::before {', css)
         self.assertIn('top: calc(50% - 4px);', css)
         self.assertIn('.schedule-timeline-content::after {', css)
@@ -901,6 +901,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".tv-slice-reveal {", css)
         self.assertIn("@keyframes schedule-rail-reveal", css)
         self.assertIn("@keyframes schedule-dot-reveal", css)
+        self.assertIn(
+            '.schedule-timeline-item:not([hidden]):not(:has(~ .schedule-timeline-item:not([hidden]))) .schedule-timeline-content::after',
+            css,
+        )
         self.assertIn("@keyframes media-image-reveal", css)
         self.assertNotIn(":has(.episode-detail-watch-menu:not([hidden]))", css)
         self.assertIn(".show-menu:popover-open,", css)

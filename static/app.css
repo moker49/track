@@ -672,7 +672,8 @@ html.app-booting .app-boot-screen {
   background: linear-gradient(to bottom, transparent, var(--outline-soft) 32px);
 }
 
-.schedule-timeline-list>.schedule-timeline-item:last-child .schedule-timeline-rail::before {
+.schedule-timeline-list>.schedule-timeline-item:last-child .schedule-timeline-rail::before,
+.schedule-timeline-list>.schedule-timeline-item:not([hidden]):not(:has(~ .schedule-timeline-item:not([hidden]))) .schedule-timeline-rail::before {
   background: linear-gradient(to bottom, var(--outline-soft) calc(100% - 32px), transparent);
 }
 
@@ -754,7 +755,8 @@ html.app-booting .schedule-empty-reveal {
       transparent);
 }
 
-.schedule-timeline-item:last-child .schedule-timeline-content::after {
+.schedule-timeline-item:last-child .schedule-timeline-content::after,
+.schedule-timeline-item:not([hidden]):not(:has(~ .schedule-timeline-item:not([hidden]))) .schedule-timeline-content::after {
   display: none;
 }
 
