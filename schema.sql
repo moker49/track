@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS shows (
     id INTEGER PRIMARY KEY,
     tmdb_id INTEGER UNIQUE NOT NULL,
+    tvdb_id INTEGER UNIQUE,
     name TEXT NOT NULL,
     original_name TEXT,
     overview TEXT,
@@ -13,6 +14,7 @@ CREATE TABLE IF NOT EXISTS shows (
     original_language TEXT,
     state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
     is_tracked INTEGER NOT NULL DEFAULT 1 CHECK (is_tracked IN (0, 1)),
+    is_favorite INTEGER NOT NULL DEFAULT 0 CHECK (is_favorite IN (0, 1)),
     added_at TEXT NOT NULL,
     active_at TEXT,
     archived_at TEXT,
@@ -47,6 +49,7 @@ CREATE TABLE IF NOT EXISTS episodes (
     id INTEGER PRIMARY KEY,
     season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
     tmdb_id INTEGER UNIQUE NOT NULL,
+    tvdb_id INTEGER UNIQUE,
     episode_number INTEGER NOT NULL,
     name TEXT NOT NULL,
     overview TEXT,
@@ -78,12 +81,37 @@ CREATE TABLE IF NOT EXISTS episode_skips (
     skipped_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS show_notes (
+    id INTEGER PRIMARY KEY,
+    show_id INTEGER NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    added_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS episode_notes (
+    id INTEGER PRIMARY KEY,
+    episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    added_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS episode_external_ids (
+    id INTEGER PRIMARY KEY,
+    episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
+    source TEXT NOT NULL,
+    external_id TEXT NOT NULL,
+    UNIQUE (source, external_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_seasons_show ON seasons(show_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_season ON episodes(season_id);
 CREATE INDEX IF NOT EXISTS idx_watch_history_episode ON episode_watch_history(episode_id);
 CREATE INDEX IF NOT EXISTS idx_season_watch_history_season ON season_watch_history(season_id);
 CREATE INDEX IF NOT EXISTS idx_episode_skips_episode ON episode_skips(episode_id);
 CREATE INDEX IF NOT EXISTS idx_show_state_history_show ON show_state_history(show_id);
+CREATE INDEX IF NOT EXISTS idx_show_notes_show ON show_notes(show_id);
+CREATE INDEX IF NOT EXISTS idx_episode_notes_episode ON episode_notes(episode_id);
+CREATE INDEX IF NOT EXISTS idx_episode_external_ids_episode ON episode_external_ids(episode_id);
 
 CREATE TABLE IF NOT EXISTS image_cache (
     id INTEGER PRIMARY KEY,

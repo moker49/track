@@ -31,6 +31,8 @@ def import_or_refresh_show(
     seasons: list[dict],
     target_state: str | None,
     refreshed_at: str | None = None,
+    *,
+    manage_transaction: bool = True,
 ) -> tuple[int, bool, bool]:
     if target_state is not None and target_state not in VALID_STATES:
         raise ValueError("target_state must be ACTIVE, ARCHIVED, or null")
@@ -41,7 +43,8 @@ def import_or_refresh_show(
     ).fetchone()
 
     try:
-        db.execute("BEGIN")
+        if manage_transaction:
+            db.execute("BEGIN")
         if existing is None:
             cursor = db.execute(
                 """
@@ -212,8 +215,10 @@ def import_or_refresh_show(
                         json.dumps(episode, separators=(",", ":")),
                     ),
                 )
-        db.commit()
+        if manage_transaction:
+            db.commit()
         return show_id, created, newly_tracked
     except Exception:
-        db.rollback()
+        if manage_transaction:
+            db.rollback()
         raise

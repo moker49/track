@@ -168,6 +168,9 @@ class DatabaseBootstrapSmokeTest(unittest.TestCase):
             db.close()
             self.assertIn("shows", tables)
             self.assertIn("episode_watch_history", tables)
+            self.assertIn("show_notes", tables)
+            self.assertIn("episode_notes", tables)
+            self.assertIn("episode_external_ids", tables)
             self.assertNotIn("schema_migrations", tables)
             self.assertTrue(any(name.startswith("idx_") for name in indexes))
 

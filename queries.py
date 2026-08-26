@@ -467,12 +467,22 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
         f"""
         WITH ordered_states AS (
             SELECT state, entered_at,
-                   LAG(state) OVER (ORDER BY entered_at, id) AS previous_state
+                   LAG(state) OVER (ORDER BY entered_at, id) AS previous_state,
+                   ROW_NUMBER() OVER (ORDER BY entered_at, id) AS state_order
             FROM show_state_history
             WHERE show_id = ?
         ),
+        initial_state AS (
+            SELECT state
+            FROM ordered_states
+            WHERE state_order = 1
+        ),
         activity AS (
-            SELECT 'added' AS event_type, 'Added to My Shows' AS title,
+            SELECT 'added' AS event_type,
+                   CASE WHEN (SELECT state FROM initial_state) = 'ARCHIVED'
+                        THEN 'Added to Archive'
+                        ELSE 'Added to My Shows'
+                   END AS title,
                    added_at AS occurred_at, NULL AS season_id,
                    NULL AS watch_record_id, NULL AS watch_kind,
                    NULL AS watch_added_at, NULL AS watch_date
@@ -484,8 +494,9 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
                    CASE state WHEN 'ARCHIVED' THEN 'Archived' ELSE 'Made active' END,
                    entered_at, NULL, NULL, NULL, NULL, NULL
             FROM ordered_states
-            WHERE state = 'ARCHIVED'
-               OR (state = 'ACTIVE' AND previous_state = 'ARCHIVED')
+            WHERE previous_state IS NOT NULL
+              AND (state = 'ARCHIVED'
+                   OR (state = 'ACTIVE' AND previous_state = 'ARCHIVED'))
 
             UNION ALL
 

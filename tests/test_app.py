@@ -955,6 +955,22 @@ class TrackAppTest(unittest.TestCase):
         missing_seasons = self.client.get("/api/shows/999/seasons")
         self.assertEqual(missing_seasons.status_code, 404)
 
+    def test_show_added_directly_to_archive_has_one_archive_activity(self):
+        db = sqlite3.connect(self.database)
+        db.execute("DELETE FROM show_state_history WHERE show_id = 2")
+        db.execute(
+            "INSERT INTO show_state_history (show_id, state, entered_at) VALUES (2, 'ARCHIVED', ?)",
+            ("2026-06-10T18:30:00+00:00",),
+        )
+        db.commit()
+        db.close()
+
+        detail = self.client.get("/api/shows/2")
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn(b"Added to Archive", detail.data)
+        self.assertNotIn(b"Added to My Shows", detail.data)
+        self.assertNotIn(b">Archived</strong>", detail.data)
+
     def test_legacy_page_urls_redirect_to_shell(self):
         for path in ("/search", "/search?q=andor", "/shows/1", "/episodes/1"):
             response = self.client.get(path)
@@ -1557,6 +1573,8 @@ class TrackAppTest(unittest.TestCase):
             self.assertIn("active_at", columns)
             self.assertNotIn("watching_at", columns)
             self.assertIn("tmdb_refreshed_at", columns)
+            self.assertIn("tvdb_id", columns)
+            self.assertIn("is_favorite", columns)
 
     def test_dotenv_token_is_loaded_without_overriding_environment(self):
         with tempfile.TemporaryDirectory() as directory:
