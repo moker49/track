@@ -41,7 +41,7 @@ While the Flask server is running, a server-side worker checks tracked shows eve
 - `episode_watch_history` stores one row per watch event with an immutable `added_at` timestamp and an optional user-selected `watch_date`.
 - `season_watch_history` uses the same two-date model for whole-season watch actions.
 
-Schema changes are applied through the small versioned migration runner. TMDB refreshes update shows, seasons, and episodes in place by TMDB ID, preserving local row IDs and watch history. Season zero and any season marked special are imported and remain watchable, but are excluded from show and season progress.
+The canonical schema is applied idempotently at startup. TMDB refreshes update shows, seasons, and episodes in place by TMDB ID, preserving local row IDs and watch history. Season zero and any season marked special are imported and remain watchable, but are excluded from show and season progress.
 
 Removing a show demotes it to an untracked preview. It disappears from Active and Archived while its imported metadata and complete watch history remain available through TV search for later re-adding.
 
@@ -51,7 +51,7 @@ The canonical product vocabulary and state rules are documented in [docs/domain-
 
 ## Tests
 
-Run the full server, domain, migration, and workflow suite with:
+Run the full server, domain, database, and workflow suite with:
 
 ```powershell
 python -m unittest discover -s tests -q

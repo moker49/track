@@ -5,8 +5,7 @@ Track is a server-rendered Flask application with a persistent, single-page brow
 ## Backend boundaries
 
 - `app.py` owns application construction, HTTP validation, response codes, and template/JSON responses.
-- `database.py` owns SQLite connections and the one-pass bootstrap/migration sequence.
-- `migrations.py` owns ordered, idempotent schema upgrades. A migration version is recorded only after it succeeds.
+- `database.py` owns SQLite connections and idempotent schema bootstrap.
 - `domain.py` owns tracking/progress vocabulary, presentation rules, and the canonical effective-watch-date expression.
 - `queries.py` owns read models used by the TV, Queue, Upcoming, show, and watch-progress views.
 - `watch_service.py` owns transactional episode/season watch mutations.
@@ -31,14 +30,14 @@ Frontend modularization is intentionally deferred until a bundler is introduced.
 
 ## Database startup
 
-On a new database, the canonical schema is created once and all migration versions are recorded. On an existing database, pending migrations run first; the idempotent schema is then applied once to restore indexes that SQLite table-rebuild migrations may remove. `PRAGMA optimize` finishes startup.
+The canonical schema is applied idempotently at startup, followed by `PRAGMA optimize`. The application no longer carries one-off historical data migrations; future schema changes should be implemented deliberately when they are introduced.
 
-Startup is safe to repeat. Tests open the same database more than once and verify the migration ledger remains unique and complete.
+Startup is safe to repeat. Tests open the same database more than once and verify that tables and indexes remain intact.
 
 ## Test layers
 
 - `tests/test_domain.py` covers vocabulary and effective-date rules.
-- `tests/test_app.py` covers API, rendering, migration, TMDB, media, and background-refresh behavior.
+- `tests/test_app.py` covers API, rendering, TMDB, media, and background-refresh behavior.
 - `tests/test_smoke.py` covers end-to-end server workflows across several endpoints and persisted records.
 - `tests/test_browser_smoke.py` is an optional Playwright suite for the persistent-shell interactions. It skips cleanly when Playwright is not installed.
 

@@ -85,11 +85,6 @@ CREATE INDEX IF NOT EXISTS idx_season_watch_history_season ON season_watch_histo
 CREATE INDEX IF NOT EXISTS idx_episode_skips_episode ON episode_skips(episode_id);
 CREATE INDEX IF NOT EXISTS idx_show_state_history_show ON show_state_history(show_id);
 
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    version INTEGER PRIMARY KEY,
-    applied_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS image_cache (
     id INTEGER PRIMARY KEY,
     tmdb_path TEXT NOT NULL,

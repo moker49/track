@@ -154,7 +154,7 @@ class WorkflowSmokeTest(unittest.TestCase):
 
 
 class DatabaseBootstrapSmokeTest(unittest.TestCase):
-    def test_bootstrap_is_repeatable_and_migration_versions_are_unique(self):
+    def test_bootstrap_is_repeatable(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             database = Path(temp_dir) / "bootstrap.db"
             schema = Path(__file__).parents[1] / "schema.sql"
@@ -163,10 +163,12 @@ class DatabaseBootstrapSmokeTest(unittest.TestCase):
                 initialize_database(db, schema)
                 db.close()
             db = sqlite3.connect(database)
-            versions = [row[0] for row in db.execute("SELECT version FROM schema_migrations ORDER BY version")]
+            tables = {row[0] for row in db.execute("SELECT name FROM sqlite_schema WHERE type = 'table'")}
             indexes = {row[0] for row in db.execute("SELECT name FROM sqlite_schema WHERE type = 'index'")}
             db.close()
-            self.assertEqual(versions, list(range(1, 8)))
+            self.assertIn("shows", tables)
+            self.assertIn("episode_watch_history", tables)
+            self.assertNotIn("schema_migrations", tables)
             self.assertTrue(any(name.startswith("idx_") for name in indexes))
 
 
