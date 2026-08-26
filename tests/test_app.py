@@ -317,6 +317,51 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('fetch("/api/profile/diary"', javascript)
         self.assertIn("diaryRevision += 1;", javascript)
 
+    def test_statistics_summarize_ranges_rewatches_streaks_and_top_shows(self):
+        headers = {"X-Track-Local-Date": "2026-05-20"}
+        statistics = self.client.get("/api/profile/statistics", headers=headers)
+        self.assertEqual(statistics.status_code, 200)
+        self.assertIn(b"13h 36m", statistics.data)
+        self.assertIn(b">17</strong><small>Episode plays</small>", statistics.data)
+        self.assertIn(b">17</strong><small>Unique episodes</small>", statistics.data)
+        self.assertIn(b">2</strong><small>Shows</small>", statistics.data)
+        self.assertIn(b"Longest streak", statistics.data)
+        self.assertIn(b"17 days", statistics.data)
+        self.assertIn(b"May 20", statistics.data)
+        self.assertIn(b"Archived Test Show", statistics.data)
+        self.assertIn(b"9h 36m", statistics.data)
+        self.assertIn(b"None yet", statistics.data)
+        self.assertIn(b"7 days", statistics.data)
+        self.assertIn(b"30 days", statistics.data)
+        self.assertIn(b"365 days", statistics.data)
+
+        for _index in range(2):
+            response = self.client.post(
+                "/api/episodes/1/watch-count", json={"action": "increment"}
+            )
+            self.assertEqual(response.status_code, 200)
+        rewatched = self.client.get("/api/profile/statistics", headers=headers)
+        self.assertIn(b"Most rewatched show", rewatched.data)
+        self.assertIn(b"2 rewatches", rewatched.data)
+        self.assertIn(b"Most replayed episode", rewatched.data)
+        self.assertIn(b"Opening Episode", rewatched.data)
+        self.assertIn(b"3 watches", rewatched.data)
+
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(".stats-overview-card {", css)
+        self.assertIn(".stats-range-grid {", css)
+        self.assertIn(".stats-insight-grid {", css)
+        self.assertIn(".stats-ranking-list {", css)
+
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("async function refreshStatisticsContent()", javascript)
+        self.assertIn('fetch("/api/profile/statistics"', javascript)
+        self.assertIn('event.target.closest("[data-stats-show-open]")', javascript)
+
     def test_backlog_and_upcoming_are_independent_primary_views(self):
         connection = sqlite3.connect(self.database)
         connection.execute(

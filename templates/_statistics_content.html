@@ -1,0 +1,96 @@
+<div class="statistics-content" data-statistics-content>
+  {% if statistics.watch_count %}
+  <section class="stats-overview-card" aria-labelledby="stats-overview-title">
+    <span id="stats-overview-title">All-time watch time</span>
+    <strong>{{ statistics.total_watch_time }}</strong>
+    <div class="stats-overview-metrics">
+      <span><strong>{{ statistics.watch_count }}</strong><small>Episode plays</small></span>
+      <span><strong>{{ statistics.unique_episode_count }}</strong><small>Unique episodes</small></span>
+      <span><strong>{{ statistics.show_count }}</strong><small>Shows</small></span>
+    </div>
+  </section>
+
+  <section class="stats-section" aria-labelledby="stats-recent-title">
+    <h2 id="stats-recent-title">Recent activity</h2>
+    <div class="stats-range-grid">
+      {% for range in statistics.range_metrics %}
+      <article class="stats-range-card">
+        <span>{{ range.label }}</span>
+        <strong>{{ range.episode_count }}</strong>
+        <small>episodes</small>
+        <span class="stats-range-time">{{ range.watch_time }}</span>
+        <span class="stats-range-average">{{ range.average_per_day }}/day</span>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="stats-section" aria-labelledby="stats-insights-title">
+    <h2 id="stats-insights-title">Insights</h2>
+    <div class="stats-insight-grid">
+      <article class="stats-insight-card">
+        <span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>
+        <small>Active days</small>
+        <strong>{{ statistics.active_day_count }}</strong>
+      </article>
+      <article class="stats-insight-card">
+        <span class="material-symbols-rounded" aria-hidden="true">avg_pace</span>
+        <small>Average active day</small>
+        <strong>{{ statistics.average_episodes_per_active_day }} episodes</strong>
+        <span>{{ statistics.average_time_per_active_day }}</span>
+      </article>
+      <article class="stats-insight-card">
+        <span class="material-symbols-rounded" aria-hidden="true">local_fire_department</span>
+        <small>Longest streak</small>
+        <strong>{{ statistics.longest_streak }} {% if statistics.longest_streak == 1 %}day{% else %}days{% endif %}</strong>
+      </article>
+      <article class="stats-insight-card">
+        <span class="material-symbols-rounded" aria-hidden="true">event_available</span>
+        <small>Busiest day</small>
+        <strong>{{ statistics.busiest_date }}</strong>
+        <span>{{ statistics.busiest_date_episode_count }} episodes · {{ statistics.busiest_date_watch_time }}</span>
+      </article>
+      <article class="stats-insight-card stats-insight-card-wide">
+        <span class="material-symbols-rounded" aria-hidden="true">replay</span>
+        <small>Most rewatched show</small>
+        {% if statistics.most_rewatched_show %}
+        <strong>{{ statistics.most_rewatched_show.show_name }}</strong>
+        <span>{{ statistics.most_rewatched_show.rewatch_count }} rewatches</span>
+        {% else %}<strong>None yet</strong>{% endif %}
+      </article>
+      <article class="stats-insight-card stats-insight-card-wide">
+        <span class="material-symbols-rounded" aria-hidden="true">repeat_one</span>
+        <small>Most replayed episode</small>
+        {% if statistics.most_rewatched_episode %}
+        <strong>{{ statistics.most_rewatched_episode.episode_name }}</strong>
+        <span>{{ statistics.most_rewatched_episode.show_name }} · {{ statistics.most_rewatched_episode.watch_count }} watches</span>
+        {% else %}<strong>None yet</strong>{% endif %}
+      </article>
+    </div>
+  </section>
+
+  <section class="stats-section" aria-labelledby="stats-top-shows-title">
+    <h2 id="stats-top-shows-title">Top shows by watch time</h2>
+    <div class="stats-ranking-list">
+      {% for show in statistics.top_shows %}
+      <button type="button" class="stats-ranking-item" data-stats-show-open="{{ show.show_id }}"
+        aria-label="Open {{ show.show_name }} details">
+        <span class="stats-rank">{{ loop.index }}</span>
+        <span class="stats-ranking-copy">
+          <strong>{{ show.show_name }}</strong>
+          <small>{{ show.watch_count }} episode plays{% if show.rewatch_count %} · {{ show.rewatch_count }} rewatches{% endif %}</small>
+          <span class="stats-ranking-track" aria-hidden="true"><span style="width: {{ show.bar_percent }}%"></span></span>
+        </span>
+        <strong class="stats-ranking-time">{{ show.watch_time }}</strong>
+      </button>
+      {% endfor %}
+    </div>
+  </section>
+  {% else %}
+  <div class="stats-empty">
+    <span class="material-symbols-rounded" aria-hidden="true">monitoring</span>
+    <h2>No statistics yet</h2>
+    <p>Watch an episode to begin building your history.</p>
+  </div>
+  {% endif %}
+</div>

@@ -26,6 +26,7 @@ from queries import (
     get_diary_entries,
     get_library_show,
     get_show_activity,
+    get_statistics,
     get_tv_library_shows,
     get_upcoming_episodes,
 )
@@ -179,6 +180,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             catch_up_episodes=get_catch_up_episodes(db, local_date=local_date),
             upcoming_episodes=get_upcoming_episodes(db, local_date),
             diary_entries=get_diary_entries(db),
+            statistics=get_statistics(db, local_date),
             active_shows=active_shows,
             archived_shows=archived_shows,
         )
@@ -207,6 +209,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         return render_template(
             "_diary_content.html",
             diary_entries=get_diary_entries(get_db()),
+        )
+
+    @app.get("/api/profile/statistics")
+    def statistics_fragment():
+        return render_template(
+            "_statistics_content.html",
+            statistics=get_statistics(get_db(), request_local_date()),
         )
 
     @app.get("/api/schedule/shows/<int:show_id>/catch-up")

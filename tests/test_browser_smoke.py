@@ -69,6 +69,8 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
                 "true",
             )
             self.assertTrue(page.locator('[data-profile-panel="statistics"]').is_visible())
+            self.assertTrue(page.locator('.stats-overview-card').is_visible())
+            self.assertTrue(page.locator('.stats-ranking-list').is_visible())
             page.locator('[data-profile-back]').click()
             page.locator('[data-view="tv"]').wait_for(state="visible")
             self.assertTrue(page.locator('.bottom-chrome').is_visible())

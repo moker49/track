@@ -111,6 +111,8 @@ let profileParentView = "backlog";
 let diaryRevision = 0;
 let renderedDiaryRevision = 0;
 let diaryRequest = null;
+let renderedStatisticsRevision = 0;
+let statisticsRequest = null;
 let detailRequest = null;
 let pendingRemoveShowId = null;
 let datePickerTarget = null;
@@ -307,6 +309,9 @@ function selectProfileTab(tabName, { focus = false } = {}) {
   profileView.querySelectorAll("[data-profile-panel]").forEach((panel) => {
     panel.hidden = panel.dataset.profilePanel !== tabName;
   });
+  if (tabName === "statistics" && renderedStatisticsRevision !== diaryRevision) {
+    refreshStatisticsContent();
+  }
   if (focus) selectedTab.focus();
 }
 
@@ -328,6 +333,26 @@ async function refreshDiaryContent() {
     diaryRequest = null;
   });
   return diaryRequest;
+}
+
+async function refreshStatisticsContent() {
+  if (statisticsRequest) return statisticsRequest;
+  const panel = views.get("profile")?.querySelector('[data-profile-panel="statistics"]');
+  if (!panel) return undefined;
+  const requestedRevision = diaryRevision;
+  panel.setAttribute("aria-busy", "true");
+  statisticsRequest = (async () => {
+    const response = await fetch("/api/profile/statistics", {
+      headers: scheduleRequestHeaders({ "X-Requested-With": "Track" }),
+    });
+    if (!response.ok) throw new Error("Could not refresh statistics");
+    panel.innerHTML = await response.text();
+    renderedStatisticsRevision = requestedRevision;
+  })().catch(() => undefined).finally(() => {
+    panel.removeAttribute("aria-busy");
+    statisticsRequest = null;
+  });
+  return statisticsRequest;
 }
 
 function openProfileFromTrigger(trigger) {
@@ -403,6 +428,12 @@ function showView(viewName, historyMode = null) {
   }
   if (viewName === "profile" && renderedDiaryRevision !== diaryRevision) {
     refreshDiaryContent();
+  }
+  if (viewName === "profile"
+    && views.get("profile")?.querySelector('[data-profile-tab="statistics"]')
+      ?.getAttribute("aria-selected") === "true"
+    && renderedStatisticsRevision !== diaryRevision) {
+    refreshStatisticsContent();
   }
   const titles = {
     backlog: "Queue · Track",
@@ -2773,6 +2804,13 @@ document.addEventListener("click", (event) => {
   const profileTab = event.target.closest("[data-profile-tab]");
   if (profileTab) {
     selectProfileTab(profileTab.dataset.profileTab);
+    return;
+  }
+
+  const statisticsShow = event.target.closest("[data-stats-show-open]");
+  if (statisticsShow) {
+    detailParentView = "profile";
+    openShow(statisticsShow.dataset.statsShowOpen, "profile");
     return;
   }
 
