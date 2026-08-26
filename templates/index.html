@@ -103,6 +103,17 @@
   </div>
 </dialog>
 
+<dialog class="confirm-dialog finished-archive-dialog" data-finished-archive-dialog
+  aria-labelledby="finished-archive-title">
+  <span class="material-symbols-rounded dialog-icon finished-archive-icon" aria-hidden="true">task_alt</span>
+  <h2 id="finished-archive-title">Archive finished show?</h2>
+  <p><span data-finished-archive-show>This show</span> is finished. Move it to Archive?</p>
+  <div class="dialog-actions">
+    <button type="button" data-cancel-finished-archive>Not now</button>
+    <button type="button" data-confirm-finished-archive>Archive</button>
+  </div>
+</dialog>
+
 <dialog class="date-picker" data-date-picker aria-labelledby="date-picker-title">
   <div class="date-picker-header">
     <span id="date-picker-title">Select watch date</span>

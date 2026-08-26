@@ -3071,6 +3071,10 @@ html.app-booting .schedule-empty-reveal {
   color: var(--error);
 }
 
+.finished-archive-icon {
+  color: var(--progress-complete);
+}
+
 .confirm-dialog h2 {
   margin: 16px 0 10px;
   font-size: 1.5rem;

@@ -5,7 +5,13 @@ import sqlite3
 from collections import defaultdict
 from datetime import date, timedelta
 
-from domain import TRACKING_ACTIVE, TRACKING_ARCHIVED, effective_watch_date_sql
+from domain import (
+    PROGRESS_FINISHED,
+    TRACKING_ACTIVE,
+    TRACKING_ARCHIVED,
+    effective_watch_date_sql,
+    progress_presentation,
+)
 
 
 def natural_title_key(value: str) -> tuple:
@@ -38,13 +44,27 @@ def get_episode_watch_count(db: sqlite3.Connection, episode_id: int) -> int:
 
 
 def watch_payload(
-    db: sqlite3.Connection, show_id: int, episode_id: int | None = None
+    db: sqlite3.Connection,
+    show_id: int,
+    episode_id: int | None = None,
+    previous_watched_count: int | None = None,
 ) -> dict:
     progress = get_show_progress(db, show_id)
     episode_count = progress["episode_count"]
     watched_count = progress["watched_count"]
+    show = db.execute(
+        "SELECT name, state, status FROM shows WHERE id = ?",
+        (show_id,),
+    ).fetchone()
+    presentation = progress_presentation(
+        show["state"], watched_count, episode_count, show["status"]
+    )
     payload = {
         "show_id": show_id,
+        "show_name": show["name"],
+        "tracking_state": show["state"],
+        "show_status": show["status"],
+        "progress_state": presentation.state,
         "watched_count": watched_count,
         "episode_count": episode_count,
         "percent": round(watched_count / episode_count * 100) if episode_count else 0,
@@ -58,6 +78,13 @@ def watch_payload(
             """,
             (show_id,),
         ).fetchone()[0],
+        "became_finished": (
+            previous_watched_count is not None
+            and previous_watched_count < episode_count
+            and watched_count >= episode_count
+            and show["state"] == TRACKING_ACTIVE
+            and presentation.state == PROGRESS_FINISHED
+        ),
     }
     if episode_id is not None:
         count = get_episode_watch_count(db, episode_id)

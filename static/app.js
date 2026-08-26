@@ -64,6 +64,7 @@ const searchClearButton = document.querySelector("[data-clear-search]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, detail: 0, profile: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
+const finishedArchiveDialog = document.querySelector("[data-finished-archive-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
 const imageViewer = document.querySelector("[data-image-viewer]");
 const imageViewerMedia = imageViewer?.querySelector("[data-image-viewer-media]");
@@ -130,6 +131,7 @@ let renderedStatisticsRevision = 0;
 let statisticsRequest = null;
 let detailRequest = null;
 let pendingRemoveShowId = null;
+let pendingFinishedArchiveShowId = null;
 let datePickerTarget = null;
 let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
@@ -1316,6 +1318,7 @@ async function processScheduleEpisode(card, action) {
     if (action === "watch") {
       invalidateWatchCaches({ showId, episodeId });
       applyShowProgress(data);
+      maybeOpenFinishedArchiveDialog(data);
     }
 
     const nextResponse = await fetch(`/api/schedule/shows/${showId}/catch-up`, {
@@ -2655,6 +2658,9 @@ function syncProgressState(showElement) {
 function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
   document.querySelectorAll(`[data-show-id="${showId}"]`).forEach((showElement) => {
     showElement.dataset.showState = state;
+    if (showElement.hasAttribute("data-tracking-state")) {
+      showElement.dataset.trackingState = state;
+    }
     showElement.querySelectorAll('[data-show-action="move"]').forEach((moveButton) => {
       moveButton.dataset.targetState = state === TRACKING_STATE.ARCHIVED
         ? TRACKING_STATE.ACTIVE
@@ -2703,12 +2709,36 @@ async function moveShow(showElement, targetState, actionButton) {
     if (currentView === "detail") updateActiveNav(detailParentView);
     syncStateSections();
     filterAllShowViews();
+    filterSchedule("backlog");
+    filterSchedule("upcoming");
     showSnackbar(data.state === "ARCHIVED" ? "Show archived" : "Show made active");
+    return true;
   } catch (_error) {
     showSnackbar("Couldn't move this show. Try again.");
+    return false;
   } finally {
     actionButton.disabled = false;
   }
+}
+
+function maybeOpenFinishedArchiveDialog(data) {
+  if (!data.became_finished || !finishedArchiveDialog || finishedArchiveDialog.open) return;
+  pendingFinishedArchiveShowId = String(data.show_id);
+  const showName = finishedArchiveDialog.querySelector("[data-finished-archive-show]");
+  if (showName) showName.textContent = data.show_name || "This show";
+  finishedArchiveDialog.showModal();
+}
+
+async function confirmArchiveFinishedShow() {
+  if (!pendingFinishedArchiveShowId) return;
+  const showId = pendingFinishedArchiveShowId;
+  const confirmButton = finishedArchiveDialog.querySelector("[data-confirm-finished-archive]");
+  const showElement = document.querySelector(`[data-show-id="${showId}"]`)
+    || { dataset: { showId } };
+  const moved = await moveShow(showElement, TRACKING_STATE.ARCHIVED, confirmButton);
+  if (!moved) return;
+  finishedArchiveDialog.close();
+  pendingFinishedArchiveShowId = null;
 }
 
 function requestShowRemoval(showElement) {
@@ -2837,6 +2867,7 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
     });
     updateEpisodeWatchUi(episode, data.watch_count);
     applyShowProgress(data);
+    maybeOpenFinishedArchiveDialog(data);
     cacheCurrentSeasonEpisodes(episode.closest(".season"));
     cacheCurrentSeasons(data.show_id);
   } catch (_error) {
@@ -2888,6 +2919,7 @@ async function changeEpisodeDetailWatchCount(detailEpisode, action) {
     });
     updateEpisodeDetailWatchUi(detailEpisode, data.watch_count);
     applyShowProgress(data);
+    maybeOpenFinishedArchiveDialog(data);
     if (data.action === "increment") {
       addActivityItem({
         type: "watched",
@@ -2935,6 +2967,7 @@ async function changeSeasonWatchCount(season, action, trigger) {
       );
     }
     applyShowProgress(data);
+    maybeOpenFinishedArchiveDialog(data);
     cacheCurrentSeasonEpisodes(season);
     if (action === "increment") {
       addActivityItem({
@@ -3281,6 +3314,17 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  if (event.target.closest("[data-cancel-finished-archive]")) {
+    finishedArchiveDialog.close();
+    pendingFinishedArchiveShowId = null;
+    return;
+  }
+
+  if (event.target.closest("[data-confirm-finished-archive]")) {
+    confirmArchiveFinishedShow();
+    return;
+  }
+
   const detailBackButton = event.target.closest("[data-detail-back]");
   if (detailBackButton) {
     closeShowMenus();
@@ -3593,6 +3637,10 @@ initializeDiaryPagination();
 
 removeDialog?.addEventListener("close", () => {
   pendingRemoveShowId = null;
+});
+
+finishedArchiveDialog?.addEventListener("close", () => {
+  pendingFinishedArchiveShowId = null;
 });
 
 datePicker?.addEventListener("close", () => {

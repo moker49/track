@@ -1178,6 +1178,39 @@ class TrackAppTest(unittest.TestCase):
         db.close()
         self.assertEqual(history, [])
 
+    def test_finishing_active_ended_show_prompts_once_for_archive(self):
+        final_response = None
+        for episode_id in range(6, 14):
+            final_response = self.client.post(
+                f"/api/episodes/{episode_id}/watch-count",
+                json={"action": "increment"},
+            )
+            self.assertEqual(final_response.status_code, 200)
+
+        finished = final_response.get_json()
+        self.assertTrue(finished["became_finished"])
+        self.assertEqual(finished["progress_state"], "finished")
+        self.assertEqual(finished["tracking_state"], "ACTIVE")
+        self.assertEqual(finished["show_name"], "Active Test Show")
+
+        rewatch = self.client.post(
+            "/api/episodes/13/watch-count", json={"action": "increment"}
+        )
+        self.assertEqual(rewatch.status_code, 200)
+        self.assertFalse(rewatch.get_json()["became_finished"])
+
+        home = self.client.get("/")
+        self.assertIn(b"data-finished-archive-dialog", home.data)
+        self.assertIn(b"Archive finished show?", home.data)
+        self.assertIn(b"data-confirm-finished-archive", home.data)
+
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("function maybeOpenFinishedArchiveDialog(data)", javascript)
+        self.assertIn("if (!data.became_finished", javascript)
+        self.assertIn("function confirmArchiveFinishedShow()", javascript)
+
     def test_season_watch_count_is_atomic_and_progress_counts_distinct_episodes(self):
         first_watch = self.client.post(
             "/api/seasons/2/watch-count", json={"action": "increment"}

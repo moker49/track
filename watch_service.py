@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 from domain import effective_watch_date_sql
-from queries import get_episode_watch_count, watch_payload
+from queries import get_episode_watch_count, get_show_progress, watch_payload
 
 
 class WatchNotFoundError(LookupError):
@@ -34,6 +34,7 @@ def set_episode_watched(
     db: sqlite3.Connection, episode_id: int, watched: bool
 ) -> dict:
     episode = _episode_context(db, episode_id)
+    previous_watched_count = get_show_progress(db, episode["show_id"])["watched_count"]
     if watched:
         db.execute("DELETE FROM episode_skips WHERE episode_id = ?", (episode_id,))
         exists = db.execute(
@@ -59,13 +60,16 @@ def set_episode_watched(
             (episode_id,),
         )
     db.commit()
-    return watch_payload(db, episode["show_id"], episode_id)
+    return watch_payload(
+        db, episode["show_id"], episode_id, previous_watched_count
+    )
 
 
 def change_episode_watch_count(
     db: sqlite3.Connection, episode_id: int, action: str
 ) -> dict:
     episode = _episode_context(db, episode_id)
+    previous_watched_count = get_show_progress(db, episode["show_id"])["watched_count"]
     changed_at = _now()
     watch_record_id = None
     if action == "increment":
@@ -88,7 +92,9 @@ def change_episode_watch_count(
             watch_record_id = latest["id"]
             db.execute("DELETE FROM episode_watch_history WHERE id = ?", (latest["id"],))
     db.commit()
-    result = watch_payload(db, episode["show_id"], episode_id)
+    result = watch_payload(
+        db, episode["show_id"], episode_id, previous_watched_count
+    )
     result.update(
         action=action,
         changed_at=changed_at,
@@ -105,6 +111,7 @@ def change_season_watch_count(
     ).fetchone()
     if season is None:
         raise WatchNotFoundError("Season not found")
+    previous_watched_count = get_show_progress(db, season["show_id"])["watched_count"]
 
     episode_ids = [
         row["id"]
@@ -174,7 +181,9 @@ def change_season_watch_count(
         {"episode_id": episode_id, "watch_count": get_episode_watch_count(db, episode_id)}
         for episode_id in episode_ids
     ]
-    result = watch_payload(db, season["show_id"])
+    result = watch_payload(
+        db, season["show_id"], previous_watched_count=previous_watched_count
+    )
     result.update(
         season_id=season_id,
         season_name=season["name"],
