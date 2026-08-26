@@ -23,7 +23,7 @@ from tmdb import TMDBClient, TMDBError
 from tmdb_import import import_or_refresh_show
 from queries import (
     get_catch_up_episodes,
-    get_diary_entries,
+    get_diary_page,
     get_library_show,
     get_show_activity,
     get_statistics,
@@ -175,11 +175,14 @@ def create_app(test_config: dict | None = None) -> Flask:
         db = get_db()
         local_date = request_local_date()
         active_shows, archived_shows = get_tv_library_shows(db)
+        diary_entries, diary_has_more = get_diary_page(db)
         return render_template(
             "index.html",
             catch_up_episodes=get_catch_up_episodes(db, local_date=local_date),
             upcoming_episodes=get_upcoming_episodes(db, local_date),
-            diary_entries=get_diary_entries(db),
+            diary_entries=diary_entries,
+            diary_page=1,
+            diary_has_more=diary_has_more,
             statistics=get_statistics(db, local_date),
             active_shows=active_shows,
             archived_shows=archived_shows,
@@ -206,9 +209,25 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.get("/api/profile/diary")
     def diary_fragment():
+        try:
+            page = int(request.args.get("page", "1"))
+        except ValueError:
+            abort(400)
+        if page < 1:
+            abort(400)
+        diary_entries, diary_has_more = get_diary_page(get_db(), page=page)
+        if page > 1:
+            return render_template(
+                "_diary_page.html",
+                diary_entries=diary_entries,
+                diary_page=page,
+                diary_has_more=diary_has_more,
+            )
         return render_template(
             "_diary_content.html",
-            diary_entries=get_diary_entries(get_db()),
+            diary_entries=diary_entries,
+            diary_page=page,
+            diary_has_more=diary_has_more,
         )
 
     @app.get("/api/profile/statistics")

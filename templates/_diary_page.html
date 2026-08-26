@@ -1,0 +1,5 @@
+<div data-diary-page-fragment data-diary-page="{{ diary_page }}"
+  data-diary-has-more="{{ 'true' if diary_has_more else 'false' }}">
+  <span class="diary-page-trigger" data-diary-page-trigger="{{ diary_page }}" aria-hidden="true"></span>
+  {% include "_diary_months.html" %}
+</div>

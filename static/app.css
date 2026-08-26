@@ -861,6 +861,13 @@ html.app-booting .schedule-empty-reveal {
   gap: 4px;
 }
 
+.diary-page-trigger {
+  display: block;
+  width: 100%;
+  height: 1px;
+  pointer-events: none;
+}
+
 .schedule-timeline-countdown {
   align-self: center;
   margin-right: 2px;

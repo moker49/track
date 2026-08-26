@@ -123,6 +123,9 @@ let profileParentView = "backlog";
 let diaryRevision = 0;
 let renderedDiaryRevision = 0;
 let diaryRequest = null;
+let diaryPageRequest = null;
+let diaryPageObserver = null;
+let diaryPageAbortController = null;
 let renderedStatisticsRevision = 0;
 let statisticsRequest = null;
 let detailRequest = null;
@@ -341,11 +344,107 @@ async function refreshDiaryContent() {
     if (!response.ok) throw new Error("Could not refresh diary");
     panel.innerHTML = await response.text();
     renderedDiaryRevision = requestedRevision;
+    initializeDiaryPagination();
   })().catch(() => undefined).finally(() => {
     panel.removeAttribute("aria-busy");
     diaryRequest = null;
   });
   return diaryRequest;
+}
+
+function disconnectDiaryPagination() {
+  diaryPageObserver?.disconnect();
+  diaryPageAbortController?.abort();
+  diaryPageObserver = null;
+  diaryPageRequest = null;
+  diaryPageAbortController = null;
+}
+
+function mergeDiaryPage(content, fragment) {
+  const timeline = content.querySelector(".schedule-timeline");
+  const trigger = fragment.querySelector("[data-diary-page-trigger]");
+  const incomingMonths = [...fragment.querySelectorAll("[data-diary-month]")];
+  if (!timeline || !trigger) return;
+
+  let triggerPlaced = false;
+  incomingMonths.forEach((month) => {
+    const existingMonth = [...timeline.querySelectorAll("[data-diary-month]")]
+      .find((candidate) => candidate.dataset.diaryMonth === month.dataset.diaryMonth);
+    if (existingMonth) {
+      const list = existingMonth.querySelector(".schedule-timeline-list");
+      if (!triggerPlaced) {
+        list.append(trigger);
+        triggerPlaced = true;
+      }
+      month.querySelectorAll("[data-schedule-card]").forEach((card) => list.append(card));
+      return;
+    }
+    if (!triggerPlaced) {
+      timeline.append(trigger);
+      triggerPlaced = true;
+    }
+    timeline.append(month);
+  });
+  if (!triggerPlaced) timeline.append(trigger);
+
+  content.dataset.diaryPage = fragment.dataset.diaryPage;
+  content.dataset.diaryHasMore = fragment.dataset.diaryHasMore;
+}
+
+async function loadNextDiaryPage(triggerPage) {
+  const content = views.get("profile")?.querySelector("[data-diary-content]");
+  if (!content || content.dataset.diaryHasMore !== "true" || diaryPageRequest) return;
+  if (Number(content.dataset.diaryPage) !== triggerPage) return;
+
+  const controller = new AbortController();
+  diaryPageAbortController = controller;
+  diaryPageRequest = (async () => {
+    const response = await fetch(`/api/profile/diary?page=${triggerPage + 1}`, {
+      headers: { "X-Requested-With": "Track" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error("Could not load more diary entries");
+    const template = document.createElement("template");
+    template.innerHTML = (await response.text()).trim();
+    const fragment = template.content.querySelector("[data-diary-page-fragment]");
+    if (fragment) mergeDiaryPage(content, fragment);
+  })().catch((error) => {
+    if (error.name === "AbortError") return;
+    const trigger = content.querySelector(`[data-diary-page-trigger="${triggerPage}"]`);
+    if (trigger) window.setTimeout(() => observeDiaryPageTrigger(trigger), 1000);
+  }).finally(() => {
+    if (diaryPageAbortController !== controller) return;
+    diaryPageRequest = null;
+    diaryPageAbortController = null;
+    if (content.dataset.diaryHasMore === "true") {
+      observeDiaryPageTrigger(
+        content.querySelector(`[data-diary-page-trigger="${content.dataset.diaryPage}"]`),
+      );
+    }
+  });
+  return diaryPageRequest;
+}
+
+function observeDiaryPageTrigger(trigger) {
+  if (!diaryPageObserver || !trigger || trigger.dataset.diaryObserved === "true") return;
+  trigger.dataset.diaryObserved = "true";
+  diaryPageObserver.observe(trigger);
+}
+
+function initializeDiaryPagination() {
+  disconnectDiaryPagination();
+  const content = views.get("profile")?.querySelector("[data-diary-content]");
+  if (!content || content.dataset.diaryHasMore !== "true") return;
+  diaryPageObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      const trigger = entry.target;
+      diaryPageObserver.unobserve(trigger);
+      trigger.dataset.diaryObserved = "false";
+      loadNextDiaryPage(Number(trigger.dataset.diaryPageTrigger));
+    });
+  });
+  observeDiaryPageTrigger(content.querySelector("[data-diary-page-trigger]"));
 }
 
 async function refreshStatisticsContent() {
@@ -3490,6 +3589,7 @@ filterSchedule("backlog");
 filterSchedule("upcoming");
 formatDisplayDates(document);
 syncGlobalSearch();
+initializeDiaryPagination();
 
 removeDialog?.addEventListener("close", () => {
   pendingRemoveShowId = null;

@@ -317,6 +317,45 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('fetch("/api/profile/diary"', javascript)
         self.assertIn("diaryRevision += 1;", javascript)
 
+    def test_diary_is_paginated_in_grouped_batches_of_fifty(self):
+        connection = sqlite3.connect(self.database)
+        connection.executemany(
+            """
+            INSERT INTO episode_watch_history (episode_id, added_at, watch_date)
+            VALUES (1, ?, '2024-01-01')
+            """,
+            [
+                (f"2024-01-01T00:{index:02d}:00+00:00",)
+                for index in range(55)
+            ],
+        )
+        connection.commit()
+        connection.close()
+
+        first_page = self.client.get("/api/profile/diary")
+        self.assertEqual(first_page.status_code, 200)
+        self.assertEqual(first_page.data.count(b"data-schedule-card"), 50)
+        self.assertIn(b'data-diary-page="1"', first_page.data)
+        self.assertIn(b'data-diary-has-more="true"', first_page.data)
+
+        second_page = self.client.get("/api/profile/diary?page=2")
+        self.assertEqual(second_page.status_code, 200)
+        self.assertIn(b"data-diary-page-fragment", second_page.data)
+        self.assertGreater(second_page.data.count(b"data-schedule-card"), 0)
+        self.assertLess(second_page.data.count(b"data-schedule-card"), 50)
+        self.assertIn(b'data-diary-has-more="false"', second_page.data)
+
+        self.assertEqual(self.client.get("/api/profile/diary?page=0").status_code, 400)
+        self.assertEqual(self.client.get("/api/profile/diary?page=nope").status_code, 400)
+
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("function initializeDiaryPagination()", javascript)
+        self.assertIn("new IntersectionObserver", javascript)
+        self.assertIn("function mergeDiaryPage(content, fragment)", javascript)
+        self.assertIn("triggerPage + 1", javascript)
+
     def test_statistics_summarize_ranges_rewatches_streaks_and_top_shows(self):
         headers = {"X-Track-Local-Date": "2026-05-20"}
         statistics = self.client.get("/api/profile/statistics", headers=headers)

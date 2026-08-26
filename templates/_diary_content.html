@@ -1,39 +1,9 @@
-<div class="schedule-content diary-content" data-diary-content>
+<div class="schedule-content diary-content" data-diary-content data-diary-page="{{ diary_page }}"
+  data-diary-has-more="{{ 'true' if diary_has_more else 'false' }}">
   <section class="schedule-panel" aria-label="Diary entries">
     <div class="schedule-timeline">
-      {% for month in diary_entries|groupby('month_key') %}
-      <section class="upcoming-month diary-month" aria-label="{{ month.list[0].month_label }}">
-        <h2>{{ month.list[0].month_label }}</h2>
-        <div class="schedule-timeline-list">
-          {% for entry in month.list %}
-          <article class="schedule-timeline-item diary-timeline-item{% if entry.is_grouped %} is-multi-episode{% endif %}"
-            data-schedule-card data-show-id="{{ entry.show_id }}"
-            {% if entry.is_grouped %}data-season-ids="{{ entry.season_ids }}"{% else %}data-episode-id="{{ entry.episode_id }}"{% endif %}
-            data-watch-record-ids="{{ entry.watch_record_ids }}">
-            <div class="schedule-timeline-marker" aria-hidden="true">
-              <strong>{{ entry.day_label }}</strong>
-              <span>{{ entry.weekday_label }}</span>
-            </div>
-            <span class="schedule-timeline-rail" aria-hidden="true"><span></span></span>
-            <div class="schedule-timeline-content">
-              <button class="schedule-timeline-open" type="button"
-                {% if entry.is_grouped %}data-schedule-show-open aria-label="Open {{ entry.show_name }} details"{% else %}data-schedule-episode-open
-                aria-label="Open Season {{ entry.season_number }}, Episode {{ entry.episode_number }} of {{ entry.show_name }}"{% endif %}>
-                <span class="schedule-timeline-poster{% if entry.poster_path %} has-media-image{% endif %}"
-                  aria-hidden="true">
-                  {% if entry.poster_path %}<img src="{{ url_for('cached_tmdb_image', image_type='poster', size='w185', tmdb_path=entry.poster_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span>{{ entry.show_name[:1]|upper }}</span></template>{% else %}<span>{{ entry.show_name[:1]|upper }}</span>{% endif %}
-                </span>
-                <span class="schedule-timeline-copy">
-                  <strong>{{ entry.show_name }}</strong>
-                  <span>{{ entry.release_metadata }}</span>
-                </span>
-              </button>
-            </div>
-          </article>
-          {% endfor %}
-        </div>
-      </section>
-      {% endfor %}
+      <span class="diary-page-trigger" data-diary-page-trigger="{{ diary_page }}" aria-hidden="true"></span>
+      {% include "_diary_months.html" %}
     </div>
     <div class="schedule-empty" {% if diary_entries %}hidden{% endif %}>
       <span class="material-symbols-rounded" aria-hidden="true">menu_book</span>
