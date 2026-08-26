@@ -4,8 +4,9 @@
 {% set move = move_for(show.state) %}
 
 <article class="show-card" data-show-id="{{ show.id }}" data-tmdb-id="{{ show.tmdb_id }}"
-  data-show-name="{{ show.name|lower }}" data-date-added="{{ show.added_at }}"
-  data-release-date="{{ show.first_air_date }}" data-show-state="{{ show.state }}"
+  data-show-name="{{ show.name|lower }}" data-name="{{ show.name|lower }}" data-date-added="{{ show.added_at }}"
+  data-release-date="{{ show.first_air_date }}" data-last-watched="{{ show.last_watched_at or '' }}"
+  data-progress="{{ percent }}" data-show-state="{{ show.state }}"
   data-show-status="{{ show.status or '' }}"
   data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
   data-progress-state="{{ progress.css_state }}">

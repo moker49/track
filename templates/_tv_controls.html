@@ -32,7 +32,7 @@
         {% endfor %}
       </div>
       <div class="tv-dropdown-menu-section" role="group" aria-label="Sort">
-        {% for value, label in [('name', 'Name'), ('dateAdded', 'Date added'), ('releaseDate', 'Release date')] %}
+        {% for value, label in [('name', 'Name'), ('dateAdded', 'Date added'), ('releaseDate', 'Release date'), ('lastWatched', 'Last watched'), ('progress', 'Progress')] %}
         <button type="button" data-tv-sort-option="{{ value }}" role="menuitemradio"
           aria-checked="{{ 'true' if value == 'name' else 'false' }}">
           <span class="material-symbols-rounded tv-dropdown-selection{% if value != 'name' %} is-hidden{% endif %}"

@@ -77,6 +77,18 @@ const floatingMenuAnimations = new WeakMap();
 let menuScrollLockPosition = null;
 const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
+  backlog: {
+    state: TRACKING_STATE.ACTIVE,
+    progress: "",
+    sortField: "lastWatched",
+    sortDirection: "desc",
+  },
+  upcoming: {
+    state: TRACKING_STATE.ACTIVE,
+    progress: "",
+    sortField: "releaseDate",
+    sortDirection: "asc",
+  },
   tv: {
     state: TRACKING_STATE.ACTIVE,
     progress: "",
@@ -971,6 +983,14 @@ function showCaughtUpScheduleState(card, data, action) {
   card.classList.remove("is-watch-confirming", "is-revealing-actions");
   delete card.dataset.scheduleConfirmation;
   card.classList.add("is-caught-up");
+  card.dataset.progress = data.percent;
+  card.dataset.lastWatched = data.last_watched_at || "";
+  card.dataset.progressState = progressPresentation(
+    card.dataset.trackingState,
+    data.watched_count,
+    data.episode_count,
+    card.dataset.showStatus,
+  ).state;
 
   if (action === "watch") {
     const percent = card.querySelector(".schedule-timeline-marker strong");
@@ -1018,6 +1038,7 @@ function showScheduleActionConfirmation(card) {
   card.classList.add("is-watch-confirming");
   card.dataset.scheduleConfirmation = "watch";
   card.dataset.watchedCount = nextWatchedCount;
+  card.dataset.progress = nextPercent;
   if (marker?.querySelector("strong")) {
     marker.querySelector("strong").textContent = `${nextPercent}%`;
   }
@@ -1039,6 +1060,7 @@ function restoreScheduleActionConfirmation(card, snapshot) {
   card.classList.remove("is-watch-confirming", "is-revealing-actions");
   delete card.dataset.scheduleConfirmation;
   card.dataset.watchedCount = snapshot.watchedCount;
+  card.dataset.progress = Number.parseInt(snapshot.percent, 10) || 0;
   if (marker?.querySelector("strong")) marker.querySelector("strong").textContent = snapshot.percent;
   if (marker?.querySelector("span")) marker.querySelector("span").textContent = snapshot.count;
   if (snapshot.progressLabel) progress?.setAttribute("aria-label", snapshot.progressLabel);
@@ -1063,6 +1085,10 @@ function advanceScheduleCard(card, nextCard, { revealActions = false } = {}) {
   card.dataset.scheduleSearchText = nextCard.dataset.scheduleSearchText;
   card.dataset.watchedCount = nextCard.dataset.watchedCount;
   card.dataset.episodeCount = nextCard.dataset.episodeCount;
+  [
+    "trackingState", "progressState", "showStatus", "name", "dateAdded",
+    "releaseDate", "lastWatched", "progress",
+  ].forEach((key) => { card.dataset[key] = nextCard.dataset[key] || ""; });
 
   const currentOpen = card.querySelector(".schedule-timeline-open");
   const nextOpen = nextCard.querySelector(".schedule-timeline-open");
@@ -2213,18 +2239,29 @@ const sortFieldLabels = {
   name: "Name",
   dateAdded: "Date added",
   releaseDate: "Release date",
+  lastWatched: "Last watched",
+  progress: "Progress",
 };
 
-function syncTvControlBar(view = views.get("tv")) {
+const libraryViewDefaults = {
+  backlog: { progress: "", sortField: "lastWatched", sortDirection: "desc" },
+  upcoming: { progress: "", sortField: "releaseDate", sortDirection: "asc" },
+  tv: { progress: "", sortField: "name", sortDirection: "asc" },
+};
+
+function syncTvControlBar(view = views.get(currentView)) {
   if (!view || !tvControlBar) return;
-  const preferences = libraryViewPreferences.tv;
+  const viewName = view.dataset.view;
+  const preferences = libraryViewPreferences[viewName];
+  const defaults = libraryViewDefaults[viewName];
+  if (!preferences || !defaults) return;
   const progressLabel = tvControlBar.querySelector("[data-tv-progress-label]");
   const sortLabel = tvControlBar.querySelector("[data-tv-sort-label]");
   const sortIcon = tvControlBar.querySelector("[data-tv-sort-icon]");
   const divider = tvControlBar.querySelector("[data-tv-combined-divider]");
-  const defaultControls = preferences.progress === ""
-    && preferences.sortField === "name"
-    && preferences.sortDirection === "asc";
+  const defaultControls = preferences.progress === defaults.progress
+    && preferences.sortField === defaults.sortField
+    && preferences.sortDirection === defaults.sortDirection;
   if (progressLabel) {
     progressLabel.textContent = defaultControls
       ? "Filter"
@@ -2250,6 +2287,9 @@ function syncTvControlBar(view = views.get("tv")) {
   });
   tvControlBar.querySelectorAll("[data-tv-sort-option]").forEach((button) => {
     const selected = button.dataset.tvSortOption === preferences.sortField;
+    const sortLocked = viewName === "upcoming";
+    button.disabled = sortLocked;
+    button.setAttribute("aria-disabled", String(sortLocked));
     button.setAttribute("aria-checked", String(selected));
     const indicator = button.querySelector(".tv-dropdown-selection");
     indicator.classList.toggle("is-hidden", !selected);
@@ -2257,12 +2297,20 @@ function syncTvControlBar(view = views.get("tv")) {
       ? "arrow_upward"
       : "arrow_downward";
   });
+  tvControlBar.dataset.selectedState = preferences.state;
+  tvControlBar.querySelectorAll("[data-tv-library-state]").forEach((button) => {
+    const selected = button.dataset.tvLibraryState === preferences.state;
+    button.setAttribute("aria-pressed", String(selected));
+  });
 }
 
 function syncTvControlVisibility() {
   if (!tvControlBar) return;
-  const visible = currentView === "tv" && !searchQueries.tv.trim();
+  const visible = ["backlog", "upcoming", "tv"].includes(currentView)
+    && !searchQueries[currentView].trim();
   tvControlBar.hidden = !visible;
+  appContent?.classList.toggle("has-library-controls", visible);
+  if (visible) syncTvControlBar(views.get(currentView));
   if (!visible) closeTvDropdowns();
 }
 
@@ -2653,6 +2701,8 @@ function applyShowProgress(data) {
   if (showCard) {
     showCard.dataset.watchedCount = data.watched_count;
     showCard.dataset.episodeCount = data.episode_count;
+    showCard.dataset.progress = data.percent;
+    showCard.dataset.lastWatched = data.last_watched_at || "";
     showCard.querySelector("[data-card-progress-copy]").textContent =
       `${data.watched_count} of ${data.episode_count}`;
     const cardProgress = showCard.querySelector("[data-card-progress]");
@@ -2985,37 +3035,49 @@ document.addEventListener("click", (event) => {
 
   const progressOption = event.target.closest("[data-tv-progress-option]");
   if (progressOption) {
-    libraryViewPreferences.tv.progress = progressOption.dataset.tvProgressOption;
+    const preferences = libraryViewPreferences[currentView];
+    if (!preferences) return;
+    preferences.progress = progressOption.dataset.tvProgressOption;
     closeTvDropdowns();
-    filterShowView(views.get("tv"));
+    if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
+    else filterShowView(views.get("tv"));
     return;
   }
 
   const sortOption = event.target.closest("[data-tv-sort-option]");
   if (sortOption) {
-    const preferences = libraryViewPreferences.tv;
+    if (currentView === "upcoming") return;
+    const preferences = libraryViewPreferences[currentView];
+    if (!preferences) return;
     const nextField = sortOption.dataset.tvSortOption;
     if (preferences.sortField === nextField) {
       preferences.sortDirection = preferences.sortDirection === "asc" ? "desc" : "asc";
     } else {
       preferences.sortField = nextField;
+      preferences.sortDirection = nextField === "name" ? "asc" : "desc";
     }
     closeTvDropdowns();
-    filterShowView(views.get("tv"));
+    if (currentView === "backlog") filterSchedule(currentView);
+    else filterShowView(views.get("tv"));
     return;
   }
 
   const libraryStateButton = event.target.closest("[data-tv-library-state]");
   if (libraryStateButton) {
-    const preferences = libraryViewPreferences.tv;
+    const preferences = libraryViewPreferences[currentView];
+    if (!preferences) return;
     const nextState = libraryStateButton.dataset.tvLibraryState;
     if (preferences.state === nextState) return;
-    clearTvFirstReveal(views.get("tv"));
     preferences.state = nextState;
-    filterShowView(views.get("tv"));
-    scrollPositions.tv = 0;
+    if (currentView === "tv") {
+      clearTvFirstReveal(views.get("tv"));
+      filterShowView(views.get("tv"));
+    } else {
+      filterSchedule(currentView);
+    }
+    scrollPositions[currentView] = 0;
     window.scrollTo({ top: 0, behavior: "auto" });
-    revealTvStateOnce(views.get("tv"));
+    if (currentView === "tv") revealTvStateOnce(views.get("tv"));
     return;
   }
 
@@ -3251,12 +3313,38 @@ function filterSchedule(viewName = currentView) {
   const view = views.get(viewName);
   if (!view) return;
   const query = searchQueries[viewName].trim().toLocaleLowerCase();
+  const preferences = libraryViewPreferences[viewName];
+  const searching = Boolean(query);
 
   view.querySelectorAll("[data-schedule-panel]").forEach((panel) => {
     const cards = [...panel.querySelectorAll("[data-schedule-card]")];
+    if (viewName === "backlog") {
+      const list = panel.querySelector(".schedule-timeline-list");
+      cards.sort((first, second) => {
+        const firstValue = first.dataset[preferences.sortField] || "";
+        const secondValue = second.dataset[preferences.sortField] || "";
+        const comparison = firstValue.localeCompare(secondValue, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+        if (comparison !== 0) {
+          return preferences.sortDirection === "asc" ? comparison : -comparison;
+        }
+        return Number(first.dataset.showId) - Number(second.dataset.showId);
+      });
+      cards.forEach((card) => list.append(card));
+    }
     let visibleCount = 0;
     cards.forEach((card) => {
-      const visible = !query || card.dataset.scheduleSearchText?.includes(query);
+      const matchesSearch = !query || card.dataset.scheduleSearchText?.includes(query);
+      const matchesState = searching || card.dataset.trackingState === preferences.state;
+      const matchesProgress = searching || !preferences.progress
+        || card.dataset.progressState === preferences.progress
+        || (
+          card.dataset.progressState === PROGRESS_STATE.FINISHED
+          && preferences.progress === PROGRESS_STATE.CAUGHT_UP
+        );
+      const visible = matchesSearch && matchesState && matchesProgress;
       card.hidden = !visible;
       if (visible) visibleCount += 1;
     });
@@ -3267,9 +3355,10 @@ function filterSchedule(viewName = currentView) {
 
     const empty = panel.querySelector("[data-schedule-empty]");
     const noResults = panel.querySelector("[data-schedule-no-results]");
-    if (empty) empty.hidden = cards.length > 0;
+    if (empty) empty.hidden = searching || visibleCount > 0;
     if (noResults) noResults.hidden = !query || visibleCount > 0 || cards.length === 0;
   });
+  if (viewName === currentView) syncTvControlVisibility();
 }
 
 function filterShowView(view) {
@@ -3326,8 +3415,7 @@ function filterShowView(view) {
       button.setAttribute("aria-pressed", String(selected));
     });
   }
-  syncTvControlVisibility();
-  syncTvControlBar(view);
+  if (view.dataset.view === currentView) syncTvControlVisibility();
   hydratedLibraryViews.add(view.dataset.view);
   if (view.dataset.view === "tv") syncTvSearchPresentation();
 }

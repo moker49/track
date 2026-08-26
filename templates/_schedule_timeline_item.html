@@ -1,8 +1,17 @@
 {% macro schedule_timeline_item(episode, mode) %}
 {% set is_backlog = mode == 'catch-up' %}
-{% set progress_percent = ((episode.watched_count * 100) / episode.episode_count)|round|int if is_backlog else 0 %}
+{% set progress_percent = ((episode.watched_count * 100) / episode.episode_count)|round|int if episode.episode_count else 0 %}
+{% if episode.watched_count == 0 %}{% set progress_state = 'not-started' %}
+{% elif episode.episode_count and episode.watched_count >= episode.episode_count %}
+  {% set progress_state = 'finished' if episode.show_status|lower in ['ended', 'canceled', 'cancelled'] else 'caught-up' %}
+{% else %}{% set progress_state = 'started' %}{% endif %}
 <article class="schedule-timeline-item{% if not is_backlog and episode.is_grouped %} is-multi-episode{% endif %}"
   data-schedule-card data-schedule-mode="{{ mode }}" data-show-id="{{ episode.show_id }}"
+  data-tracking-state="{{ episode.tracking_state }}" data-progress-state="{{ progress_state }}"
+  data-show-status="{{ episode.show_status or '' }}"
+  data-name="{{ episode.show_name|lower }}" data-date-added="{{ episode.show_added_at }}"
+  data-release-date="{{ episode.air_date }}" data-last-watched="{{ episode.last_watched_at or '' }}"
+  data-progress="{{ progress_percent }}"
   {% if is_backlog %}data-watched-count="{{ episode.watched_count }}" data-episode-count="{{ episode.episode_count }}"{% endif %}
   {% if not is_backlog and episode.is_grouped %}data-season-ids="{{ episode.season_ids }}"{% else
   %}data-episode-id="{{ episode.episode_id }}"{% endif %}

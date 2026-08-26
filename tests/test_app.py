@@ -364,13 +364,17 @@ class TrackAppTest(unittest.TestCase):
 
     def test_backlog_and_upcoming_are_independent_primary_views(self):
         connection = sqlite3.connect(self.database)
-        connection.execute(
+        connection.executemany(
             """
             INSERT INTO episodes (
                 id, season_id, tmdb_id, episode_number, name,
                 air_date, runtime_minutes
-            ) VALUES (100, 2, 99100, 7, 'Future Episode', '2099-01-02', 52)
-            """
+            ) VALUES (?, 2, ?, ?, ?, ?, 52)
+            """,
+            [
+                (100, 99100, 7, "Future Episode", "2099-01-02"),
+                (101, 99101, 8, "Distant Episode", "2099-01-15"),
+            ],
         )
         connection.commit()
         connection.close()
@@ -398,6 +402,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"more available", home.data)
         self.assertIn(b'data-schedule-mode="upcoming"', home.data)
         self.assertIn(b"Future Episode", home.data)
+        self.assertLess(
+            home.data.index(b"Future Episode"),
+            home.data.index(b"Distant Episode"),
+        )
         self.assertIn(b'class="schedule-timeline"', home.data)
         self.assertIn(b"Season 2 \xc2\xb7 Episode 7", home.data)
         self.assertIn(b'class="schedule-timeline-episode-title">Future Episode</span>', home.data)
@@ -598,7 +606,7 @@ class TrackAppTest(unittest.TestCase):
         caught_up = self.client.get("/api/schedule/shows/1/catch-up")
         self.assertEqual(caught_up.status_code, 204)
 
-    def test_upcoming_includes_archived_but_excludes_untracked_shows(self):
+    def test_schedule_includes_archived_but_excludes_untracked_shows(self):
         connection = sqlite3.connect(self.database)
         connection.executemany(
             """
@@ -617,7 +625,8 @@ class TrackAppTest(unittest.TestCase):
 
         tracked_schedule = self.client.get("/api/schedule")
         self.assertIn(b"Archived Future Episode", tracked_schedule.data)
-        self.assertNotIn(b"Archived Backlog Candidate", tracked_schedule.data)
+        self.assertIn(b"Archived Backlog Candidate", tracked_schedule.data)
+        self.assertIn(b'data-tracking-state="ARCHIVED"', tracked_schedule.data)
 
         connection = sqlite3.connect(self.database)
         connection.execute("UPDATE shows SET is_tracked = 0 WHERE id = 2")
@@ -626,6 +635,7 @@ class TrackAppTest(unittest.TestCase):
 
         untracked_schedule = self.client.get("/api/schedule")
         self.assertNotIn(b"Archived Future Episode", untracked_schedule.data)
+        self.assertNotIn(b"Archived Backlog Candidate", untracked_schedule.data)
 
     def test_upcoming_includes_the_past_week_with_live_status(self):
         connection = sqlite3.connect(self.database)
@@ -736,15 +746,19 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"material-symbols-rounded tv-combined-part-hidden", home.data)
         self.assertEqual(home.data.count(b'class="tv-dropdown-menu-section"'), 2)
         self.assertEqual(home.data.count(b"data-tv-progress-option="), 4)
-        self.assertEqual(home.data.count(b"data-tv-sort-option="), 3)
+        self.assertEqual(home.data.count(b"data-tv-sort-option="), 5)
         self.assertIn(b'data-tv-progress-option=""', home.data)
         self.assertIn(b'data-tv-sort-option="name"', home.data)
         self.assertIn(b'data-tv-sort-option="dateAdded"', home.data)
         self.assertIn(b'data-tv-sort-option="releaseDate"', home.data)
+        self.assertIn(b'data-tv-sort-option="lastWatched"', home.data)
+        self.assertIn(b'data-tv-sort-option="progress"', home.data)
         self.assertIn(b">check</span>", home.data)
         self.assertIn(b">arrow_upward</span>", home.data)
         self.assertIn(b'data-date-added=', home.data)
         self.assertIn(b'data-release-date=', home.data)
+        self.assertIn(b'data-last-watched=', home.data)
+        self.assertIn(b'data-progress=', home.data)
         self.assertNotIn(b'class="tv-list-heading-toggle"', home.data)
         self.assertIn(b'data-tv-library-switcher', home.data)
         self.assertEqual(home.data.count(b"data-tv-library-state="), 2)
@@ -759,17 +773,20 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('progress: ""', javascript)
         self.assertIn("globalSearchInput?.blur();", javascript)
         self.assertIn("function syncTvControlBar", javascript)
-        self.assertIn('const defaultControls = preferences.progress === ""', javascript)
+        self.assertIn("const defaultControls = preferences.progress === defaults.progress", javascript)
         self.assertIn('? "Filter"', javascript)
         self.assertIn('? "Sort"', javascript)
         self.assertIn('sortIcon.classList.toggle("tv-combined-part-hidden", defaultControls)', javascript)
         self.assertIn('divider?.classList.toggle("tv-combined-part-hidden", !defaultControls)', javascript)
         self.assertIn("function toggleTvDropdown", javascript)
-        self.assertIn("libraryViewPreferences.tv.progress = progressOption.dataset.tvProgressOption", javascript)
+        self.assertIn("preferences.progress = progressOption.dataset.tvProgressOption", javascript)
         self.assertIn('preferences.sortDirection === "asc" ? "desc" : "asc"', javascript)
         self.assertIn("preferences.state = nextState;", javascript)
         self.assertIn("function syncTvControlVisibility", javascript)
-        self.assertIn('const visible = currentView === "tv" && !searchQueries.tv.trim()', javascript)
+        self.assertIn('["backlog", "upcoming", "tv"].includes(currentView)', javascript)
+        self.assertIn('sortField: "lastWatched"', javascript)
+        self.assertIn('sortField: "releaseDate"', javascript)
+        self.assertIn('const sortLocked = viewName === "upcoming";', javascript)
         self.assertNotIn("lastTvScrollY", javascript)
         self.assertNotIn("tvScrollControlsReady", javascript)
         self.assertNotIn(b">swap_vert</span>", home.data)

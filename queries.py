@@ -48,6 +48,16 @@ def watch_payload(
         "watched_count": watched_count,
         "episode_count": episode_count,
         "percent": round(watched_count / episode_count * 100) if episode_count else 0,
+        "last_watched_at": db.execute(
+            """
+            SELECT MAX(COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)))
+            FROM episode_watch_history wh
+            JOIN episodes e ON e.id = wh.episode_id
+            JOIN seasons sn ON sn.id = e.season_id
+            WHERE sn.show_id = ?
+            """,
+            (show_id,),
+        ).fetchone()[0],
     }
     if episode_id is not None:
         count = get_episode_watch_count(db, episode_id)
@@ -62,7 +72,8 @@ def get_library_show(
         """
         SELECT s.*,
                COUNT(DISTINCT e.id) AS episode_count,
-               COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
+               COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count,
+               MAX(COALESCE(wh.watch_date, substr(wh.added_at, 1, 10))) AS last_watched_at
         FROM shows s
         LEFT JOIN seasons sn ON sn.show_id = s.id
         LEFT JOIN episodes e ON e.season_id = sn.id
@@ -88,16 +99,19 @@ def get_catch_up_episodes(
         WITH show_progress AS (
             SELECT s.id AS show_id,
                    COUNT(DISTINCT e.id) AS episode_count,
-                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
+                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count,
+                   MAX(COALESCE(wh.watch_date, substr(wh.added_at, 1, 10))) AS last_watched_at
             FROM shows s
             JOIN seasons sn ON sn.show_id = s.id AND sn.is_progress_counted = 1
             JOIN episodes e ON e.season_id = sn.id AND e.air_date <= ?
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
-            WHERE s.is_tracked = 1 AND s.state = 'ACTIVE'
+            WHERE s.is_tracked = 1
             GROUP BY s.id
         ),
         unresolved AS (
             SELECT s.id AS show_id, s.name AS show_name, s.poster_path,
+                   s.state AS tracking_state, s.added_at AS show_added_at,
+                   s.status AS show_status,
                    sn.season_number, sn.name AS season_name,
                    e.id AS episode_id, e.episode_number,
                    e.name AS episode_name, e.air_date, e.runtime_minutes,
@@ -112,7 +126,6 @@ def get_catch_up_episodes(
             JOIN episodes e ON e.season_id = sn.id
             LEFT JOIN episode_skips sk ON sk.episode_id = e.id
             WHERE s.is_tracked = 1
-              AND s.state = 'ACTIVE'
               AND sn.is_progress_counted = 1
               AND e.air_date IS NOT NULL
               AND e.air_date <= ?
@@ -121,11 +134,13 @@ def get_catch_up_episodes(
                   SELECT 1 FROM episode_watch_history wh WHERE wh.episode_id = e.id
               )
         )
-        SELECT unresolved.*, show_progress.episode_count, show_progress.watched_count
+        SELECT unresolved.*, show_progress.episode_count, show_progress.watched_count,
+               show_progress.last_watched_at
         FROM unresolved
         JOIN show_progress ON show_progress.show_id = unresolved.show_id
         WHERE unresolved.episode_rank = 1
-        ORDER BY unresolved.air_date DESC, unresolved.show_name COLLATE NOCASE
+        ORDER BY show_progress.last_watched_at DESC,
+                 unresolved.show_name COLLATE NOCASE
         """,
         (local_date_value, local_date_value, show_id, show_id),
     ).fetchall()
@@ -138,13 +153,31 @@ def get_upcoming_episodes(
     local_date_value = local_date.isoformat()
     rows = db.execute(
         """
+        WITH show_progress AS (
+            SELECT s.id AS show_id,
+                   COUNT(DISTINCT e.id) AS episode_count,
+                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count,
+                   MAX(COALESCE(wh.watch_date, substr(wh.added_at, 1, 10))) AS last_watched_at
+            FROM shows s
+            JOIN seasons sn ON sn.show_id = s.id AND sn.is_progress_counted = 1
+            JOIN episodes e ON e.season_id = sn.id AND e.air_date <= ?
+            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+            WHERE s.is_tracked = 1
+            GROUP BY s.id
+        )
         SELECT s.id AS show_id, s.name AS show_name, s.poster_path,
+               s.state AS tracking_state, s.added_at AS show_added_at,
+               s.status AS show_status,
+               COALESCE(sp.episode_count, 0) AS episode_count,
+               COALESCE(sp.watched_count, 0) AS watched_count,
+               sp.last_watched_at,
                sn.id AS season_id, sn.season_number, sn.name AS season_name,
                (SELECT COUNT(*) FROM episodes season_episode
                 WHERE season_episode.season_id = sn.id) AS season_episode_count,
                e.id AS episode_id, e.episode_number,
                e.name AS episode_name, e.air_date, e.runtime_minutes
         FROM shows s
+        LEFT JOIN show_progress sp ON sp.show_id = s.id
         JOIN seasons sn ON sn.show_id = s.id
         JOIN episodes e ON e.season_id = sn.id
         WHERE s.is_tracked = 1
@@ -154,7 +187,7 @@ def get_upcoming_episodes(
         ORDER BY e.air_date, s.name COLLATE NOCASE,
                  sn.season_number, e.episode_number
         """,
-        (local_date_value,),
+        (local_date_value, local_date_value),
     ).fetchall()
     today = local_date
     release_groups: dict[tuple[int, str, int], list[dict]] = {}
@@ -523,7 +556,8 @@ def get_tv_library_shows(
         """
         SELECT s.*,
                COUNT(DISTINCT e.id) AS episode_count,
-               COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
+               COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count,
+               MAX(COALESCE(wh.watch_date, substr(wh.added_at, 1, 10))) AS last_watched_at
         FROM shows s
         LEFT JOIN seasons sn ON sn.show_id = s.id
         LEFT JOIN episodes e ON e.season_id = sn.id

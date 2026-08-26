@@ -125,6 +125,10 @@ html.app-booting .app-boot-screen {
   padding-bottom: calc(88px + env(safe-area-inset-bottom));
 }
 
+.app-content.has-library-controls {
+  padding-bottom: calc(140px + env(safe-area-inset-bottom));
+}
+
 .app-content.is-profile-view {
   padding-bottom: 0;
 }
@@ -2759,6 +2763,15 @@ html.app-booting .schedule-empty-reveal {
   border-radius: 14px;
   color: var(--primary);
   background: var(--primary-light);
+}
+
+.tv-dropdown-menu button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.tv-dropdown-menu button:disabled[aria-checked="true"] {
+  opacity: 1;
 }
 
 .tv-dropdown-selection {
