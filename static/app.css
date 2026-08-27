@@ -180,7 +180,7 @@ html.app-booting .app-boot-screen {
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
-  pointer-events: none;
+  pointer-events: auto;
   transform: translateX(-50%);
 }
 

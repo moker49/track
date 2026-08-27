@@ -62,6 +62,7 @@ const searchBackButton = document.querySelector("[data-search-back]");
 const searchProfileButton = document.querySelector("[data-search-profile]");
 const searchClearButton = document.querySelector("[data-clear-search]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
+if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
 const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, detail: 0, profile: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const finishedArchiveDialog = document.querySelector("[data-finished-archive-dialog]");
@@ -323,6 +324,7 @@ function selectProfileTab(tabName, { focus = false } = {}) {
   const selectedTabs = profileView?.querySelectorAll(`[data-profile-tab="${tabName}"]`);
   const selectedTab = selectedTabs?.[0];
   if (!profileView || !selectedTab) return;
+  const retainDiaryPosition = tabName === "diary" && window.scrollY > 0;
   document.querySelectorAll("[data-profile-tab]").forEach((tab) => {
     const selected = tab.dataset.profileTab === tabName;
     tab.setAttribute("aria-selected", String(selected));
@@ -334,9 +336,15 @@ function selectProfileTab(tabName, { focus = false } = {}) {
   if (tabName === "statistics" && renderedStatisticsRevision !== diaryRevision) {
     refreshStatisticsContent();
   }
-  scrollPositions.profile = 0;
-  resetProfileChromePosition();
-  window.scrollTo({ top: 0, behavior: "auto" });
+  if (retainDiaryPosition) {
+    const chrome = profileView.querySelector(".profile-top-app-bar");
+    spawnProfileChromeHandoff(chrome);
+    lastProfileScrollY = window.scrollY;
+  } else {
+    scrollPositions.profile = 0;
+    resetProfileChromePosition();
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
   if (focus) selectedTab.focus();
 }
 
@@ -505,7 +513,6 @@ function spawnProfileChromeHandoff(chrome) {
   const clone = chrome.cloneNode(true);
   clone.classList.add("profile-chrome-handoff-clone");
   clone.style.removeProperty("transform");
-  clone.setAttribute("aria-hidden", "true");
   clone.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
   document.body.append(clone);
   profileChromeHandoffClone = clone;
@@ -562,6 +569,14 @@ function openProfileFromTrigger(_trigger) {
     : "backlog";
   scrollPositions.profile = 0;
   transitionProfileView(() => showView("profile", "push"), "enter");
+}
+
+function leaveProfile() {
+  if (window.history.state?.trackApp && window.history.state.view === "profile") {
+    window.history.back();
+  } else {
+    transitionProfileView(() => showView(profileParentView), "return");
+  }
 }
 
 function showView(viewName, historyMode = null) {
@@ -3072,6 +3087,12 @@ document.addEventListener("toggle", (event) => {
   if (season?.open) loadSeasonEpisodes(season);
 }, true);
 
+document.addEventListener("pointerdown", (event) => {
+  if (event.target.closest(".profile-chrome-handoff-clone [data-profile-back]")) {
+    event.preventDefault();
+  }
+}, true);
+
 document.addEventListener("click", (event) => {
   if (event.target.closest("[data-menu-scrim]")) {
     closeShowMenus();
@@ -3087,11 +3108,8 @@ document.addEventListener("click", (event) => {
   }
 
   if (event.target.closest("[data-profile-back]")) {
-    if (window.history.state?.trackApp && window.history.state.view === "profile") {
-      window.history.back();
-    } else {
-      transitionProfileView(() => showView(profileParentView), "return");
-    }
+    event.preventDefault();
+    leaveProfile();
     return;
   }
 
