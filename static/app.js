@@ -61,6 +61,7 @@ const searchMenuButton = document.querySelector("[data-search-menu]");
 const searchBackButton = document.querySelector("[data-search-back]");
 const searchProfileButton = document.querySelector("[data-search-profile]");
 const searchClearButton = document.querySelector("[data-clear-search]");
+const tvViewToggle = document.querySelector("[data-tv-view-toggle]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
 const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, detail: 0, profile: 0 };
@@ -96,9 +97,11 @@ const libraryViewPreferences = {
     progress: "",
     sortField: "name",
     sortDirection: "asc",
+    layout: "list",
   },
 };
 const searchQueries = { backlog: "", upcoming: "", tv: "" };
+restoreTvLayout();
 const showDetailCache = new Map();
 const showSeasonsCache = new Map();
 const seasonEpisodesCache = new Map();
@@ -147,6 +150,7 @@ let tvSearchRequest = null;
 let tvSearchPending = false;
 let tvSearchComplete = false;
 let tvSearchError = "";
+let tvLayoutTransitionTimer = null;
 let snackbarAction = null;
 let backgroundPrimaryViewHydrationStarted = false;
 let scheduleViewsHydrated = false;
@@ -315,8 +319,63 @@ function syncGlobalSearch() {
   globalSearchInput.placeholder = settings.placeholder;
   globalSearchInput.setAttribute("aria-label", settings.label);
   globalSearchInput.value = searchQueries[currentView];
+  syncTvLayout();
   syncSearchChrome();
   syncSearchTextPosition();
+}
+
+function syncTvLayout() {
+  const tvView = views.get("tv");
+  const isCompact = libraryViewPreferences.tv.layout === "compact";
+  if (tvView) tvView.dataset.tvLayout = isCompact ? "compact" : "list";
+  if (!tvViewToggle) return;
+  const visible = currentView === "tv";
+  tvViewToggle.hidden = !visible;
+  tvViewToggle.setAttribute("aria-pressed", String(isCompact));
+  tvViewToggle.setAttribute("aria-label", isCompact
+    ? "Switch to list view"
+    : "Switch to compact poster view");
+  tvViewToggle.querySelector(".material-symbols-rounded").textContent = isCompact
+    ? "view_list"
+    : "grid_view";
+}
+
+function restoreTvLayout() {
+  try {
+    if (window.localStorage.getItem("track.tv-layout") === "compact") {
+      libraryViewPreferences.tv.layout = "compact";
+    }
+  } catch (_error) {
+    // Storage can be unavailable in private browsing contexts.
+  }
+}
+
+function toggleTvLayout() {
+  if (tvLayoutTransitionTimer) return;
+  const preferences = libraryViewPreferences.tv;
+  const tvView = views.get("tv");
+  const applyLayout = () => {
+    preferences.layout = preferences.layout === "compact" ? "list" : "compact";
+    try {
+      window.localStorage.setItem("track.tv-layout", preferences.layout);
+    } catch (_error) {
+      // The selected layout remains active for the current session.
+    }
+    tvView?.classList.remove("is-switching-layout");
+    tvLayoutTransitionTimer = null;
+    syncTvLayout();
+    window.requestAnimationFrame(() => {
+      clearTvFirstReveal(tvView);
+      staggerTvFirstReveal(tvView);
+    });
+  };
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    applyLayout();
+    return;
+  }
+  tvView?.classList.add("is-switching-layout");
+  tvLayoutTransitionTimer = window.setTimeout(applyLayout, 75);
 }
 
 function selectProfileTab(tabName, { focus = false } = {}) {
@@ -1010,10 +1069,13 @@ function clearDetailSliceReveals(root) {
 
 function staggerTvSlices(slices) {
   const tvSliceStaggerMs = 55;
+  const tvLayoutStaggerMs = libraryViewPreferences.tv.layout === "compact"
+    ? tvSliceStaggerMs / 2
+    : tvSliceStaggerMs;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   slices.filter(Boolean).forEach((slice, index) => {
     slice.classList.add("tv-slice-reveal");
-    slice.style.setProperty("--detail-slice-delay", `${index * tvSliceStaggerMs}ms`);
+    slice.style.setProperty("--detail-slice-delay", `${index * tvLayoutStaggerMs}ms`);
     const finishReveal = (event) => {
       if (event.target !== slice || event.animationName !== "detail-slice-reveal") return;
       slice.classList.remove("tv-slice-reveal");
@@ -3273,6 +3335,11 @@ document.addEventListener("click", (event) => {
     closeTvDropdowns();
     if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
     else filterShowView(views.get("tv"));
+    return;
+  }
+
+  if (event.target.closest("[data-tv-view-toggle]")) {
+    toggleTvLayout();
     return;
   }
 
