@@ -3742,7 +3742,14 @@ window.addEventListener("touchend", () => {
 }, { passive: true });
 
 prepareProfileFloatingChrome();
-document.fonts?.ready.then(syncSearchTextPosition);
+const finishInitialSearchTextPosition = () => {
+  syncSearchTextPosition();
+  window.requestAnimationFrame(() => {
+    document.documentElement.classList.add("search-text-position-animation-ready");
+  });
+};
+if (document.fonts?.ready) document.fonts.ready.then(finishInitialSearchTextPosition);
+else finishInitialSearchTextPosition();
 
 filterAllShowViews();
 filterSchedule("backlog");
