@@ -61,7 +61,9 @@ const searchMenuButton = document.querySelector("[data-search-menu]");
 const searchBackButton = document.querySelector("[data-search-back]");
 const searchProfileButton = document.querySelector("[data-search-profile]");
 const searchClearButton = document.querySelector("[data-clear-search]");
+const profileFloatingChrome = document.querySelector("[data-profile-floating-chrome]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
+const PROFILE_CHROME_RETURN_BUFFER = 200;
 const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, detail: 0, profile: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const finishedArchiveDialog = document.querySelector("[data-finished-archive-dialog]");
@@ -137,6 +139,7 @@ let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
 let datePickerYearVisible = false;
 let lastEpisodeDetailScrollY = 0;
+let profileTouchY = null;
 let episodeNavigationPending = false;
 let tvSearchTimer = null;
 let tvSearchRequest = null;
@@ -317,10 +320,11 @@ function syncGlobalSearch() {
 
 function selectProfileTab(tabName, { focus = false } = {}) {
   const profileView = views.get("profile");
-  const selectedTab = profileView?.querySelector(`[data-profile-tab="${tabName}"]`);
+  const selectedTabs = profileView?.querySelectorAll(`[data-profile-tab="${tabName}"]`);
+  const selectedTab = selectedTabs?.[0];
   if (!profileView || !selectedTab) return;
-  profileView.querySelectorAll("[data-profile-tab]").forEach((tab) => {
-    const selected = tab === selectedTab;
+  document.querySelectorAll("[data-profile-tab]").forEach((tab) => {
+    const selected = tab.dataset.profileTab === tabName;
     tab.setAttribute("aria-selected", String(selected));
     tab.tabIndex = selected ? 0 : -1;
   });
@@ -330,6 +334,9 @@ function selectProfileTab(tabName, { focus = false } = {}) {
   if (tabName === "statistics" && renderedStatisticsRevision !== diaryRevision) {
     refreshStatisticsContent();
   }
+  scrollPositions.profile = 0;
+  setProfileFloatingChromeVisible(false, { instant: true });
+  window.scrollTo({ top: 0, behavior: "auto" });
   if (focus) selectedTab.focus();
 }
 
@@ -469,34 +476,97 @@ async function refreshStatisticsContent() {
   return statisticsRequest;
 }
 
-function openProfileFromTrigger(trigger) {
+function prepareProfileFloatingChrome() {
+  const source = views.get("profile")?.querySelector(".profile-top-app-bar");
+  if (!source || !profileFloatingChrome || profileFloatingChrome.childElementCount) return;
+  const chrome = source.cloneNode(true);
+  chrome.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
+  chrome.querySelectorAll("[aria-controls]").forEach((element) => element.removeAttribute("aria-controls"));
+  profileFloatingChrome.append(chrome);
+}
+
+function setProfileFloatingChromeVisible(visible, { instant = false } = {}) {
+  if (!profileFloatingChrome) return;
+  if (visible) {
+    if (!profileFloatingChrome.hidden
+      && !profileFloatingChrome.classList.contains("is-exiting")) return;
+    profileFloatingChrome.hidden = false;
+    profileFloatingChrome.classList.remove("is-exiting", "is-visible");
+    window.requestAnimationFrame(() => {
+      if (!profileFloatingChrome.hidden
+        && !profileFloatingChrome.classList.contains("is-exiting")) {
+        profileFloatingChrome.classList.add("is-visible");
+      }
+    });
+    return;
+  }
+
+  if (profileFloatingChrome.hidden) return;
+  if (instant) {
+    profileFloatingChrome.hidden = true;
+    profileFloatingChrome.classList.remove("is-visible", "is-exiting");
+    return;
+  }
+  if (profileFloatingChrome.classList.contains("is-exiting")) return;
+  profileFloatingChrome.classList.remove("is-visible");
+  profileFloatingChrome.classList.add("is-exiting");
+  const finishExit = (event) => {
+    if (event.target !== profileFloatingChrome
+      || event.animationName !== "profile-floating-chrome-out") return;
+    profileFloatingChrome.hidden = true;
+    profileFloatingChrome.classList.remove("is-exiting");
+    profileFloatingChrome.removeEventListener("animationend", finishExit);
+  };
+  profileFloatingChrome.addEventListener("animationend", finishExit);
+}
+
+function syncProfileFloatingChrome(direction) {
+  const source = views.get("profile")?.querySelector(".profile-top-app-bar");
+  if (currentView !== "profile" || !source) {
+    setProfileFloatingChromeVisible(false, { instant: true });
+    return;
+  }
+
+  if (window.scrollY <= 0) {
+    if (!profileFloatingChrome?.hidden) {
+      setProfileFloatingChromeVisible(false, { instant: true });
+    }
+    return;
+  }
+
+  // Keep a generous return zone around the original header. Within it, the
+  // floating copy preserves its current state instead of changing mid-handoff.
+  if (source.getBoundingClientRect().bottom > -PROFILE_CHROME_RETURN_BUFFER) return;
+
+  if (direction === "down" && !profileFloatingChrome?.hidden) {
+    setProfileFloatingChromeVisible(false);
+  } else if (direction === "up" && profileFloatingChrome?.hidden) {
+    setProfileFloatingChromeVisible(true);
+  }
+}
+
+function transitionProfileView(change, direction) {
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!document.startViewTransition || reduceMotion) {
+    change();
+    return Promise.resolve();
+  }
+
+  const root = document.documentElement;
+  root.classList.add(`profile-transition-${direction}`);
+  const transition = document.startViewTransition(change);
+  return transition.finished.catch(() => undefined).finally(() => {
+    root.classList.remove(`profile-transition-${direction}`);
+  });
+}
+
+function openProfileFromTrigger(_trigger) {
   profileParentView = ["backlog", "upcoming", "tv"].includes(currentView)
     ? currentView
     : "backlog";
   scrollPositions.profile = 0;
-  const revealProfile = () => showView("profile", "push");
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!document.startViewTransition || reduceMotion) {
-    revealProfile();
-    return;
-  }
-
-  const bounds = trigger.getBoundingClientRect();
-  const originX = bounds.left + bounds.width / 2;
-  const originY = bounds.top + bounds.height / 2;
-  const radius = Math.hypot(
-    Math.max(originX, window.innerWidth - originX),
-    Math.max(originY, window.innerHeight - originY),
-  );
-  document.documentElement.style.setProperty("--profile-reveal-x", `${originX}px`);
-  document.documentElement.style.setProperty("--profile-reveal-y", `${originY}px`);
-  document.documentElement.style.setProperty("--profile-reveal-radius", `${radius}px`);
-  const transition = document.startViewTransition(revealProfile);
-  transition.finished.finally(() => {
-    document.documentElement.style.removeProperty("--profile-reveal-x");
-    document.documentElement.style.removeProperty("--profile-reveal-y");
-    document.documentElement.style.removeProperty("--profile-reveal-radius");
-  });
+  setProfileFloatingChromeVisible(false, { instant: true });
+  transitionProfileView(() => showView("profile", "push"), "enter");
 }
 
 function showView(viewName, historyMode = null) {
@@ -535,6 +605,11 @@ function showView(viewName, historyMode = null) {
   const profileOpen = viewName === "profile";
   if (bottomChrome) bottomChrome.hidden = profileOpen;
   appContent?.classList.toggle("is-profile-view", profileOpen);
+  if (profileOpen) {
+    setProfileFloatingChromeVisible(false, { instant: true });
+  } else {
+    setProfileFloatingChromeVisible(false, { instant: true });
+  }
   syncGlobalSearch();
   syncTvControlVisibility();
   if (viewName === "tv") {
@@ -3013,7 +3088,7 @@ document.addEventListener("click", (event) => {
     if (window.history.state?.trackApp && window.history.state.view === "profile") {
       window.history.back();
     } else {
-      showView(profileParentView);
+      transitionProfileView(() => showView(profileParentView), "return");
     }
     return;
   }
@@ -3624,8 +3699,39 @@ window.addEventListener("scroll", () => {
     if (currentScrollY > lastEpisodeDetailScrollY) switcher.classList.add("is-scroll-hidden");
     else if (currentScrollY < lastEpisodeDetailScrollY) switcher.classList.remove("is-scroll-hidden");
     lastEpisodeDetailScrollY = currentScrollY;
+    return;
+  }
+  if (currentView === "profile") {
+    if (currentScrollY <= 0 && !profileFloatingChrome?.hidden) {
+      setProfileFloatingChromeVisible(false, { instant: true });
+    }
   }
 }, { passive: true });
+
+window.addEventListener("wheel", (event) => {
+  if (currentView !== "profile" || event.deltaY === 0) return;
+  syncProfileFloatingChrome(event.deltaY < 0 ? "up" : "down");
+}, { passive: true });
+
+window.addEventListener("touchstart", (event) => {
+  profileTouchY = event.touches[0]?.clientY ?? null;
+}, { passive: true });
+
+window.addEventListener("touchmove", (event) => {
+  if (currentView !== "profile" || profileTouchY === null) return;
+  const touchY = event.touches[0]?.clientY;
+  if (touchY === undefined) return;
+  const delta = touchY - profileTouchY;
+  if (delta > 2) syncProfileFloatingChrome("up");
+  else if (delta < -2) syncProfileFloatingChrome("down");
+  profileTouchY = touchY;
+}, { passive: true });
+
+window.addEventListener("touchend", () => {
+  profileTouchY = null;
+}, { passive: true });
+
+prepareProfileFloatingChrome();
 document.fonts?.ready.then(syncSearchTextPosition);
 
 filterAllShowViews();
@@ -3692,7 +3798,11 @@ function restoreHistoryState(state) {
     return;
   }
   if (restoredView !== "detail") {
-    showView(restoredView);
+    if (currentView === "profile") {
+      transitionProfileView(() => showView(restoredView), "return");
+    } else {
+      showView(restoredView);
+    }
     return;
   }
 

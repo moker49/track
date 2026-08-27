@@ -49,7 +49,7 @@ Removing a show demotes it to an untracked preview. It disappears from Active an
 
 Episode and season controls support individual rewatches. Watch logs use the chosen watch date when present and otherwise fall back to the added date. Unwatching removes the latest effective entry. Tapping a watch-log entry opens the date picker without changing normal watch behavior.
 
-The canonical product vocabulary and state rules are documented in [docs/domain-model.md](docs/domain-model.md). Code ownership, cache invalidation, database startup, and test boundaries are documented in [docs/architecture.md](docs/architecture.md).
+The canonical product vocabulary and state rules are documented in [docs/domain-model.md](docs/domain-model.md). Code ownership, cache invalidation, database startup, and test boundaries are documented in [docs/architecture.md](docs/architecture.md). The Profile scroll and floating-chrome interaction contract is documented in [docs/profile-floating-chrome.md](docs/profile-floating-chrome.md).
 
 ## Tests
 

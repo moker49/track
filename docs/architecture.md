@@ -28,6 +28,8 @@ Every watch mutation goes through `invalidateWatchCaches(...)`. It clears the af
 
 Frontend modularization is intentionally deferred until a bundler is introduced.
 
+Profile uses a normal-flow top bar plus a separately cloned floating copy for its scroll-return behavior. Its zone, handoff, and transform-only animation rules are intentionally documented in [profile-floating-chrome.md](profile-floating-chrome.md); do not replace this with layout changes to the original chrome while scrolling.
+
 ## Database startup
 
 The canonical schema is applied idempotently at startup, followed by `PRAGMA optimize`. The application no longer carries one-off historical data migrations; future schema changes should be implemented deliberately when they are introduced.
