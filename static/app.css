@@ -1498,6 +1498,10 @@ html.app-booting .schedule-empty-reveal {
   transition: opacity 75ms ease-out;
 }
 
+[data-view="tv"].is-restarting-layout .show-list {
+  opacity: 0;
+}
+
 .tv-library-section {
   padding-top: 12px;
 }

@@ -361,12 +361,17 @@ function toggleTvLayout() {
     } catch (_error) {
       // The selected layout remains active for the current session.
     }
+    tvView?.classList.add("is-restarting-layout");
     tvView?.classList.remove("is-switching-layout");
     tvLayoutTransitionTimer = null;
     syncTvLayout();
     window.requestAnimationFrame(() => {
       clearTvFirstReveal(tvView);
-      staggerTvFirstReveal(tvView);
+      // Let the browser commit the cleared animation state before replaying it.
+      window.requestAnimationFrame(() => {
+        tvView?.classList.remove("is-restarting-layout");
+        staggerTvFirstReveal(tvView);
+      });
     });
   };
 
