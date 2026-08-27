@@ -583,6 +583,8 @@ function showView(viewName, historyMode = null) {
   }
   const firstScheduleReveal = ["backlog", "upcoming"].includes(viewName)
     && !revealedViewAnimations.has(viewName);
+  const firstTvReveal = viewName === "tv"
+    && !revealedViewAnimations.has(`tv:${libraryViewPreferences.tv.state}`);
   const firstScheduleDataReady = firstScheduleReveal && scheduleViewsHydrated;
   if (firstScheduleReveal) {
     revealedViewAnimations.add(viewName);
@@ -613,7 +615,15 @@ function showView(viewName, historyMode = null) {
   syncGlobalSearch();
   syncTvControlVisibility();
   if (viewName === "tv") {
-    window.requestAnimationFrame(() => revealTvStateOnce(views.get("tv")));
+    window.requestAnimationFrame(() => {
+      revealTvStateOnce(views.get("tv"));
+      if (!firstTvReveal) return;
+      window.requestAnimationFrame(() => {
+        if (currentView !== "tv") return;
+        scrollPositions.tv = 0;
+        window.scrollTo({ top: 0, behavior: "auto" });
+      });
+    });
   }
   if (viewName === "profile" && renderedDiaryRevision !== diaryRevision) {
     refreshDiaryContent();
