@@ -596,6 +596,7 @@ function showView(viewName, historyMode = null) {
   const firstTvReveal = viewName === "tv"
     && !revealedViewAnimations.has(`tv:${libraryViewPreferences.tv.state}`);
   const firstScheduleDataReady = firstScheduleReveal && scheduleViewsHydrated;
+  const targetScrollY = scrollPositions[viewName] || 0;
   if (firstScheduleReveal) {
     revealedViewAnimations.add(viewName);
     if (!firstScheduleDataReady) {
@@ -608,6 +609,11 @@ function showView(viewName, historyMode = null) {
     view.hidden = !active;
     view.classList.toggle("is-active", active);
   });
+
+  // Restore the destination's scroll position before its sticky chrome becomes
+  // visible. Otherwise a returning Profile view can briefly reveal the global
+  // app bar at the Profile scroll offset, then shift it into place.
+  window.scrollTo({ top: targetScrollY, behavior: "auto" });
 
   updateActiveNav(viewName === "detail"
     ? (detailParentView === "profile" ? profileParentView : detailParentView)
@@ -649,7 +655,6 @@ function showView(viewName, historyMode = null) {
     profile: "Profile · Track",
   };
   document.title = titles[viewName] || "Track";
-  window.scrollTo({ top: scrollPositions[viewName] || 0, behavior: "auto" });
   if (["backlog", "upcoming"].includes(viewName)) {
     if (firstScheduleDataReady) {
       staggerScheduleFirstReveal(views.get(viewName));
