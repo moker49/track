@@ -1493,12 +1493,14 @@ html.app-booting .schedule-empty-reveal {
   display: none;
 }
 
-[data-view="tv"].is-switching-layout .show-list {
+[data-view="tv"].is-switching-layout .show-list,
+[data-view="tv"].is-switching-layout .popular-grid {
   opacity: 0;
   transition: opacity 75ms ease-out;
 }
 
-[data-view="tv"].is-restarting-layout .show-list {
+[data-view="tv"].is-restarting-layout .show-list,
+[data-view="tv"].is-restarting-layout .popular-grid {
   opacity: 0;
 }
 
@@ -2982,6 +2984,66 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
 .popular-grid {
   display: grid;
   gap: 12px;
+}
+
+[data-view="tv"][data-tv-layout="compact"] .popular-grid {
+  grid-template-columns: repeat(auto-fill, 88px);
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px 12px;
+}
+
+[data-view="tv"][data-tv-layout="compact"] .popular-card {
+  width: 88px;
+  height: auto;
+  display: block;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-view="tv"][data-tv-layout="compact"] .mini-poster {
+  width: 88px;
+  height: var(--compact-card-height);
+  min-height: 0;
+  border-radius: 0;
+}
+
+[data-view="tv"][data-tv-layout="compact"] .popular-card-copy {
+  min-height: 0;
+  padding: 7px 0 0;
+}
+
+[data-view="tv"][data-tv-layout="compact"] .popular-card h3 {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+[data-view="tv"][data-tv-layout="compact"] .popular-card-copy > p:not(.catalog-overview) {
+  position: absolute;
+  z-index: 2;
+  top: 7px;
+  left: 7px;
+  margin: 0;
+  padding: 3px 5px;
+  border-radius: 5px;
+  color: var(--on-surface);
+  background: hsl(0 0% 0% / 0.58);
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+[data-view="tv"][data-tv-layout="compact"] .popular-card .catalog-overview,
+[data-view="tv"][data-tv-layout="compact"] .popular-card-actions {
+  display: none;
 }
 
 .tv-add-section {
