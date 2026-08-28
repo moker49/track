@@ -1,0 +1,16 @@
+{% macro movie_card(movie) %}
+{% set watched = movie.watched_count > 0 %}
+<article class="show-card movie-card" data-movie-id="{{ movie.id }}" data-tmdb-id="{{ movie.tmdb_id }}"
+  data-show-name="{{ movie.title|lower }}" data-name="{{ movie.title|lower }}" data-date-added="{{ movie.added_at }}"
+  data-release-date="{{ movie.release_date or '' }}" data-last-watched="{{ movie.last_watched_at or '' }}"
+  data-progress="{{ 100 if watched else 0 }}" data-progress-state="{{ 'finished' if watched else 'not-started' }}">
+  <button class="show-card-open" type="button" aria-label="Open {{ movie.title }}">
+    <div class="poster poster-purple{% if movie.poster_path %} has-media-image{% endif %}" aria-hidden="true">
+      {% if movie.poster_path %}<img class="poster-image" src="{{ url_for('cached_tmdb_image', image_type='poster', size='w342', tmdb_path=movie.poster_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image>{% else %}<span class="poster-mark">{{ movie.title[:2]|upper }}</span>{% endif %}
+    </div>
+    <div class="show-card-body"><div class="show-card-heading"><div class="show-card-meta"><span class="state-label progress-tag">{{ 'Finished' if watched else 'New' }}</span></div><h3>{{ movie.title }}</h3><span class="show-card-year">{{ movie.release_date[:4] if movie.release_date else '' }}</span></div>
+      <div class="progress-block"><div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ 100 if watched else 0 }}"><span style="width: {{ 100 if watched else 0 }}%"></span></div></div>
+    </div>
+  </button>
+</article>
+{% endmacro %}

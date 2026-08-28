@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import sqlite3
 import threading
 from datetime import date, datetime, timedelta, timezone
@@ -12,6 +13,7 @@ from dotenv import load_dotenv
 
 from database import connect_database, initialize_database
 from domain import (
+    TRACKING_ACTIVE,
     TRACKING_ARCHIVED,
     TRACKING_STATES,
     effective_watch_date_sql,
@@ -25,6 +27,7 @@ from queries import (
     get_catch_up_episodes,
     get_diary_page,
     get_library_show,
+    get_movie_library,
     get_show_activity,
     get_statistics,
     get_tv_library_shows,
@@ -164,6 +167,23 @@ def create_app(test_config: dict | None = None) -> Flask:
             item["state"] = local["state"] if local and local["is_tracked"] else None
         return results
 
+    def movie_catalog_results(payload: dict) -> list[dict]:
+        results = []
+        for item in payload.get("results", []):
+            if not isinstance(item.get("id"), int):
+                continue
+            results.append({"tmdb_id": item["id"], "name": item.get("title") or "Untitled movie",
+                            "overview": item.get("overview") or "No overview available.",
+                            "poster_path": item.get("poster_path"), "first_air_date": item.get("release_date")})
+        if results:
+            placeholders = ",".join("?" for _ in results)
+            existing = {row["tmdb_id"] for row in get_db().execute(
+                f"SELECT tmdb_id FROM movies WHERE is_tracked = 1 AND tmdb_id IN ({placeholders})",
+                [item["tmdb_id"] for item in results],
+            )}
+            for item in results: item["is_tracked"] = item["tmdb_id"] in existing
+        return results
+
 
 
 
@@ -175,6 +195,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         db = get_db()
         local_date = request_local_date()
         active_shows, archived_shows = get_tv_library_shows(db)
+        active_movies, archived_movies = get_movie_library(db)
         diary_entries, diary_has_more = get_diary_page(db)
         return render_template(
             "index.html",
@@ -186,6 +207,8 @@ def create_app(test_config: dict | None = None) -> Flask:
             statistics=get_statistics(db, local_date),
             active_shows=active_shows,
             archived_shows=archived_shows,
+            active_movies=active_movies,
+            archived_movies=archived_movies,
         )
 
     @app.get("/api/tv")
@@ -196,6 +219,11 @@ def create_app(test_config: dict | None = None) -> Flask:
             active_shows=active_shows,
             archived_shows=archived_shows,
         )
+
+    @app.get("/api/movies")
+    def movies_fragment():
+        active_movies, archived_movies = get_movie_library(get_db())
+        return render_template("movies.html", active_movies=active_movies, archived_movies=archived_movies)
 
     @app.get("/api/schedule")
     def schedule_fragment():
@@ -281,6 +309,29 @@ def create_app(test_config: dict | None = None) -> Flask:
             return jsonify(error=str(error), configured=bool(app.config["TMDB_READ_ACCESS_TOKEN"])), 503
         results = [result for result in catalog_results(payload) if not result["is_tracked"]]
         return jsonify(results=results)
+
+    @app.get("/api/movies/search")
+    def movie_search():
+        query = request.args.get("q", "").strip()
+        if not query: return jsonify(error="Enter a search term"), 400
+        try: payload = get_tmdb_client().search_movie(query)
+        except TMDBError as error: return jsonify(error=str(error)), 503
+        return jsonify(results=[item for item in movie_catalog_results(payload) if not item["is_tracked"]])
+
+    @app.post("/api/movies/<int:tmdb_id>/import")
+    def import_movie(tmdb_id: int):
+        target_state = (request.get_json(silent=True) or {}).get("state", TRACKING_ACTIVE)
+        if target_state not in TRACKING_STATES: return jsonify(error="invalid state"), 400
+        try: movie = get_tmdb_client().movie(tmdb_id)
+        except TMDBError as error: return jsonify(error=str(error)), 503
+        if movie.get("id") != tmdb_id: return jsonify(error="TMDB returned the wrong movie"), 502
+        now = utc_now()
+        db = get_db()
+        db.execute("""INSERT INTO movies (tmdb_id,title,original_title,overview,poster_path,backdrop_path,release_date,runtime_minutes,status,genres,original_language,state,added_at,active_at,archived_at,updated_at,tmdb_refreshed_at,tmdb_payload)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tmdb_id) DO UPDATE SET is_tracked=1,state=excluded.state,updated_at=excluded.updated_at""",
+          (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), target_state, now, now if target_state == TRACKING_ACTIVE else None, now if target_state == TRACKING_ARCHIVED else None, now, now, json.dumps(movie)))
+        db.commit()
+        return jsonify(ok=True)
 
     @app.post("/api/tv/shows/<int:tmdb_id>/import")
     def import_tv_show(tmdb_id: int):

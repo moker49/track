@@ -54,6 +54,18 @@ class TMDBClient:
             page=page,
         )
 
+    def search_movie(self, query: str, page: int = 1) -> dict:
+        return self._get(
+            "/search/movie",
+            query=query,
+            include_adult="false",
+            language="en-US",
+            page=page,
+        )
+
+    def movie(self, tmdb_id: int) -> dict:
+        return self._get(f"/movie/{tmdb_id}", language="en-US")
+
     def show_bundle(self, tmdb_id: int) -> tuple[dict, list[dict]]:
         show = self._get(f"/tv/{tmdb_id}", language="en-US")
         seasons = []

@@ -641,3 +641,21 @@ def get_tv_library_shows(
         key=lambda show: (natural_title_key(show["name"]), show["id"]),
     )
     return active_shows, archived_shows
+
+
+def get_movie_library(db: sqlite3.Connection) -> tuple[list[sqlite3.Row], list[sqlite3.Row]]:
+    movies = db.execute(
+        """
+        SELECT m.*, COUNT(mwh.id) AS watched_count,
+               MAX(COALESCE(mwh.watch_date, substr(mwh.added_at, 1, 10))) AS last_watched_at
+        FROM movies m
+        LEFT JOIN movie_watch_history mwh ON mwh.movie_id = m.id
+        WHERE m.is_tracked = 1
+        GROUP BY m.id
+        ORDER BY m.title COLLATE NOCASE
+        """
+    ).fetchall()
+    return (
+        [movie for movie in movies if movie["state"] == TRACKING_ACTIVE],
+        [movie for movie in movies if movie["state"] == TRACKING_ARCHIVED],
+    )

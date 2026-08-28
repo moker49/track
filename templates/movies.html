@@ -1,0 +1,4 @@
+{% from "_movie_card.html" import movie_card %}
+<section class="page-section tv-library-section" data-state-section="ACTIVE"><div class="show-list" data-movie-list="ACTIVE">{% for movie in active_movies %}{{ movie_card(movie) }}{% endfor %}</div></section>
+<section class="page-section tv-library-section archived-section" data-state-section="ARCHIVED" hidden><div class="show-list" data-movie-list="ARCHIVED">{% for movie in archived_movies %}{{ movie_card(movie) }}{% endfor %}</div></section>
+<section class="page-section tv-add-section" data-movie-add-section hidden><div class="popular-grid" data-movie-add-results></div></section>
