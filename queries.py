@@ -378,6 +378,19 @@ def get_statistics(db: sqlite3.Connection, local_date: date | None = None) -> di
             """
         ).fetchall()
     ]
+    movie_rows = [
+        dict(row)
+        for row in db.execute(
+            f"""
+            SELECT mwh.id AS watch_record_id, {effective_watch_date_sql('mwh')} AS watched_date,
+                   m.id AS movie_id, m.title AS movie_title,
+                   COALESCE(m.runtime_minutes, 0) AS runtime_minutes
+            FROM movie_watch_history mwh
+            JOIN movies m ON m.id = mwh.movie_id
+            ORDER BY watched_date, mwh.added_at, mwh.id
+            """
+        ).fetchall()
+    ]
     for row in rows:
         row["watched_date_value"] = date.fromisoformat(row["watched_date"])
 
@@ -496,6 +509,27 @@ def get_statistics(db: sqlite3.Connection, local_date: date | None = None) -> di
     if most_rewatched_episode and most_rewatched_episode["watch_count"] < 2:
         most_rewatched_episode = None
 
+    movie_metrics: dict[int, dict] = {}
+    for row in movie_rows:
+        movie = movie_metrics.setdefault(
+            row["movie_id"],
+            {
+                "movie_id": row["movie_id"],
+                "movie_title": row["movie_title"],
+                "watch_count": 0,
+                "minutes": 0,
+            },
+        )
+        movie["watch_count"] += 1
+        movie["minutes"] += row["runtime_minutes"]
+    most_rewatched_movie = max(
+        movie_metrics.values(),
+        key=lambda movie: (movie["watch_count"], movie["minutes"]),
+        default=None,
+    )
+    if most_rewatched_movie and most_rewatched_movie["watch_count"] < 2:
+        most_rewatched_movie = None
+
     return {
         "watch_count": watch_count,
         "unique_episode_count": unique_episode_count,
@@ -516,6 +550,9 @@ def get_statistics(db: sqlite3.Connection, local_date: date | None = None) -> di
         "busiest_date_watch_time": _format_duration(busiest_metrics["minutes"]),
         "most_rewatched_show": most_rewatched_show,
         "most_rewatched_episode": most_rewatched_episode,
+        "movie_watch_count": len(movie_rows),
+        "unique_movie_count": len(movie_metrics),
+        "most_rewatched_movie": most_rewatched_movie,
         "top_shows": top_shows,
     }
 

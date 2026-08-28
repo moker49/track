@@ -371,7 +371,9 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b">2</strong><small>Shows</small>", statistics.data)
         self.assertIn(b"Longest streak", statistics.data)
         self.assertIn(b"17 days", statistics.data)
-        self.assertIn(b"May 20", statistics.data)
+        self.assertNotIn(b"Busiest day", statistics.data)
+        self.assertIn(b"Movie plays", statistics.data)
+        self.assertIn(b"Most replayed movie", statistics.data)
         self.assertIn(b"Archived Test Show", statistics.data)
         self.assertIn(b"9h 36m", statistics.data)
         self.assertIn(b"None yet", statistics.data)
@@ -387,9 +389,8 @@ class TrackAppTest(unittest.TestCase):
         rewatched = self.client.get("/api/profile/statistics", headers=headers)
         self.assertIn(b"Most rewatched show", rewatched.data)
         self.assertIn(b"2 rewatches", rewatched.data)
-        self.assertIn(b"Most replayed episode", rewatched.data)
-        self.assertIn(b"Opening Episode", rewatched.data)
-        self.assertIn(b"3 watches", rewatched.data)
+        self.assertIn(b"Most replayed movie", rewatched.data)
+        self.assertIn(b"None yet", rewatched.data)
 
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
             encoding="utf-8"

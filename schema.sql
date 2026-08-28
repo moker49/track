@@ -113,6 +113,38 @@ CREATE INDEX IF NOT EXISTS idx_show_notes_show ON show_notes(show_id);
 CREATE INDEX IF NOT EXISTS idx_episode_notes_episode ON episode_notes(episode_id);
 CREATE INDEX IF NOT EXISTS idx_episode_external_ids_episode ON episode_external_ids(episode_id);
 
+CREATE TABLE IF NOT EXISTS movies (
+    id INTEGER PRIMARY KEY,
+    tmdb_id INTEGER UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    original_title TEXT,
+    overview TEXT,
+    poster_path TEXT,
+    backdrop_path TEXT,
+    release_date TEXT,
+    runtime_minutes INTEGER,
+    status TEXT,
+    genres TEXT,
+    original_language TEXT,
+    state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
+    is_tracked INTEGER NOT NULL DEFAULT 1 CHECK (is_tracked IN (0, 1)),
+    added_at TEXT NOT NULL,
+    active_at TEXT,
+    archived_at TEXT,
+    updated_at TEXT,
+    tmdb_refreshed_at TEXT,
+    tmdb_payload TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS movie_watch_history (
+    id INTEGER PRIMARY KEY,
+    movie_id INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+    added_at TEXT NOT NULL,
+    watch_date TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_movie_watch_history_movie ON movie_watch_history(movie_id);
+
 CREATE TABLE IF NOT EXISTS image_cache (
     id INTEGER PRIMARY KEY,
     tmdb_path TEXT NOT NULL,
