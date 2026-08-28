@@ -33,11 +33,11 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list expand_more check_box arrow_upward arrow_downward more_vert resume event tv movie done_all arrow_forward menu account_circle arrow_back close",
+        "filter_list expand_more check_box arrow_upward arrow_downward more_vert resume event tv movie video_library done_all arrow_forward menu account_circle arrow_back close",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
-      "resume event tv movie",
+        "resume event tv movie",
       ),
     ]);
     await Promise.race([
@@ -85,12 +85,14 @@ const libraryViewPreferences = {
     progress: "",
     sortField: "lastWatched",
     sortDirection: "desc",
+    mediaTypes: ["tv"],
   },
   upcoming: {
     state: TRACKING_STATE.ACTIVE,
     progress: "",
     sortField: "releaseDate",
     sortDirection: "asc",
+    mediaTypes: ["tv", "archive"],
   },
   tv: {
     state: TRACKING_STATE.ACTIVE,
@@ -98,6 +100,14 @@ const libraryViewPreferences = {
     sortField: "name",
     sortDirection: "asc",
     layout: "list",
+    mediaTypes: ["tv"],
+  },
+  movies: {
+    state: TRACKING_STATE.ACTIVE,
+    progress: "",
+    sortField: "name",
+    sortDirection: "asc",
+    mediaTypes: ["movies"],
   },
 };
 const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "" };
@@ -151,6 +161,7 @@ let tvSearchPending = false;
 let tvSearchComplete = false;
 let tvSearchError = "";
 let tvLayoutTransitionTimer = null;
+let tvDropdownHistoryActive = false;
 let snackbarAction = null;
 let backgroundPrimaryViewHydrationStarted = false;
 let scheduleViewsHydrated = false;
@@ -2505,17 +2516,33 @@ const progressFilterLabels = {
 
 const sortFieldLabels = {
   name: "Name",
-  dateAdded: "Date added",
-  releaseDate: "Release date",
-  lastWatched: "Last watched",
+  dateAdded: "Added",
+  releaseDate: "Released",
+  lastWatched: "Watched",
   progress: "Progress",
 };
 
 const libraryViewDefaults = {
-  backlog: { progress: "", sortField: "lastWatched", sortDirection: "desc" },
-  upcoming: { progress: "", sortField: "releaseDate", sortDirection: "asc" },
-  tv: { progress: "", sortField: "name", sortDirection: "asc" },
+  backlog: { progress: "", sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv"] },
+  upcoming: { progress: "", sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "archive"] },
+  tv: { progress: "", sortField: "name", sortDirection: "asc", mediaTypes: ["tv"] },
+  movies: { progress: "", sortField: "name", sortDirection: "asc", mediaTypes: ["movies"] },
 };
+
+function mediaTypeLabel(mediaTypes, defaultMediaTypes) {
+  const selected = new Set(mediaTypes);
+  if (selected.size === defaultMediaTypes.length
+    && defaultMediaTypes.every((type) => selected.has(type))) return "Library";
+  if (selected.has("tv") && selected.has("movies")) return selected.has("archive") ? "All+" : "All";
+  if (selected.has("tv")) return selected.has("archive") ? "TV+" : "TV";
+  if (selected.has("movies")) return selected.has("archive") ? "Movies+" : "Movies";
+  return selected.has("archive") ? "Archive" : "None";
+}
+
+function hasDefaultMediaTypes(mediaTypes, defaultMediaTypes) {
+  return mediaTypes.length === defaultMediaTypes.length
+    && defaultMediaTypes.every((type) => mediaTypes.includes(type));
+}
 
 function syncTvControlBar(view = views.get(currentView)) {
   if (!view || !tvControlBar) return;
@@ -2524,37 +2551,62 @@ function syncTvControlBar(view = views.get(currentView)) {
   const defaults = libraryViewDefaults[viewName];
   if (!preferences || !defaults) return;
   const progressLabel = tvControlBar.querySelector("[data-tv-progress-label]");
+  const mediaLabel = tvControlBar.querySelector("[data-tv-media-label]");
   const sortLabel = tvControlBar.querySelector("[data-tv-sort-label]");
   const sortIcon = tvControlBar.querySelector("[data-tv-sort-icon]");
-  const divider = tvControlBar.querySelector("[data-tv-combined-divider]");
-  const defaultControls = preferences.progress === defaults.progress
-    && preferences.sortField === defaults.sortField
-    && preferences.sortDirection === defaults.sortDirection;
+  const mediaIsDefault = hasDefaultMediaTypes(preferences.mediaTypes, defaults.mediaTypes);
+  if (mediaLabel) {
+    const label = mediaTypeLabel(preferences.mediaTypes, defaults.mediaTypes);
+    const hasPlus = label.endsWith("+");
+    mediaLabel.replaceChildren(document.createTextNode(hasPlus ? label.slice(0, -1) : label));
+    if (hasPlus) {
+      const plus = document.createElement("span");
+      plus.className = "tv-media-label-plus";
+      plus.textContent = "+";
+      mediaLabel.append(plus);
+    }
+  }
   if (progressLabel) {
-    progressLabel.textContent = defaultControls
-      ? "Filter"
-      : progressFilterLabels[preferences.progress];
+    progressLabel.textContent = progressFilterLabels[preferences.progress];
   }
   if (sortLabel) {
-    sortLabel.textContent = defaultControls
-      ? "Sort"
-      : sortFieldLabels[preferences.sortField];
+    sortLabel.textContent = sortFieldLabels[preferences.sortField];
   }
   if (sortIcon) {
-    sortIcon.classList.toggle("tv-combined-part-hidden", defaultControls);
     sortIcon.textContent = preferences.sortDirection === "asc"
       ? "arrow_upward"
       : "arrow_downward";
   }
-  divider?.classList.toggle("tv-combined-part-hidden", !defaultControls);
+  [
+    ["media", !mediaIsDefault],
+    ["filter", preferences.progress !== defaults.progress],
+    ["sort", preferences.sortField !== defaults.sortField
+      || preferences.sortDirection !== defaults.sortDirection],
+  ].forEach(([control, isActive]) => {
+    tvControlBar.querySelector(`[data-tv-dropdown-toggle="${control}"] > .material-symbols-rounded:not(.tv-dropdown-chevron)`)
+      ?.classList.toggle("is-control-active", isActive);
+  });
+
+  tvControlBar.querySelectorAll("[data-tv-media-option]").forEach((button) => {
+    const type = button.dataset.tvMediaOption;
+    const excluded = (viewName === "tv" && type === "movies")
+      || (viewName === "movies" && type === "tv");
+    button.hidden = excluded;
+    const selected = preferences.mediaTypes.includes(type);
+    button.classList.toggle("is-unselected-default", defaults.mediaTypes.includes(type) && !selected);
+    button.setAttribute("aria-checked", String(selected));
+    button.querySelector(".tv-dropdown-selection").classList.toggle("is-hidden", !selected);
+  });
 
   tvControlBar.querySelectorAll("[data-tv-progress-option]").forEach((button) => {
     const selected = button.dataset.tvProgressOption === preferences.progress;
+    button.classList.toggle("is-unselected-default", button.dataset.tvProgressOption === defaults.progress && !selected);
     button.setAttribute("aria-checked", String(selected));
     button.querySelector(".tv-dropdown-selection").classList.toggle("is-hidden", !selected);
   });
   tvControlBar.querySelectorAll("[data-tv-sort-option]").forEach((button) => {
     const selected = button.dataset.tvSortOption === preferences.sortField;
+    button.classList.toggle("is-unselected-default", button.dataset.tvSortOption === defaults.sortField && !selected);
     const sortLocked = viewName === "upcoming";
     button.disabled = sortLocked;
     button.setAttribute("aria-disabled", String(sortLocked));
@@ -2565,16 +2617,11 @@ function syncTvControlBar(view = views.get(currentView)) {
       ? "arrow_upward"
       : "arrow_downward";
   });
-  tvControlBar.dataset.selectedState = preferences.state;
-  tvControlBar.querySelectorAll("[data-tv-library-state]").forEach((button) => {
-    const selected = button.dataset.tvLibraryState === preferences.state;
-    button.setAttribute("aria-pressed", String(selected));
-  });
 }
 
 function syncTvControlVisibility() {
   if (!tvControlBar) return;
-  const visible = ["backlog", "upcoming", "tv"].includes(currentView)
+  const visible = ["backlog", "upcoming", "tv", "movies"].includes(currentView)
     && !searchQueries[currentView].trim();
   tvControlBar.hidden = !visible;
   appContent?.classList.toggle("has-library-controls", visible);
@@ -2593,10 +2640,11 @@ function showFloatingMenu(menu, trigger) {
   menu.showPopover();
   const bounds = menu.getBoundingClientRect();
   const triggerBounds = trigger.getBoundingClientRect();
-  const viewportInset = 8;
+  const viewportInset = 16;
+  const menuWidth = Math.min(bounds.width, window.innerWidth - (viewportInset * 2));
   const left = Math.max(
     viewportInset,
-    Math.min(triggerBounds.right - bounds.width, window.innerWidth - bounds.width - viewportInset),
+    Math.min(triggerBounds.right - menuWidth, window.innerWidth - menuWidth - viewportInset),
   );
   const desiredTop = menu.matches("[data-tv-dropdown-menu]")
     ? triggerBounds.top - bounds.height - 8
@@ -2607,7 +2655,7 @@ function showFloatingMenu(menu, trigger) {
   );
   menu.style.top = `${top}px`;
   menu.style.left = `${left}px`;
-  menu.style.width = `${bounds.width}px`;
+  menu.style.width = `${menuWidth}px`;
   const collapsedScale = Math.min(1, 48 / Math.max(bounds.height, 48));
   const transformOrigin = top < triggerBounds.top ? "bottom right" : "top right";
   menu.dataset.menuCollapsedScale = String(collapsedScale);
@@ -2672,13 +2720,26 @@ function preserveMenuScrollPosition(position) {
   window.requestAnimationFrame(restore);
 }
 
-function closeTvDropdowns(exceptMenu = null) {
+function pushTvDropdownHistory() {
+  if (tvDropdownHistoryActive) return;
+  window.history.pushState({ ...window.history.state, trackApp: true, tvDropdownOpen: true }, "");
+  tvDropdownHistoryActive = true;
+}
+
+function clearTvDropdownHistory() {
+  if (!tvDropdownHistoryActive) return;
+  tvDropdownHistoryActive = false;
+  if (window.history.state?.tvDropdownOpen) window.history.back();
+}
+
+function closeTvDropdowns(exceptMenu = null, { preserveHistory = false } = {}) {
   document.querySelectorAll("[data-tv-dropdown-menu]").forEach((menu) => {
     if (menu === exceptMenu) return;
     hideFloatingMenu(menu);
     menu.parentElement.querySelector("[data-tv-dropdown-toggle]")
       ?.setAttribute("aria-expanded", "false");
   });
+  if (!exceptMenu && !preserveHistory) clearTvDropdownHistory();
   syncMenuScrim();
 }
 
@@ -2690,10 +2751,15 @@ function toggleTvDropdown(button) {
   globalSearchInput?.blur();
   closeShowMenus();
   closeWatchMenus();
-  closeTvDropdowns(menu);
+  closeTvDropdowns(menu, { preserveHistory: true });
   if (willOpen) menuScrollLockPosition = scrollPosition;
-  if (willOpen) showFloatingMenu(menu, button);
-  else hideFloatingMenu(menu);
+  if (willOpen) {
+    pushTvDropdownHistory();
+    showFloatingMenu(menu, button);
+  } else {
+    hideFloatingMenu(menu);
+    clearTvDropdownHistory();
+  }
   button.setAttribute("aria-expanded", String(willOpen));
   syncMenuScrim();
   preserveMenuScrollPosition(scrollPosition);
@@ -3339,9 +3405,27 @@ document.addEventListener("click", (event) => {
     const preferences = libraryViewPreferences[currentView];
     if (!preferences) return;
     preferences.progress = progressOption.dataset.tvProgressOption;
-    closeTvDropdowns();
     if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
-    else filterShowView(views.get("tv"));
+    else if (currentView === "tv") filterShowView(views.get("tv"));
+    else syncTvControlBar(views.get(currentView));
+    return;
+  }
+
+  const mediaOption = event.target.closest("[data-tv-media-option]");
+  if (mediaOption) {
+    const preferences = libraryViewPreferences[currentView];
+    if (!preferences) return;
+    const type = mediaOption.dataset.tvMediaOption;
+    const locked = (currentView === "tv" && type === "tv")
+      || (currentView === "movies" && type === "movies");
+    if (!locked) {
+      preferences.mediaTypes = preferences.mediaTypes.includes(type)
+        ? preferences.mediaTypes.filter((value) => value !== type)
+        : [...preferences.mediaTypes, type];
+    }
+    if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
+    else if (currentView === "tv") filterShowView(views.get("tv"));
+    syncTvControlBar(views.get(currentView));
     return;
   }
 
@@ -3362,9 +3446,9 @@ document.addEventListener("click", (event) => {
       preferences.sortField = nextField;
       preferences.sortDirection = nextField === "name" ? "asc" : "desc";
     }
-    closeTvDropdowns();
     if (currentView === "backlog") filterSchedule(currentView);
-    else filterShowView(views.get("tv"));
+    else if (currentView === "tv") filterShowView(views.get("tv"));
+    else syncTvControlBar(views.get(currentView));
     return;
   }
 
@@ -3654,7 +3738,9 @@ function filterSchedule(viewName = currentView) {
     let visibleCount = 0;
     cards.forEach((card) => {
       const matchesSearch = !query || card.dataset.scheduleSearchText?.includes(query);
-      const matchesState = searching || card.dataset.trackingState === preferences.state;
+      const matchesState = searching || (card.dataset.trackingState === TRACKING_STATE.ACTIVE
+        ? preferences.mediaTypes.includes("tv")
+        : preferences.mediaTypes.includes("archive"));
       const matchesProgress = searching || !preferences.progress
         || card.dataset.progressState === preferences.progress
         || (
@@ -3687,7 +3773,9 @@ function filterShowView(view) {
   view.classList.toggle("is-searching", searching);
   view.querySelectorAll("[data-state-section]").forEach((section) => {
     const state = section.dataset.stateSection;
-    const stateSelected = searching || preferences.state === state;
+    const stateSelected = searching || (state === TRACKING_STATE.ACTIVE
+      ? preferences.mediaTypes.includes("tv")
+      : preferences.mediaTypes.includes("archive"));
     const list = section.querySelector(".show-list");
     const cards = [...section.querySelectorAll(".show-card")];
 
@@ -3724,14 +3812,6 @@ function filterShowView(view) {
     const count = section.querySelector("[data-state-count]");
     if (count) count.textContent = searching ? visibleCount : cards.length;
   });
-  const librarySwitcher = tvControlBar;
-  if (librarySwitcher) {
-    librarySwitcher.dataset.selectedState = preferences.state;
-    librarySwitcher.querySelectorAll("[data-tv-library-state]").forEach((button) => {
-      const selected = button.dataset.tvLibraryState === preferences.state;
-      button.setAttribute("aria-pressed", String(selected));
-    });
-  }
   if (view.dataset.view === currentView) syncTvControlVisibility();
   hydratedLibraryViews.add(view.dataset.view);
   if (view.dataset.view === "tv") syncTvSearchPresentation();
@@ -3901,6 +3981,10 @@ function restoreHistoryState(state) {
 }
 
 window.addEventListener("popstate", (event) => {
+  if (tvDropdownHistoryActive) {
+    tvDropdownHistoryActive = false;
+    closeTvDropdowns(null, { preserveHistory: true });
+  }
   restoreHistoryState(event.state);
 });
 

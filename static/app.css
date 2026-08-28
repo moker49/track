@@ -283,7 +283,7 @@ html.app-booting .app-boot-screen {
 
 .stats-overview-card>strong {
   margin: 2px 0 12px;
-  color: var(--on-surface);
+  color: var(--on-surface-muted);
   font-size: clamp(2rem, 10vw, 2.65rem);
   font-weight: 500;
   line-height: 1;
@@ -2765,7 +2765,7 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
   width: 100%;
   padding: 8px 12px;
   display: grid;
-  grid-template-columns: minmax(132px, 0.9fr) minmax(0, 1.25fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   border-top: 1px solid var(--outline-soft);
   background: transparent;
@@ -2836,7 +2836,7 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
   grid-template-columns: 18px minmax(0, 1fr) 18px;
   align-items: center;
   gap: 4px;
-  color: var(--on-surface);
+  color: var(--on-surface-muted);
   background: var(--surface-card);
   font: inherit;
   font-size: 0.76rem;
@@ -2865,8 +2865,12 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
 }
 
 .tv-dropdown-toggle>.material-symbols-rounded {
-  color: var(--primary);
+  color: var(--on-surface-muted);
   font-size: 18px;
+}
+
+.tv-media-label-plus {
+  color: var(--outline);
 }
 
 .tv-combined-toggle .tv-dropdown-chevron {
@@ -2876,7 +2880,12 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
 
 .tv-dropdown-toggle .tv-dropdown-chevron {
   justify-self: end;
+  color: var(--outline);
   transition: transform 140ms ease-in-out;
+}
+
+.tv-dropdown-toggle>.material-symbols-rounded.is-control-active {
+  color: var(--primary);
 }
 
 .tv-dropdown-toggle[aria-expanded="true"] .tv-dropdown-chevron {
@@ -2941,6 +2950,7 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
 .tv-dropdown-menu button {
   width: 100%;
   min-height: 48px;
+  margin-block: 2px;
   padding: 0 16px;
   border: 0;
   display: grid;
@@ -2961,6 +2971,22 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
   border-radius: 14px;
   color: var(--primary);
   background: var(--primary-light);
+}
+
+.tv-dropdown-menu button.is-unselected-default .tv-dropdown-selection.is-hidden {
+  visibility: visible;
+  display: grid;
+  place-items: center;
+  color: transparent;
+  font-size: 0;
+}
+
+.tv-dropdown-menu button.is-unselected-default .tv-dropdown-selection.is-hidden::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--outline);
 }
 
 .tv-dropdown-menu button:disabled {
@@ -3034,7 +3060,7 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
   margin: 0;
   padding: 3px 5px;
   border-radius: 5px;
-  color: var(--on-surface);
+  color: var(--on-surface-muted);
   background: hsl(0 0% 0% / 0.58);
   font-size: 0.68rem;
   font-weight: 500;

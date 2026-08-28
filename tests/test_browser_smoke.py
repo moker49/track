@@ -114,19 +114,19 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
             self.assertEqual(search.input_value(), "")
             self.assertFalse(search.evaluate("element => element === document.activeElement"))
 
-            combined_toggle = page.locator('[data-tv-dropdown-toggle="combined"]')
-            combined_toggle.click()
-            combined_menu = page.locator('[data-tv-dropdown-menu="combined"]')
-            self.assertTrue(combined_menu.is_visible())
+            filter_toggle = page.locator('[data-tv-dropdown-toggle="filter"]')
+            filter_toggle.click()
+            filter_menu = page.locator('[data-tv-dropdown-menu="filter"]')
+            self.assertTrue(filter_menu.is_visible())
             page.locator('[data-tv-progress-option="started"]').click()
-            combined_menu.wait_for(state="hidden")
-            self.assertFalse(combined_menu.is_visible())
-            self.assertIn("Started", combined_toggle.inner_text())
+            self.assertTrue(filter_menu.is_visible())
+            self.assertIn("Started", filter_toggle.inner_text())
 
-            combined_toggle.click()
+            sort_toggle = page.locator('[data-tv-dropdown-toggle="sort"]')
+            sort_toggle.click()
             page.locator('[data-tv-sort-option="name"]').click()
             self.assertEqual(
-                combined_toggle.locator('[data-tv-sort-icon]').inner_text(),
+                sort_toggle.locator('[data-tv-sort-icon]').inner_text(),
                 "arrow_downward",
             )
         finally:
