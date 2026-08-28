@@ -3604,7 +3604,7 @@ document.addEventListener("click", (event) => {
     if (!preferences) return;
     preferences.progress = progressOption.dataset.tvProgressOption;
     if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
-    else if (currentView === "tv") filterShowView(views.get("tv"));
+    else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
     else syncTvControlBar(views.get(currentView));
     return;
   }
@@ -3622,7 +3622,7 @@ document.addEventListener("click", (event) => {
         : [...preferences.mediaTypes, type];
     }
     if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
-    else if (currentView === "tv") filterShowView(views.get("tv"));
+    else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
     syncTvControlBar(views.get(currentView));
     return;
   }
@@ -3645,7 +3645,7 @@ document.addEventListener("click", (event) => {
       preferences.sortDirection = nextField === "name" ? "asc" : "desc";
     }
     if (currentView === "backlog") filterSchedule(currentView);
-    else if (currentView === "tv") filterShowView(views.get("tv"));
+    else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
     else syncTvControlBar(views.get(currentView));
     return;
   }
