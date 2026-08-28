@@ -108,11 +108,13 @@ const libraryViewPreferences = {
     sortField: "name",
     sortDirection: "asc",
     mediaTypes: ["movies"],
+    layout: "list",
   },
 };
 const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "" };
 restoreTvLayout();
 const showDetailCache = new Map();
+const movieDetailCache = new Map();
 const showSeasonsCache = new Map();
 const seasonEpisodesCache = new Map();
 const seasonEpisodeRequests = new Map();
@@ -160,6 +162,8 @@ let tvSearchRequest = null;
 let tvSearchPending = false;
 let tvSearchComplete = false;
 let tvSearchError = "";
+let movieSearchTimer = null;
+let movieSearchRequest = null;
 let tvLayoutTransitionTimer = null;
 let tvDropdownHistoryActive = false;
 let snackbarAction = null;
@@ -337,11 +341,13 @@ function syncGlobalSearch() {
 }
 
 function syncTvLayout() {
-  const tvView = views.get("tv");
-  const isCompact = libraryViewPreferences.tv.layout === "compact";
-  if (tvView) tvView.dataset.tvLayout = isCompact ? "compact" : "list";
+  ["tv", "movies"].forEach((name) => {
+    const view = views.get(name);
+    if (view) view.dataset.tvLayout = libraryViewPreferences[name].layout === "compact" ? "compact" : "list";
+  });
+  const isCompact = libraryViewPreferences[currentView]?.layout === "compact";
   if (!tvViewToggle) return;
-  const visible = currentView === "tv";
+  const visible = ["tv", "movies"].includes(currentView);
   tvViewToggle.hidden = !visible;
   tvViewToggle.setAttribute("aria-pressed", String(isCompact));
   tvViewToggle.setAttribute("aria-label", isCompact
@@ -357,6 +363,9 @@ function restoreTvLayout() {
     if (window.localStorage.getItem("track.tv-layout") === "compact") {
       libraryViewPreferences.tv.layout = "compact";
     }
+    if (window.localStorage.getItem("track.movies-layout") === "compact") {
+      libraryViewPreferences.movies.layout = "compact";
+    }
   } catch (_error) {
     // Storage can be unavailable in private browsing contexts.
   }
@@ -364,12 +373,12 @@ function restoreTvLayout() {
 
 function toggleTvLayout() {
   if (tvLayoutTransitionTimer) return;
-  const preferences = libraryViewPreferences.tv;
-  const tvView = views.get("tv");
+  const preferences = libraryViewPreferences[currentView];
+  const tvView = views.get(currentView);
   const applyLayout = () => {
     preferences.layout = preferences.layout === "compact" ? "list" : "compact";
     try {
-      window.localStorage.setItem("track.tv-layout", preferences.layout);
+      window.localStorage.setItem(`track.${currentView}-layout`, preferences.layout);
     } catch (_error) {
       // The selected layout remains active for the current session.
     }
@@ -757,6 +766,7 @@ function catalogCard(show) {
   const article = document.createElement("article");
   article.className = "popular-card";
   article.dataset.tmdbId = show.tmdb_id;
+  article.dataset.catalogType = currentView;
   if (show.show_id) article.dataset.showId = show.show_id;
   article.tabIndex = 0;
   article.setAttribute("role", "link");
@@ -941,6 +951,16 @@ async function importCatalogShow(card, state, trigger) {
   const actions = card.querySelectorAll(".catalog-action");
   actions.forEach((button) => { button.disabled = true; });
   try {
+    if (card.dataset.catalogType === "movies") {
+      const response = await fetch(`/api/movies/${card.dataset.tmdbId}/import`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not add movie");
+      card.remove();
+      await refreshMoviesContent();
+      return;
+    }
     const hasLocalShow = Boolean(card.dataset.showId);
     const url = hasLocalShow
       ? `/api/shows/${card.dataset.showId}/state`
@@ -962,6 +982,42 @@ async function importCatalogShow(card, state, trigger) {
     actions.forEach((button) => { button.disabled = false; });
     showSnackbar(error.message);
   }
+}
+
+function syncMovieSearchPresentation() {
+  const view = views.get("movies");
+  if (!view) return;
+  const section = view.querySelector("[data-movie-add-section]");
+  if (section) section.hidden = !searchQueries.movies.trim()
+    || !view.querySelector("[data-movie-add-results]")?.children.length;
+}
+
+async function searchMovieCatalog(query) {
+  movieSearchRequest?.abort();
+  movieSearchRequest = new AbortController();
+  const results = views.get("movies")?.querySelector("[data-movie-add-results]");
+  results?.replaceChildren();
+  try {
+    const response = await fetch(`/api/movies/search?q=${encodeURIComponent(query)}`, { signal: movieSearchRequest.signal });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not search TMDB");
+    if (searchQueries.movies.trim() !== query) return;
+    const cards = data.results.map(catalogCard);
+    results?.replaceChildren(...cards);
+    staggerTvSlices(cards);
+  } catch (error) {
+    if (error.name !== "AbortError") showSnackbar(error.message);
+  }
+  syncMovieSearchPresentation();
+}
+
+async function refreshMoviesContent() {
+  const response = await fetch("/api/movies", { headers: { "X-Requested-With": "Track" } });
+  if (!response.ok) throw new Error("Could not refresh movies");
+  const template = document.createElement("template");
+  template.innerHTML = (await response.text()).trim();
+  views.get("movies")?.replaceChildren(template.content);
+  filterShowView(views.get("movies"));
 }
 
 async function previewCatalogShow(card, historyMode = "push") {
@@ -1955,7 +2011,7 @@ async function openShow(
   returnContext = null,
 ) {
   const cacheKey = String(showId);
-  detailParentView = ["backlog", "upcoming", "tv", "profile"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "profile"].includes(parentView)
     ? parentView
     : "backlog";
   if (historyMode) {
@@ -2053,6 +2109,45 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
   restoreShowDetailContext(detailShow.dataset.showId, returnContext);
   prefetchShowSeasonEpisodes(detailShow);
   if (animate) hydrateOtherPrimaryViews();
+}
+
+async function openMovie(movieId, parentView = "movies", historyMode = "push") {
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "profile"].includes(parentView)
+    ? parentView : "movies";
+  if (historyMode) {
+    writeHistory({ view: "detail", detailType: "movie", movieId: String(movieId), parentView: detailParentView }, historyMode);
+  }
+  const cacheKey = String(movieId);
+  const cached = movieDetailCache.get(cacheKey);
+  if (cached) {
+    if (detailRequest) detailRequest.abort();
+    detailRequest = null;
+    if (currentView !== "detail") showView("detail");
+    renderMovieDetail(cached, false);
+    return;
+  }
+  prepareDetailLoad("Movie details");
+  try {
+    const response = await fetch(`/api/movies/${movieId}`, {
+      headers: { "X-Requested-With": "Track" }, signal: detailRequest.signal,
+    });
+    if (!response.ok) throw new Error("Could not load movie");
+    const movieHtml = await response.text();
+    movieDetailCache.set(cacheKey, movieHtml);
+    renderMovieDetail(movieHtml, true);
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    views.get("detail").innerHTML = `<header class="detail-app-bar"><button class="icon-button" type="button" data-detail-back aria-label="Back"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button><span>Movie details</span></header><div class="empty-state detail-error"><span class="empty-icon material-symbols-rounded" aria-hidden="true">cloud_off</span><h2>Couldn't load this movie</h2><p>Check the connection and try again.</p><button class="filled-button" type="button" data-retry-movie="${movieId}">Try again</button></div>`;
+  }
+}
+
+function renderMovieDetail(movieHtml, animate) {
+  const template = document.createElement("template");
+  template.innerHTML = movieHtml;
+  const detailMovie = template.content.querySelector("[data-detail-movie]");
+  if (animate) staggerDetailSlices([detailMovie.querySelector(".hero"), ...detailMovie.querySelectorAll(".detail-content > *")]);
+  views.get("detail").replaceChildren(template.content);
+  finishDetailLoad();
 }
 
 async function openEpisode(episodeId, historyMode = "push") {
@@ -2766,10 +2861,10 @@ function toggleTvDropdown(button) {
 }
 
 function closeShowMenus(exceptMenu = null) {
-  document.querySelectorAll("[data-show-menu]").forEach((menu) => {
+  document.querySelectorAll("[data-show-menu], [data-movie-menu]").forEach((menu) => {
     if (menu === exceptMenu) return;
     hideFloatingMenu(menu);
-    menu.parentElement.querySelector("[data-show-menu-button]")
+    menu.parentElement.querySelector("[data-show-menu-button], [data-movie-menu-button]")
       ?.setAttribute("aria-expanded", "false");
   });
   syncMenuScrim();
@@ -2799,7 +2894,7 @@ function isolateOpenMenu(openMenu) {
 function syncMenuScrim() {
   if (!menuScrim) return;
   const openMenu = document.querySelector(
-    "[data-show-menu]:not([hidden]), [data-watch-menu]:not([hidden]), [data-tv-dropdown-menu]:not([hidden])",
+    "[data-show-menu]:not([hidden]), [data-movie-menu]:not([hidden]), [data-watch-menu]:not([hidden]), [data-movie-watch-menu]:not([hidden]), [data-tv-dropdown-menu]:not([hidden])",
   );
   const menuOpen = Boolean(openMenu);
   clearMenuIsolation();
@@ -2848,8 +2943,26 @@ function toggleShowMenu(button) {
   preserveMenuScrollPosition(scrollPosition);
 }
 
+function toggleMovieMenu(button) {
+  const scrollPosition = { x: window.scrollX, y: window.scrollY };
+  const menu = button.parentElement.querySelector("[data-movie-menu]")
+    || button.closest("[data-movie-id]")?.querySelector("[data-movie-menu]");
+  if (!menu) return;
+  const willOpen = menu.hidden;
+  clearDetailSliceReveals(views.get("detail"));
+  closeWatchMenus();
+  closeShowMenus(menu);
+  if (willOpen) {
+    menuScrollLockPosition = scrollPosition;
+    showFloatingMenu(menu, button);
+  } else hideFloatingMenu(menu);
+  button.setAttribute("aria-expanded", String(willOpen));
+  syncMenuScrim();
+  preserveMenuScrollPosition(scrollPosition);
+}
+
 function closeWatchMenus(exceptMenu = null) {
-  document.querySelectorAll("[data-watch-menu]").forEach((menu) => {
+  document.querySelectorAll("[data-watch-menu], [data-movie-watch-menu]").forEach((menu) => {
     if (menu !== exceptMenu) hideFloatingMenu(menu);
   });
   syncMenuScrim();
@@ -2857,7 +2970,7 @@ function closeWatchMenus(exceptMenu = null) {
 
 function toggleWatchMenu(control) {
   const scrollPosition = { x: window.scrollX, y: window.scrollY };
-  const menu = control.parentElement.querySelector("[data-watch-menu]");
+  const menu = control.parentElement.querySelector("[data-watch-menu], [data-movie-watch-menu]");
   if (!menu) return;
   const willOpen = menu.hidden;
   clearDetailSliceReveals(views.get("detail"));
@@ -2868,6 +2981,68 @@ function toggleWatchMenu(control) {
   else hideFloatingMenu(menu);
   syncMenuScrim();
   preserveMenuScrollPosition(scrollPosition);
+}
+
+function updateMovieWatchUi(detailMovie, watchCount) {
+  detailMovie.dataset.watchCount = watchCount;
+  const control = detailMovie.querySelector("[data-movie-detail-watch]");
+  if (!control) return;
+  control.dataset.watchCount = watchCount;
+  control.querySelector("[data-movie-detail-watch-count]").textContent = watchCount;
+  control.querySelector("[data-movie-detail-watch-label]").textContent = watchCount === 1 ? "watch" : "watches";
+}
+
+async function changeMovieWatchCount(detailMovie, action) {
+  if (pendingWatchChanges.has(detailMovie)) return;
+  pendingWatchChanges.add(detailMovie);
+  try {
+    const response = await fetch(`/api/movies/${detailMovie.dataset.movieId}/watch-count`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }),
+    });
+    if (!response.ok) throw new Error("Could not update movie");
+    const data = await response.json();
+    movieDetailCache.delete(String(data.movie_id));
+    updateMovieWatchUi(detailMovie, data.watch_count);
+    refreshMoviesContent();
+  } catch (_error) {
+    showSnackbar("Couldn't update this movie. Try again.");
+  } finally {
+    pendingWatchChanges.delete(detailMovie);
+  }
+}
+
+async function moveMovie(movieElement, targetState, actionButton) {
+  actionButton.disabled = true;
+  try {
+    const response = await fetch(`/api/movies/${movieElement.dataset.movieId}/state`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: targetState }),
+    });
+    if (!response.ok) throw new Error("Could not move movie");
+    movieDetailCache.delete(String(movieElement.dataset.movieId));
+    await refreshMoviesContent();
+    if (currentView === "detail") openMovie(movieElement.dataset.movieId, detailParentView, null);
+    showSnackbar(targetState === TRACKING_STATE.ARCHIVED ? "Movie archived" : "Movie made active");
+  } catch (_error) {
+    showSnackbar("Couldn't move this movie. Try again.");
+  } finally {
+    actionButton.disabled = false;
+  }
+}
+
+async function removeMovie(movieElement, actionButton) {
+  actionButton.disabled = true;
+  try {
+    const response = await fetch(`/api/movies/${movieElement.dataset.movieId}`, { method: "DELETE" });
+    if (!response.ok) throw new Error("Could not remove movie");
+    movieDetailCache.delete(String(movieElement.dataset.movieId));
+    await refreshMoviesContent();
+    if (currentView === "detail") showView(detailParentView, "replace");
+    showSnackbar("Movie removed from your library");
+  } catch (_error) {
+    showSnackbar("Couldn't remove this movie. Try again.");
+  } finally {
+    actionButton.disabled = false;
+  }
 }
 
 function syncProgressState(showElement) {
@@ -3326,7 +3501,7 @@ document.addEventListener("click", (event) => {
   }
 
   const catalogCardElement = event.target.closest(".popular-card[data-tmdb-id]");
-  if (catalogCardElement && !event.target.closest("button")) {
+  if (catalogCardElement && catalogCardElement.dataset.catalogType !== "movies" && !event.target.closest("button")) {
     previewCatalogShow(catalogCardElement);
     return;
   }
@@ -3541,6 +3716,37 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const movieMenuButton = event.target.closest("[data-movie-menu-button]");
+  if (movieMenuButton) {
+    toggleMovieMenu(movieMenuButton);
+    return;
+  }
+
+  const movieWatchAction = event.target.closest("[data-movie-watch-action]");
+  if (movieWatchAction) {
+    const detailMovie = movieWatchAction.closest("[data-detail-movie]");
+    closeWatchMenus();
+    if (detailMovie) changeMovieWatchCount(detailMovie, movieWatchAction.dataset.movieWatchAction);
+    return;
+  }
+
+  const movieWatchControl = event.target.closest("[data-movie-detail-watch]");
+  if (movieWatchControl) {
+    const detailMovie = movieWatchControl.closest("[data-detail-movie]");
+    if (Number(detailMovie.dataset.watchCount) === 0) changeMovieWatchCount(detailMovie, "increment");
+    else toggleWatchMenu(movieWatchControl);
+    return;
+  }
+
+  const movieAction = event.target.closest("[data-movie-action]");
+  if (movieAction) {
+    const movieElement = movieAction.closest("[data-movie-id]");
+    closeShowMenus();
+    if (movieAction.dataset.movieAction === "move") moveMovie(movieElement, movieAction.dataset.targetState, movieAction);
+    else removeMovie(movieElement, movieAction);
+    return;
+  }
+
   const menuButton = event.target.closest("[data-show-menu-button]");
   if (menuButton) {
     toggleShowMenu(menuButton);
@@ -3640,6 +3846,13 @@ document.addEventListener("click", (event) => {
   if (showOpenButton) {
     const showCard = showOpenButton.closest("[data-show-id]");
     openShow(showCard.dataset.showId, "tv");
+    return;
+  }
+
+  const movieOpenButton = event.target.closest("[data-movie-open]");
+  if (movieOpenButton) {
+    const movieCard = movieOpenButton.closest("[data-movie-id]");
+    openMovie(movieCard.dataset.movieId, "movies");
     return;
   }
 
@@ -3769,12 +3982,12 @@ function filterShowView(view) {
   const preferences = libraryViewPreferences[view.dataset.view];
   if (!preferences) return;
   const query = searchQueries[view.dataset.view].trim().toLocaleLowerCase();
-  const searching = view.dataset.view === "tv" && Boolean(query);
+  const searching = ["tv", "movies"].includes(view.dataset.view) && Boolean(query);
   view.classList.toggle("is-searching", searching);
   view.querySelectorAll("[data-state-section]").forEach((section) => {
     const state = section.dataset.stateSection;
     const stateSelected = searching || (state === TRACKING_STATE.ACTIVE
-      ? preferences.mediaTypes.includes("tv")
+      ? preferences.mediaTypes.includes(view.dataset.view === "movies" ? "movies" : "tv")
       : preferences.mediaTypes.includes("archive"));
     const list = section.querySelector(".show-list");
     const cards = [...section.querySelectorAll(".show-card")];
@@ -3815,6 +4028,7 @@ function filterShowView(view) {
   if (view.dataset.view === currentView) syncTvControlVisibility();
   hydratedLibraryViews.add(view.dataset.view);
   if (view.dataset.view === "tv") syncTvSearchPresentation();
+  if (view.dataset.view === "movies") syncMovieSearchPresentation();
 }
 
 function filterAllShowViews() {
@@ -3845,6 +4059,13 @@ globalSearchInput?.addEventListener("input", () => {
     } else {
       syncTvSearchPresentation();
     }
+  } else if (currentView === "movies") {
+    filterShowView(views.get("movies"));
+    clearTimeout(movieSearchTimer);
+    movieSearchRequest?.abort();
+    views.get("movies")?.querySelector("[data-movie-add-results]")?.replaceChildren();
+    if (query.trim()) movieSearchTimer = setTimeout(() => searchMovieCatalog(query.trim()), 350);
+    else syncMovieSearchPresentation();
   }
 });
 
@@ -3948,7 +4169,7 @@ function restoreHistoryState(state) {
   const restoredView = legacyViews[state.view] || state.view;
   if (restoredView === "profile") {
     const restoredParent = legacyViews[state.parentView] || state.parentView;
-    profileParentView = ["backlog", "upcoming", "tv"].includes(restoredParent)
+    profileParentView = ["backlog", "upcoming", "tv", "movies"].includes(restoredParent)
       ? restoredParent
       : "backlog";
     showView("profile");
@@ -3964,11 +4185,13 @@ function restoreHistoryState(state) {
   }
 
   const restoredParent = legacyViews[state.parentView] || state.parentView;
-  detailParentView = ["backlog", "upcoming", "tv", "profile"].includes(restoredParent)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "profile"].includes(restoredParent)
     ? restoredParent
     : "backlog";
   if (state.detailType === "show" && state.showId) {
     openShow(state.showId, detailParentView, true, null, state);
+  } else if (state.detailType === "movie" && state.movieId) {
+    openMovie(state.movieId, detailParentView, null);
   } else if (state.detailType === "episode" && state.episodeId) {
     openEpisode(state.episodeId, null);
   } else if (state.detailType === "catalog" && state.tmdbId) {

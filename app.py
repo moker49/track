@@ -333,6 +333,71 @@ def create_app(test_config: dict | None = None) -> Flask:
         db.commit()
         return jsonify(ok=True)
 
+    @app.get("/api/movies/<int:movie_id>")
+    def movie_detail_fragment(movie_id: int):
+        movie = get_db().execute(
+            """
+            SELECT m.*, COUNT(mwh.id) AS watch_count
+            FROM movies m
+            LEFT JOIN movie_watch_history mwh ON mwh.movie_id = m.id
+            WHERE m.id = ?
+            GROUP BY m.id
+            """,
+            (movie_id,),
+        ).fetchone()
+        if movie is None:
+            abort(404)
+        return render_template("movie_detail.html", movie=movie)
+
+    @app.post("/api/movies/<int:movie_id>/state")
+    def set_movie_state(movie_id: int):
+        target_state = (request.get_json(silent=True) or {}).get("state")
+        if target_state not in TRACKING_STATES:
+            return jsonify(error="state must be ACTIVE or ARCHIVED"), 400
+        db = get_db()
+        movie = db.execute("SELECT id, is_tracked FROM movies WHERE id = ?", (movie_id,)).fetchone()
+        if movie is None or not movie["is_tracked"]:
+            return jsonify(error="Movie not found"), 404
+        now = utc_now()
+        timestamp_column = "archived_at" if target_state == TRACKING_ARCHIVED else "active_at"
+        db.execute(
+            f"UPDATE movies SET state = ?, {timestamp_column} = ?, updated_at = ? WHERE id = ?",
+            (target_state, now, now, movie_id),
+        )
+        db.commit()
+        return jsonify(movie_id=movie_id, state=target_state)
+
+    @app.delete("/api/movies/<int:movie_id>")
+    def remove_movie(movie_id: int):
+        cursor = get_db().execute(
+            "UPDATE movies SET is_tracked = 0, updated_at = ? WHERE id = ? AND is_tracked = 1",
+            (utc_now(), movie_id),
+        )
+        if cursor.rowcount == 0:
+            return jsonify(error="Movie not found"), 404
+        get_db().commit()
+        return "", 204
+
+    @app.post("/api/movies/<int:movie_id>/watch-count")
+    def change_movie_watch_count(movie_id: int):
+        action = (request.get_json(silent=True) or {}).get("action")
+        if action not in {"increment", "decrement"}:
+            return jsonify(error="action must be increment or decrement"), 400
+        db = get_db()
+        movie = db.execute("SELECT id FROM movies WHERE id = ? AND is_tracked = 1", (movie_id,)).fetchone()
+        if movie is None:
+            return jsonify(error="Movie not found"), 404
+        if action == "increment":
+            db.execute("INSERT INTO movie_watch_history (movie_id, added_at) VALUES (?, ?)", (movie_id, precise_utc_now()))
+        else:
+            watch = db.execute("SELECT id FROM movie_watch_history WHERE movie_id = ? ORDER BY added_at DESC, id DESC LIMIT 1", (movie_id,)).fetchone()
+            if watch is None:
+                return jsonify(error="Movie has not been watched"), 409
+            db.execute("DELETE FROM movie_watch_history WHERE id = ?", (watch["id"],))
+        db.commit()
+        watch_count = db.execute("SELECT COUNT(*) AS count FROM movie_watch_history WHERE movie_id = ?", (movie_id,)).fetchone()["count"]
+        return jsonify(movie_id=movie_id, watch_count=watch_count, action=action)
+
     @app.post("/api/tv/shows/<int:tmdb_id>/import")
     def import_tv_show(tmdb_id: int):
         payload = request.get_json(silent=True) or {}

@@ -1,0 +1,54 @@
+{% set watched = movie.watch_count > 0 %}
+<div data-detail-movie data-detail-title="{{ movie.title }}" data-movie-id="{{ movie.id }}"
+  data-movie-state="{{ movie.state }}" data-watch-count="{{ movie.watch_count }}">
+  <header class="detail-app-bar">
+    <button class="icon-button" type="button" data-detail-back aria-label="Back">
+      <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+    </button>
+    <span class="detail-app-bar-title">Movie details</span>
+    {% if movie.is_tracked %}<div class="menu-anchor">
+      <button class="icon-button" type="button" data-movie-menu-button aria-label="More options for {{ movie.title }}" aria-expanded="false">
+        <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
+      </button>
+      <div class="show-menu detail-show-menu" data-movie-menu popover="manual" hidden>
+        <button type="button" data-movie-action="move" data-target-state="{{ 'ARCHIVED' if movie.state == 'ACTIVE' else 'ACTIVE' }}">
+          <span class="material-symbols-rounded" aria-hidden="true">{{ 'archive' if movie.state == 'ACTIVE' else 'resume' }}</span>
+          <span>{{ 'Archive' if movie.state == 'ACTIVE' else 'Make active' }}</span>
+        </button>
+        <button class="danger-action" type="button" data-movie-action="remove">
+          <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          <span>Remove</span>
+        </button>
+      </div>
+    </div>{% endif %}
+  </header>
+
+  <section class="hero">
+    {% if movie.poster_path %}<button class="image-preview-button hero-image-button" type="button" data-full-image-src="https://image.tmdb.org/t/p/w780{{ movie.poster_path }}" data-full-image-alt="{{ movie.title }} poster" aria-label="View {{ movie.title }} poster">{% endif %}
+      <div class="hero-poster poster poster-purple{% if movie.poster_path %} has-media-image{% endif %}" aria-hidden="true">
+        {% if movie.poster_path %}<img class="poster-image" src="{{ url_for('cached_tmdb_image', image_type='poster', size='w342', tmdb_path=movie.poster_path[1:]) }}" alt="" decoding="async" data-media-image>{% else %}<span class="poster-mark">{{ movie.title[:2]|upper }}</span><span class="poster-label">{{ movie.title }}</span>{% endif %}
+      </div>
+    {% if movie.poster_path %}</button>{% endif %}
+    <div class="hero-copy">
+      {% if movie.is_tracked %}<span class="state-label progress-tag">{{ 'Finished' if watched else 'New' }}</span>{% endif %}
+      <h1>{{ movie.title }}</h1>
+      <p>{{ movie.release_date[:4] if movie.release_date else '' }}{% if movie.runtime_minutes %} · {{ movie.runtime_minutes }} min{% endif %}{% if movie.genres %}<br>{{ movie.genres }}{% endif %}</p>
+    </div>
+  </section>
+
+  <section class="detail-content">
+    {% if movie.overview %}<p class="overview">{{ movie.overview }}</p>{% endif %}
+    {% if movie.is_tracked %}
+    <div class="episode-watch-summary-wrap watch-control-wrap">
+      <button class="episode-watch-summary" type="button" data-movie-detail-watch data-watch-count="{{ movie.watch_count }}" aria-label="Watch options for {{ movie.title }}">
+        <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
+        <span><strong data-movie-detail-watch-count>{{ movie.watch_count }}</strong> <span data-movie-detail-watch-label>{{ 'watches' if movie.watch_count != 1 else 'watch' }}</span></span>
+      </button>
+      <div class="show-menu watch-menu episode-detail-watch-menu" data-movie-watch-menu popover="manual" hidden>
+        <button type="button" data-movie-watch-action="increment"><span class="material-symbols-rounded" aria-hidden="true">add</span><span>rewatch</span></button>
+        <button type="button" data-movie-watch-action="decrement"><span class="material-symbols-rounded" aria-hidden="true">remove</span><span>unwatch</span></button>
+      </div>
+    </div>
+    {% endif %}
+  </section>
+</div>

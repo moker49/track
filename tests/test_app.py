@@ -2148,7 +2148,7 @@ class TrackAppTest(unittest.TestCase):
         seasons_ready = javascript.index("nextSeasonList.innerHTML = seasonsHtml")
         detail_swap = javascript.index('views.get("detail").replaceChildren(template.content)')
         self.assertLess(seasons_ready, detail_swap)
-        self.assertIn('const searching = view.dataset.view === "tv" && Boolean(query)', javascript)
+        self.assertIn('const searching = ["tv", "movies"].includes(view.dataset.view) && Boolean(query)', javascript)
         self.assertIn("const matchesProgress = searching || !preferences.progress", javascript)
         self.assertIn("section.hidden = searching ? visibleCount === 0 : !stateSelected", javascript)
         self.assertIn("localCount + addCount > 0", javascript)

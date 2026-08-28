@@ -4,7 +4,7 @@
   data-show-name="{{ movie.title|lower }}" data-name="{{ movie.title|lower }}" data-date-added="{{ movie.added_at }}"
   data-release-date="{{ movie.release_date or '' }}" data-last-watched="{{ movie.last_watched_at or '' }}"
   data-progress="{{ 100 if watched else 0 }}" data-progress-state="{{ 'finished' if watched else 'not-started' }}">
-  <button class="show-card-open" type="button" aria-label="Open {{ movie.title }}">
+  <button class="show-card-open" type="button" data-movie-open aria-label="Open {{ movie.title }}">
     <div class="poster poster-purple{% if movie.poster_path %} has-media-image{% endif %}" aria-hidden="true">
       {% if movie.poster_path %}<img class="poster-image" src="{{ url_for('cached_tmdb_image', image_type='poster', size='w342', tmdb_path=movie.poster_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image>{% else %}<span class="poster-mark">{{ movie.title[:2]|upper }}</span>{% endif %}
     </div>
@@ -12,5 +12,20 @@
       <div class="progress-block"><div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ 100 if watched else 0 }}"><span style="width: {{ 100 if watched else 0 }}%"></span></div></div>
     </div>
   </button>
+  <button class="icon-button card-menu-button" type="button" data-movie-menu-button
+    aria-label="More options for {{ movie.title }}" aria-expanded="false">
+    <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
+  </button>
+  <div class="show-menu" data-movie-menu popover="manual" hidden>
+    <button type="button" data-movie-action="move"
+      data-target-state="{{ 'ARCHIVED' if movie.state == 'ACTIVE' else 'ACTIVE' }}">
+      <span class="material-symbols-rounded" aria-hidden="true">{{ 'archive' if movie.state == 'ACTIVE' else 'resume' }}</span>
+      <span>{{ 'Archive' if movie.state == 'ACTIVE' else 'Make active' }}</span>
+    </button>
+    <button class="danger-action" type="button" data-movie-action="remove">
+      <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+      <span>Remove</span>
+    </button>
+  </div>
 </article>
 {% endmacro %}
