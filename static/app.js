@@ -164,6 +164,9 @@ let tvSearchComplete = false;
 let tvSearchError = "";
 let movieSearchTimer = null;
 let movieSearchRequest = null;
+let movieSearchPending = false;
+let movieSearchComplete = false;
+let movieSearchError = "";
 let tvLayoutTransitionTimer = null;
 let tvDropdownHistoryActive = false;
 let snackbarAction = null;
@@ -988,25 +991,56 @@ function syncMovieSearchPresentation() {
   const view = views.get("movies");
   if (!view) return;
   const section = view.querySelector("[data-movie-add-section]");
-  if (section) section.hidden = !searchQueries.movies.trim()
-    || !view.querySelector("[data-movie-add-results]")?.children.length;
+  const results = view.querySelector("[data-movie-add-results]");
+  const empty = view.querySelector("[data-movie-search-empty]");
+  const error = view.querySelector("[data-movie-search-error]");
+  const query = searchQueries.movies.trim();
+  const addCount = results?.querySelectorAll(".popular-card").length || 0;
+  const localCount = [...view.querySelectorAll("[data-state-section] .show-card")]
+    .filter((card) => !card.hidden).length;
+
+  if (!query) {
+    if (section) section.hidden = true;
+    if (empty) empty.hidden = true;
+    if (error) error.hidden = true;
+    return;
+  }
+  if (section) section.hidden = addCount === 0;
+  if (results) results.hidden = false;
+  if (error) {
+    error.hidden = !movieSearchError;
+    if (movieSearchError) error.querySelector("[data-movie-search-error-copy]").textContent = movieSearchError;
+  }
+  if (empty) empty.hidden = movieSearchPending
+    || !movieSearchComplete
+    || Boolean(movieSearchError)
+    || localCount + addCount > 0;
 }
 
 async function searchMovieCatalog(query) {
   movieSearchRequest?.abort();
   movieSearchRequest = new AbortController();
+  movieSearchPending = true;
+  movieSearchComplete = false;
+  movieSearchError = "";
   const results = views.get("movies")?.querySelector("[data-movie-add-results]");
   results?.replaceChildren();
+  syncMovieSearchPresentation();
   try {
     const response = await fetch(`/api/movies/search?q=${encodeURIComponent(query)}`, { signal: movieSearchRequest.signal });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not search TMDB");
     if (searchQueries.movies.trim() !== query) return;
+    movieSearchPending = false;
+    movieSearchComplete = true;
     const cards = data.results.map(catalogCard);
     results?.replaceChildren(...cards);
     staggerTvSlices(cards);
   } catch (error) {
-    if (error.name !== "AbortError") showSnackbar(error.message);
+    if (error.name === "AbortError") return;
+    movieSearchPending = false;
+    movieSearchComplete = true;
+    movieSearchError = error.message;
   }
   syncMovieSearchPresentation();
 }
@@ -3745,6 +3779,12 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  if (event.target.closest("[data-movie-search-retry]")) {
+    const query = searchQueries.movies.trim();
+    if (query) searchMovieCatalog(query);
+    return;
+  }
+
   const diaryMovieOpen = event.target.closest("[data-diary-movie-open]");
   if (diaryMovieOpen) {
     openMovie(diaryMovieOpen.closest("[data-movie-id]").dataset.movieId, "profile");
@@ -4092,6 +4132,9 @@ globalSearchInput?.addEventListener("input", () => {
     filterShowView(views.get("movies"));
     clearTimeout(movieSearchTimer);
     movieSearchRequest?.abort();
+    movieSearchPending = false;
+    movieSearchComplete = false;
+    movieSearchError = "";
     views.get("movies")?.querySelector("[data-movie-add-results]")?.replaceChildren();
     if (query.trim()) movieSearchTimer = setTimeout(() => searchMovieCatalog(query.trim()), 350);
     else syncMovieSearchPresentation();
