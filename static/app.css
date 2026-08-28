@@ -1353,7 +1353,7 @@ html.app-booting .schedule-empty-reveal {
   height: calc(72px + env(safe-area-inset-bottom));
   padding: 8px 20px env(safe-area-inset-bottom);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   border-top: 1px solid var(--outline-soft);
   background: transparent;

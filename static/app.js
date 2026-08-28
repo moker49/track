@@ -33,11 +33,11 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list expand_more check_box arrow_upward arrow_downward more_vert resume event tv done_all arrow_forward menu account_circle arrow_back close",
+        "filter_list expand_more check_box arrow_upward arrow_downward more_vert resume event tv movie done_all arrow_forward menu account_circle arrow_back close",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
-        "resume event tv",
+      "resume event tv movie",
       ),
     ]);
     await Promise.race([
@@ -64,7 +64,7 @@ const searchClearButton = document.querySelector("[data-clear-search]");
 const tvViewToggle = document.querySelector("[data-tv-view-toggle]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, detail: 0, profile: 0 };
+const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, profile: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const finishedArchiveDialog = document.querySelector("[data-finished-archive-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
@@ -100,7 +100,7 @@ const libraryViewPreferences = {
     layout: "list",
   },
 };
-const searchQueries = { backlog: "", upcoming: "", tv: "" };
+const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "" };
 restoreTvLayout();
 const showDetailCache = new Map();
 const showSeasonsCache = new Map();
@@ -314,6 +314,7 @@ function syncGlobalSearch() {
     backlog: { placeholder: "Search queue", label: "Search queue episodes" },
     upcoming: { placeholder: "Search upcoming", label: "Search upcoming episodes" },
     tv: { placeholder: "Search TV", label: "Search TV shows" },
+    movies: { placeholder: "Search movies", label: "Search movies" },
   }[currentView];
   if (!settings) return;
   globalSearchInput.placeholder = settings.placeholder;
@@ -715,6 +716,7 @@ function showView(viewName, historyMode = null) {
     backlog: "Queue · Track",
     upcoming: "Upcoming · Track",
     tv: "TV · Track",
+    movies: "Movies · Track",
     detail: "Track",
     profile: "Profile · Track",
   };

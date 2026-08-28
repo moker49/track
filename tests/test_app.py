@@ -175,7 +175,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('class="show-card-meta"', home.data.decode("utf-8"))
         self.assertIn('class="show-card-year">2008</span>', home.data.decode("utf-8"))
         self.assertIn("font-size: 1.16rem", css)
-        self.assertIn("grid-template-columns: repeat(3, 1fr)", css)
+        self.assertIn("grid-template-columns: repeat(4, 1fr)", css)
         self.assertIn("grid-template-columns: 48px minmax(0, 1fr) 48px", css)
         self.assertIn("padding: max(12px, env(safe-area-inset-top)) 4px 12px", css)
         self.assertIn("text-align: center", css)
@@ -426,11 +426,13 @@ class TrackAppTest(unittest.TestCase):
         home = self.client.get("/")
         self.assertIn(b'data-view="backlog"', home.data)
         self.assertIn(b'data-view="upcoming"', home.data)
+        self.assertIn(b'data-view="movies"', home.data)
         self.assertIn(
             b'class="nav-item active" type="button" data-nav-view="backlog"',
             home.data,
         )
         self.assertIn(b'data-nav-view="upcoming"', home.data)
+        self.assertIn(b'data-nav-view="movies"', home.data)
         self.assertNotIn(b'data-schedule-tab', home.data)
         self.assertIn(b'placeholder="Search queue"', home.data)
         self.assertIn(b'data-schedule-search-text="active test show episode 6"', home.data)
