@@ -1572,6 +1572,10 @@ html.app-booting .schedule-empty-reveal {
   padding-bottom: 0;
 }
 
+[data-view="movies"].is-searching .tv-add-section {
+  padding-top: 12px;
+}
+
 [data-view="tv"] .tv-library-section {
   padding-bottom: 0;
 }
