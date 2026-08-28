@@ -15,6 +15,7 @@
 }
 
 :root {
+  --app-shell-vertical-inset: 0px;
   --primary: hsl(263 70% 80%);
   --primary-dark: hsl(263 55% 72%);
   --primary-light: hsl(262 32% 28%);
@@ -134,7 +135,11 @@ html.app-booting .app-boot-screen {
 }
 
 .app-view {
-  min-height: calc(100dvh - 88px - env(safe-area-inset-bottom));
+  min-height: calc(100dvh - 168px - var(--app-shell-vertical-inset) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+.app-content.has-library-controls .app-view {
+  min-height: calc(100dvh - 220px - var(--app-shell-vertical-inset) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 
 .top-app-bar {
@@ -1558,7 +1563,6 @@ html.app-booting .schedule-empty-reveal {
 
 /* Movies use two state containers for filtering, but they should read as one list. */
 [data-view="movies"] {
-  min-height: calc(100dvh - 140px - env(safe-area-inset-bottom));
   padding-bottom: 76px;
 }
 
@@ -1568,8 +1572,8 @@ html.app-booting .schedule-empty-reveal {
   padding-bottom: 0;
 }
 
-[data-view="movies"] .archived-section {
-  padding-top: 0;
+[data-view="tv"] .tv-library-section {
+  padding-bottom: 0;
 }
 
 .archived-section {
@@ -3622,6 +3626,10 @@ html.app-booting .tv-slice-reveal {
 }
 
 @media (min-width: 521px) {
+  :root {
+    --app-shell-vertical-inset: 48px;
+  }
+
   body {
     padding: 24px 0;
   }
