@@ -2593,7 +2593,9 @@ async function saveWatchDate() {
     if (detailShow) invalidateShowCache(detailShow.dataset.showId);
     const detailEpisode = datePickerTarget.closest("[data-detail-episode]");
     if (detailEpisode) invalidateEpisodeCache(detailEpisode.dataset.episodeId);
-    if (data.watch_kind === "episode") diaryRevision += 1;
+    const detailMovie = datePickerTarget.closest("[data-detail-movie]");
+    if (detailMovie) movieDetailCache.delete(detailMovie.dataset.movieId);
+    if (["episode", "movie"].includes(data.watch_kind)) diaryRevision += 1;
     datePicker.close();
   } catch (_error) {
     showSnackbar("Couldn't update the watch date. Try again.");
@@ -2985,6 +2987,9 @@ function toggleWatchMenu(control) {
 
 function updateMovieWatchUi(detailMovie, watchCount) {
   detailMovie.dataset.watchCount = watchCount;
+  detailMovie.dataset.progressState = watchCount > 0 ? "finished" : "not-started";
+  const tag = detailMovie.querySelector("[data-movie-progress-tag]");
+  if (tag) tag.textContent = watchCount > 0 ? "Watched" : "New";
   const control = detailMovie.querySelector("[data-movie-detail-watch]");
   if (!control) return;
   control.dataset.watchCount = watchCount;
@@ -3003,6 +3008,24 @@ async function changeMovieWatchCount(detailMovie, action) {
     const data = await response.json();
     movieDetailCache.delete(String(data.movie_id));
     updateMovieWatchUi(detailMovie, data.watch_count);
+    if (data.action === "increment") {
+      addActivityItem({
+        type: "watched", title: "Watched", occurredAt: data.changed_at,
+        recordId: String(data.watch_record_id), watchKind: "movie", addedAt: data.changed_at,
+      });
+    } else {
+      const log = detailMovie.querySelector("[data-activity-log]");
+      log?.querySelector(`.activity-item[data-watch-kind="movie"][data-watch-record-id="${data.watch_record_id}"]`)?.remove();
+      if (log && !log.querySelector(".activity-item")) {
+        const empty = document.createElement("li");
+        empty.className = "activity-empty";
+        empty.dataset.activityEmpty = "";
+        empty.textContent = "This movie has not been watched yet.";
+        log.querySelector("[data-activity-list]")?.append(empty);
+      }
+      syncActivityCount(log);
+    }
+    diaryRevision += 1;
     refreshMoviesContent();
   } catch (_error) {
     showSnackbar("Couldn't update this movie. Try again.");
@@ -3719,6 +3742,12 @@ document.addEventListener("click", (event) => {
   const movieMenuButton = event.target.closest("[data-movie-menu-button]");
   if (movieMenuButton) {
     toggleMovieMenu(movieMenuButton);
+    return;
+  }
+
+  const diaryMovieOpen = event.target.closest("[data-diary-movie-open]");
+  if (diaryMovieOpen) {
+    openMovie(diaryMovieOpen.closest("[data-movie-id]").dataset.movieId, "profile");
     return;
   }
 

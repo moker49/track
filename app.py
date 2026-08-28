@@ -347,7 +347,17 @@ def create_app(test_config: dict | None = None) -> Flask:
         ).fetchone()
         if movie is None:
             abort(404)
-        return render_template("movie_detail.html", movie=movie)
+        watch_log = get_db().execute(
+            f"""
+            SELECT id AS watch_record_id, added_at, watch_date,
+                   {effective_watch_date_sql('mwh')} AS display_date
+            FROM movie_watch_history mwh
+            WHERE movie_id = ?
+            ORDER BY display_date DESC, added_at DESC, id DESC
+            """,
+            (movie_id,),
+        ).fetchall()
+        return render_template("movie_detail.html", movie=movie, watch_log=watch_log)
 
     @app.post("/api/movies/<int:movie_id>/state")
     def set_movie_state(movie_id: int):
@@ -388,15 +398,23 @@ def create_app(test_config: dict | None = None) -> Flask:
         if movie is None:
             return jsonify(error="Movie not found"), 404
         if action == "increment":
-            db.execute("INSERT INTO movie_watch_history (movie_id, added_at) VALUES (?, ?)", (movie_id, precise_utc_now()))
+            changed_at = precise_utc_now()
+            cursor = db.execute(
+                "INSERT INTO movie_watch_history (movie_id, added_at) VALUES (?, ?)",
+                (movie_id, changed_at),
+            )
+            watch_record_id = cursor.lastrowid
         else:
             watch = db.execute("SELECT id FROM movie_watch_history WHERE movie_id = ? ORDER BY added_at DESC, id DESC LIMIT 1", (movie_id,)).fetchone()
             if watch is None:
                 return jsonify(error="Movie has not been watched"), 409
             db.execute("DELETE FROM movie_watch_history WHERE id = ?", (watch["id"],))
+            watch_record_id = watch["id"]
+            changed_at = None
         db.commit()
         watch_count = db.execute("SELECT COUNT(*) AS count FROM movie_watch_history WHERE movie_id = ?", (movie_id,)).fetchone()["count"]
-        return jsonify(movie_id=movie_id, watch_count=watch_count, action=action)
+        return jsonify(movie_id=movie_id, watch_count=watch_count, action=action,
+                       watch_record_id=watch_record_id, changed_at=changed_at)
 
     @app.post("/api/tv/shows/<int:tmdb_id>/import")
     def import_tv_show(tmdb_id: int):
@@ -847,7 +865,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.patch("/api/watch-history/<string:watch_kind>/<int:record_id>/date")
     def set_watch_history_date(watch_kind: str, record_id: int):
-        if watch_kind not in {"episode", "season"}:
+        if watch_kind not in {"episode", "season", "movie"}:
             return jsonify(error="Unknown watch history type"), 404
         payload = request.get_json(silent=True) or {}
         watch_date = payload.get("watch_date")
@@ -858,6 +876,19 @@ def create_app(test_config: dict | None = None) -> Flask:
                 date.fromisoformat(watch_date)
             except ValueError:
                 return jsonify(error="watch_date must be an ISO date or null"), 400
+        if watch_kind == "movie":
+            db = get_db()
+            row = db.execute(
+                "SELECT id, added_at FROM movie_watch_history WHERE id = ?", (record_id,)
+            ).fetchone()
+            if row is None:
+                return jsonify(error="Movie watch history not found"), 404
+            db.execute("UPDATE movie_watch_history SET watch_date = ? WHERE id = ?", (watch_date, record_id))
+            db.commit()
+            return jsonify(
+                watch_kind="movie", watch_record_id=record_id, added_at=row["added_at"],
+                watch_date=watch_date, display_date=watch_date or row["added_at"][:10],
+            )
         try:
             return jsonify(
                 set_watch_history_date_record(

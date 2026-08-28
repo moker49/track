@@ -5,8 +5,8 @@
   <div class="schedule-timeline-list">
     {% for entry in month.list %}
     <article class="schedule-timeline-item diary-timeline-item{% if entry.is_grouped %} is-multi-episode{% endif %}"
-      data-schedule-card data-show-id="{{ entry.show_id }}"
-      {% if entry.is_grouped %}data-season-ids="{{ entry.season_ids }}"{% else %}data-episode-id="{{ entry.episode_id }}"{% endif %}
+      data-schedule-card {% if entry.is_movie %}data-movie-id="{{ entry.show_id }}"{% else %}data-show-id="{{ entry.show_id }}"{% endif %}
+      {% if entry.is_movie %}data-diary-movie-entry{% elif entry.is_grouped %}data-season-ids="{{ entry.season_ids }}"{% else %}data-episode-id="{{ entry.episode_id }}"{% endif %}
       data-watch-record-ids="{{ entry.watch_record_ids }}">
       <div class="schedule-timeline-marker" aria-hidden="true">
         <strong>{{ entry.day_label }}</strong>
@@ -15,7 +15,7 @@
       <span class="schedule-timeline-rail" aria-hidden="true"><span></span></span>
       <div class="schedule-timeline-content">
         <button class="schedule-timeline-open" type="button"
-          {% if entry.is_grouped %}data-schedule-show-open aria-label="Open {{ entry.show_name }} details"{% else %}data-schedule-episode-open
+          {% if entry.is_movie %}data-diary-movie-open aria-label="Open {{ entry.show_name }} details"{% elif entry.is_grouped %}data-schedule-show-open aria-label="Open {{ entry.show_name }} details"{% else %}data-schedule-episode-open
           aria-label="Open Season {{ entry.season_number }}, Episode {{ entry.first_episode_number }} of {{ entry.show_name }}"{% endif %}>
           <span class="schedule-timeline-poster{% if entry.poster_path %} has-media-image{% endif %}"
             aria-hidden="true">

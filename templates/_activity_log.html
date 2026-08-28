@@ -18,7 +18,7 @@
       {% set event_title = item.title if activity_mode == 'show' else 'Watched' %}
       {% set event_time = item.occurred_at if activity_mode == 'show' else item.display_date %}
       {% set record_id = item.watch_record_id %}
-      {% set watch_kind = item.watch_kind if activity_mode == 'show' else 'episode' %}
+      {% set watch_kind = item.watch_kind if activity_mode == 'show' else ('movie' if activity_mode == 'movie' else 'episode') %}
       {% set added_at = item.watch_added_at if activity_mode == 'show' else item.added_at %}
       {% set watch_date = item.watch_date %}
       <li class="activity-item" data-activity-type="{{ event_type }}" data-sort-date="{{ event_time }}" {% if

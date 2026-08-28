@@ -296,7 +296,7 @@ def get_diary_page(
             JOIN shows s ON s.id = sn.show_id
         ),
         grouped_entries AS (
-            SELECT watched_date, show_id,
+            SELECT 'episode' AS entry_type, watched_date, show_id,
                    MAX(show_name) AS show_name,
                    MAX(poster_path) AS poster_path,
                    season_id, MAX(season_number) AS season_number,
@@ -312,8 +312,28 @@ def get_diary_page(
                    MAX(watch_record_id) AS sort_watch_record_id
             FROM diary_watches
             GROUP BY watched_date, show_id, season_id, watch_iteration
+        ),
+        movie_entries AS (
+            SELECT 'movie' AS entry_type,
+                   {effective_watch_date_sql('mwh')} AS watched_date,
+                   m.id AS show_id, m.title AS show_name, m.poster_path,
+                   NULL AS season_id, NULL AS season_number, NULL AS watch_iteration,
+                   NULL AS episode_id, NULL AS first_episode_number,
+                   NULL AS last_episode_number, 1 AS grouped_watch_count,
+                   CAST(mwh.id AS TEXT) AS watch_record_ids,
+                   mwh.added_at AS latest_added_at, mwh.id AS sort_watch_record_id,
+                   m.release_date
+            FROM movie_watch_history mwh
+            JOIN movies m ON m.id = mwh.movie_id
         )
-        SELECT * FROM grouped_entries
+        SELECT entry_type, watched_date, show_id, show_name, poster_path,
+               season_id, season_number, watch_iteration, episode_id,
+               first_episode_number, last_episode_number, grouped_watch_count,
+               watch_record_ids, latest_added_at, sort_watch_record_id,
+               NULL AS release_date
+        FROM grouped_entries
+        UNION ALL
+        SELECT * FROM movie_entries
         ORDER BY watched_date DESC, latest_added_at DESC, sort_watch_record_id DESC
         LIMIT ? OFFSET ?
         """,
@@ -324,12 +344,17 @@ def get_diary_page(
     for row in rows[:page_size]:
         entry = dict(row)
         watched_date = date.fromisoformat(entry["watched_date"])
-        is_grouped = entry["grouped_watch_count"] > 1
+        is_movie = entry["entry_type"] == "movie"
+        is_grouped = not is_movie and entry["grouped_watch_count"] > 1
         release_metadata = (
-            f"Season {entry['season_number']} · Episodes "
-            f"{entry['first_episode_number']}–{entry['last_episode_number']}"
-            if is_grouped
-            else f"Season {entry['season_number']} · Episode {entry['first_episode_number']}"
+            (entry["release_date"] or "")[:4]
+            if is_movie
+            else (
+                f"Season {entry['season_number']} · Episodes "
+                f"{entry['first_episode_number']}–{entry['last_episode_number']}"
+                if is_grouped
+                else f"Season {entry['season_number']} · Episode {entry['first_episode_number']}"
+            )
         )
         entry.update(
             month_key=f"{9999 - watched_date.year:04d}-{13 - watched_date.month:02d}",
@@ -337,6 +362,7 @@ def get_diary_page(
             day_label=f"{watched_date.day:02d}",
             weekday_label=watched_date.strftime("%a").upper(),
             is_grouped=is_grouped,
+            is_movie=is_movie,
             season_ids=str(entry["season_id"]),
             release_metadata=release_metadata,
         )
