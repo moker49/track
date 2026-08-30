@@ -4003,7 +4003,14 @@ new MutationObserver((mutations) => {
 }).observe(document.documentElement, { childList: true, subtree: true });
 
 document.addEventListener("submit", (event) => {
-  if (event.target.matches("[data-view-search]")) event.preventDefault();
+  if (!event.target.matches("[data-view-search]")) return;
+  event.preventDefault();
+  if (!["tv", "movies"].includes(currentView)) return;
+  const query = searchQueries[currentView].trim();
+  if (!query) return;
+  globalSearchInput?.blur();
+  if (currentView === "tv") searchTvCatalog(query);
+  else searchMovieCatalog(query);
 });
 
 function updateProgress(progress, data) {
@@ -4148,11 +4155,7 @@ globalSearchInput?.addEventListener("input", () => {
     tvSearchComplete = false;
     tvSearchError = "";
     clearTvCatalogResults();
-    if (query.trim()) {
-      tvSearchTimer = setTimeout(() => searchTvCatalog(query.trim()), 350);
-    } else {
-      syncTvSearchPresentation();
-    }
+    syncTvSearchPresentation();
   } else if (currentView === "movies") {
     filterShowView(views.get("movies"));
     clearTimeout(movieSearchTimer);
@@ -4161,8 +4164,7 @@ globalSearchInput?.addEventListener("input", () => {
     movieSearchComplete = false;
     movieSearchError = "";
     views.get("movies")?.querySelector("[data-movie-add-results]")?.replaceChildren();
-    if (query.trim()) movieSearchTimer = setTimeout(() => searchMovieCatalog(query.trim()), 350);
-    else syncMovieSearchPresentation();
+    syncMovieSearchPresentation();
   }
 });
 
