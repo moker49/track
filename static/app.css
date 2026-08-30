@@ -57,6 +57,11 @@ html {
   overflow-x: clip;
 }
 
+html.remove-dialog-open,
+html.remove-dialog-open body {
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   overflow-x: clip;

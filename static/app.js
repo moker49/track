@@ -147,6 +147,7 @@ let renderedStatisticsRevision = 0;
 let statisticsRequest = null;
 let detailRequest = null;
 let pendingRemoveShowId = null;
+let pendingRemoveMovieId = null;
 let pendingFinishedArchiveShowId = null;
 let datePickerTarget = null;
 let datePickerSelectedDate = null;
@@ -962,6 +963,7 @@ async function importCatalogShow(card, state, trigger) {
       if (!response.ok) throw new Error(data.error || "Could not add movie");
       card.remove();
       await refreshMoviesContent();
+      if (searchQueries.movies.trim()) await searchMovieCatalog(searchQueries.movies.trim());
       return;
     }
     const hasLocalShow = Boolean(card.dataset.showId);
@@ -3102,6 +3104,16 @@ async function removeMovie(movieElement, actionButton) {
   }
 }
 
+async function confirmMovieRemoval() {
+  if (!pendingRemoveMovieId) return;
+  const movieId = pendingRemoveMovieId;
+  const movieElement = views.get("detail").querySelector(`[data-detail-movie][data-movie-id="${movieId}"]`)
+    || document.querySelector(`[data-movie-id="${movieId}"]`);
+  removeDialog.close();
+  pendingRemoveMovieId = null;
+  if (movieElement) await removeMovie(movieElement, removeDialog.querySelector("[data-confirm-remove]"));
+}
+
 function syncProgressState(showElement) {
   const watchedCount = Number(showElement.dataset.watchedCount);
   const episodeCount = Number(showElement.dataset.episodeCount);
@@ -3209,7 +3221,18 @@ function requestShowRemoval(showElement) {
   pendingRemoveShowId = showElement.dataset.showId;
   const showName = showElement.querySelector("h1, h3")?.textContent.trim() || "this show";
   removeDialog.querySelector("h2").textContent = `Remove ${showName}?`;
+  removeDialog.querySelector("p").textContent = "This removes the show from TV. Its metadata and watch history stay saved.";
   removeDialog.showModal();
+  document.documentElement.classList.add("remove-dialog-open");
+}
+
+function requestMovieRemoval(movieElement) {
+  pendingRemoveMovieId = movieElement.dataset.movieId;
+  const movieName = movieElement.querySelector("h1, h3")?.textContent.trim() || "this movie";
+  removeDialog.querySelector("h2").textContent = `Remove ${movieName}?`;
+  removeDialog.querySelector("p").textContent = "This removes the movie from Movies. Its metadata and watch history stay saved.";
+  removeDialog.showModal();
+  document.documentElement.classList.add("remove-dialog-open");
 }
 
 async function confirmShowRemoval() {
@@ -3222,6 +3245,8 @@ async function confirmShowRemoval() {
   try {
     const response = await fetch(`/api/shows/${showId}`, { method: "DELETE" });
     if (!response.ok) throw new Error("Could not remove show");
+    removeDialog.close();
+    pendingRemoveShowId = null;
     invalidateShowCache(showId);
     document.querySelector(`.show-card[data-show-id="${showId}"]`)?.remove();
     if (tmdbId) {
@@ -3237,8 +3262,6 @@ async function confirmShowRemoval() {
     syncStateSections();
     filterAllShowViews();
     if (searchQueries.tv.trim()) searchTvCatalog(searchQueries.tv.trim());
-    removeDialog.close();
-    pendingRemoveShowId = null;
     showSnackbar("Show removed from your library");
   } catch (_error) {
     showSnackbar("Couldn't remove this show. Try again.");
@@ -3812,7 +3835,7 @@ document.addEventListener("click", (event) => {
     const movieElement = movieAction.closest("[data-movie-id]");
     closeShowMenus();
     if (movieAction.dataset.movieAction === "move") moveMovie(movieElement, movieAction.dataset.targetState, movieAction);
-    else removeMovie(movieElement, movieAction);
+    else requestMovieRemoval(movieElement);
     return;
   }
 
@@ -3839,11 +3862,13 @@ document.addEventListener("click", (event) => {
   if (event.target.closest("[data-cancel-remove]")) {
     removeDialog.close();
     pendingRemoveShowId = null;
+    pendingRemoveMovieId = null;
     return;
   }
 
   if (event.target.closest("[data-confirm-remove]")) {
-    confirmShowRemoval();
+    if (pendingRemoveMovieId) confirmMovieRemoval();
+    else confirmShowRemoval();
     return;
   }
 
@@ -4193,6 +4218,12 @@ initializeDiaryPagination();
 
 removeDialog?.addEventListener("close", () => {
   pendingRemoveShowId = null;
+  pendingRemoveMovieId = null;
+  document.documentElement.classList.remove("remove-dialog-open");
+});
+
+removeDialog?.addEventListener("click", (event) => {
+  if (event.target === removeDialog) removeDialog.close();
 });
 
 finishedArchiveDialog?.addEventListener("close", () => {
