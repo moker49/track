@@ -58,7 +58,9 @@ html {
 }
 
 html.remove-dialog-open,
-html.remove-dialog-open body {
+html.remove-dialog-open body,
+html.image-viewer-open,
+html.image-viewer-open body {
   overflow: hidden;
 }
 

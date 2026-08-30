@@ -230,6 +230,7 @@ function openImageViewer(trigger) {
   imageViewerClosing = false;
   imageViewer.classList.remove("is-closing");
   imageViewer.classList.add("is-opening");
+  document.documentElement.classList.add("image-viewer-open");
   imageViewer.showModal();
   sizeImageViewerLayers();
   if (currentBounds?.width && currentBounds?.height
@@ -3750,13 +3751,9 @@ document.addEventListener("click", (event) => {
     const preferences = libraryViewPreferences[currentView];
     if (!preferences) return;
     const type = mediaOption.dataset.tvMediaOption;
-    const locked = (currentView === "tv" && type === "tv")
-      || (currentView === "movies" && type === "movies");
-    if (!locked) {
-      preferences.mediaTypes = preferences.mediaTypes.includes(type)
-        ? preferences.mediaTypes.filter((value) => value !== type)
-        : [...preferences.mediaTypes, type];
-    }
+    preferences.mediaTypes = preferences.mediaTypes.includes(type)
+      ? preferences.mediaTypes.filter((value) => value !== type)
+      : [...preferences.mediaTypes, type];
     if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
     else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
     syncTvControlBar(views.get(currentView));
@@ -4331,6 +4328,7 @@ imageViewer?.addEventListener("cancel", (event) => {
 });
 
 imageViewer?.addEventListener("close", () => {
+  document.documentElement.classList.remove("image-viewer-open");
   clearImageViewerMotion();
   imageViewerPreview?.removeAttribute("src");
   imageViewerPreview?.removeAttribute("hidden");
