@@ -1,5 +1,5 @@
 {% set watched = movie.watch_count > 0 %}
-<div data-detail-movie data-detail-title="{{ movie.title }}" data-movie-id="{{ movie.id }}"
+<div data-detail-movie data-detail-title="{{ movie.title }}" data-movie-id="{{ movie.id }}" data-tmdb-id="{{ movie.tmdb_id }}"
   data-movie-state="{{ movie.state }}" data-watch-count="{{ movie.watch_count }}"
   data-progress-state="{{ 'finished' if watched else 'not-started' }}">
   <header class="detail-app-bar">
@@ -71,6 +71,11 @@
     {% set activity_mode = 'movie' %}
     {% set activity_empty = 'This movie has not been watched yet.' %}
     {% include '_activity_log.html' %}
+    {% else %}
+    <div class="md-button-group detail-add-group" aria-label="Add movie to library">
+      <button type="button" data-track-movie-state="ACTIVE"><span class="material-symbols-rounded" aria-hidden="true">add</span><span>Add</span></button>
+      <button type="button" data-track-movie-state="ARCHIVED"><span class="material-symbols-rounded" aria-hidden="true">archive</span><span>Archive</span></button>
+    </div>
     {% endif %}
   </section>
 </div>

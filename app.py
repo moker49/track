@@ -331,7 +331,31 @@ def create_app(test_config: dict | None = None) -> Flask:
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tmdb_id) DO UPDATE SET is_tracked=1,state=excluded.state,updated_at=excluded.updated_at""",
           (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), target_state, now, now if target_state == TRACKING_ACTIVE else None, now if target_state == TRACKING_ARCHIVED else None, now, now, json.dumps(movie)))
         db.commit()
-        return jsonify(ok=True)
+        movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)).fetchone()["id"]
+        return jsonify(ok=True, movie_id=movie_id)
+
+    @app.get("/api/movies/tmdb/<int:tmdb_id>/preview")
+    def movie_preview_fragment(tmdb_id: int):
+        try:
+            payload = get_tmdb_client().movie(tmdb_id)
+        except TMDBError as error:
+            return jsonify(error=str(error)), 503
+        if payload.get("id") != tmdb_id:
+            return jsonify(error="TMDB returned the wrong movie"), 502
+        movie = {
+            "id": None,
+            "tmdb_id": tmdb_id,
+            "title": payload.get("title") or "Untitled movie",
+            "overview": payload.get("overview"),
+            "poster_path": payload.get("poster_path"),
+            "release_date": payload.get("release_date"),
+            "runtime_minutes": payload.get("runtime"),
+            "genres": ", ".join(genre.get("name", "") for genre in payload.get("genres", [])),
+            "state": TRACKING_ACTIVE,
+            "is_tracked": False,
+            "watch_count": 0,
+        }
+        return render_template("movie_detail.html", movie=movie, watch_log=[])
 
     @app.get("/api/movies/<int:movie_id>")
     def movie_detail_fragment(movie_id: int):

@@ -112,6 +112,7 @@ const libraryViewPreferences = {
   },
 };
 const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "" };
+const librarySearchUpdates = { tv: false, movies: false };
 restoreTvLayout();
 const showDetailCache = new Map();
 const movieDetailCache = new Map();
@@ -869,6 +870,22 @@ function catalogActions() {
   return actions;
 }
 
+function markCatalogTracked(card, state, recordId = null) {
+  card.classList.add("is-cached");
+  if (recordId) {
+    if (card.dataset.catalogType === "movies") card.dataset.movieId = recordId;
+    else card.dataset.showId = recordId;
+  }
+  const icon = document.createElement("span");
+  icon.className = "catalog-tracked-icon material-symbols-rounded";
+  icon.textContent = state === TRACKING_STATE.ARCHIVED ? "archive" : "check_circle";
+  icon.title = state === TRACKING_STATE.ARCHIVED ? "Archived" : "Added";
+  card.querySelector(".popular-card-actions")?.replaceChildren(icon);
+  if (card.dataset.catalogType in librarySearchUpdates) {
+    librarySearchUpdates[card.dataset.catalogType] = true;
+  }
+}
+
 function syncTvSearchPresentation() {
   const view = views.get("tv");
   if (!view) return;
@@ -961,9 +978,7 @@ async function importCatalogShow(card, state, trigger) {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not add movie");
-      card.remove();
-      await refreshMoviesContent();
-      if (searchQueries.movies.trim()) await searchMovieCatalog(searchQueries.movies.trim());
+      markCatalogTracked(card, state, String(data.movie_id));
       return;
     }
     const hasLocalShow = Boolean(card.dataset.showId);
@@ -978,10 +993,7 @@ async function importCatalogShow(card, state, trigger) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add show");
     invalidateShowCache(data.show_id, true);
-    appendLibraryCard(data);
-    card.remove();
-    syncStateSections();
-    filterAllShowViews();
+    markCatalogTracked(card, state, String(data.show_id));
     syncTvSearchPresentation();
   } catch (error) {
     actions.forEach((button) => { button.disabled = false; });
@@ -1127,11 +1139,8 @@ async function trackDetailShow(showElement, state, trigger) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add show");
     invalidateShowCache(data.show_id);
-    appendLibraryCard(data);
     document.querySelectorAll(`.popular-card[data-tmdb-id="${showElement.dataset.tmdbId}"]`)
-      .forEach((card) => card.remove());
-    syncStateSections();
-    filterAllShowViews();
+      .forEach((card) => markCatalogTracked(card, state, String(data.show_id)));
     syncTvSearchPresentation();
     openShow(data.show_id, "tv", true, "replace");
   } catch (error) {
@@ -1530,6 +1539,18 @@ async function refreshTvContent({ background = false } = {}) {
   template.innerHTML = (await response.text()).trim();
   view.replaceChildren(template.content);
   filterShowView(view);
+}
+
+async function flushSearchLibraryUpdates(viewName) {
+  if (!librarySearchUpdates[viewName]) return;
+  librarySearchUpdates[viewName] = false;
+  try {
+    if (viewName === "tv") await refreshTvContent();
+    else await refreshMoviesContent();
+  } catch (_error) {
+    librarySearchUpdates[viewName] = true;
+    showSnackbar(`Couldn't refresh ${viewName === "tv" ? "TV" : "movies"}. Try again.`);
+  }
 }
 
 function hydrateOtherPrimaryViews(currentPrimaryView = null) {
@@ -2184,6 +2205,53 @@ function renderMovieDetail(movieHtml, animate) {
   if (animate) staggerDetailSlices([detailMovie.querySelector(".hero"), ...detailMovie.querySelectorAll(".detail-content > *")]);
   views.get("detail").replaceChildren(template.content);
   finishDetailLoad();
+}
+
+async function previewCatalogMovie(card, historyMode = "push") {
+  if (card.classList.contains("is-loading")) return;
+  const movieId = card.dataset.movieId;
+  if (movieId) {
+    openMovie(movieId, "movies", historyMode);
+    return;
+  }
+  card.classList.add("is-loading");
+  card.setAttribute("aria-busy", "true");
+  card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = true; });
+  if (historyMode) {
+    writeHistory({ view: "detail", detailType: "movieCatalog", tmdbId: card.dataset.tmdbId, parentView: "movies" }, historyMode);
+  }
+  prepareDetailLoad("Movie details");
+  try {
+    const response = await fetch(`/api/movies/tmdb/${card.dataset.tmdbId}/preview`, {
+      headers: { "X-Requested-With": "Track" }, signal: detailRequest.signal,
+    });
+    if (!response.ok) throw new Error("Could not load movie");
+    renderMovieDetail(await response.text(), true);
+  } catch (error) {
+    if (error.name !== "AbortError") showSnackbar(error.message);
+    if (currentView === "detail") showView("movies", "replace");
+  } finally {
+    card.classList.remove("is-loading");
+    card.removeAttribute("aria-busy");
+    card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = false; });
+  }
+}
+
+async function trackDetailMovie(movieElement, state, trigger) {
+  trigger.disabled = true;
+  try {
+    const response = await fetch(`/api/movies/${movieElement.dataset.tmdbId}/import`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not add movie");
+    document.querySelectorAll(`.popular-card[data-tmdb-id="${movieElement.dataset.tmdbId}"]`)
+      .forEach((card) => markCatalogTracked(card, state, String(data.movie_id)));
+    openMovie(data.movie_id, "movies", "replace");
+  } catch (error) {
+    trigger.disabled = false;
+    showSnackbar(error.message);
+  }
 }
 
 async function openEpisode(episodeId, historyMode = "push") {
@@ -3580,9 +3648,20 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const trackMovieButton = event.target.closest("[data-track-movie-state]");
+  if (trackMovieButton) {
+    trackDetailMovie(
+      trackMovieButton.closest("[data-detail-movie]"),
+      trackMovieButton.dataset.trackMovieState,
+      trackMovieButton,
+    );
+    return;
+  }
+
   const catalogCardElement = event.target.closest(".popular-card[data-tmdb-id]");
-  if (catalogCardElement && catalogCardElement.dataset.catalogType !== "movies" && !event.target.closest("button")) {
-    previewCatalogShow(catalogCardElement);
+  if (catalogCardElement && !event.target.closest("button")) {
+    if (catalogCardElement.dataset.catalogType === "movies") previewCatalogMovie(catalogCardElement);
+    else previewCatalogShow(catalogCardElement);
     return;
   }
 
@@ -3981,7 +4060,8 @@ document.addEventListener("keydown", (event) => {
   const card = event.target.closest(".popular-card[data-tmdb-id]");
   if (!card || event.target.closest("button") || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
-  previewCatalogShow(card);
+  if (card.dataset.catalogType === "movies") previewCatalogMovie(card);
+  else previewCatalogShow(card);
 });
 
 document.addEventListener("error", (event) => {
@@ -4141,6 +4221,7 @@ globalSearchInput?.addEventListener("input", () => {
   syncSearchChrome();
   syncSearchTextPosition();
   const query = globalSearchInput.value;
+  const previousQuery = searchQueries[currentView];
   searchQueries[currentView] = query;
   if (["backlog", "upcoming"].includes(currentView)) {
     filterSchedule(currentView);
@@ -4156,6 +4237,7 @@ globalSearchInput?.addEventListener("input", () => {
     tvSearchError = "";
     clearTvCatalogResults();
     syncTvSearchPresentation();
+    if (previousQuery.trim() && !query.trim()) flushSearchLibraryUpdates("tv");
   } else if (currentView === "movies") {
     filterShowView(views.get("movies"));
     clearTimeout(movieSearchTimer);
@@ -4165,6 +4247,7 @@ globalSearchInput?.addEventListener("input", () => {
     movieSearchError = "";
     views.get("movies")?.querySelector("[data-movie-add-results]")?.replaceChildren();
     syncMovieSearchPresentation();
+    if (previousQuery.trim() && !query.trim()) flushSearchLibraryUpdates("movies");
   }
 });
 
@@ -4303,6 +4386,10 @@ function restoreHistoryState(state) {
     const card = document.querySelector(`.popular-card[data-tmdb-id="${state.tmdbId}"]`);
     if (card) previewCatalogShow(card, null);
     else showView("tv");
+  } else if (state.detailType === "movieCatalog" && state.tmdbId) {
+    const card = document.querySelector(`.popular-card[data-tmdb-id="${state.tmdbId}"]`);
+    if (card) previewCatalogMovie(card, null);
+    else showView("movies");
   } else {
     showView(detailParentView);
   }

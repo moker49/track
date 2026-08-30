@@ -2136,7 +2136,9 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("inset: 0 0 0 auto", css)
         self.assertNotIn("box-shadow: inset 0 0 0 2px var(--accent)", css)
         self.assertIn('if (show.show_id) article.classList.add("is-cached")', javascript)
-        self.assertNotIn("function markCatalogTracked", javascript)
+        self.assertIn("function markCatalogTracked", javascript)
+        self.assertIn('markCatalogTracked(card, state, String(data.show_id))', javascript)
+        self.assertIn('markCatalogTracked(card, state, String(data.movie_id))', javascript)
         self.assertIn('openShow(data.show_id, "tv", false, "replace")', javascript)
         self.assertIn("const cachedShowId = card.dataset.showId", javascript)
         self.assertIn(
