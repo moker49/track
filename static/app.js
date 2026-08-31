@@ -2555,6 +2555,7 @@ function addActivityItem({
     item.dataset.watchKind = watchKind;
     item.dataset.addedAt = addedAt;
     item.dataset.watchDate = "";
+    item.dataset.showInDiary = "1";
   }
 
   const icon = document.createElement("span");
@@ -2574,20 +2575,37 @@ function addActivityItem({
   time.dateTime = occurredAt;
   time.dataset.displayDate = "";
   time.textContent = formatDisplayDate(occurredAt);
-  copy.append(heading, time);
+  const dateRow = document.createElement("span");
+  dateRow.className = "activity-date-row";
+  dateRow.append(time);
+  copy.append(heading, dateRow);
 
   if (recordId) {
     const button = document.createElement("button");
     button.className = "activity-item-button";
     button.type = "button";
-    button.dataset.watchLogEntry = "";
+    if (watchKind === "season") button.dataset.seasonDiaryMenuButton = "";
+    else button.dataset.watchLogMenuButton = "";
     button.setAttribute("aria-label", `Set date for ${title}`);
     const editIcon = document.createElement("span");
     editIcon.className = "material-symbols-rounded activity-edit-icon";
     editIcon.setAttribute("aria-hidden", "true");
-    editIcon.textContent = "edit_calendar";
+    editIcon.textContent = watchKind === "season" ? "visibility" : "more_vert";
     button.append(icon, copy, editIcon);
     item.append(button);
+    const menu = document.createElement("div");
+    menu.className = "show-menu";
+    menu.setAttribute("popover", "manual");
+    menu.hidden = true;
+    if (watchKind === "season") {
+      item.dataset.seasonDiaryState = "hidden";
+      menu.dataset.seasonDiaryMenu = "";
+      menu.innerHTML = '<button type="button" data-season-diary-action><span class="material-symbols-rounded" aria-hidden="true">visibility</span><span>Show in diary</span></button>';
+    } else {
+      menu.dataset.watchLogMenu = "";
+      menu.innerHTML = '<button type="button" data-watch-log-set-date><span class="material-symbols-rounded" aria-hidden="true">edit_calendar</span><span>Set date</span></button><button type="button" data-watch-log-diary-action><span class="material-symbols-rounded" aria-hidden="true">visibility_off</span><span>Hide from diary</span></button>';
+    }
+    item.append(menu);
   } else {
     item.append(icon, copy);
   }
@@ -4070,7 +4088,11 @@ document.addEventListener("click", (event) => {
   const movieWatchControl = event.target.closest("[data-movie-detail-watch]");
   if (movieWatchControl) {
     const detailMovie = movieWatchControl.closest("[data-detail-movie]");
-    if (detailMovie) toggleWatchMenu(movieWatchControl);
+    if (detailMovie && Number(detailMovie.dataset.watchCount) === 0) {
+      changeMovieWatchCount(detailMovie, "increment");
+    } else if (detailMovie) {
+      toggleWatchMenu(movieWatchControl);
+    }
     return;
   }
 
