@@ -1762,11 +1762,11 @@ html.app-booting .schedule-empty-reveal {
   position: sticky;
   z-index: 10;
   top: 0;
-  min-height: calc(64px + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) 8px 0;
+  min-height: calc(80px + env(safe-area-inset-top));
+  padding: max(12px, env(safe-area-inset-top)) 4px 12px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
   font-size: 1rem;
   font-weight: 500;
   background: var(--surface);
