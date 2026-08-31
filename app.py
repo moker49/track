@@ -346,8 +346,11 @@ def create_app(test_config: dict | None = None) -> Flask:
             return jsonify(error=str(error)), 503
         if payload.get("id") != tmdb_id:
             return jsonify(error="TMDB returned the wrong movie"), 502
+        saved_movie = get_db().execute(
+            "SELECT id, state, is_tracked, liked FROM movies WHERE tmdb_id = ?", (tmdb_id,)
+        ).fetchone()
         movie = {
-            "id": None,
+            "id": saved_movie["id"] if saved_movie else None,
             "tmdb_id": tmdb_id,
             "title": payload.get("title") or "Untitled movie",
             "overview": payload.get("overview"),
@@ -355,8 +358,9 @@ def create_app(test_config: dict | None = None) -> Flask:
             "release_date": payload.get("release_date"),
             "runtime_minutes": payload.get("runtime"),
             "genres": ", ".join(genre.get("name", "") for genre in payload.get("genres", [])),
-            "state": TRACKING_ACTIVE,
-            "is_tracked": False,
+            "state": saved_movie["state"] if saved_movie else TRACKING_ACTIVE,
+            "is_tracked": bool(saved_movie["is_tracked"]) if saved_movie else False,
+            "liked": bool(saved_movie["liked"]) if saved_movie else False,
             "watch_count": 0,
         }
         return render_template("movie_detail.html", movie=movie, activity=[])
@@ -376,6 +380,55 @@ def create_app(test_config: dict | None = None) -> Flask:
         if movie is None:
             abort(404)
         return render_template("movie_detail.html", movie=movie, activity=get_movie_activity(get_db(), movie_id))
+
+    @app.post("/api/movies/<int:movie_id>/liked")
+    def set_movie_liked(movie_id: int):
+        liked = bool((request.get_json(silent=True) or {}).get("liked"))
+        cursor = get_db().execute(
+            "UPDATE movies SET liked = ?, updated_at = ? WHERE id = ?",
+            (int(liked), utc_now(), movie_id),
+        )
+        if cursor.rowcount == 0:
+            return jsonify(error="Movie not found"), 404
+        get_db().commit()
+        return jsonify(movie_id=movie_id, liked=liked)
+
+    @app.post("/api/movies/tmdb/<int:tmdb_id>/liked")
+    def set_preview_movie_liked(tmdb_id: int):
+        liked = bool((request.get_json(silent=True) or {}).get("liked"))
+        db = get_db()
+        existing = db.execute(
+            "SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)
+        ).fetchone()
+        if existing:
+            db.execute(
+                "UPDATE movies SET liked = ?, updated_at = ? WHERE id = ?",
+                (int(liked), utc_now(), existing["id"]),
+            )
+            movie_id = existing["id"]
+        else:
+            try:
+                movie = get_tmdb_client().movie(tmdb_id)
+            except TMDBError as error:
+                return jsonify(error=str(error)), 503
+            if movie.get("id") != tmdb_id:
+                return jsonify(error="TMDB returned the wrong movie"), 502
+            now = utc_now()
+            cursor = db.execute(
+                """INSERT INTO movies (tmdb_id,title,original_title,overview,poster_path,backdrop_path,
+                  release_date,runtime_minutes,status,genres,original_language,state,is_tracked,liked,
+                  added_at,updated_at,tmdb_refreshed_at,tmdb_payload)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)""",
+                (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"),
+                 movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"),
+                 movie.get("release_date"), movie.get("runtime"), movie.get("status"),
+                 ", ".join(genre.get("name", "") for genre in movie.get("genres", [])),
+                 movie.get("original_language"), TRACKING_ACTIVE, int(liked), now, now, now,
+                 json.dumps(movie)),
+            )
+            movie_id = cursor.lastrowid
+        db.commit()
+        return jsonify(movie_id=movie_id, liked=liked)
 
     @app.post("/api/movies/<int:movie_id>/state")
     def set_movie_state(movie_id: int):

@@ -1804,6 +1804,10 @@ html.app-booting .schedule-empty-reveal {
   font-feature-settings: "liga";
 }
 
+.movie-like-button.is-liked {
+  color: var(--error);
+}
+
 .material-symbols-rounded.is-filled {
   font-family: "Material Symbols Rounded Filled";
 }

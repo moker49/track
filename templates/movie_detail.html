@@ -1,12 +1,18 @@
 {% set watched = movie.watch_count > 0 %}
-<div data-detail-movie data-detail-title="{{ movie.title }}" data-movie-id="{{ movie.id }}" data-tmdb-id="{{ movie.tmdb_id }}"
+<div data-detail-movie data-detail-title="{{ movie.title }}" data-movie-id="{{ movie.id if movie.id is not none else '' }}" data-tmdb-id="{{ movie.tmdb_id }}"
   data-movie-state="{{ movie.state }}" data-watch-count="{{ movie.watch_count }}"
+  data-liked="{{ 'true' if movie.liked else 'false' }}"
   data-progress-state="{{ 'finished' if watched else 'not-started' }}">
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back aria-label="Back">
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
     <span class="detail-app-bar-title">Movie details</span>
+    <button class="icon-button movie-like-button{% if movie.liked %} is-liked{% endif %}" type="button"
+      data-movie-like aria-pressed="{{ 'true' if movie.liked else 'false' }}"
+      aria-label="{{ 'Unlike' if movie.liked else 'Like' }} {{ movie.title }}">
+      <span class="material-symbols-rounded{% if movie.liked %} is-filled{% endif %}" aria-hidden="true">favorite</span>
+    </button>
     {% if movie.is_tracked %}<div class="menu-anchor">
       <button class="icon-button" type="button" data-movie-menu-button aria-label="More options for {{ movie.title }}"
         aria-expanded="false">

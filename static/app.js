@@ -3205,6 +3205,43 @@ function updateMovieWatchUi(detailMovie, watchCount) {
   control.querySelector("[data-movie-detail-watch-label]").textContent = watchCount === 1 ? "watch" : "watches";
 }
 
+function updateMovieLikeUi(detailMovie, liked) {
+  detailMovie.dataset.liked = String(liked);
+  const button = detailMovie.querySelector("[data-movie-like]");
+  if (!button) return;
+  button.classList.toggle("is-liked", liked);
+  button.setAttribute("aria-pressed", String(liked));
+  button.setAttribute("aria-label", `${liked ? "Unlike" : "Like"} ${detailMovie.dataset.detailTitle}`);
+  button.querySelector(".material-symbols-rounded")?.classList.toggle("is-filled", liked);
+}
+
+async function toggleMovieLike(detailMovie) {
+  const liked = detailMovie.dataset.liked !== "true";
+  const button = detailMovie.querySelector("[data-movie-like]");
+  if (!button) return;
+  button.disabled = true;
+  try {
+    const movieId = detailMovie.dataset.movieId;
+    const endpoint = movieId
+      ? `/api/movies/${movieId}/liked`
+      : `/api/movies/tmdb/${detailMovie.dataset.tmdbId}/liked`;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ liked }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not update like");
+    if (!movieId) detailMovie.dataset.movieId = String(data.movie_id);
+    updateMovieLikeUi(detailMovie, data.liked);
+    movieDetailCache.delete(String(data.movie_id));
+  } catch (error) {
+    showSnackbar(error.message || "Couldn't update like.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function changeMovieWatchCount(detailMovie, action) {
   if (pendingWatchChanges.has(detailMovie)) return;
   pendingWatchChanges.add(detailMovie);
@@ -4058,6 +4095,13 @@ document.addEventListener("click", (event) => {
     } else {
       toggleWatchMenu(seasonControl);
     }
+    return;
+  }
+
+  const movieLikeButton = event.target.closest("[data-movie-like]");
+  if (movieLikeButton) {
+    const detailMovie = movieLikeButton.closest("[data-detail-movie]");
+    if (detailMovie) toggleMovieLike(detailMovie);
     return;
   }
 
