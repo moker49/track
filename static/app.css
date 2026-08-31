@@ -1812,7 +1812,7 @@ html.app-booting .schedule-empty-reveal {
   padding: 8px 20px 20px;
   display: grid;
   grid-template-columns: 112px 1fr;
-  align-items: end;
+  align-items: start;
   gap: 18px;
 }
 
@@ -1846,7 +1846,7 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .hero-copy {
-  padding-bottom: 4px;
+  padding-top: 0;
 }
 
 .hero h1 {
