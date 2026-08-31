@@ -40,4 +40,13 @@ def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None
         """
     )
     db.execute("UPDATE movies SET is_watched_without_diary = 0 WHERE is_watched_without_diary = 1")
+    db.execute(
+        """
+        INSERT INTO movie_state_history (movie_id, state, entered_at)
+        SELECT id, state, COALESCE(archived_at, active_at, added_at)
+        FROM movies m
+        WHERE is_tracked = 1
+          AND NOT EXISTS (SELECT 1 FROM movie_state_history h WHERE h.movie_id = m.id)
+        """
+    )
     db.execute("PRAGMA optimize")

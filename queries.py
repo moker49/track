@@ -696,3 +696,28 @@ def get_movie_library(db: sqlite3.Connection) -> tuple[list[sqlite3.Row], list[s
         [movie for movie in movies if movie["state"] == TRACKING_ACTIVE],
         [movie for movie in movies if movie["state"] == TRACKING_ARCHIVED],
     )
+
+
+def get_movie_activity(db: sqlite3.Connection, movie_id: int) -> list[sqlite3.Row]:
+    return db.execute(
+        f"""
+        SELECT event_type, title, occurred_at, watch_record_id, watch_kind,
+               watch_added_at, watch_date, show_in_diary
+        FROM (
+            SELECT CASE msh.state WHEN 'ARCHIVED' THEN 'added_archive' ELSE 'added' END AS event_type,
+                   CASE msh.state WHEN 'ARCHIVED' THEN 'Added to Archive' ELSE 'Added to Watchlist' END AS title,
+                   msh.entered_at AS occurred_at, NULL AS watch_record_id,
+                   NULL AS watch_kind, NULL AS watch_added_at, NULL AS watch_date,
+                   NULL AS show_in_diary
+            FROM movie_state_history msh
+            WHERE msh.movie_id = ?
+            UNION ALL
+            SELECT 'watched', 'Watched', {effective_watch_date_sql('mwh')},
+                   mwh.id, 'movie', mwh.added_at, mwh.watch_date, mwh.show_in_diary
+            FROM movie_watch_history mwh
+            WHERE mwh.movie_id = ?
+        )
+        ORDER BY occurred_at DESC, watch_added_at DESC
+        """,
+        (movie_id, movie_id),
+    ).fetchall()

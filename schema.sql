@@ -150,7 +150,15 @@ CREATE TABLE IF NOT EXISTS movie_watch_history (
     show_in_diary INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))
 );
 
+CREATE TABLE IF NOT EXISTS movie_state_history (
+    id INTEGER PRIMARY KEY,
+    movie_id INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+    state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
+    entered_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_movie_watch_history_movie ON movie_watch_history(movie_id);
+CREATE INDEX IF NOT EXISTS idx_movie_state_history_movie ON movie_state_history(movie_id);
 
 CREATE TABLE IF NOT EXISTS image_cache (
     id INTEGER PRIMARY KEY,

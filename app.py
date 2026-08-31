@@ -28,6 +28,7 @@ from queries import (
     get_diary_page,
     get_library_show,
     get_movie_library,
+    get_movie_activity,
     get_show_progress,
     get_show_activity,
     get_statistics,
@@ -333,6 +334,8 @@ def create_app(test_config: dict | None = None) -> Flask:
           (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), target_state, now, now if target_state == TRACKING_ACTIVE else None, now if target_state == TRACKING_ARCHIVED else None, now, now, json.dumps(movie)))
         db.commit()
         movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)).fetchone()["id"]
+        db.execute("INSERT INTO movie_state_history (movie_id, state, entered_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM movie_state_history WHERE movie_id = ?)", (movie_id, target_state, now, movie_id))
+        db.commit()
         return jsonify(ok=True, movie_id=movie_id)
 
     @app.get("/api/movies/tmdb/<int:tmdb_id>/preview")
@@ -356,7 +359,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "is_tracked": False,
             "watch_count": 0,
         }
-        return render_template("movie_detail.html", movie=movie, watch_log=[])
+        return render_template("movie_detail.html", movie=movie, activity=[])
 
     @app.get("/api/movies/<int:movie_id>")
     def movie_detail_fragment(movie_id: int):
@@ -372,17 +375,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         ).fetchone()
         if movie is None:
             abort(404)
-        watch_log = get_db().execute(
-            f"""
-            SELECT id AS watch_record_id, added_at, watch_date, show_in_diary,
-                   {effective_watch_date_sql('mwh')} AS display_date
-            FROM movie_watch_history mwh
-            WHERE movie_id = ?
-            ORDER BY display_date DESC, added_at DESC, id DESC
-            """,
-            (movie_id,),
-        ).fetchall()
-        return render_template("movie_detail.html", movie=movie, watch_log=watch_log)
+        return render_template("movie_detail.html", movie=movie, activity=get_movie_activity(get_db(), movie_id))
 
     @app.post("/api/movies/<int:movie_id>/state")
     def set_movie_state(movie_id: int):
@@ -390,7 +383,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if target_state not in TRACKING_STATES:
             return jsonify(error="state must be ACTIVE or ARCHIVED"), 400
         db = get_db()
-        movie = db.execute("SELECT id, is_tracked FROM movies WHERE id = ?", (movie_id,)).fetchone()
+        movie = db.execute("SELECT id, state, is_tracked FROM movies WHERE id = ?", (movie_id,)).fetchone()
         if movie is None or not movie["is_tracked"]:
             return jsonify(error="Movie not found"), 404
         now = utc_now()
@@ -399,6 +392,8 @@ def create_app(test_config: dict | None = None) -> Flask:
             f"UPDATE movies SET state = ?, {timestamp_column} = ?, updated_at = ? WHERE id = ?",
             (target_state, now, now, movie_id),
         )
+        if movie["state"] != target_state:
+            db.execute("INSERT INTO movie_state_history (movie_id, state, entered_at) VALUES (?, ?, ?)", (movie_id, target_state, now))
         db.commit()
         return jsonify(movie_id=movie_id, state=target_state)
 

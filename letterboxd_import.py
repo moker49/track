@@ -88,7 +88,12 @@ def upsert_movie(db, movie: dict, state: str, liked: bool, undated_watched: bool
          timestamp if state == TRACKING_ARCHIVED else None, timestamp, timestamp,
          json.dumps(movie)),
     )
-    return db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (movie["id"],)).fetchone()[0]
+    movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (movie["id"],)).fetchone()[0]
+    db.execute(
+        "INSERT INTO movie_state_history (movie_id, state, entered_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM movie_state_history WHERE movie_id = ?)",
+        (movie_id, state, timestamp, movie_id),
+    )
+    return movie_id
 
 
 def main(export_path: str, retry_skipped: bool = False) -> int:
@@ -185,10 +190,60 @@ def import_manual_corrections(export_path: str) -> int:
     return 0
 
 
+def apply_letterboxd_state_dates(export_path: str) -> int:
+    with zipfile.ZipFile(export_path) as archive:
+        watched_rows = rows(archive, "watched.csv")
+        watchlist_rows = rows(archive, "watchlist.csv")
+    # A title is sufficient here because these are the exact source records used
+    # for this one import; watchlist deliberately overrides watched.
+    source_dates = {row["Name"]: row["Date"] for row in watched_rows}
+    source_dates.update({row["Name"]: row["Date"] for row in watchlist_rows})
+    normalized_source_dates = {norm(title): value for title, value in source_dates.items()}
+    db = connect_database(BASE_DIR / "instance" / "track.db")
+    initialize_database(db, BASE_DIR / "schema.sql")
+    movie_updates = show_updates = 0
+    for movie in db.execute("SELECT id, title, state FROM movies WHERE is_tracked = 1").fetchall():
+        source_date = source_dates.get(movie["title"]) or normalized_source_dates.get(norm(movie["title"]))
+        if not source_date:
+            continue
+        timestamp = f"{source_date}T12:00:00+00:00"
+        db.execute(
+            "UPDATE movies SET added_at = ?, active_at = CASE WHEN state = 'ACTIVE' THEN ? ELSE active_at END, archived_at = CASE WHEN state = 'ARCHIVED' THEN ? ELSE archived_at END WHERE id = ?",
+            (timestamp, timestamp, timestamp, movie["id"]),
+        )
+        db.execute(
+            "UPDATE movie_state_history SET entered_at = ? WHERE id = (SELECT id FROM movie_state_history WHERE movie_id = ? ORDER BY id LIMIT 1)",
+            (timestamp, movie["id"]),
+        )
+        movie_updates += 1
+    for title, source_date in source_dates.items():
+        # The Playlist is the sole TV item explicitly imported from this
+        # Letterboxd export. Do not accidentally match pre-existing shows that
+        # happen to share a film title.
+        shows = db.execute("SELECT id, state FROM shows WHERE name = ? AND is_tracked = 1", (title,)).fetchall() if title == "The Playlist" else []
+        for show in shows:
+            timestamp = f"{source_date}T12:00:00+00:00"
+            db.execute(
+                "UPDATE shows SET added_at = ?, active_at = CASE WHEN state = 'ACTIVE' THEN ? ELSE active_at END, archived_at = CASE WHEN state = 'ARCHIVED' THEN ? ELSE archived_at END WHERE id = ?",
+                (timestamp, timestamp, timestamp, show["id"]),
+            )
+            db.execute(
+                "UPDATE show_state_history SET entered_at = ? WHERE id = (SELECT id FROM show_state_history WHERE show_id = ? ORDER BY id LIMIT 1)",
+                (timestamp, show["id"]),
+            )
+            show_updates += 1
+    db.commit()
+    db.close()
+    print(f"updated {movie_updates} movies and {show_updates} shows")
+    return 0
+
+
 if __name__ == "__main__":
-    if len(sys.argv) not in {2, 3} or (len(sys.argv) == 3 and sys.argv[2] not in {"--retry-skipped", "--manual-corrections"}):
-        print("Usage: python letterboxd_import.py <letterboxd-export.zip> [--retry-skipped|--manual-corrections]", file=sys.stderr)
+    if len(sys.argv) not in {2, 3} or (len(sys.argv) == 3 and sys.argv[2] not in {"--retry-skipped", "--manual-corrections", "--apply-letterboxd-state-dates"}):
+        print("Usage: python letterboxd_import.py <letterboxd-export.zip> [--retry-skipped|--manual-corrections|--apply-letterboxd-state-dates]", file=sys.stderr)
         raise SystemExit(2)
     if len(sys.argv) == 3 and sys.argv[2] == "--manual-corrections":
         raise SystemExit(import_manual_corrections(sys.argv[1]))
+    if len(sys.argv) == 3 and sys.argv[2] == "--apply-letterboxd-state-dates":
+        raise SystemExit(apply_letterboxd_state_dates(sys.argv[1]))
     raise SystemExit(main(sys.argv[1], retry_skipped=len(sys.argv) == 3))

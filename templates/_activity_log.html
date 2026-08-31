@@ -14,12 +14,12 @@
     {% endif %}
     <ol class="activity-list" data-activity-list>
       {% for item in activity_items %}
-      {% set event_type = item.event_type if activity_mode == 'show' else 'watched' %}
-      {% set event_title = item.title if activity_mode == 'show' else 'Watched' %}
-      {% set event_time = item.occurred_at if activity_mode == 'show' else item.display_date %}
+      {% set event_type = item.event_type if activity_mode in ['show', 'movie'] else 'watched' %}
+      {% set event_title = item.title if activity_mode in ['show', 'movie'] else 'Watched' %}
+      {% set event_time = item.occurred_at if activity_mode in ['show', 'movie'] else item.display_date %}
       {% set record_id = item.watch_record_id %}
-      {% set watch_kind = item.watch_kind if activity_mode == 'show' else ('movie' if activity_mode == 'movie' else 'episode') %}
-      {% set added_at = item.watch_added_at if activity_mode == 'show' else item.added_at %}
+      {% set watch_kind = item.watch_kind if activity_mode in ['show', 'movie'] else 'episode' %}
+      {% set added_at = item.watch_added_at if activity_mode in ['show', 'movie'] else item.added_at %}
       {% set watch_date = item.watch_date %}
       <li class="activity-item" data-activity-type="{{ event_type }}" data-sort-date="{{ event_time }}" {% if
         activity_mode=='show' and item.season_id %} data-season-id="{{ item.season_id }}" {% endif %}{% if record_id %}
@@ -29,6 +29,7 @@
           aria-label="Set date for {{ event_title }}">{% endif %}
           <span class="material-symbols-rounded activity-icon" aria-hidden="true">
             {%- if event_type == 'added' -%}add_circle
+            {%- elif event_type == 'added_archive' -%}archive
             {%- elif event_type == 'archived' -%}archive
             {%- elif event_type == 'activated' -%}resume
             {%- elif event_type == 'season_watched' -%}done_all
