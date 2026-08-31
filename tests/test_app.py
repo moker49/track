@@ -1311,7 +1311,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-activity-type="watched"', detail.data)
         self.assertIn(b'class="activity-log watch-log"', detail.data)
         self.assertNotIn(b'<details class="activity-log watch-log"', detail.data)
-        self.assertIn(b'data-watch-log-entry', detail.data)
+        self.assertIn(b'data-watch-log-menu-button', detail.data)
         self.assertIn(b'data-episode-detail-watch', detail.data)
         self.assertIn(b'data-episode-navigation', detail.data)
         self.assertIn(b'data-adjacent-episode="previous"', detail.data)

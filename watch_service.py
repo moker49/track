@@ -130,12 +130,12 @@ def change_season_watch_count(
                 episode_ids,
             )
         db.executemany(
-            "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
+            "INSERT INTO episode_watch_history (episode_id, added_at, show_in_diary) VALUES (?, ?, 0)",
             [(episode_id, changed_at) for episode_id in episode_ids],
         )
         if episode_ids:
             season_watch_record_id = db.execute(
-                "INSERT INTO season_watch_history (season_id, added_at) VALUES (?, ?)",
+                "INSERT INTO season_watch_history (season_id, added_at, show_in_diary) VALUES (?, ?, 0)",
                 (season_id, changed_at),
             ).lastrowid
     else:
