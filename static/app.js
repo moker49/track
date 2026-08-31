@@ -2809,7 +2809,9 @@ function syncTvControlBar(view = views.get(currentView)) {
     }
   }
   if (progressLabel) {
-    progressLabel.textContent = progressFilterLabels[preferences.progress];
+    progressLabel.textContent = viewName === "movies" && preferences.progress === PROGRESS_STATE.CAUGHT_UP
+      ? "Watched"
+      : progressFilterLabels[preferences.progress];
   }
   if (sortLabel) {
     sortLabel.textContent = sortFieldLabels[preferences.sortField];
@@ -2841,6 +2843,11 @@ function syncTvControlBar(view = views.get(currentView)) {
   });
 
   tvControlBar.querySelectorAll("[data-tv-progress-option]").forEach((button) => {
+    const value = button.dataset.tvProgressOption;
+    button.hidden = viewName === "movies" && value === PROGRESS_STATE.STARTED;
+    if (value === PROGRESS_STATE.CAUGHT_UP) {
+      button.querySelector("span:last-child").textContent = viewName === "movies" ? "Watched" : "Caught-up";
+    }
     const selected = button.dataset.tvProgressOption === preferences.progress;
     button.classList.toggle("is-unselected-default", button.dataset.tvProgressOption === defaults.progress && !selected);
     button.setAttribute("aria-checked", String(selected));
@@ -3883,6 +3890,7 @@ document.addEventListener("click", (event) => {
     if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
     else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
     else syncTvControlBar(views.get(currentView));
+    closeTvDropdowns();
     return;
   }
 

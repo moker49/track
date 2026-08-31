@@ -824,7 +824,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('progress: ""', javascript)
         self.assertIn("globalSearchInput?.blur();", javascript)
         self.assertIn("function syncTvControlBar", javascript)
-        self.assertIn("progressLabel.textContent = progressFilterLabels[preferences.progress]", javascript)
+        self.assertIn('preferences.progress === PROGRESS_STATE.CAUGHT_UP', javascript)
         self.assertIn("sortLabel.textContent = sortFieldLabels[preferences.sortField]", javascript)
         self.assertIn("function mediaTypeLabel", javascript)
         self.assertIn("mediaTypes: [\"tv\"]", javascript)
