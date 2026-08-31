@@ -740,6 +740,9 @@ function showView(viewName, historyMode = null) {
   else resetProfileChromePosition();
   syncGlobalSearch();
   syncTvControlVisibility();
+  if (["tv", "movies"].includes(viewName)) {
+    filterShowView(views.get(viewName));
+  }
   if (viewName === "tv") {
     window.requestAnimationFrame(() => {
       revealTvStateOnce(views.get("tv"));
