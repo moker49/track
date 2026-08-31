@@ -59,6 +59,10 @@ html {
 
 html.remove-dialog-open,
 html.remove-dialog-open body,
+html.finished-archive-dialog-open,
+html.finished-archive-dialog-open body,
+html.shared-dialog-open,
+html.shared-dialog-open body,
 html.image-viewer-open,
 html.image-viewer-open body {
   overflow: hidden;
@@ -131,6 +135,11 @@ html.app-booting .app-boot-screen {
 
 .app-content {
   padding-bottom: calc(88px + env(safe-area-inset-bottom));
+}
+
+dialog:not(.image-viewer)::backdrop {
+  background: var(--shadow);
+  backdrop-filter: blur(2px);
 }
 
 .app-content.has-library-controls {

@@ -74,6 +74,28 @@ const imageViewerPreview = imageViewer?.querySelector("[data-image-viewer-previe
 const imageViewerImage = imageViewer?.querySelector("[data-image-viewer-image]");
 const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]");
 const menuScrim = document.querySelector("[data-menu-scrim]");
+const sharedDialogs = [removeDialog, finishedArchiveDialog, datePicker].filter(Boolean);
+
+// Standard dialog contract: blurred backdrop, outside-click and Escape
+// dismissal, plus locked background scrolling. Add future dialogs here.
+function syncSharedDialogState() {
+  document.documentElement.classList.toggle(
+    "shared-dialog-open",
+    sharedDialogs.some((dialog) => dialog.open),
+  );
+}
+
+function openSharedDialog(dialog) {
+  if (!dialog?.open) dialog?.showModal();
+  syncSharedDialogState();
+}
+
+sharedDialogs.forEach((dialog) => {
+  dialog.addEventListener("close", syncSharedDialogState);
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+});
 const tvControlBar = document.querySelector("[data-tv-control-bar]");
 const menuIsolatedElements = new Set();
 const floatingMenuAnimations = new WeakMap();
@@ -2658,7 +2680,7 @@ function openWatchDatePicker(item) {
   datePickerMonth = new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1);
   datePickerYearVisible = false;
   renderDatePicker();
-  datePicker.showModal();
+  openSharedDialog(datePicker);
 }
 
 function shiftDatePickerMonth(offset) {
@@ -2832,6 +2854,7 @@ function syncTvControlVisibility() {
 }
 
 function showFloatingMenu(menu, trigger) {
+  menu.dataset.overlayMenu = "";
   menu.getAnimations().forEach((animation) => animation.cancel());
   floatingMenuAnimations.delete(menu);
   menu.hidden = false;
@@ -3001,7 +3024,7 @@ function isolateOpenMenu(openMenu) {
 function syncMenuScrim() {
   if (!menuScrim) return;
   const openMenu = document.querySelector(
-    "[data-show-menu]:not([hidden]), [data-movie-menu]:not([hidden]), [data-watch-menu]:not([hidden]), [data-movie-watch-menu]:not([hidden]), [data-watch-log-menu]:not([hidden]), [data-season-diary-menu]:not([hidden]), [data-tv-dropdown-menu]:not([hidden])",
+    "[data-overlay-menu]:not([hidden]), [data-tv-dropdown-menu]:not([hidden])",
   );
   const menuOpen = Boolean(openMenu);
   clearMenuIsolation();
@@ -3299,7 +3322,7 @@ async function moveShow(showElement, targetState, actionButton) {
     invalidateShowCache(showId);
 
     const card = document.querySelector(`.show-card[data-show-id="${showId}"]`);
-    document.querySelector(`[data-show-list="${data.state}"]`)?.append(card);
+    if (card) document.querySelector(`[data-show-list="${data.state}"]`)?.append(card);
     updateShowRepresentations(showId, data.state, data.move_label, data.move_icon);
     if (currentView === "detail"
       && views.get("detail").querySelector(`[data-detail-show][data-show-id="${showId}"]`)) {
@@ -3330,7 +3353,7 @@ function maybeOpenFinishedArchiveDialog(data) {
   pendingFinishedArchiveShowId = String(data.show_id);
   const showName = finishedArchiveDialog.querySelector("[data-finished-archive-show]");
   if (showName) showName.textContent = data.show_name || "This show";
-  finishedArchiveDialog.showModal();
+  openSharedDialog(finishedArchiveDialog);
 }
 
 async function confirmArchiveFinishedShow() {
@@ -3339,10 +3362,9 @@ async function confirmArchiveFinishedShow() {
   const confirmButton = finishedArchiveDialog.querySelector("[data-confirm-finished-archive]");
   const showElement = document.querySelector(`[data-show-id="${showId}"]`)
     || { dataset: { showId } };
-  const moved = await moveShow(showElement, TRACKING_STATE.ARCHIVED, confirmButton);
-  if (!moved) return;
   finishedArchiveDialog.close();
   pendingFinishedArchiveShowId = null;
+  await moveShow(showElement, TRACKING_STATE.ARCHIVED, confirmButton);
 }
 
 function requestShowRemoval(showElement) {
@@ -3350,8 +3372,7 @@ function requestShowRemoval(showElement) {
   const showName = showElement.querySelector("h1, h3")?.textContent.trim() || "this show";
   removeDialog.querySelector("h2").textContent = `Remove ${showName}?`;
   removeDialog.querySelector("p").textContent = "This removes the show from TV. Its metadata and watch history stay saved.";
-  removeDialog.showModal();
-  document.documentElement.classList.add("remove-dialog-open");
+  openSharedDialog(removeDialog);
 }
 
 function requestMovieRemoval(movieElement) {
@@ -3359,8 +3380,7 @@ function requestMovieRemoval(movieElement) {
   const movieName = movieElement.querySelector("h1, h3")?.textContent.trim() || "this movie";
   removeDialog.querySelector("h2").textContent = `Remove ${movieName}?`;
   removeDialog.querySelector("p").textContent = "This removes the movie from Movies. Its metadata and watch history stay saved.";
-  removeDialog.showModal();
-  document.documentElement.classList.add("remove-dialog-open");
+  openSharedDialog(removeDialog);
 }
 
 async function confirmShowRemoval() {
@@ -4460,6 +4480,11 @@ removeDialog?.addEventListener("click", (event) => {
 
 finishedArchiveDialog?.addEventListener("close", () => {
   pendingFinishedArchiveShowId = null;
+  document.documentElement.classList.remove("finished-archive-dialog-open");
+});
+
+finishedArchiveDialog?.addEventListener("click", (event) => {
+  if (event.target === finishedArchiveDialog) finishedArchiveDialog.close();
 });
 
 datePicker?.addEventListener("close", () => {
