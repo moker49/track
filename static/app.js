@@ -4360,6 +4360,7 @@ function filterShowView(view) {
   const preferences = libraryViewPreferences[view.dataset.view];
   if (!preferences) return;
   const query = searchQueries[view.dataset.view].trim().toLocaleLowerCase();
+  const searching = Boolean(query);
   const list = view.querySelector("[data-library-results-list]");
   const cards = [...view.querySelectorAll(".show-card")];
   const mediaType = view.dataset.view === "movies" ? "movies" : "tv";
@@ -4371,10 +4372,10 @@ function filterShowView(view) {
     return Number(first.dataset.showId || first.dataset.movieId) - Number(second.dataset.showId || second.dataset.movieId);
   });
   cards.forEach((card) => {
-    const stateSelected = card.dataset.showState === TRACKING_STATE.ARCHIVED
+    const stateSelected = searching || (card.dataset.showState === TRACKING_STATE.ARCHIVED
       ? preferences.mediaTypes.includes("archive")
-      : preferences.mediaTypes.includes(mediaType);
-    const matchesProgress = !preferences.progress
+      : preferences.mediaTypes.includes(mediaType));
+    const matchesProgress = searching || !preferences.progress
       || card.dataset.progressState === preferences.progress
       || (card.dataset.progressState === PROGRESS_STATE.FINISHED && preferences.progress === PROGRESS_STATE.CAUGHT_UP);
     card.hidden = !(stateSelected && matchesProgress && card.dataset.showName.includes(query));
@@ -4382,7 +4383,7 @@ function filterShowView(view) {
   });
   const empty = view.querySelector("[data-library-empty]");
   if (empty) empty.hidden = cards.some((card) => !card.hidden) || Boolean(query);
-  view.classList.toggle("is-searching", Boolean(query));
+  view.classList.toggle("is-searching", searching);
   if (view.dataset.view === currentView) syncTvControlVisibility();
   hydratedLibraryViews.add(view.dataset.view);
   if (view.dataset.view === "tv") syncTvSearchPresentation();

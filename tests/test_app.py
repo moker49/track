@@ -2151,7 +2151,7 @@ class TrackAppTest(unittest.TestCase):
         detail_swap = javascript.index('views.get("detail").replaceChildren(template.content)')
         self.assertLess(seasons_ready, detail_swap)
         self.assertIn('const list = view.querySelector("[data-library-results-list]")', javascript)
-        self.assertIn("const matchesProgress = !preferences.progress", javascript)
+        self.assertIn("const matchesProgress = searching || !preferences.progress", javascript)
         self.assertIn('card.dataset.showState === TRACKING_STATE.ARCHIVED', javascript)
         self.assertIn("localCount + addCount > 0", javascript)
         self.assertIn("const available = results.filter((show) => !show.is_tracked)", javascript)
