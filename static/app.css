@@ -2308,6 +2308,19 @@ html.app-booting .schedule-empty-reveal {
   font-size: 0.75rem;
 }
 
+.activity-date-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  color: var(--on-surface-muted);
+}
+
+.activity-diary-hidden-icon {
+  color: currentColor;
+  font-size: 0.9rem;
+}
+
 .activity-chevron {
   place-self: center;
   transition: transform 180ms ease;

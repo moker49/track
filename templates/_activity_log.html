@@ -38,7 +38,7 @@
           </span>
           <span class="activity-copy">
             <strong>{{ event_title }}</strong>
-            <time datetime="{{ event_time }}" data-display-date>{{ event_time[:10] }}</time>
+            <span class="activity-date-row"><time datetime="{{ event_time }}" data-display-date>{{ event_time[:10] }}</time>{% if record_id and item.show_in_diary is defined and not item.show_in_diary %}<span class="material-symbols-rounded activity-diary-hidden-icon" role="img" aria-label="Hidden from diary" title="Hidden from diary">visibility_off</span>{% endif %}</span>
           </span>
           {% if record_id %}<span class="material-symbols-rounded activity-edit-icon"
             aria-hidden="true">{% if watch_kind == 'season' %}visibility{% else %}more_vert{% endif %}</span></button>{% endif %}

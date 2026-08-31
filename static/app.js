@@ -3050,6 +3050,24 @@ function toggleShowMenu(button) {
   preserveMenuScrollPosition(scrollPosition);
 }
 
+function syncDiaryHiddenIcon(item) {
+  const dateRow = item?.querySelector(".activity-date-row");
+  if (!dateRow) return;
+  const existing = dateRow.querySelector(".activity-diary-hidden-icon");
+  if (item.dataset.showInDiary !== "0") {
+    existing?.remove();
+    return;
+  }
+  if (existing) return;
+  const icon = document.createElement("span");
+  icon.className = "material-symbols-rounded activity-diary-hidden-icon";
+  icon.setAttribute("role", "img");
+  icon.setAttribute("aria-label", "Hidden from diary");
+  icon.title = "Hidden from diary";
+  icon.textContent = "visibility_off";
+  dateRow.append(icon);
+}
+
 function toggleMovieMenu(button) {
   const scrollPosition = { x: window.scrollX, y: window.scrollY };
   const menu = button.parentElement.querySelector("[data-movie-menu]")
@@ -3720,7 +3738,9 @@ document.addEventListener("click", (event) => {
     const menu = item?.querySelector("[data-watch-log-menu]");
     if (menu) {
       const diaryLabel = menu.querySelector("[data-watch-log-diary-action] span:last-child");
+      const diaryIcon = menu.querySelector("[data-watch-log-diary-action] .material-symbols-rounded");
       if (diaryLabel) diaryLabel.textContent = item.dataset.showInDiary === "0" ? "Show in diary" : "Hide from diary";
+      if (diaryIcon) diaryIcon.textContent = item.dataset.showInDiary === "0" ? "visibility" : "visibility_off";
       closeWatchLogMenus(menu);
       if (menu.hidden) {
         menuScrollLockPosition = { x: window.scrollX, y: window.scrollY };
@@ -3751,7 +3771,11 @@ document.addEventListener("click", (event) => {
     fetch(`/api/watch-history/${item.dataset.watchKind}/${item.dataset.watchRecordId}/diary`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ show_in_diary: visible }),
     }).then((response) => response.ok ? response.json() : Promise.reject())
-      .then(() => { item.dataset.showInDiary = visible ? "1" : "0"; diaryRevision += 1; })
+      .then(() => {
+        item.dataset.showInDiary = visible ? "1" : "0";
+        syncDiaryHiddenIcon(item);
+        diaryRevision += 1;
+      })
       .catch(() => showSnackbar("Couldn't update the diary setting. Try again."));
     return;
   }
@@ -3962,7 +3986,9 @@ document.addEventListener("click", (event) => {
     const menu = item?.querySelector("[data-season-diary-menu]");
     if (menu) {
       const actionLabel = menu.querySelector("[data-season-diary-action] span:last-child");
+      const actionIcon = menu.querySelector("[data-season-diary-action] .material-symbols-rounded");
       if (actionLabel) actionLabel.textContent = item.dataset.seasonDiaryState === "shown" ? "Hide from diary" : "Show in diary";
+      if (actionIcon) actionIcon.textContent = item.dataset.seasonDiaryState === "shown" ? "visibility_off" : "visibility";
       closeWatchLogMenus(menu);
       if (menu.hidden) {
         menuScrollLockPosition = { x: window.scrollX, y: window.scrollY };
