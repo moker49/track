@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 from database import connect_database, initialize_database
 from domain import TRACKING_ACTIVE, TRACKING_ARCHIVED
 from tmdb import TMDBClient, TMDBError
+from tmdb_import import import_or_refresh_show
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -90,7 +91,7 @@ def upsert_movie(db, movie: dict, state: str, liked: bool, undated_watched: bool
     return db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (movie["id"],)).fetchone()[0]
 
 
-def main(export_path: str) -> int:
+def main(export_path: str, retry_skipped: bool = False) -> int:
     load_dotenv(BASE_DIR / ".env")
     token = os.environ.get("TMDB_READ_ACCESS_TOKEN", "")
     if not token:
@@ -105,6 +106,15 @@ def main(export_path: str) -> int:
             diary[(row["Name"], row["Year"])].append(row["Watched Date"])
 
     entries = watched | watchlist | liked | set(diary)
+    if retry_skipped:
+        log_path = BASE_DIR / "letterboxd-import-2.log"
+        skipped = {
+            (match.group(1), match.group(2))
+            for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            if (match := re.match(r"SKIP (.+) \((\d{4})\):", line))
+        }
+        entries &= skipped
+        entries.discard(("Black Mirror: White Christmas", "2014"))
     client = RateLimitedTMDBClient(token)
     db = connect_database(BASE_DIR / "instance" / "track.db")
     initialize_database(db, BASE_DIR / "schema.sql")
@@ -112,12 +122,19 @@ def main(export_path: str) -> int:
     for index, (title, year) in enumerate(sorted(entries), start=1):
         try:
             candidates = client.search_movie(title).get("results", [])
-            exact = [item for item in candidates if item.get("release_date", "")[:4] == year and norm(item.get("title")) == norm(title)]
-            if len(exact) != 1:
+            title_matches = [item for item in candidates if norm(item.get("title")) == norm(title)]
+            exact = [item for item in title_matches if item.get("release_date", "")[:4] == year]
+            off_by_one = [
+                item for item in title_matches
+                if item.get("release_date", "")[:4].isdigit()
+                and abs(int(item["release_date"][:4]) - int(year)) == 1
+            ]
+            selected = max(exact or off_by_one, key=lambda item: item.get("popularity") or 0, default=None)
+            if selected is None:
                 skipped += 1
-                print(f"SKIP {title} ({year}): {'no exact match' if not exact else 'ambiguous exact match'}")
+                print(f"SKIP {title} ({year}): no title/year or one-year-off match")
                 continue
-            movie = client.movie(exact[0]["id"])
+            movie = client.movie(selected["id"])
             # Watchlist deliberately wins over the archived watched state.
             state = TRACKING_ACTIVE if (title, year) in watchlist else TRACKING_ARCHIVED
             movie_id = upsert_movie(db, movie, state, (title, year) in liked,
@@ -139,8 +156,39 @@ def main(export_path: str) -> int:
     return 0
 
 
+def import_manual_corrections(export_path: str) -> int:
+    load_dotenv(BASE_DIR / ".env")
+    token = os.environ.get("TMDB_READ_ACCESS_TOKEN", "")
+    with zipfile.ZipFile(export_path) as archive:
+        watched = {(row["Name"], row["Year"]) for row in rows(archive, "watched.csv")}
+        watchlist = {(row["Name"], row["Year"]) for row in rows(archive, "watchlist.csv")}
+        liked = {(row["Name"], row["Year"]) for row in rows(archive, "likes/films.csv")}
+    client = RateLimitedTMDBClient(token)
+    db = connect_database(BASE_DIR / "instance" / "track.db")
+    initialize_database(db, BASE_DIR / "schema.sql")
+    for title, year in (("Hamilton", "2020"), ("The Upside", "2017")):
+        result = next(item for item in client.search_movie(title)["results"] if norm(item.get("title")) == norm(title))
+        movie = client.movie(result["id"])
+        state = TRACKING_ACTIVE if (title, year) in watchlist else TRACKING_ARCHIVED
+        upsert_movie(db, movie, state, (title, year) in liked, (title, year) in watched)
+        db.commit()
+        print(f"imported movie: {title} ({movie.get('release_date', '')[:4]})")
+    title, year = "The Playlist", "2022"
+    result = next(item for item in client.search_tv(title)["results"] if norm(item.get("name")) == norm(title))
+    show, seasons = client.show_bundle(result["id"])
+    state = TRACKING_ACTIVE if (title, year) in watchlist else TRACKING_ARCHIVED
+    show_id, _created, _newly_tracked = import_or_refresh_show(db, show, seasons, state)
+    db.execute("UPDATE shows SET liked = ? WHERE id = ?", (int((title, year) in liked), show_id))
+    db.commit()
+    print(f"imported TV: {title} ({show.get('first_air_date', '')[:4]})")
+    db.close()
+    return 0
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python letterboxd_import.py <letterboxd-export.zip>", file=sys.stderr)
+    if len(sys.argv) not in {2, 3} or (len(sys.argv) == 3 and sys.argv[2] not in {"--retry-skipped", "--manual-corrections"}):
+        print("Usage: python letterboxd_import.py <letterboxd-export.zip> [--retry-skipped|--manual-corrections]", file=sys.stderr)
         raise SystemExit(2)
-    raise SystemExit(main(sys.argv[1]))
+    if len(sys.argv) == 3 and sys.argv[2] == "--manual-corrections":
+        raise SystemExit(import_manual_corrections(sys.argv[1]))
+    raise SystemExit(main(sys.argv[1], retry_skipped=len(sys.argv) == 3))
