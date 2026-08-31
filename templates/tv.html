@@ -1,25 +1,13 @@
 {% from "_show_card.html" import show_card %}
 
-<section class="page-section tv-library-section" data-state-section="ACTIVE" aria-label="Active shows">
-  <div class="show-list" data-show-list="ACTIVE">
-    {% for show in active_shows %}{{ show_card(show) }}{% endfor %}
+<section class="page-section tv-library-section" data-library-results-section aria-label="TV library">
+  <div class="show-list" data-library-results-list>
+    {% for show in active_shows + archived_shows %}{{ show_card(show) }}{% endfor %}
   </div>
-  <div class="empty-state state-empty" data-state-empty {% if active_shows %}hidden{% endif %}>
+  <div class="empty-state state-empty" data-library-empty {% if active_shows or archived_shows %}hidden{% endif %}>
     <span class="empty-icon material-symbols-rounded" aria-hidden="true">tv_off</span>
-    <h3>Nothing active</h3>
+    <h3>Nothing in your library</h3>
     <p>Add a show when you’re ready to start watching.</p>
-  </div>
-</section>
-
-<section class="page-section tv-library-section archived-section" data-state-section="ARCHIVED"
-  aria-label="Archived shows" hidden>
-  <div class="show-list" data-show-list="ARCHIVED">
-    {% for show in archived_shows %}{{ show_card(show) }}{% endfor %}
-  </div>
-  <div class="empty-state state-empty" data-state-empty {% if archived_shows %}hidden{% endif %}>
-    <span class="empty-icon material-symbols-rounded" aria-hidden="true">inventory_2</span>
-    <h3>No archived shows</h3>
-    <p>Shows you archive will appear here.</p>
   </div>
 </section>
 

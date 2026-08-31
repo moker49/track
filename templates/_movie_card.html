@@ -3,7 +3,7 @@
 <article class="show-card movie-card" data-movie-id="{{ movie.id }}" data-tmdb-id="{{ movie.tmdb_id }}"
   data-show-name="{{ movie.title|lower }}" data-name="{{ movie.title|lower }}" data-date-added="{{ movie.added_at }}"
   data-release-date="{{ movie.release_date or '' }}" data-last-watched="{{ movie.last_watched_at or '' }}"
-  data-progress="{{ 100 if watched else 0 }}" data-progress-state="{{ 'finished' if watched else 'not-started' }}">
+  data-progress="{{ 100 if watched else 0 }}" data-progress-state="{{ 'finished' if watched else 'not-started' }}" data-show-state="{{ movie.state }}">
   <button class="show-card-open" type="button" data-movie-open aria-label="Open {{ movie.title }}">
     <div class="poster poster-purple{% if movie.poster_path %} has-media-image{% endif %}" aria-hidden="true">
       {% if movie.poster_path %}<img class="poster-image"

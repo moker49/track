@@ -919,7 +919,7 @@ function syncTvSearchPresentation() {
   const empty = view.querySelector("[data-tv-search-empty]");
   const error = view.querySelector("[data-tv-search-error]");
   const addCount = addResults.querySelectorAll(".popular-card").length;
-  const localCount = [...view.querySelectorAll("[data-state-section] .show-card")]
+  const localCount = [...view.querySelectorAll(".show-card")]
     .filter((card) => !card.hidden).length;
 
   if (!query) {
@@ -1033,7 +1033,7 @@ function syncMovieSearchPresentation() {
   const error = view.querySelector("[data-movie-search-error]");
   const query = searchQueries.movies.trim();
   const addCount = results?.querySelectorAll(".popular-card").length || 0;
-  const localCount = [...view.querySelectorAll("[data-state-section] .show-card")]
+  const localCount = [...view.querySelectorAll(".show-card")]
     .filter((card) => !card.hidden).length;
 
   if (!query) {
@@ -4352,49 +4352,29 @@ function filterShowView(view) {
   const preferences = libraryViewPreferences[view.dataset.view];
   if (!preferences) return;
   const query = searchQueries[view.dataset.view].trim().toLocaleLowerCase();
-  const searching = ["tv", "movies"].includes(view.dataset.view) && Boolean(query);
-  view.classList.toggle("is-searching", searching);
-  view.querySelectorAll("[data-state-section]").forEach((section) => {
-    const state = section.dataset.stateSection;
-    const stateSelected = searching || (state === TRACKING_STATE.ACTIVE
-      ? preferences.mediaTypes.includes(view.dataset.view === "movies" ? "movies" : "tv")
-      : preferences.mediaTypes.includes("archive"));
-    const list = section.querySelector(".show-list");
-    const cards = [...section.querySelectorAll(".show-card")];
-
-    if (hydratedLibraryViews.has(view.dataset.view)) {
-      cards.sort((first, second) => {
-        const firstValue = first.dataset[preferences.sortField] || "";
-        const secondValue = second.dataset[preferences.sortField] || "";
-        const comparison = firstValue.localeCompare(secondValue, undefined, {
-          numeric: true,
-          sensitivity: "base",
-        });
-        if (comparison !== 0) {
-          return preferences.sortDirection === "asc" ? comparison : -comparison;
-        }
-        return Number(first.dataset.showId) - Number(second.dataset.showId);
-      });
-      cards.forEach((card) => list.append(card));
-    }
-
-    let visibleCount = 0;
-    cards.forEach((card) => {
-      const matchesSearch = card.dataset.showName.includes(query);
-      const matchesProgress = searching || !preferences.progress
-        || card.dataset.progressState === preferences.progress
-        || (
-          card.dataset.progressState === PROGRESS_STATE.FINISHED
-          && preferences.progress === PROGRESS_STATE.CAUGHT_UP
-        );
-      const visible = stateSelected && matchesSearch && matchesProgress;
-      card.hidden = !visible;
-      if (visible) visibleCount += 1;
-    });
-    section.hidden = searching ? visibleCount === 0 : !stateSelected;
-    const count = section.querySelector("[data-state-count]");
-    if (count) count.textContent = searching ? visibleCount : cards.length;
+  const list = view.querySelector("[data-library-results-list]");
+  const cards = [...view.querySelectorAll(".show-card")];
+  const mediaType = view.dataset.view === "movies" ? "movies" : "tv";
+  cards.sort((first, second) => {
+    const firstValue = first.dataset[preferences.sortField] || "";
+    const secondValue = second.dataset[preferences.sortField] || "";
+    const comparison = firstValue.localeCompare(secondValue, undefined, { numeric: true, sensitivity: "base" });
+    if (comparison !== 0) return preferences.sortDirection === "asc" ? comparison : -comparison;
+    return Number(first.dataset.showId || first.dataset.movieId) - Number(second.dataset.showId || second.dataset.movieId);
   });
+  cards.forEach((card) => {
+    const stateSelected = card.dataset.showState === TRACKING_STATE.ARCHIVED
+      ? preferences.mediaTypes.includes("archive")
+      : preferences.mediaTypes.includes(mediaType);
+    const matchesProgress = !preferences.progress
+      || card.dataset.progressState === preferences.progress
+      || (card.dataset.progressState === PROGRESS_STATE.FINISHED && preferences.progress === PROGRESS_STATE.CAUGHT_UP);
+    card.hidden = !(stateSelected && matchesProgress && card.dataset.showName.includes(query));
+    list?.append(card);
+  });
+  const empty = view.querySelector("[data-library-empty]");
+  if (empty) empty.hidden = cards.some((card) => !card.hidden) || Boolean(query);
+  view.classList.toggle("is-searching", Boolean(query));
   if (view.dataset.view === currentView) syncTvControlVisibility();
   hydratedLibraryViews.add(view.dataset.view);
   if (view.dataset.view === "tv") syncTvSearchPresentation();
