@@ -135,6 +135,7 @@ const libraryViewPreferences = {
 };
 const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "" };
 const librarySearchUpdates = { tv: false, movies: false };
+const librarySortCaches = new WeakMap();
 restoreTvLayout();
 const showDetailCache = new Map();
 const movieDetailCache = new Map();
@@ -4367,25 +4368,48 @@ function filterShowView(view) {
   const list = view.querySelector("[data-library-results-list]");
   const cards = [...view.querySelectorAll(".show-card")];
   const mediaType = view.dataset.view === "movies" ? "movies" : "tv";
-  cards.sort((first, second) => {
+  const cachedSort = librarySortCaches.get(view);
+  const canReuseSort = cachedSort
+    && cachedSort.field === preferences.sortField
+    && cachedSort.direction === preferences.sortDirection
+    && cachedSort.cards.length === cards.length
+    && cards.every((card) => (
+      cachedSort.cardSet.has(card)
+      && cachedSort.values.get(card) === (card.dataset[preferences.sortField] || "")
+    ));
+  const sortedCards = canReuseSort ? cachedSort.cards : [...cards].sort((first, second) => {
     const firstValue = first.dataset[preferences.sortField] || "";
     const secondValue = second.dataset[preferences.sortField] || "";
     const comparison = firstValue.localeCompare(secondValue, undefined, { numeric: true, sensitivity: "base" });
     if (comparison !== 0) return preferences.sortDirection === "asc" ? comparison : -comparison;
     return Number(first.dataset.showId || first.dataset.movieId) - Number(second.dataset.showId || second.dataset.movieId);
   });
-  cards.forEach((card) => {
+  if (!canReuseSort) {
+    librarySortCaches.set(view, {
+      field: preferences.sortField,
+      direction: preferences.sortDirection,
+      cards: sortedCards,
+      cardSet: new Set(sortedCards),
+      values: new Map(sortedCards.map((card) => [card, card.dataset[preferences.sortField] || ""])),
+    });
+  }
+  if (list && sortedCards.some((card, index) => list.children[index] !== card)) {
+    const fragment = document.createDocumentFragment();
+    sortedCards.forEach((card) => fragment.append(card));
+    list.append(fragment);
+  }
+  sortedCards.forEach((card) => {
     const stateSelected = searching || (card.dataset.showState === TRACKING_STATE.ARCHIVED
       ? preferences.mediaTypes.includes("archive")
       : preferences.mediaTypes.includes(mediaType));
     const matchesProgress = searching || !preferences.progress
       || card.dataset.progressState === preferences.progress
       || (card.dataset.progressState === PROGRESS_STATE.FINISHED && preferences.progress === PROGRESS_STATE.CAUGHT_UP);
-    card.hidden = !(stateSelected && matchesProgress && card.dataset.showName.includes(query));
-    list?.append(card);
+    const hidden = !(stateSelected && matchesProgress && card.dataset.showName.includes(query));
+    if (card.hidden !== hidden) card.hidden = hidden;
   });
   const empty = view.querySelector("[data-library-empty]");
-  if (empty) empty.hidden = cards.some((card) => !card.hidden) || Boolean(query);
+  if (empty) empty.hidden = sortedCards.some((card) => !card.hidden) || Boolean(query);
   view.classList.toggle("is-searching", searching);
   if (view.dataset.view === currentView) syncTvControlVisibility();
   hydratedLibraryViews.add(view.dataset.view);
