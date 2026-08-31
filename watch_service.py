@@ -212,7 +212,7 @@ def set_watch_history_date(
         raise WatchNotFoundError("Unknown watch history type")
 
     cursor = db.execute(
-        f"UPDATE {table} SET watch_date = ? WHERE id = ?", (watch_date, record_id)
+        f"UPDATE {table} SET watch_date = ?, show_in_diary = 1 WHERE id = ?", (watch_date, record_id)
     )
     if cursor.rowcount == 0:
         raise WatchNotFoundError("Watch entry not found")

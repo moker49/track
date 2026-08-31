@@ -294,6 +294,7 @@ def get_diary_page(
             JOIN episodes e ON e.id = wh.episode_id
             JOIN seasons sn ON sn.id = e.season_id
             JOIN shows s ON s.id = sn.show_id
+            WHERE wh.show_in_diary = 1
         ),
         grouped_entries AS (
             SELECT 'episode' AS entry_type, watched_date, show_id,
@@ -325,6 +326,7 @@ def get_diary_page(
                    m.release_date
             FROM movie_watch_history mwh
             JOIN movies m ON m.id = mwh.movie_id
+            WHERE mwh.show_in_diary = 1
         )
         SELECT entry_type, watched_date, show_id, show_name, poster_path,
                season_id, season_number, watch_iteration, episode_id,
@@ -607,14 +609,14 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
                    END AS title,
                    added_at AS occurred_at, NULL AS season_id,
                    NULL AS watch_record_id, NULL AS watch_kind,
-                   NULL AS watch_added_at, NULL AS watch_date
+                   NULL AS watch_added_at, NULL AS watch_date, NULL AS season_diary_state
             FROM shows WHERE id = ? AND is_tracked = 1
 
             UNION ALL
 
             SELECT CASE state WHEN 'ARCHIVED' THEN 'archived' ELSE 'activated' END,
                    CASE state WHEN 'ARCHIVED' THEN 'Archived' ELSE 'Made active' END,
-                   entered_at, NULL, NULL, NULL, NULL, NULL
+                   entered_at, NULL, NULL, NULL, NULL, NULL, NULL
             FROM ordered_states
             WHERE previous_state IS NOT NULL
               AND (state = 'ARCHIVED'
@@ -624,13 +626,22 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
 
             SELECT 'season_watched', sn.name || ' watched',
                    {effective_date}, sn.id, swh.id, 'season',
-                   swh.added_at, swh.watch_date
+                   swh.added_at, swh.watch_date,
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM episode_watch_history wh
+                       JOIN episodes e ON e.id = wh.episode_id
+                       WHERE e.season_id = sn.id AND wh.show_in_diary = 0
+                   ) THEN CASE WHEN EXISTS (
+                       SELECT 1 FROM episode_watch_history wh
+                       JOIN episodes e ON e.id = wh.episode_id
+                       WHERE e.season_id = sn.id AND wh.show_in_diary = 1
+                   ) THEN 'mixed' ELSE 'hidden' END ELSE 'shown' END
             FROM season_watch_history swh
             JOIN seasons sn ON sn.id = swh.season_id
             WHERE sn.show_id = ?
         )
         SELECT event_type, title, occurred_at, season_id,
-               watch_record_id, watch_kind, watch_added_at, watch_date
+               watch_record_id, watch_kind, watch_added_at, watch_date, season_diary_state
         FROM activity
         ORDER BY occurred_at DESC, watch_added_at DESC
         """,

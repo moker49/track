@@ -2657,6 +2657,11 @@ function openWatchDatePicker(item) {
   const visibleDate = datePickerSelectedDate || parseIsoDate(item.dataset.sortDate) || new Date();
   datePickerMonth = new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1);
   datePickerYearVisible = false;
+  const clearButton = datePicker.querySelector("[data-date-picker-clear]");
+  if (clearButton) {
+    const reset = Boolean(item.dataset.watchDate) || item.dataset.showInDiary === "0";
+    clearButton.textContent = reset ? "Reset" : "Clear";
+  }
   renderDatePicker();
   datePicker.showModal();
 }
@@ -3136,6 +3141,40 @@ async function changeMovieWatchCount(detailMovie, action) {
     showSnackbar("Couldn't update this movie. Try again.");
   } finally {
     pendingWatchChanges.delete(detailMovie);
+  }
+}
+
+async function setMovieWatchedWithoutDiary(detailMovie, watched) {
+  if (pendingWatchChanges.has(detailMovie)) return;
+  pendingWatchChanges.add(detailMovie);
+  try {
+    const response = await fetch(`/api/movies/${detailMovie.dataset.movieId}/watched`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched }),
+    });
+    if (!response.ok) throw new Error("Could not update movie");
+    const data = await response.json();
+    movieDetailCache.delete(String(data.movie_id));
+    updateMovieWatchUi(detailMovie, data.watch_count);
+    refreshMoviesContent();
+  } catch (_error) {
+    showSnackbar("Couldn't update this movie. Try again.");
+  } finally {
+    pendingWatchChanges.delete(detailMovie);
+  }
+}
+
+async function setShowWatchedWithoutDiary(showElement, watched) {
+  try {
+    const response = await fetch(`/api/shows/${showElement.dataset.showId}/watched`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched }),
+    });
+    if (!response.ok) throw new Error("Could not update show");
+    const data = await response.json();
+    showDetailCache.delete(String(data.show_id));
+    showSeasonsCache.delete(String(data.show_id));
+    await Promise.all([refreshTvContent(), openShow(data.show_id, detailParentView, false, null)]);
+  } catch (_error) {
+    showSnackbar("Couldn't update this show. Try again.");
   }
 }
 
@@ -3714,8 +3753,23 @@ document.addEventListener("click", (event) => {
   }
 
   if (event.target.closest("[data-date-picker-clear]")) {
-    datePickerSelectedDate = null;
-    renderDatePicker();
+    if (datePickerTarget) {
+      const reset = Boolean(datePickerTarget.dataset.watchDate) || datePickerTarget.dataset.showInDiary === "0";
+      if (reset) {
+        datePickerSelectedDate = null;
+        datePickerTarget.dataset.showInDiary = "1";
+        renderDatePicker();
+      } else {
+        fetch(`/api/watch-history/${datePickerTarget.dataset.watchKind}/${datePickerTarget.dataset.watchRecordId}/diary`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ show_in_diary: false }),
+        }).then((response) => {
+          if (!response.ok) throw new Error();
+          datePickerTarget.dataset.showInDiary = "0";
+          datePicker.close();
+          diaryRevision += 1;
+        }).catch(() => showSnackbar("Couldn't update the diary setting. Try again."));
+      }
+    }
     return;
   }
 
@@ -3878,6 +3932,37 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const seasonDiaryMenuButton = event.target.closest("[data-season-diary-menu-button]");
+  if (seasonDiaryMenuButton) {
+    const item = seasonDiaryMenuButton.closest("[data-watch-record-id]");
+    const menu = item?.querySelector("[data-season-diary-menu]");
+    if (menu) {
+      if (menu.hidden) showFloatingMenu(menu, seasonDiaryMenuButton);
+      else hideFloatingMenu(menu);
+    }
+    return;
+  }
+
+  const seasonDiaryAction = event.target.closest("[data-season-diary-action]");
+  if (seasonDiaryAction) {
+    const item = seasonDiaryAction.closest("[data-watch-record-id]");
+    const menu = seasonDiaryAction.closest("[data-season-diary-menu]");
+    if (menu) hideFloatingMenu(menu);
+    if (!item) return;
+    fetch(`/api/seasons/${item.dataset.seasonId}/diary`, { method: "PATCH" })
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((data) => {
+        item.closest("[data-activity-log]")?.querySelectorAll(`[data-season-id="${data.season_id}"]`)
+          .forEach((entry) => {
+            entry.dataset.seasonDiaryState = data.show_in_diary ? "shown" : "hidden";
+            entry.querySelector("[data-season-diary-action] span:last-child").textContent = data.show_in_diary ? "Hide from diary" : "Show in diary";
+          });
+        diaryRevision += 1;
+      })
+      .catch(() => showSnackbar("Couldn't update the diary setting. Try again."));
+    return;
+  }
+
   if (event.target.closest("[data-movie-search-retry]")) {
     const query = searchQueries.movies.trim();
     if (query) searchMovieCatalog(query);
@@ -3894,15 +3979,21 @@ document.addEventListener("click", (event) => {
   if (movieWatchAction) {
     const detailMovie = movieWatchAction.closest("[data-detail-movie]");
     closeWatchMenus();
-    if (detailMovie) changeMovieWatchCount(detailMovie, movieWatchAction.dataset.movieWatchAction);
+    if (detailMovie) {
+      const action = movieWatchAction.dataset.movieWatchAction;
+      if (action === "mark-watched" || action === "mark-unwatched") {
+        setMovieWatchedWithoutDiary(detailMovie, action === "mark-watched");
+      } else {
+        changeMovieWatchCount(detailMovie, action);
+      }
+    }
     return;
   }
 
   const movieWatchControl = event.target.closest("[data-movie-detail-watch]");
   if (movieWatchControl) {
     const detailMovie = movieWatchControl.closest("[data-detail-movie]");
-    if (Number(detailMovie.dataset.watchCount) === 0) changeMovieWatchCount(detailMovie, "increment");
-    else toggleWatchMenu(movieWatchControl);
+    if (detailMovie) toggleWatchMenu(movieWatchControl);
     return;
   }
 
@@ -3929,6 +4020,8 @@ document.addEventListener("click", (event) => {
       moveShow(showElement, showAction.dataset.targetState, showAction);
     } else if (showAction.dataset.showAction === "refresh") {
       refreshShowMetadata(showElement.dataset.showId, { force: true, trigger: showAction });
+    } else if (showAction.dataset.showAction === "mark-watched") {
+      setShowWatchedWithoutDiary(showElement, showAction.dataset.watched === "true");
     } else {
       requestShowRemoval(showElement);
     }

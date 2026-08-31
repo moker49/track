@@ -28,6 +28,7 @@ from queries import (
     get_diary_page,
     get_library_show,
     get_movie_library,
+    get_show_progress,
     get_show_activity,
     get_statistics,
     get_tv_library_shows,
@@ -373,7 +374,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             abort(404)
         watch_log = get_db().execute(
             f"""
-            SELECT id AS watch_record_id, added_at, watch_date,
+            SELECT id AS watch_record_id, added_at, watch_date, show_in_diary,
                    {effective_watch_date_sql('mwh')} AS display_date
             FROM movie_watch_history mwh
             WHERE movie_id = ?
@@ -439,6 +440,25 @@ def create_app(test_config: dict | None = None) -> Flask:
         watch_count = db.execute("SELECT COUNT(*) AS count FROM movie_watch_history WHERE movie_id = ?", (movie_id,)).fetchone()["count"]
         return jsonify(movie_id=movie_id, watch_count=watch_count, action=action,
                        watch_record_id=watch_record_id, changed_at=changed_at)
+
+    @app.post("/api/movies/<int:movie_id>/watched")
+    def set_movie_watched_without_diary(movie_id: int):
+        watched = (request.get_json(silent=True) or {}).get("watched")
+        if not isinstance(watched, bool):
+            return jsonify(error="watched must be a boolean"), 400
+        db = get_db()
+        cursor = db.execute(
+            "UPDATE movies SET is_watched_without_diary = ?, updated_at = ? WHERE id = ? AND is_tracked = 1",
+            (int(watched), utc_now(), movie_id),
+        )
+        if cursor.rowcount == 0:
+            return jsonify(error="Movie not found"), 404
+        db.commit()
+        row = db.execute(
+            "SELECT COUNT(*) + is_watched_without_diary AS watch_count FROM movies m LEFT JOIN movie_watch_history mwh ON mwh.movie_id = m.id WHERE m.id = ? GROUP BY m.id",
+            (movie_id,),
+        ).fetchone()
+        return jsonify(movie_id=movie_id, watched=watched, watch_count=row["watch_count"])
 
     @app.post("/api/tv/shows/<int:tmdb_id>/import")
     def import_tv_show(tmdb_id: int):
@@ -696,6 +716,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             SELECT id AS watch_record_id,
                    added_at,
                    watch_date,
+                   show_in_diary,
                    {effective_watch_date_sql()} AS display_date
             FROM episode_watch_history
             WHERE episode_id = ?
@@ -772,6 +793,39 @@ def create_app(test_config: dict | None = None) -> Flask:
             activity_type=("archived" if target_state == TRACKING_ARCHIVED else "activated"),
             changed_at=changed_at,
         )
+
+    @app.post("/api/shows/<int:show_id>/watched")
+    def set_show_watched_without_diary(show_id: int):
+        watched = (request.get_json(silent=True) or {}).get("watched")
+        if not isinstance(watched, bool):
+            return jsonify(error="watched must be a boolean"), 400
+        db = get_db()
+        show = db.execute(
+            "SELECT id FROM shows WHERE id = ? AND is_tracked = 1", (show_id,)
+        ).fetchone()
+        if show is None:
+            return jsonify(error="Show not found"), 404
+        db.execute(
+            """
+            UPDATE episodes
+            SET is_watched_without_diary = ?
+            WHERE id IN (
+                SELECT e.id
+                FROM episodes e
+                JOIN seasons sn ON sn.id = e.season_id
+                WHERE sn.show_id = ?
+                  AND sn.is_progress_counted = 1
+                  AND e.air_date IS NOT NULL
+                  AND e.air_date <= ?
+            )
+            """,
+            (int(watched), show_id, request_local_date().isoformat()),
+        )
+        db.commit()
+        progress = get_show_progress(db, show_id)
+        return jsonify(show_id=show_id, watched=watched,
+                       watched_count=progress["watched_count"],
+                       episode_count=progress["episode_count"])
 
     @app.delete("/api/shows/<int:show_id>")
     def remove_show(show_id: int):
@@ -907,7 +961,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             ).fetchone()
             if row is None:
                 return jsonify(error="Movie watch history not found"), 404
-            db.execute("UPDATE movie_watch_history SET watch_date = ? WHERE id = ?", (watch_date, record_id))
+            db.execute("UPDATE movie_watch_history SET watch_date = ?, show_in_diary = 1 WHERE id = ?", (watch_date, record_id))
             db.commit()
             return jsonify(
                 watch_kind="movie", watch_record_id=record_id, added_at=row["added_at"],
@@ -921,6 +975,35 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
         except WatchNotFoundError as error:
             return jsonify(error=str(error)), 404
+
+    @app.patch("/api/watch-history/<string:watch_kind>/<int:record_id>/diary")
+    def set_watch_history_diary_visibility(watch_kind: str, record_id: int):
+        table = {"episode": "episode_watch_history", "season": "season_watch_history", "movie": "movie_watch_history"}.get(watch_kind)
+        visible = (request.get_json(silent=True) or {}).get("show_in_diary")
+        if table is None or not isinstance(visible, bool):
+            return jsonify(error="Invalid diary setting"), 400
+        cursor = get_db().execute(f"UPDATE {table} SET show_in_diary = ? WHERE id = ?", (int(visible), record_id))
+        if cursor.rowcount == 0:
+            return jsonify(error="Watch entry not found"), 404
+        get_db().commit()
+        return jsonify(watch_kind=watch_kind, watch_record_id=record_id, show_in_diary=visible)
+
+    @app.patch("/api/seasons/<int:season_id>/diary")
+    def toggle_season_diary_visibility(season_id: int):
+        db = get_db()
+        rows = db.execute(
+            "SELECT h.show_in_diary FROM episode_watch_history h JOIN episodes e ON e.id = h.episode_id WHERE e.season_id = ?",
+            (season_id,),
+        ).fetchall()
+        if not rows:
+            return jsonify(error="Season has no watch history"), 409
+        visible = any(not row["show_in_diary"] for row in rows)
+        db.execute(
+            "UPDATE episode_watch_history SET show_in_diary = ? WHERE episode_id IN (SELECT id FROM episodes WHERE season_id = ?)",
+            (int(visible), season_id),
+        )
+        db.commit()
+        return jsonify(season_id=season_id, show_in_diary=visible)
 
 
     @app.errorhandler(404)
