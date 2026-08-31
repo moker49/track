@@ -114,7 +114,7 @@ const libraryViewPreferences = {
     progress: "",
     sortField: "releaseDate",
     sortDirection: "asc",
-    mediaTypes: ["tv", "archive"],
+    mediaTypes: ["tv", "movies"],
   },
   tv: {
     state: TRACKING_STATE.ACTIVE,
@@ -914,6 +914,7 @@ function markCatalogTracked(card, state, recordId = null) {
   if (card.dataset.catalogType in librarySearchUpdates) {
     librarySearchUpdates[card.dataset.catalogType] = true;
   }
+  if (card.dataset.catalogType === "movies") refreshUpcomingForMovieChange();
 }
 
 function syncTvSearchPresentation() {
@@ -1096,6 +1097,10 @@ async function refreshMoviesContent() {
   template.innerHTML = (await response.text()).trim();
   views.get("movies")?.replaceChildren(template.content);
   filterShowView(views.get("movies"));
+}
+
+function refreshUpcomingForMovieChange() {
+  refreshScheduleContent({ background: true }).catch(() => undefined);
 }
 
 async function previewCatalogShow(card, historyMode = "push") {
@@ -2780,7 +2785,7 @@ const sortFieldLabels = {
 
 const libraryViewDefaults = {
   backlog: { progress: "", sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv"] },
-  upcoming: { progress: "", sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "archive"] },
+  upcoming: { progress: "", sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "movies"] },
   tv: { progress: "", sortField: "name", sortDirection: "asc", mediaTypes: ["tv"] },
   movies: { progress: "", sortField: "name", sortDirection: "asc", mediaTypes: ["movies"] },
 };
@@ -2789,10 +2794,13 @@ function mediaTypeLabel(mediaTypes, defaultMediaTypes) {
   const selected = new Set(mediaTypes);
   if (selected.size === defaultMediaTypes.length
     && defaultMediaTypes.every((type) => selected.has(type))) return "Library";
-  if (selected.has("tv") && selected.has("movies")) return selected.has("archive") ? "All+" : "All";
-  if (selected.has("tv")) return selected.has("archive") ? "TV+" : "TV";
-  if (selected.has("movies")) return selected.has("archive") ? "Movies+" : "Movies";
-  return selected.has("archive") ? "Archive" : "None";
+  const tvArchive = selected.has("tv-archive");
+  const movieArchive = selected.has("movie-archive");
+  if (selected.has("tv") && selected.has("movies")) return tvArchive || movieArchive ? "All+" : "All";
+  if (selected.has("tv")) return tvArchive ? "TV+" : "TV";
+  if (selected.has("movies")) return movieArchive ? "Movies+" : "Movies";
+  if (tvArchive && movieArchive) return "Archive";
+  return tvArchive ? "TV archive" : movieArchive ? "Movie archive" : "None";
 }
 
 function hasDefaultMediaTypes(mediaTypes, defaultMediaTypes) {
@@ -2847,9 +2855,17 @@ function syncTvControlBar(view = views.get(currentView)) {
 
   tvControlBar.querySelectorAll("[data-tv-media-option]").forEach((button) => {
     const type = button.dataset.tvMediaOption;
-    const excluded = (viewName === "tv" && type === "movies")
-      || (viewName === "movies" && type === "tv");
+    const excluded = (viewName === "backlog" && ["movies", "movie-archive"].includes(type))
+      || (viewName === "tv" && ["movies", "movie-archive"].includes(type))
+      || (viewName === "movies" && ["tv", "tv-archive"].includes(type));
     button.hidden = excluded;
+    const label = button.querySelector("[data-tv-media-option-label]");
+    if (label) {
+      label.textContent = (viewName !== "upcoming" && type === "tv-archive")
+        || (viewName === "movies" && type === "movie-archive")
+        ? "Archive"
+        : ({ tv: "TV", movies: "Movies", "tv-archive": "TV archive", "movie-archive": "Movie archive" }[type]);
+    }
     const selected = preferences.mediaTypes.includes(type);
     button.classList.toggle("is-unselected-default", defaults.mediaTypes.includes(type) && !selected);
     button.setAttribute("aria-checked", String(selected));
@@ -3269,6 +3285,7 @@ async function moveMovie(movieElement, targetState, actionButton) {
     if (!response.ok) throw new Error("Could not move movie");
     movieDetailCache.delete(String(movieElement.dataset.movieId));
     await refreshMoviesContent();
+    refreshUpcomingForMovieChange();
     if (currentView === "detail") openMovie(movieElement.dataset.movieId, detailParentView, null);
     showSnackbar(targetState === TRACKING_STATE.ARCHIVED ? "Movie archived" : "Movie made active");
   } catch (_error) {
@@ -3285,6 +3302,7 @@ async function removeMovie(movieElement, actionButton) {
     if (!response.ok) throw new Error("Could not remove movie");
     movieDetailCache.delete(String(movieElement.dataset.movieId));
     await refreshMoviesContent();
+    refreshUpcomingForMovieChange();
     if (currentView === "detail") showView(detailParentView, "replace");
     showSnackbar("Movie removed from your library");
   } catch (_error) {
@@ -3964,6 +3982,15 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const scheduleMovieOpen = event.target.closest("[data-schedule-movie-open]");
+  if (scheduleMovieOpen) {
+    const card = scheduleMovieOpen.closest("[data-schedule-card]");
+    const parentView = currentView === "profile" ? "profile" : "upcoming";
+    detailParentView = parentView;
+    openMovie(card.dataset.movieId, parentView, "push");
+    return;
+  }
+
   const scheduleShowOpen = event.target.closest("[data-schedule-show-open]");
   if (scheduleShowOpen) {
     const card = scheduleShowOpen.closest("[data-schedule-card]");
@@ -4343,9 +4370,10 @@ function filterSchedule(viewName = currentView) {
     let visibleCount = 0;
     cards.forEach((card) => {
       const matchesSearch = !query || card.dataset.scheduleSearchText?.includes(query);
+      const mediaType = card.dataset.mediaType || "tv";
       const matchesState = searching || (card.dataset.trackingState === TRACKING_STATE.ACTIVE
-        ? preferences.mediaTypes.includes("tv")
-        : preferences.mediaTypes.includes("archive"));
+        ? preferences.mediaTypes.includes(mediaType)
+        : preferences.mediaTypes.includes(`${mediaType}-archive`));
       const matchesProgress = searching || !preferences.progress
         || card.dataset.progressState === preferences.progress
         || (
@@ -4409,8 +4437,9 @@ function filterShowView(view) {
     list.append(fragment);
   }
   sortedCards.forEach((card) => {
+    const archiveType = mediaType === "movies" ? "movie-archive" : "tv-archive";
     const stateSelected = searching || (card.dataset.showState === TRACKING_STATE.ARCHIVED
-      ? preferences.mediaTypes.includes("archive")
+      ? preferences.mediaTypes.includes(archiveType)
       : preferences.mediaTypes.includes(mediaType));
     const matchesProgress = searching || !preferences.progress
       || card.dataset.progressState === preferences.progress

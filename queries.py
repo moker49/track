@@ -252,6 +252,8 @@ def get_upcoming_episodes(
             else release["episode_name"]
         )
         release.update(
+            media_type="tv",
+            is_movie=False,
             month_key=air_date.strftime("%Y-%m"),
             month_label=(
                 air_date.strftime("%B").upper()
@@ -271,7 +273,46 @@ def get_upcoming_episodes(
             ).lower(),
         )
         upcoming.append(release)
-    return upcoming
+    movie_rows = db.execute(
+        """
+        SELECT id AS movie_id, title AS show_name, poster_path,
+               state AS tracking_state, added_at AS show_added_at,
+               release_date AS air_date
+        FROM movies
+        WHERE is_tracked = 1
+          AND release_date IS NOT NULL
+          AND release_date >= date(?, '-7 days')
+        ORDER BY release_date, title COLLATE NOCASE
+        """,
+        (local_date_value,),
+    ).fetchall()
+    for row in movie_rows:
+        movie = dict(row)
+        release_date = date.fromisoformat(movie["air_date"])
+        movie.update(
+            media_type="movies",
+            is_movie=True,
+            is_grouped=False,
+            month_key=release_date.strftime("%Y-%m"),
+            month_label=(
+                release_date.strftime("%B").upper()
+                if release_date.year == today.year
+                else release_date.strftime("%B %Y").upper()
+            ),
+            day_label=f"{release_date.day:02d}",
+            weekday_label=release_date.strftime("%a").upper(),
+            days_until=(release_date - today).days,
+            is_live=release_date < today,
+            release_metadata="Movie",
+            release_detail=release_date.strftime("%Y"),
+            search_text=movie["show_name"].lower(),
+            show_status="",
+            watched_count=0,
+            episode_count=0,
+            last_watched_at=None,
+        )
+        upcoming.append(movie)
+    return sorted(upcoming, key=lambda item: (item["air_date"], item["show_name"].casefold()))
 
 
 def get_diary_page(

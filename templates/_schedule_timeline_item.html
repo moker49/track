@@ -6,7 +6,8 @@
   {% set progress_state = 'finished' if episode.show_status|lower in ['ended', 'canceled', 'cancelled'] else 'caught-up' %}
 {% else %}{% set progress_state = 'started' %}{% endif %}
 <article class="schedule-timeline-item{% if not is_backlog and episode.is_grouped %} is-multi-episode{% endif %}"
-  data-schedule-card data-schedule-mode="{{ mode }}" data-show-id="{{ episode.show_id }}"
+  data-schedule-card data-schedule-mode="{{ mode }}"{% if episode.is_movie %} data-movie-id="{{ episode.movie_id }}"{% else %} data-show-id="{{ episode.show_id }}"{% endif %}
+  data-media-type="{{ episode.media_type or 'tv' }}"
   data-tracking-state="{{ episode.tracking_state }}" data-progress-state="{{ progress_state }}"
   data-show-status="{{ episode.show_status or '' }}"
   data-name="{{ episode.show_name|lower }}" data-date-added="{{ episode.show_added_at }}"
@@ -28,7 +29,8 @@
   <span class="schedule-timeline-rail" aria-hidden="true"><span></span></span>
   <div class="schedule-timeline-content">
     <button class="schedule-timeline-open" type="button"
-      {% if not is_backlog and episode.is_grouped %}data-schedule-show-open
+      {% if episode.is_movie %}data-schedule-movie-open
+      aria-label="Open {{ episode.show_name }} details"{% elif not is_backlog and episode.is_grouped %}data-schedule-show-open
       aria-label="Open {{ episode.show_name }} details"{% else %}data-schedule-episode-open
       aria-label="Open {{ episode.episode_name }} details"{% endif %}>
       <span class="schedule-timeline-poster{% if episode.poster_path %} has-media-image{% endif %}" aria-hidden="true">
