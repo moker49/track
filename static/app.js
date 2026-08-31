@@ -755,6 +755,9 @@ function showView(viewName, historyMode = null) {
       });
     });
   }
+  if (viewName === "movies") {
+    window.requestAnimationFrame(() => revealMoviesOnce(views.get("movies")));
+  }
   if (viewName === "profile" && renderedDiaryRevision !== diaryRevision) {
     refreshDiaryContent();
   }
@@ -1213,9 +1216,9 @@ function clearDetailSliceReveals(root) {
   });
 }
 
-function staggerTvSlices(slices) {
+function staggerTvSlices(slices, layout = libraryViewPreferences.tv.layout) {
   const tvSliceStaggerMs = 55;
-  const tvLayoutStaggerMs = libraryViewPreferences.tv.layout === "compact"
+  const tvLayoutStaggerMs = layout === "compact"
     ? tvSliceStaggerMs / 2
     : tvSliceStaggerMs;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -1243,7 +1246,7 @@ function staggerTvFirstReveal(view) {
     slices.push(...section.querySelectorAll(":scope > .empty-state:not([hidden])"));
   });
   slices.push(...view.querySelectorAll(":scope > .empty-state:not([hidden])"));
-  staggerTvSlices(slices);
+  staggerTvSlices(slices, libraryViewPreferences[view.dataset.view]?.layout);
   hydrateOtherPrimaryViews("tv");
 }
 
@@ -1253,6 +1256,13 @@ function revealTvStateOnce(view) {
   const revealKey = `tv:${state}`;
   if (revealedViewAnimations.has(revealKey)) return;
   revealedViewAnimations.add(revealKey);
+  staggerTvFirstReveal(view);
+}
+
+function revealMoviesOnce(view) {
+  if (!view || currentView !== "movies" || searchQueries.movies.trim()) return;
+  if (revealedViewAnimations.has("movies")) return;
+  revealedViewAnimations.add("movies");
   staggerTvFirstReveal(view);
 }
 
