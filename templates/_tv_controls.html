@@ -7,7 +7,7 @@
         aria-hidden="true">expand_more</span>
     </button>
     <div class="tv-dropdown-menu" data-tv-dropdown-menu="media" role="menu" popover="manual" hidden>
-      {% for value, label in [('tv', 'TV'), ('movies', 'Movies'), ('tv-archive', 'TV archive'), ('movie-archive', 'Movie archive')] %}
+      {% for value, label in [('tv', 'TV'), ('movies', 'Movies'), ('tv-archive', 'Archive'), ('movie-archive', 'Movie archive')] %}
       <button type="button" data-tv-media-option="{{ value }}" role="menuitemcheckbox" aria-checked="false"><span
           class="material-symbols-rounded tv-dropdown-selection is-hidden" aria-hidden="true">check</span><span data-tv-media-option-label>{{ label
           }}</span></button>

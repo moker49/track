@@ -2848,8 +2848,6 @@ function syncTvControlBar(view = views.get(currentView)) {
   const sortLabel = tvControlBar.querySelector("[data-tv-sort-label]");
   const sortIcon = tvControlBar.querySelector("[data-tv-sort-icon]");
   const mediaIsDefault = hasDefaultMediaTypes(preferences.mediaTypes, defaults.mediaTypes);
-  tvControlBar.querySelector('[data-tv-dropdown-toggle="media"]')?.closest(".tv-dropdown")
-    ?.toggleAttribute("hidden", viewName === "movies");
   if (mediaLabel) {
     const label = mediaTypeLabel(preferences.mediaTypes, defaults.mediaTypes);
     const hasPlus = label.endsWith("+");
@@ -2888,14 +2886,15 @@ function syncTvControlBar(view = views.get(currentView)) {
     const type = button.dataset.tvMediaOption;
     const excluded = (viewName === "backlog" && ["movies", "movie-archive"].includes(type))
       || (viewName === "tv" && ["movies", "movie-archive"].includes(type))
-      || (viewName === "movies" && ["tv", "tv-archive", "movie-archive"].includes(type));
+      || (viewName === "movies" && ["tv", "tv-archive", "movie-archive"].includes(type))
+      || (viewName === "upcoming" && type === "movie-archive");
     button.hidden = excluded;
     const label = button.querySelector("[data-tv-media-option-label]");
     if (label) {
-      label.textContent = (viewName !== "upcoming" && type === "tv-archive")
+      label.textContent = (type === "tv-archive")
         || (viewName === "movies" && type === "movie-archive")
         ? "Archive"
-        : ({ tv: "TV", movies: "Movies", "tv-archive": "TV archive", "movie-archive": "Movie archive" }[type]);
+        : ({ tv: "TV", movies: "Movies", "tv-archive": "Archive", "movie-archive": "Movie archive" }[type]);
     }
     const selected = preferences.mediaTypes.includes(type);
     button.classList.toggle("is-unselected-default", defaults.mediaTypes.includes(type) && !selected);
@@ -2915,6 +2914,7 @@ function syncTvControlBar(view = views.get(currentView)) {
     button.querySelector(".tv-dropdown-selection").classList.toggle("is-hidden", !selected);
   });
   tvControlBar.querySelectorAll("[data-tv-sort-option]").forEach((button) => {
+    button.hidden = viewName === "movies" && button.dataset.tvSortOption === "progress";
     const selected = button.dataset.tvSortOption === preferences.sortField;
     button.classList.toggle("is-unselected-default", button.dataset.tvSortOption === defaults.sortField && !selected);
     const sortLocked = viewName === "upcoming";
