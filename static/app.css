@@ -700,6 +700,40 @@ html.profile-transition-return::view-transition-new(root) {
   gap: 22px;
 }
 
+.virtual-timeline {
+  gap: 0;
+}
+
+.timeline-virtual-spacer {
+  width: 100%;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.virtual-timeline-month-heading {
+  height: 50px;
+  margin: 0;
+  padding: 22px 0 8px;
+  box-sizing: border-box;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.virtual-timeline-month-heading.is-first-virtual-heading {
+  height: 28px;
+  padding-top: 0;
+}
+
+.virtual-timeline > .schedule-timeline-item {
+  height: 144px;
+}
+
+.virtual-timeline > .diary-timeline-item {
+  height: 76px;
+}
+
 .upcoming-month h2 {
   margin: 4px 0 8px;
   color: var(--primary);
@@ -841,6 +875,13 @@ html.app-booting .schedule-empty-reveal {
 
 .schedule-timeline-item:last-child .schedule-timeline-content::after,
 .schedule-timeline-item:not([hidden]):not(:has(~ .schedule-timeline-item:not([hidden]))) .schedule-timeline-content::after {
+  display: none;
+}
+
+[data-virtual-timeline="upcoming"] > .schedule-timeline-item.is-virtual-group-last
+  .schedule-timeline-content::after,
+[data-virtual-timeline="diary"] > .schedule-timeline-item.is-virtual-group-last
+  .schedule-timeline-content::after {
   display: none;
 }
 
@@ -1419,6 +1460,22 @@ html.app-booting .schedule-empty-reveal {
 .show-list {
   display: grid;
   gap: 12px;
+}
+
+.virtual-timeline > .schedule-timeline-item.is-virtual-group-first .schedule-timeline-rail::before {
+  background: linear-gradient(to bottom, transparent, var(--outline-soft) 32px);
+}
+
+.virtual-timeline > .schedule-timeline-item.is-virtual-group-last .schedule-timeline-rail::before {
+  background: linear-gradient(to bottom, var(--outline-soft) calc(100% - 32px), transparent);
+}
+
+.virtual-timeline > .schedule-timeline-item.is-virtual-group-only .schedule-timeline-rail::before {
+  background: linear-gradient(to bottom,
+      transparent,
+      var(--outline-soft) 32px,
+      var(--outline-soft) calc(100% - 32px),
+      transparent);
 }
 
 .library-virtual-spacer {

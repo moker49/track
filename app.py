@@ -206,7 +206,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         local_date = request_local_date()
         active_shows, archived_shows = get_tv_library_shows(db)
         movies = get_movie_library(db)
-        diary_entries, diary_has_more = get_diary_page(db)
+        diary_entries, diary_has_more = get_diary_page(db, page_size=None)
         return render_template(
             "index.html",
             catch_up_episodes=get_catch_up_episodes(db, local_date=local_date),
@@ -245,6 +245,14 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.get("/api/profile/diary")
     def diary_fragment():
+        if request.args.get("all") == "1":
+            diary_entries, _ = get_diary_page(get_db(), page_size=None)
+            return render_template(
+                "_diary_content.html",
+                diary_entries=diary_entries,
+                diary_page=1,
+                diary_has_more=False,
+            )
         try:
             page = int(request.args.get("page", "1"))
         except ValueError:

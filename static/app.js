@@ -137,6 +137,7 @@ const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "" };
 const librarySearchUpdates = { tv: false, movies: false };
 const virtualLibraries = new Map();
 const VIRTUAL_LIBRARY_OVERSCAN_ROWS = 4;
+const virtualTimelines = new Map();
 restoreTvLayout();
 const showDetailCache = new Map();
 const movieDetailCache = new Map();
@@ -165,9 +166,6 @@ let profileParentView = "backlog";
 let diaryRevision = 0;
 let renderedDiaryRevision = 0;
 let diaryRequest = null;
-let diaryPageRequest = null;
-let diaryPageObserver = null;
-let diaryPageAbortController = null;
 let renderedStatisticsRevision = 0;
 let statisticsRequest = null;
 let detailRequest = null;
@@ -457,6 +455,10 @@ function selectProfileTab(tabName, { focus = false } = {}) {
   if (tabName === "statistics" && renderedStatisticsRevision !== diaryRevision) {
     refreshStatisticsContent();
   }
+  if (tabName === "diary") {
+    const diaryTimeline = initializeVirtualTimeline("diary");
+    window.requestAnimationFrame(() => renderVirtualTimeline(diaryTimeline, true));
+  }
   if (retainDiaryPosition) {
     const chrome = profileView.querySelector(".profile-top-app-bar");
     spawnProfileChromeHandoff(chrome);
@@ -476,113 +478,18 @@ async function refreshDiaryContent() {
   const requestedRevision = diaryRevision;
   panel.setAttribute("aria-busy", "true");
   diaryRequest = (async () => {
-    const response = await fetch("/api/profile/diary", {
+    const response = await fetch("/api/profile/diary?all=1", {
       headers: { "X-Requested-With": "Track" },
     });
     if (!response.ok) throw new Error("Could not refresh diary");
     panel.innerHTML = await response.text();
     renderedDiaryRevision = requestedRevision;
-    initializeDiaryPagination();
+    initializeVirtualTimeline("diary", { force: true });
   })().catch(() => undefined).finally(() => {
     panel.removeAttribute("aria-busy");
     diaryRequest = null;
   });
   return diaryRequest;
-}
-
-function disconnectDiaryPagination() {
-  diaryPageObserver?.disconnect();
-  diaryPageAbortController?.abort();
-  diaryPageObserver = null;
-  diaryPageRequest = null;
-  diaryPageAbortController = null;
-}
-
-function mergeDiaryPage(content, fragment) {
-  const timeline = content.querySelector(".schedule-timeline");
-  const trigger = fragment.querySelector("[data-diary-page-trigger]");
-  const incomingMonths = [...fragment.querySelectorAll("[data-diary-month]")];
-  if (!timeline || !trigger) return;
-
-  let triggerPlaced = false;
-  incomingMonths.forEach((month) => {
-    const existingMonth = [...timeline.querySelectorAll("[data-diary-month]")]
-      .find((candidate) => candidate.dataset.diaryMonth === month.dataset.diaryMonth);
-    if (existingMonth) {
-      const list = existingMonth.querySelector(".schedule-timeline-list");
-      if (!triggerPlaced) {
-        list.append(trigger);
-        triggerPlaced = true;
-      }
-      month.querySelectorAll("[data-schedule-card]").forEach((card) => list.append(card));
-      return;
-    }
-    if (!triggerPlaced) {
-      timeline.append(trigger);
-      triggerPlaced = true;
-    }
-    timeline.append(month);
-  });
-  if (!triggerPlaced) timeline.append(trigger);
-
-  content.dataset.diaryPage = fragment.dataset.diaryPage;
-  content.dataset.diaryHasMore = fragment.dataset.diaryHasMore;
-}
-
-async function loadNextDiaryPage(triggerPage) {
-  const content = views.get("profile")?.querySelector("[data-diary-content]");
-  if (!content || content.dataset.diaryHasMore !== "true" || diaryPageRequest) return;
-  if (Number(content.dataset.diaryPage) !== triggerPage) return;
-
-  const controller = new AbortController();
-  diaryPageAbortController = controller;
-  diaryPageRequest = (async () => {
-    const response = await fetch(`/api/profile/diary?page=${triggerPage + 1}`, {
-      headers: { "X-Requested-With": "Track" },
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error("Could not load more diary entries");
-    const template = document.createElement("template");
-    template.innerHTML = (await response.text()).trim();
-    const fragment = template.content.querySelector("[data-diary-page-fragment]");
-    if (fragment) mergeDiaryPage(content, fragment);
-  })().catch((error) => {
-    if (error.name === "AbortError") return;
-    const trigger = content.querySelector(`[data-diary-page-trigger="${triggerPage}"]`);
-    if (trigger) window.setTimeout(() => observeDiaryPageTrigger(trigger), 1000);
-  }).finally(() => {
-    if (diaryPageAbortController !== controller) return;
-    diaryPageRequest = null;
-    diaryPageAbortController = null;
-    if (content.dataset.diaryHasMore === "true") {
-      observeDiaryPageTrigger(
-        content.querySelector(`[data-diary-page-trigger="${content.dataset.diaryPage}"]`),
-      );
-    }
-  });
-  return diaryPageRequest;
-}
-
-function observeDiaryPageTrigger(trigger) {
-  if (!diaryPageObserver || !trigger || trigger.dataset.diaryObserved === "true") return;
-  trigger.dataset.diaryObserved = "true";
-  diaryPageObserver.observe(trigger);
-}
-
-function initializeDiaryPagination() {
-  disconnectDiaryPagination();
-  const content = views.get("profile")?.querySelector("[data-diary-content]");
-  if (!content || content.dataset.diaryHasMore !== "true") return;
-  diaryPageObserver = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
-      const trigger = entry.target;
-      diaryPageObserver.unobserve(trigger);
-      trigger.dataset.diaryObserved = "false";
-      loadNextDiaryPage(Number(trigger.dataset.diaryPageTrigger));
-    });
-  });
-  observeDiaryPageTrigger(content.querySelector("[data-diary-page-trigger]"));
 }
 
 async function refreshStatisticsContent() {
@@ -750,6 +657,11 @@ function showView(viewName, historyMode = null) {
   syncTvControlVisibility();
   if (["tv", "movies"].includes(viewName)) {
     filterShowView(views.get(viewName));
+  }
+  if (["backlog", "upcoming"].includes(viewName)) filterSchedule(viewName);
+  if (viewName === "profile") {
+    const diaryTimeline = initializeVirtualTimeline("diary");
+    window.requestAnimationFrame(() => renderVirtualTimeline(diaryTimeline, true));
   }
   if (viewName === "tv") {
     window.requestAnimationFrame(() => {
@@ -1404,16 +1316,26 @@ function formatDisplayDates(root = document) {
 
 function syncCatchUpEmptyState() {
   const view = views.get("backlog");
-  const cards = view.querySelectorAll('[data-schedule-mode="catch-up"]');
+  const cards = virtualTimelines.get("backlog")?.allCards
+    ?? [...view.querySelectorAll('[data-schedule-mode="catch-up"]')];
   const empty = view.querySelector("[data-catch-up-empty]");
   if (empty) empty.hidden = cards.length > 0;
   filterSchedule();
 }
 
 function clearCaughtUpScheduleItems() {
-  const view = views.get("backlog");
-  view.querySelectorAll('[data-schedule-mode="catch-up"].is-caught-up')
-    .forEach((card) => card.remove());
+  const state = virtualTimelines.get("backlog");
+  if (state) {
+    const removed = new Set(state.allCards.filter((card) => card.classList.contains("is-caught-up")));
+    state.allCards = state.allCards.filter((card) => !removed.has(card));
+    state.groups.forEach((group) => {
+      group.cards = group.cards.filter((card) => !removed.has(card));
+    });
+    removed.forEach((card) => card.remove());
+  } else {
+    views.get("backlog").querySelectorAll('[data-schedule-mode="catch-up"].is-caught-up')
+      .forEach((card) => card.remove());
+  }
   syncCatchUpEmptyState();
 }
 
@@ -3433,6 +3355,11 @@ function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
   const showElements = new Set(document.querySelectorAll(`[data-show-id="${showId}"]`));
   const libraryCard = virtualLibraryCard("tv", `.show-card[data-show-id="${showId}"]`);
   if (libraryCard) showElements.add(libraryCard);
+  virtualTimelines.forEach((timeline) => {
+    timeline.allCards
+      .filter((card) => card.dataset.showId === String(showId))
+      .forEach((card) => showElements.add(card));
+  });
   showElements.forEach((showElement) => {
     showElement.dataset.showState = state;
     if (showElement.hasAttribute("data-tracking-state")) {
@@ -4459,60 +4386,205 @@ function updateProgress(progress, data) {
   bar.querySelector("span").style.width = `${data.percent}%`;
 }
 
-function filterSchedule(viewName = currentView) {
-  if (!["backlog", "upcoming"].includes(viewName)) return;
-  const view = views.get(viewName);
-  if (!view) return;
-  const query = searchQueries[viewName].trim().toLocaleLowerCase();
-  const preferences = libraryViewPreferences[viewName];
-  const searching = Boolean(query);
+function createVirtualTimelineSpacer(position) {
+  const spacer = document.createElement("div");
+  spacer.className = "timeline-virtual-spacer";
+  spacer.dataset.virtualTimelineSpacer = position;
+  spacer.setAttribute("aria-hidden", "true");
+  return spacer;
+}
 
-  view.querySelectorAll("[data-schedule-panel]").forEach((panel) => {
-    const cards = [...panel.querySelectorAll("[data-schedule-card]")];
-    if (viewName === "backlog") {
-      const list = panel.querySelector(".schedule-timeline-list");
-      cards.sort((first, second) => {
+function initializeVirtualTimeline(viewName, { force = false } = {}) {
+  const view = viewName === "diary" ? views.get("profile") : views.get(viewName);
+  const panel = viewName === "diary"
+    ? view?.querySelector('[data-profile-panel="diary"]')
+    : view?.querySelector("[data-schedule-panel]");
+  const container = viewName === "backlog"
+    ? panel?.querySelector("[data-catch-up-list]")
+    : panel?.querySelector(".schedule-timeline");
+  if (!view || !panel || !container) return null;
+
+  const existing = virtualTimelines.get(viewName);
+  if (!force && existing?.view === view && existing.container === container) return existing;
+  if (existing?.frame) window.cancelAnimationFrame(existing.frame);
+
+  const groups = [];
+  if (viewName === "backlog") {
+    groups.push({
+      heading: null,
+      cards: [...container.querySelectorAll(":scope > [data-schedule-card]")],
+    });
+  } else {
+    const sectionSelector = viewName === "diary" ? "[data-diary-month]" : "[data-upcoming-month]";
+    [...container.querySelectorAll(`:scope > ${sectionSelector}`)].forEach((section) => {
+      const heading = section.querySelector(":scope > h2");
+      if (heading) heading.classList.add("virtual-timeline-month-heading");
+      groups.push({
+        heading,
+        cards: [...section.querySelectorAll("[data-schedule-card]")],
+      });
+    });
+  }
+  const allCards = groups.flatMap((group) => group.cards);
+  allCards.forEach((card) => {
+    card.hidden = false;
+    card.remove();
+  });
+  groups.forEach((group) => group.heading?.remove());
+
+  const state = {
+    viewName,
+    view,
+    panel,
+    container,
+    groups,
+    allCards,
+    filteredCards: allCards,
+    entries: [],
+    totalHeight: 0,
+    topSpacer: createVirtualTimelineSpacer("top"),
+    bottomSpacer: createVirtualTimelineSpacer("bottom"),
+    renderStart: -1,
+    renderEnd: -1,
+    frame: 0,
+  };
+  virtualTimelines.set(viewName, state);
+  container.classList.add("virtual-timeline");
+  container.dataset.virtualTimeline = viewName;
+  container.replaceChildren(state.topSpacer, state.bottomSpacer);
+  applyVirtualTimelineFilters(state);
+  return state;
+}
+
+function buildVirtualTimelineEntries(state, visibleCards) {
+  const visibleSet = new Set(visibleCards);
+  const entries = [];
+  let visibleGroupIndex = 0;
+  state.allCards.forEach((card) => {
+    card.classList.remove("is-virtual-group-first", "is-virtual-group-last", "is-virtual-group-only");
+  });
+  state.groups.forEach((group) => {
+    let cards = group.cards.filter((card) => visibleSet.has(card));
+    if (state.viewName === "backlog") {
+      const preferences = libraryViewPreferences.backlog;
+      cards = [...cards].sort((first, second) => {
         const firstValue = first.dataset[preferences.sortField] || "";
         const secondValue = second.dataset[preferences.sortField] || "";
         const comparison = firstValue.localeCompare(secondValue, undefined, {
           numeric: true,
           sensitivity: "base",
         });
-        if (comparison !== 0) {
-          return preferences.sortDirection === "asc" ? comparison : -comparison;
-        }
+        if (comparison !== 0) return preferences.sortDirection === "asc" ? comparison : -comparison;
         return Number(first.dataset.showId) - Number(second.dataset.showId);
       });
-      cards.forEach((card) => list.append(card));
     }
-    let visibleCount = 0;
-    cards.forEach((card) => {
-      const matchesSearch = !query || card.dataset.scheduleSearchText?.includes(query);
-      const mediaType = card.dataset.mediaType || "tv";
-      const matchesState = searching || (card.dataset.trackingState === TRACKING_STATE.ACTIVE
-        ? preferences.mediaTypes.includes(mediaType)
-        : preferences.mediaTypes.includes(`${mediaType}-archive`));
-      const matchesProgress = searching || !preferences.progress
-        || card.dataset.progressState === preferences.progress
-        || (
-          card.dataset.progressState === PROGRESS_STATE.FINISHED
-          && preferences.progress === PROGRESS_STATE.CAUGHT_UP
-        );
-      const visible = matchesSearch && matchesState && matchesProgress;
-      card.hidden = !visible;
-      if (visible) visibleCount += 1;
-    });
-    panel.querySelectorAll("[data-upcoming-month]").forEach((month) => {
-      month.hidden = ![...month.querySelectorAll("[data-schedule-card]")]
-        .some((card) => !card.hidden);
-    });
-
-    const empty = panel.querySelector("[data-schedule-empty]");
-    const noResults = panel.querySelector("[data-schedule-no-results]");
-    if (empty) empty.hidden = searching || visibleCount > 0;
-    if (noResults) noResults.hidden = !query || visibleCount > 0 || cards.length === 0;
+    if (!cards.length) return;
+    if (group.heading) {
+      group.heading.classList.toggle("is-first-virtual-heading", visibleGroupIndex === 0);
+      entries.push({
+        node: group.heading,
+        height: visibleGroupIndex === 0 ? 28 : 50,
+      });
+    }
+    cards[0].classList.add("is-virtual-group-first");
+    cards.at(-1).classList.add("is-virtual-group-last");
+    if (cards.length === 1) cards[0].classList.add("is-virtual-group-only");
+    const cardHeight = state.viewName === "diary" ? 76 : 144;
+    cards.forEach((card) => entries.push({ node: card, height: cardHeight }));
+    visibleGroupIndex += 1;
   });
+
+  let offset = 0;
+  entries.forEach((entry) => {
+    entry.offset = offset;
+    offset += entry.height;
+    entry.end = offset;
+  });
+  state.entries = entries;
+  state.totalHeight = offset;
+}
+
+function virtualTimelineIsVisible(state) {
+  return !state.view.hidden && !state.panel.hidden;
+}
+
+function renderVirtualTimeline(state, force = false) {
+  if (!state || !virtualTimelineIsVisible(state)) return;
+  const listTop = window.scrollY + state.container.getBoundingClientRect().top;
+  const viewportTop = Math.max(0, window.scrollY - listTop);
+  const overscan = state.viewName === "diary" ? 304 : 576;
+  const renderTop = Math.max(0, viewportTop - overscan);
+  const renderBottom = viewportTop + window.innerHeight + overscan;
+  let start = state.entries.findIndex((entry) => entry.end > renderTop);
+  if (start < 0) start = state.entries.length;
+  let end = start;
+  while (end < state.entries.length && state.entries[end].offset < renderBottom) end += 1;
+  if (!force && state.renderStart === start && state.renderEnd === end) return;
+  state.renderStart = start;
+  state.renderEnd = end;
+
+  const topHeight = start < state.entries.length ? state.entries[start].offset : state.totalHeight;
+  const bottomHeight = end > 0
+    ? Math.max(0, state.totalHeight - state.entries[end - 1].end)
+    : state.totalHeight;
+  state.topSpacer.style.height = `${topHeight}px`;
+  state.topSpacer.hidden = topHeight === 0;
+  state.bottomSpacer.style.height = `${bottomHeight}px`;
+  state.bottomSpacer.hidden = bottomHeight === 0;
+  const fragment = document.createDocumentFragment();
+  fragment.append(state.topSpacer);
+  state.entries.slice(start, end).forEach((entry) => fragment.append(entry.node));
+  fragment.append(state.bottomSpacer);
+  state.container.replaceChildren(fragment);
+  inspectMediaImages(state.container);
+}
+
+function scheduleVirtualTimelineRender(state) {
+  if (!state || state.frame) return;
+  state.frame = window.requestAnimationFrame(() => {
+    state.frame = 0;
+    renderVirtualTimeline(state);
+  });
+}
+
+function applyVirtualTimelineFilters(state) {
+  if (!state) return;
+  const { viewName } = state;
+  const query = viewName === "diary"
+    ? ""
+    : searchQueries[viewName].trim().toLocaleLowerCase();
+  const searching = Boolean(query);
+  const preferences = libraryViewPreferences[viewName];
+  const visibleCards = state.allCards.filter((card) => {
+    if (viewName === "diary") return true;
+    const matchesSearch = !query || card.dataset.scheduleSearchText?.includes(query);
+    const mediaType = card.dataset.mediaType || "tv";
+    const matchesState = searching || (card.dataset.trackingState === TRACKING_STATE.ACTIVE
+      ? preferences.mediaTypes.includes(mediaType)
+      : preferences.mediaTypes.includes(`${mediaType}-archive`));
+    const matchesProgress = searching || !preferences.progress
+      || card.dataset.progressState === preferences.progress
+      || (card.dataset.progressState === PROGRESS_STATE.FINISHED
+        && preferences.progress === PROGRESS_STATE.CAUGHT_UP);
+    return matchesSearch && matchesState && matchesProgress;
+  });
+  state.filteredCards = visibleCards;
+  buildVirtualTimelineEntries(state, visibleCards);
+  state.renderStart = -1;
+  state.renderEnd = -1;
+  renderVirtualTimeline(state, true);
+
+  const empty = state.panel.querySelector("[data-schedule-empty], .schedule-empty:not([data-schedule-no-results])");
+  const noResults = state.panel.querySelector("[data-schedule-no-results]");
+  if (empty) empty.hidden = searching || visibleCards.length > 0;
+  if (noResults) noResults.hidden = !query || visibleCards.length > 0 || state.allCards.length === 0;
   if (viewName === currentView) syncTvControlVisibility();
+}
+
+function filterSchedule(viewName = currentView) {
+  if (!["backlog", "upcoming"].includes(viewName)) return;
+  const state = initializeVirtualTimeline(viewName);
+  if (state) applyVirtualTimelineFilters(state);
 }
 
 function createVirtualLibrarySpacer(position) {
@@ -4785,6 +4857,7 @@ window.addEventListener("resize", () => {
   syncSearchTextPosition();
   fitEpisodeDetailTitle(views.get("detail"));
   virtualLibraries.forEach((state) => refreshVirtualLibraryLayout(state.view));
+  virtualTimelines.forEach((state) => renderVirtualTimeline(state, true));
 });
 
 window.addEventListener("focus", refreshScheduleForLocalDayChange);
@@ -4795,6 +4868,12 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("scroll", () => {
   if (["tv", "movies"].includes(currentView)) {
     scheduleVirtualLibraryRender(virtualLibraries.get(currentView));
+  }
+  if (["backlog", "upcoming"].includes(currentView)) {
+    scheduleVirtualTimelineRender(virtualTimelines.get(currentView));
+  } else if (currentView === "profile"
+    && !views.get("profile")?.querySelector('[data-profile-panel="diary"]')?.hidden) {
+    scheduleVirtualTimelineRender(virtualTimelines.get("diary"));
   }
   const currentScrollY = window.scrollY;
   if (currentView === "detail") {
@@ -4821,7 +4900,7 @@ filterSchedule("backlog");
 filterSchedule("upcoming");
 formatDisplayDates(document);
 syncGlobalSearch();
-initializeDiaryPagination();
+initializeVirtualTimeline("diary");
 
 removeDialog?.addEventListener("close", () => {
   pendingRemoveShowId = null;

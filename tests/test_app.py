@@ -319,10 +319,10 @@ class TrackAppTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("async function refreshDiaryContent()", javascript)
-        self.assertIn('fetch("/api/profile/diary"', javascript)
+        self.assertIn('fetch("/api/profile/diary?all=1"', javascript)
         self.assertIn("diaryRevision += 1;", javascript)
 
-    def test_diary_is_paginated_in_grouped_batches_of_fifty(self):
+    def test_diary_uses_full_collection_virtualization(self):
         connection = sqlite3.connect(self.database)
         connection.executemany(
             """
@@ -353,13 +353,18 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(self.client.get("/api/profile/diary?page=0").status_code, 400)
         self.assertEqual(self.client.get("/api/profile/diary?page=nope").status_code, 400)
 
+        full_diary = self.client.get("/api/profile/diary?all=1")
+        self.assertEqual(full_diary.status_code, 200)
+        self.assertGreater(full_diary.data.count(b"data-schedule-card"), 50)
+        self.assertIn(b'data-diary-has-more="false"', full_diary.data)
+
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
-        self.assertIn("function initializeDiaryPagination()", javascript)
-        self.assertIn("new IntersectionObserver", javascript)
-        self.assertIn("function mergeDiaryPage(content, fragment)", javascript)
-        self.assertIn("triggerPage + 1", javascript)
+        self.assertIn("function initializeVirtualTimeline(viewName", javascript)
+        self.assertIn('initializeVirtualTimeline("diary")', javascript)
+        self.assertIn("function renderVirtualTimeline(state", javascript)
+        self.assertNotIn("function initializeDiaryPagination()", javascript)
 
     def test_statistics_summarize_ranges_rewatches_streaks_and_top_shows(self):
         headers = {"X-Track-Local-Date": "2026-05-20"}

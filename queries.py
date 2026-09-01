@@ -316,8 +316,14 @@ def get_upcoming_episodes(
 
 
 def get_diary_page(
-    db: sqlite3.Connection, page: int = 1, page_size: int = 50
+    db: sqlite3.Connection, page: int = 1, page_size: int | None = 50
 ) -> tuple[list[dict], bool]:
+    pagination_sql = "LIMIT ? OFFSET ?" if page_size is not None else ""
+    pagination_parameters = (
+        (page_size + 1, (page - 1) * page_size)
+        if page_size is not None
+        else ()
+    )
     effective_date = effective_watch_date_sql("wh")
     rows = db.execute(
         f"""
@@ -378,13 +384,14 @@ def get_diary_page(
         UNION ALL
         SELECT * FROM movie_entries
         ORDER BY watched_date DESC, latest_added_at DESC, sort_watch_record_id DESC
-        LIMIT ? OFFSET ?
+        {pagination_sql}
         """,
-        (page_size + 1, (page - 1) * page_size),
+        pagination_parameters,
     ).fetchall()
-    has_more = len(rows) > page_size
+    has_more = page_size is not None and len(rows) > page_size
     entries = []
-    for row in rows[:page_size]:
+    visible_rows = rows[:page_size] if page_size is not None else rows
+    for row in visible_rows:
         entry = dict(row)
         watched_date = date.fromisoformat(entry["watched_date"])
         is_movie = entry["entry_type"] == "movie"
