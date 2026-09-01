@@ -183,7 +183,15 @@ def create_app(test_config: dict | None = None) -> Flask:
                 f"SELECT tmdb_id FROM movies WHERE is_tracked = 1 AND tmdb_id IN ({placeholders})",
                 [item["tmdb_id"] for item in results],
             )}
-            for item in results: item["is_tracked"] = item["tmdb_id"] in existing
+            removed = {row["tmdb_id"] for row in get_db().execute(
+                f"""SELECT m.tmdb_id FROM movies m WHERE m.is_tracked = 0
+                    AND m.tmdb_id IN ({placeholders})
+                    AND EXISTS (SELECT 1 FROM movie_state_history h WHERE h.movie_id = m.id)""",
+                [item["tmdb_id"] for item in results],
+            )}
+            for item in results:
+                item["is_tracked"] = item["tmdb_id"] in existing
+                item["is_removed"] = item["tmdb_id"] in removed
         return results
 
 

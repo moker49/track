@@ -2137,7 +2137,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".mini-poster img {\n  position: absolute;", css)
         self.assertIn("inset: 0 0 0 auto", css)
         self.assertNotIn("box-shadow: inset 0 0 0 2px var(--accent)", css)
-        self.assertIn('if (show.show_id) article.classList.add("is-cached")', javascript)
+        self.assertIn('if (show.show_id || show.is_removed) article.classList.add("is-cached")', javascript)
         self.assertIn("function markCatalogTracked", javascript)
         self.assertIn('markCatalogTracked(card, state, String(data.show_id))', javascript)
         self.assertIn('markCatalogTracked(card, state, String(data.movie_id))', javascript)

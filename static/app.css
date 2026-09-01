@@ -1456,6 +1456,7 @@ html.app-booting .schedule-empty-reveal {
 [data-view="movies"][data-tv-layout="compact"] .show-card-meta,
 [data-view="movies"][data-tv-layout="compact"] .popular-card .catalog-overview,
 [data-view="movies"][data-tv-layout="compact"] .popular-card-actions { display: none; }
+[data-view="movies"][data-tv-layout="compact"] .popular-card.is-cached::after { display: none; }
 [data-view="movies"][data-tv-layout="compact"] .show-card h3,
 [data-view="movies"][data-tv-layout="compact"] .popular-card h3 { margin: 0; font-size: .78rem; font-weight: 700; line-height: 1.25; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 [data-view="movies"][data-tv-layout="compact"] .show-card-year,
@@ -3170,6 +3171,10 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
 
 [data-view="tv"][data-tv-layout="compact"] .popular-card .catalog-overview,
 [data-view="tv"][data-tv-layout="compact"] .popular-card-actions {
+  display: none;
+}
+
+[data-view="tv"][data-tv-layout="compact"] .popular-card.is-cached::after {
   display: none;
 }
 

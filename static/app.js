@@ -842,7 +842,7 @@ function catalogCard(show) {
   overview.textContent = show.overview;
   copy.append(title, meta, overview);
   article.append(poster, copy);
-  if (show.show_id) article.classList.add("is-cached");
+  if (show.show_id || show.is_removed) article.classList.add("is-cached");
   copy.append(catalogActions());
   return article;
 }
