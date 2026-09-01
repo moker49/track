@@ -2727,7 +2727,7 @@ function openMovieImportDatePicker(tmdbId) {
   if (!datePicker) return;
   pendingMovieImport = String(tmdbId);
   datePickerTarget = null;
-  datePickerSelectedDate = null;
+  datePickerSelectedDate = new Date();
   datePickerMonth = new Date();
   datePicker.querySelector("[data-date-picker-clear]").textContent = "Skip";
   datePicker.querySelector("[data-date-picker-save]").textContent = "Watch";
@@ -3365,6 +3365,7 @@ async function moveMovie(movieElement, targetState, actionButton) {
 
 async function removeMovie(movieElement, actionButton) {
   actionButton.disabled = true;
+  const searchQuery = searchQueries.movies.trim();
   try {
     const response = await fetch(`/api/movies/${movieElement.dataset.movieId}`, { method: "DELETE" });
     if (!response.ok) throw new Error("Could not remove movie");
@@ -3372,6 +3373,7 @@ async function removeMovie(movieElement, actionButton) {
     await refreshMoviesContent();
     refreshUpcomingForMovieChange();
     if (currentView === "detail") showView(detailParentView, "replace");
+    if (searchQuery) searchMovieCatalog(searchQuery);
     showSnackbar("Movie removed from your library");
   } catch (_error) {
     showSnackbar("Couldn't remove this movie. Try again.");
@@ -3970,6 +3972,7 @@ document.addEventListener("click", (event) => {
 
   if (event.target.closest("[data-date-picker-clear]")) {
     if (pendingMovieImport) {
+      datePickerSelectedDate = null;
       saveWatchDate().catch((error) => showSnackbar(error.message));
       return;
     }
@@ -4570,6 +4573,7 @@ globalSearchInput?.addEventListener("input", () => {
     syncTvSearchPresentation();
     if (previousQuery.trim() && !query.trim()) flushSearchLibraryUpdates("tv");
   } else if (currentView === "movies") {
+    clearTvFirstReveal(views.get("movies"));
     filterShowView(views.get("movies"));
     clearTimeout(movieSearchTimer);
     movieSearchRequest?.abort();
