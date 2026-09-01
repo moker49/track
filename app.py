@@ -320,7 +320,9 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.post("/api/movies/<int:tmdb_id>/import")
     def import_movie(tmdb_id: int):
-        watched = bool((request.get_json(silent=True) or {}).get("watched"))
+        payload = request.get_json(silent=True) or {}
+        watched = bool(payload.get("watched"))
+        watch_date = payload.get("watch_date")
         try: movie = get_tmdb_client().movie(tmdb_id)
         except TMDBError as error: return jsonify(error=str(error)), 503
         if movie.get("id") != tmdb_id: return jsonify(error="TMDB returned the wrong movie"), 502
@@ -333,7 +335,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)).fetchone()["id"]
         db.execute("INSERT INTO movie_state_history (movie_id, state, entered_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM movie_state_history WHERE movie_id = ?)", (movie_id, TRACKING_ACTIVE, now, movie_id))
         if watched:
-            db.execute("INSERT INTO movie_watch_history (movie_id, added_at, watch_date, show_in_diary) SELECT ?, ?, NULL, 0 WHERE NOT EXISTS (SELECT 1 FROM movie_watch_history WHERE movie_id = ?)", (movie_id, now, movie_id))
+            db.execute("INSERT INTO movie_watch_history (movie_id, added_at, watch_date, show_in_diary) SELECT ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM movie_watch_history WHERE movie_id = ?)", (movie_id, now, watch_date, int(bool(watch_date)), movie_id))
         db.commit()
         return jsonify(ok=True, movie_id=movie_id)
 

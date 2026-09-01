@@ -177,6 +177,7 @@ let datePickerTarget = null;
 let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
 let datePickerYearVisible = false;
+let pendingMovieImport = null;
 let lastEpisodeDetailScrollY = 0;
 let lastProfileScrollY = 0;
 let profileChromeVisualOffset = 0;
@@ -2722,6 +2723,18 @@ function openWatchDatePicker(item) {
   openSharedDialog(datePicker);
 }
 
+function openMovieImportDatePicker(tmdbId) {
+  if (!datePicker) return;
+  pendingMovieImport = String(tmdbId);
+  datePickerTarget = null;
+  datePickerSelectedDate = null;
+  datePickerMonth = new Date();
+  datePicker.querySelector("[data-date-picker-clear]").textContent = "Skip";
+  datePicker.querySelector("[data-date-picker-save]").textContent = "Watch";
+  renderDatePicker();
+  openSharedDialog(datePicker);
+}
+
 function shiftDatePickerMonth(offset) {
   datePickerYearVisible = false;
   datePickerMonth = new Date(
@@ -2733,6 +2746,20 @@ function shiftDatePickerMonth(offset) {
 }
 
 async function saveWatchDate() {
+  if (pendingMovieImport) {
+    const tmdbId = pendingMovieImport;
+    const watchDate = datePickerSelectedDate ? toIsoDate(datePickerSelectedDate) : null;
+    const response = await fetch(`/api/movies/${tmdbId}/import`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ watched: true, watch_date: watchDate }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not add movie");
+    pendingMovieImport = null;
+    datePicker.close();
+    openMovie(data.movie_id, "movies", "replace");
+    return;
+  }
   if (!datePickerTarget) return;
   const saveButton = datePicker.querySelector("[data-date-picker-save]");
   saveButton.disabled = true;
@@ -3809,6 +3836,10 @@ document.addEventListener("click", (event) => {
 
   const importButton = event.target.closest("[data-import-state]");
   if (importButton) {
+    if (importButton.dataset.importState === "watched") {
+      openMovieImportDatePicker(importButton.closest("[data-tmdb-id]").dataset.tmdbId);
+      return;
+    }
     importCatalogShow(
       importButton.closest("[data-tmdb-id]"),
       importButton.dataset.importState,
@@ -3829,6 +3860,10 @@ document.addEventListener("click", (event) => {
 
   const trackMovieButton = event.target.closest("[data-track-movie-state]");
   if (trackMovieButton) {
+    if (trackMovieButton.dataset.trackMovieState === "watched") {
+      openMovieImportDatePicker(trackMovieButton.closest("[data-detail-movie]").dataset.tmdbId);
+      return;
+    }
     trackDetailMovie(
       trackMovieButton.closest("[data-detail-movie]"),
       trackMovieButton.dataset.trackMovieState,
@@ -3934,6 +3969,10 @@ document.addEventListener("click", (event) => {
   }
 
   if (event.target.closest("[data-date-picker-clear]")) {
+    if (pendingMovieImport) {
+      saveWatchDate().catch((error) => showSnackbar(error.message));
+      return;
+    }
     datePickerSelectedDate = null;
     renderDatePicker();
     return;
@@ -4614,8 +4653,11 @@ finishedArchiveDialog?.addEventListener("click", (event) => {
 
 datePicker?.addEventListener("close", () => {
   datePickerTarget = null;
+  pendingMovieImport = null;
   datePickerSelectedDate = null;
   datePickerYearVisible = false;
+  datePicker.querySelector("[data-date-picker-clear]").textContent = "Clear";
+  datePicker.querySelector("[data-date-picker-save]").textContent = "OK";
 });
 
 imageViewer?.addEventListener("click", (event) => {
