@@ -196,6 +196,10 @@ let movieSearchComplete = false;
 let movieSearchError = "";
 let tvLayoutTransitionTimer = null;
 let tvDropdownHistoryActive = false;
+let searchHistoryActive = false;
+let searchHistoryView = null;
+let searchHistoryClosing = false;
+let searchDismissShouldFocus = null;
 let snackbarAction = null;
 let backgroundPrimaryViewHydrationStarted = false;
 let scheduleViewsHydrated = false;
@@ -4691,6 +4695,34 @@ function filterAllShowViews() {
   filterShowView(views.get("movies"));
 }
 
+function pushSearchHistory() {
+  if (searchHistoryActive) return;
+  window.history.pushState({
+    ...window.history.state,
+    trackApp: true,
+    view: currentView,
+    searchOpen: true,
+  }, "");
+  searchHistoryActive = true;
+  searchHistoryView = currentView;
+}
+
+function clearSearchFromHistory({ refocus = false } = {}) {
+  searchHistoryActive = false;
+  searchHistoryClosing = false;
+  searchHistoryView = null;
+  searchDismissShouldFocus = null;
+  if (globalSearchInput?.value) {
+    globalSearchInput.value = "";
+    globalSearchInput.dispatchEvent(new Event("input", { bubbles: true }));
+  } else {
+    syncSearchChrome();
+    syncSearchTextPosition();
+  }
+  if (refocus) globalSearchInput?.focus();
+  else globalSearchInput?.blur();
+}
+
 globalSearchInput?.addEventListener("input", () => {
   if (currentView === "detail") return;
   syncSearchChrome();
@@ -4698,6 +4730,7 @@ globalSearchInput?.addEventListener("input", () => {
   const query = globalSearchInput.value;
   const previousQuery = searchQueries[currentView];
   searchQueries[currentView] = query;
+  if (!previousQuery && query) pushSearchHistory();
   if (["backlog", "upcoming"].includes(currentView)) {
     filterSchedule(currentView);
   } else if (currentView === "tv") {
@@ -4725,15 +4758,24 @@ globalSearchInput?.addEventListener("input", () => {
     syncMovieSearchPresentation();
     if (previousQuery.trim() && !query.trim()) flushSearchLibraryUpdates("movies");
   }
+  if (previousQuery && !query && searchHistoryActive && !searchHistoryClosing) {
+    searchHistoryClosing = true;
+    if (searchDismissShouldFocus === null) {
+      searchDismissShouldFocus = document.activeElement === globalSearchInput;
+    }
+    window.history.back();
+  }
 });
 
 searchClearButton?.addEventListener("click", () => {
+  searchDismissShouldFocus = true;
   globalSearchInput.value = "";
   globalSearchInput.dispatchEvent(new Event("input", { bubbles: true }));
   globalSearchInput.focus();
 });
 
 searchBackButton?.addEventListener("click", () => {
+  searchDismissShouldFocus = false;
   globalSearchInput.value = "";
   globalSearchInput.dispatchEvent(new Event("input", { bubbles: true }));
   globalSearchInput.blur();
@@ -4888,7 +4930,26 @@ window.addEventListener("popstate", (event) => {
   if (tvDropdownHistoryActive) {
     tvDropdownHistoryActive = false;
     closeTvDropdowns(null, { preserveHistory: true });
+    return;
   }
+  if (searchHistoryActive
+    && !event.state?.searchOpen
+    && event.state?.view === searchHistoryView) {
+    clearSearchFromHistory({ refocus: Boolean(searchDismissShouldFocus) });
+    return;
+  }
+  if (event.state?.searchOpen) {
+    restoreHistoryState(event.state);
+    searchHistoryActive = true;
+    searchHistoryView = event.state.view;
+    searchHistoryClosing = false;
+    searchDismissShouldFocus = null;
+    return;
+  }
+  searchHistoryActive = false;
+  searchHistoryView = null;
+  searchHistoryClosing = false;
+  searchDismissShouldFocus = null;
   restoreHistoryState(event.state);
 });
 
