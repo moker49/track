@@ -3,7 +3,7 @@
 <article class="show-card movie-card" data-movie-id="{{ movie.id }}" data-tmdb-id="{{ movie.tmdb_id }}"
   data-show-name="{{ movie.title|lower }}" data-name="{{ movie.title|lower }}" data-date-added="{{ movie.added_at }}"
   data-release-date="{{ movie.release_date or '' }}" data-last-watched="{{ movie.last_watched_at or '' }}"
-  data-progress="{{ 100 if watched else 0 }}" data-progress-state="{{ 'finished' if watched else 'not-started' }}" data-show-state="{{ movie.state }}">
+  data-progress="{{ 100 if watched else 0 }}" data-progress-state="{{ 'finished' if watched else 'not-started' }}" data-show-state="ACTIVE">
   <button class="show-card-open" type="button" data-movie-open aria-label="Open {{ movie.title }}">
     <div class="poster poster-purple{% if movie.poster_path %} has-media-image{% endif %}" aria-hidden="true">
       {% if movie.poster_path %}<img class="poster-image"
@@ -29,12 +29,6 @@
     <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
   </button>
   <div class="show-menu" data-movie-menu popover="manual" hidden>
-    <button type="button" data-movie-action="move"
-      data-target-state="{{ 'ARCHIVED' if movie.state == 'ACTIVE' else 'ACTIVE' }}">
-      <span class="material-symbols-rounded" aria-hidden="true">{{ 'archive' if movie.state == 'ACTIVE' else 'resume'
-        }}</span>
-      <span>{{ 'Archive' if movie.state == 'ACTIVE' else 'Watchlist' }}</span>
-    </button>
     <button class="danger-action" type="button" data-movie-action="remove">
       <span class="material-symbols-rounded" aria-hidden="true">delete</span>
       <span>Remove</span>

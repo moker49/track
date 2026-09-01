@@ -197,7 +197,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         db = get_db()
         local_date = request_local_date()
         active_shows, archived_shows = get_tv_library_shows(db)
-        active_movies, archived_movies = get_movie_library(db)
+        movies = get_movie_library(db)
         diary_entries, diary_has_more = get_diary_page(db)
         return render_template(
             "index.html",
@@ -209,8 +209,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             statistics=get_statistics(db, local_date),
             active_shows=active_shows,
             archived_shows=archived_shows,
-            active_movies=active_movies,
-            archived_movies=archived_movies,
+            movies=movies,
         )
 
     @app.get("/api/tv")
@@ -224,8 +223,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.get("/api/movies")
     def movies_fragment():
-        active_movies, archived_movies = get_movie_library(get_db())
-        return render_template("movies.html", active_movies=active_movies, archived_movies=archived_movies)
+        return render_template("movies.html", movies=get_movie_library(get_db()))
 
     @app.get("/api/schedule")
     def schedule_fragment():
@@ -322,8 +320,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.post("/api/movies/<int:tmdb_id>/import")
     def import_movie(tmdb_id: int):
-        target_state = (request.get_json(silent=True) or {}).get("state", TRACKING_ACTIVE)
-        if target_state not in TRACKING_STATES: return jsonify(error="invalid state"), 400
+        watched = bool((request.get_json(silent=True) or {}).get("watched"))
         try: movie = get_tmdb_client().movie(tmdb_id)
         except TMDBError as error: return jsonify(error=str(error)), 503
         if movie.get("id") != tmdb_id: return jsonify(error="TMDB returned the wrong movie"), 502
@@ -331,10 +328,12 @@ def create_app(test_config: dict | None = None) -> Flask:
         db = get_db()
         db.execute("""INSERT INTO movies (tmdb_id,title,original_title,overview,poster_path,backdrop_path,release_date,runtime_minutes,status,genres,original_language,state,added_at,active_at,archived_at,updated_at,tmdb_refreshed_at,tmdb_payload)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tmdb_id) DO UPDATE SET is_tracked=1,state=excluded.state,updated_at=excluded.updated_at""",
-          (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), target_state, now, now if target_state == TRACKING_ACTIVE else None, now if target_state == TRACKING_ARCHIVED else None, now, now, json.dumps(movie)))
+          (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), TRACKING_ACTIVE, now, now, None, now, now, json.dumps(movie)))
         db.commit()
         movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)).fetchone()["id"]
-        db.execute("INSERT INTO movie_state_history (movie_id, state, entered_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM movie_state_history WHERE movie_id = ?)", (movie_id, target_state, now, movie_id))
+        db.execute("INSERT INTO movie_state_history (movie_id, state, entered_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM movie_state_history WHERE movie_id = ?)", (movie_id, TRACKING_ACTIVE, now, movie_id))
+        if watched:
+            db.execute("INSERT INTO movie_watch_history (movie_id, added_at, watch_date, show_in_diary) SELECT ?, ?, NULL, 0 WHERE NOT EXISTS (SELECT 1 FROM movie_watch_history WHERE movie_id = ?)", (movie_id, now, movie_id))
         db.commit()
         return jsonify(ok=True, movie_id=movie_id)
 

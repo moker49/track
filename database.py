@@ -40,6 +40,9 @@ def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None
         """
     )
     db.execute("UPDATE movies SET is_watched_without_diary = 0 WHERE is_watched_without_diary = 1")
+    # Movies have one unified library. Preserve prior archive timestamps, but
+    # migrate every tracked movie into the single active collection.
+    db.execute("UPDATE movies SET state = 'ACTIVE', active_at = COALESCE(active_at, archived_at, added_at) WHERE state = 'ARCHIVED'")
     db.execute(
         """
         INSERT INTO movie_state_history (movie_id, state, entered_at)

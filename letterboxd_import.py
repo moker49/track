@@ -140,8 +140,7 @@ def main(export_path: str, retry_skipped: bool = False) -> int:
                 print(f"SKIP {title} ({year}): no title/year or one-year-off match")
                 continue
             movie = client.movie(selected["id"])
-            # Watchlist deliberately wins over the archived watched state.
-            state = TRACKING_ACTIVE if (title, year) in watchlist else TRACKING_ARCHIVED
+            state = TRACKING_ACTIVE
             movie_id = upsert_movie(db, movie, state, (title, year) in liked,
                                     (title, year) in watched and not diary[(title, year)])
             db.execute("DELETE FROM movie_watch_history WHERE movie_id = ?", (movie_id,))
@@ -174,7 +173,7 @@ def import_manual_corrections(export_path: str) -> int:
     for title, year in (("Hamilton", "2020"), ("The Upside", "2017")):
         result = next(item for item in client.search_movie(title)["results"] if norm(item.get("title")) == norm(title))
         movie = client.movie(result["id"])
-        state = TRACKING_ACTIVE if (title, year) in watchlist else TRACKING_ARCHIVED
+        state = TRACKING_ACTIVE
         upsert_movie(db, movie, state, (title, year) in liked, (title, year) in watched)
         db.commit()
         print(f"imported movie: {title} ({movie.get('release_date', '')[:4]})")

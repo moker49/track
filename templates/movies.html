@@ -1,5 +1,5 @@
 {% from "_movie_card.html" import movie_card %}
-<section class="page-section tv-library-section" data-library-results-section><div class="show-list" data-library-results-list>{% for movie in active_movies + archived_movies %}{{ movie_card(movie) }}{% endfor %}</div><div class="empty-state state-empty" data-library-empty {% if active_movies or archived_movies %}hidden{% endif %}><span class="empty-icon material-symbols-rounded" aria-hidden="true">movie_off</span><h3>Nothing in your library</h3></div></section>
+<section class="page-section tv-library-section" data-library-results-section><div class="show-list" data-library-results-list>{% for movie in movies %}{{ movie_card(movie) }}{% endfor %}</div><div class="empty-state state-empty" data-library-empty {% if movies %}hidden{% endif %}><span class="empty-icon material-symbols-rounded" aria-hidden="true">movie_off</span><h3>Nothing in your library</h3></div></section>
 <section class="page-section tv-add-section" data-movie-add-section hidden><div class="popular-grid" data-movie-add-results></div></section>
 <div class="empty-state tv-search-empty" data-movie-search-empty hidden>
   <span class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>

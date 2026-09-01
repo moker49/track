@@ -721,7 +721,7 @@ def get_tv_library_shows(
     return active_shows, archived_shows
 
 
-def get_movie_library(db: sqlite3.Connection) -> tuple[list[sqlite3.Row], list[sqlite3.Row]]:
+def get_movie_library(db: sqlite3.Connection) -> list[sqlite3.Row]:
     movies = db.execute(
         """
         SELECT m.*, COUNT(mwh.id) AS watched_count,
@@ -733,10 +733,7 @@ def get_movie_library(db: sqlite3.Connection) -> tuple[list[sqlite3.Row], list[s
         ORDER BY m.title COLLATE NOCASE
         """
     ).fetchall()
-    return (
-        [movie for movie in movies if movie["state"] == TRACKING_ACTIVE],
-        [movie for movie in movies if movie["state"] == TRACKING_ARCHIVED],
-    )
+    return movies
 
 
 def get_movie_activity(db: sqlite3.Connection, movie_id: int) -> list[sqlite3.Row]:
@@ -745,8 +742,7 @@ def get_movie_activity(db: sqlite3.Connection, movie_id: int) -> list[sqlite3.Ro
         SELECT event_type, title, occurred_at, watch_record_id, watch_kind,
                watch_added_at, watch_date, show_in_diary
         FROM (
-            SELECT CASE msh.state WHEN 'ARCHIVED' THEN 'added_archive' ELSE 'added' END AS event_type,
-                   CASE msh.state WHEN 'ARCHIVED' THEN 'Added to Archive' ELSE 'Added to Watchlist' END AS title,
+            SELECT 'added' AS event_type, 'Added to Watchlist' AS title,
                    msh.entered_at AS occurred_at, NULL AS watch_record_id,
                    NULL AS watch_kind, NULL AS watch_added_at, NULL AS watch_date,
                    NULL AS show_in_diary

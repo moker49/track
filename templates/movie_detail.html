@@ -19,12 +19,6 @@
         <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
       </button>
       <div class="show-menu detail-show-menu" data-movie-menu popover="manual" hidden>
-        <button type="button" data-movie-action="move"
-          data-target-state="{{ 'ARCHIVED' if movie.state == 'ACTIVE' else 'ACTIVE' }}">
-          <span class="material-symbols-rounded" aria-hidden="true">{{ 'archive' if movie.state == 'ACTIVE' else
-            'resume' }}</span>
-          <span>{{ 'Archive' if movie.state == 'ACTIVE' else 'Watchlist' }}</span>
-        </button>
         <button class="danger-action" type="button" data-movie-action="remove">
           <span class="material-symbols-rounded" aria-hidden="true">delete</span>
           <span>Remove</span>
@@ -79,8 +73,8 @@
     {% include '_activity_log.html' %}
     {% else %}
     <div class="md-button-group detail-add-group" aria-label="Add movie to library">
-      <button type="button" data-track-movie-state="ACTIVE"><span class="material-symbols-rounded" aria-hidden="true">add</span><span>Add</span></button>
-      <button type="button" data-track-movie-state="ARCHIVED"><span class="material-symbols-rounded" aria-hidden="true">archive</span><span>Archive</span></button>
+      <button type="button" data-track-movie-state="new"><span class="material-symbols-rounded" aria-hidden="true">add</span><span>Add</span></button>
+      <button type="button" data-track-movie-state="watched"><span class="material-symbols-rounded" aria-hidden="true">visibility</span><span>Watch</span></button>
     </div>
     {% endif %}
   </section>

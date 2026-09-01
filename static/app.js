@@ -887,12 +887,14 @@ function inspectMediaImages(root) {
 function catalogActions() {
   const actions = document.createElement("div");
   actions.className = "popular-card-actions";
-  [[TRACKING_STATE.ACTIVE, "Add"], [TRACKING_STATE.ARCHIVED, "Archive"]]
+  (currentView === "movies"
+    ? [["new", "Add"], ["watched", "Watch"]]
+    : [[TRACKING_STATE.ACTIVE, "Add"], [TRACKING_STATE.ARCHIVED, "Archive"]])
     .forEach(([state, label]) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "catalog-action";
-      if (state === TRACKING_STATE.ARCHIVED) button.classList.add("catalog-action-secondary");
+      if (state === TRACKING_STATE.ARCHIVED || state === "watched") button.classList.add("catalog-action-secondary");
       button.dataset.importState = state;
       button.textContent = label;
       actions.append(button);
@@ -909,7 +911,7 @@ function markCatalogTracked(card, state, recordId = null) {
   const icon = document.createElement("span");
   icon.className = "catalog-tracked-icon material-symbols-rounded";
   icon.textContent = state === TRACKING_STATE.ARCHIVED ? "archive" : "check_circle";
-  icon.title = state === TRACKING_STATE.ARCHIVED ? "Archived" : "Added";
+  icon.title = state === TRACKING_STATE.ARCHIVED ? "Archived" : state === "watched" ? "Watched" : "Added";
   card.querySelector(".popular-card-actions")?.replaceChildren(icon);
   if (card.dataset.catalogType in librarySearchUpdates) {
     librarySearchUpdates[card.dataset.catalogType] = true;
@@ -1005,7 +1007,7 @@ async function importCatalogShow(card, state, trigger) {
   try {
     if (card.dataset.catalogType === "movies") {
       const response = await fetch(`/api/movies/${card.dataset.tmdbId}/import`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched: state === "watched" }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not add movie");
@@ -2283,7 +2285,7 @@ async function trackDetailMovie(movieElement, state, trigger) {
   trigger.disabled = true;
   try {
     const response = await fetch(`/api/movies/${movieElement.dataset.tmdbId}/import`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched: state === "watched" }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add movie");
@@ -2819,6 +2821,8 @@ function syncTvControlBar(view = views.get(currentView)) {
   const sortLabel = tvControlBar.querySelector("[data-tv-sort-label]");
   const sortIcon = tvControlBar.querySelector("[data-tv-sort-icon]");
   const mediaIsDefault = hasDefaultMediaTypes(preferences.mediaTypes, defaults.mediaTypes);
+  tvControlBar.querySelector('[data-tv-dropdown-toggle="media"]')?.closest(".tv-dropdown")
+    ?.toggleAttribute("hidden", viewName === "movies");
   if (mediaLabel) {
     const label = mediaTypeLabel(preferences.mediaTypes, defaults.mediaTypes);
     const hasPlus = label.endsWith("+");
@@ -2857,7 +2861,7 @@ function syncTvControlBar(view = views.get(currentView)) {
     const type = button.dataset.tvMediaOption;
     const excluded = (viewName === "backlog" && ["movies", "movie-archive"].includes(type))
       || (viewName === "tv" && ["movies", "movie-archive"].includes(type))
-      || (viewName === "movies" && ["tv", "tv-archive"].includes(type));
+      || (viewName === "movies" && ["tv", "tv-archive", "movie-archive"].includes(type));
     button.hidden = excluded;
     const label = button.querySelector("[data-tv-media-option-label]");
     if (label) {
