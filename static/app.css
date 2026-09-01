@@ -1421,6 +1421,13 @@ html.app-booting .schedule-empty-reveal {
   gap: 12px;
 }
 
+.library-virtual-spacer {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  pointer-events: none;
+}
+
 [data-view="tv"][data-tv-layout="compact"] .show-list {
   grid-template-columns: repeat(auto-fill, 88px);
   align-items: start;
@@ -1467,11 +1474,15 @@ html.app-booting .schedule-empty-reveal {
 
 [data-view="tv"][data-tv-layout="compact"] .show-card {
   width: 88px;
-  height: auto;
+  height: 184px;
   overflow: visible;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+}
+
+[data-view="movies"][data-tv-layout="compact"] .show-card {
+  height: 184px;
 }
 
 [data-view="tv"][data-tv-layout="compact"] .show-card-open {

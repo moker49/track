@@ -135,7 +135,8 @@ const libraryViewPreferences = {
 };
 const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "" };
 const librarySearchUpdates = { tv: false, movies: false };
-const librarySortCaches = new WeakMap();
+const virtualLibraries = new Map();
+const VIRTUAL_LIBRARY_OVERSCAN_ROWS = 4;
 restoreTvLayout();
 const showDetailCache = new Map();
 const movieDetailCache = new Map();
@@ -416,6 +417,7 @@ function toggleTvLayout() {
     tvView?.classList.remove("is-switching-layout");
     tvLayoutTransitionTimer = null;
     syncTvLayout();
+    refreshVirtualLibraryLayout(tvView);
     window.requestAnimationFrame(() => {
       clearTvFirstReveal(tvView);
       // Let the browser commit the cleared animation state before replaying it.
@@ -930,8 +932,8 @@ function syncTvSearchPresentation() {
   const empty = view.querySelector("[data-tv-search-empty]");
   const error = view.querySelector("[data-tv-search-error]");
   const addCount = addResults.querySelectorAll(".popular-card").length;
-  const localCount = [...view.querySelectorAll(".show-card")]
-    .filter((card) => !card.hidden).length;
+  const localCount = virtualLibraries.get("tv")?.filteredCards.length
+    ?? [...view.querySelectorAll(".show-card")].filter((card) => !card.hidden).length;
 
   if (!query) {
     addSection.hidden = true;
@@ -995,11 +997,19 @@ async function searchTvCatalog(query) {
 
 function appendLibraryCard(data) {
   if (!data.newly_tracked || !data.card_html) return;
-  const existing = document.querySelector(`.show-card[data-show-id="${data.show_id}"]`);
+  const existing = document.querySelector(`.show-card[data-show-id="${data.show_id}"]`)
+    || virtualLibraryCard("tv", `.show-card[data-show-id="${data.show_id}"]`);
   if (existing) return;
   const template = document.createElement("template");
   template.innerHTML = data.card_html.trim();
-  document.querySelector(`[data-show-list="${data.state}"]`)?.append(template.content);
+  const card = template.content.firstElementChild;
+  const state = virtualLibraries.get("tv");
+  if (card && state) {
+    state.allCards.push(card);
+    filterShowView(state.view);
+  } else {
+    document.querySelector("[data-library-results-list]")?.append(template.content);
+  }
 }
 
 async function importCatalogShow(card, state, trigger) {
@@ -1044,8 +1054,8 @@ function syncMovieSearchPresentation() {
   const error = view.querySelector("[data-movie-search-error]");
   const query = searchQueries.movies.trim();
   const addCount = results?.querySelectorAll(".popular-card").length || 0;
-  const localCount = [...view.querySelectorAll(".show-card")]
-    .filter((card) => !card.hidden).length;
+  const localCount = virtualLibraries.get("movies")?.filteredCards.length
+    ?? [...view.querySelectorAll(".show-card")].filter((card) => !card.hidden).length;
 
   if (!query) {
     if (section) section.hidden = true;
@@ -1989,11 +1999,17 @@ async function restoreShowDetailContext(showId, context) {
 
 function replaceLibraryCard(showId, cardHtml) {
   if (!cardHtml) return;
-  const currentCard = document.querySelector(`.show-card[data-show-id="${showId}"]`);
+  const currentCard = document.querySelector(`.show-card[data-show-id="${showId}"]`)
+    || virtualLibraryCard("tv", `.show-card[data-show-id="${showId}"]`);
   if (!currentCard) return;
   const template = document.createElement("template");
   template.innerHTML = cardHtml.trim();
-  currentCard.replaceWith(template.content);
+  const nextCard = template.content.firstElementChild;
+  if (!nextCard) return;
+  const state = virtualLibraries.get("tv");
+  const cardIndex = state?.allCards.indexOf(currentCard) ?? -1;
+  if (cardIndex >= 0) state.allCards[cardIndex] = nextCard;
+  if (currentCard.isConnected) currentCard.replaceWith(nextCard);
   syncStateSections();
   filterAllShowViews();
 }
@@ -3410,7 +3426,10 @@ function syncProgressState(showElement) {
 }
 
 function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
-  document.querySelectorAll(`[data-show-id="${showId}"]`).forEach((showElement) => {
+  const showElements = new Set(document.querySelectorAll(`[data-show-id="${showId}"]`));
+  const libraryCard = virtualLibraryCard("tv", `.show-card[data-show-id="${showId}"]`);
+  if (libraryCard) showElements.add(libraryCard);
+  showElements.forEach((showElement) => {
     showElement.dataset.showState = state;
     if (showElement.hasAttribute("data-tracking-state")) {
       showElement.dataset.trackingState = state;
@@ -3448,8 +3467,8 @@ async function moveShow(showElement, targetState, actionButton) {
     const data = await response.json();
     invalidateShowCache(showId);
 
-    const card = document.querySelector(`.show-card[data-show-id="${showId}"]`);
-    if (card) document.querySelector(`[data-show-list="${data.state}"]`)?.append(card);
+    const card = document.querySelector(`.show-card[data-show-id="${showId}"]`)
+      || virtualLibraryCard("tv", `.show-card[data-show-id="${showId}"]`);
     updateShowRepresentations(showId, data.state, data.move_label, data.move_icon);
     if (currentView === "detail"
       && views.get("detail").querySelector(`[data-detail-show][data-show-id="${showId}"]`)) {
@@ -3513,7 +3532,8 @@ function requestMovieRemoval(movieElement) {
 async function confirmShowRemoval() {
   if (!pendingRemoveShowId) return;
   const showId = pendingRemoveShowId;
-  const showRepresentation = document.querySelector(`[data-show-id="${showId}"]`);
+  const showRepresentation = document.querySelector(`[data-show-id="${showId}"]`)
+    || virtualLibraryCard("tv", `.show-card[data-show-id="${showId}"]`);
   const tmdbId = showRepresentation?.dataset.tmdbId;
   const confirmButton = removeDialog.querySelector("[data-confirm-remove]");
   confirmButton.disabled = true;
@@ -3523,7 +3543,10 @@ async function confirmShowRemoval() {
     removeDialog.close();
     pendingRemoveShowId = null;
     invalidateShowCache(showId);
-    document.querySelector(`.show-card[data-show-id="${showId}"]`)?.remove();
+    removeVirtualLibraryCard(
+      "tv",
+      virtualLibraryCard("tv", `.show-card[data-show-id="${showId}"]`),
+    );
     if (tmdbId) {
       document.querySelectorAll(`.popular-card[data-tmdb-id="${tmdbId}"]`).forEach((card) => {
         card.classList.add("is-cached");
@@ -3588,7 +3611,8 @@ function updateEpisodeWatchUi(episode, watchCount, syncSeason = true) {
 
 function applyShowProgress(data) {
   updateProgress(document.querySelector("[data-progress-summary]"), data);
-  const showCard = document.querySelector(`.show-card[data-show-id="${data.show_id}"]`);
+  const showCard = document.querySelector(`.show-card[data-show-id="${data.show_id}"]`)
+    || virtualLibraryCard("tv", `.show-card[data-show-id="${data.show_id}"]`);
   if (showCard) {
     showCard.dataset.watchedCount = data.watched_count;
     showCard.dataset.episodeCount = data.episode_count;
@@ -4487,67 +4511,184 @@ function filterSchedule(viewName = currentView) {
   if (viewName === currentView) syncTvControlVisibility();
 }
 
+function createVirtualLibrarySpacer(position) {
+  const spacer = document.createElement("div");
+  spacer.className = "library-virtual-spacer";
+  spacer.dataset.virtualSpacer = position;
+  spacer.setAttribute("aria-hidden", "true");
+  return spacer;
+}
+
+function initializeVirtualLibrary(view) {
+  if (!view) return null;
+  const viewName = view.dataset.view;
+  const list = view.querySelector("[data-library-results-list]");
+  if (!list || !["tv", "movies"].includes(viewName)) return null;
+  let state = virtualLibraries.get(viewName);
+  if (state?.view === view && state.list === list) {
+    const knownCards = new Set(state.allCards);
+    const addedCards = [...list.querySelectorAll(":scope > .show-card")]
+      .filter((card) => !knownCards.has(card));
+    if (addedCards.length) state.allCards.push(...addedCards);
+    return state;
+  }
+
+  const cards = [...list.querySelectorAll(":scope > .show-card")];
+  cards.forEach((card) => { card.hidden = false; });
+  state = {
+    viewName,
+    view,
+    list,
+    allCards: cards,
+    filteredCards: cards,
+    topSpacer: createVirtualLibrarySpacer("top"),
+    bottomSpacer: createVirtualLibrarySpacer("bottom"),
+    renderStart: -1,
+    renderEnd: -1,
+    layoutKey: "",
+    frame: 0,
+  };
+  virtualLibraries.set(viewName, state);
+  list.replaceChildren(state.topSpacer, state.bottomSpacer);
+  return state;
+}
+
+function virtualLibraryMetrics(state) {
+  const compact = libraryViewPreferences[state.viewName].layout === "compact";
+  if (!compact) return { columns: 1, cardHeight: 152, gap: 12, pitch: 164 };
+  const styles = window.getComputedStyle(state.list);
+  const renderedColumns = styles.gridTemplateColumns
+    .split(" ")
+    .filter((track) => track && track !== "none").length;
+  const columns = renderedColumns || Math.max(1, Math.floor((state.list.clientWidth + 12) / 100));
+  return { columns, cardHeight: 184, gap: 16, pitch: 200 };
+}
+
+function setVirtualSpacerHeight(spacer, rows, metrics) {
+  spacer.style.height = rows > 0
+    ? `${Math.max(0, rows * metrics.pitch - metrics.gap)}px`
+    : "0px";
+  spacer.hidden = rows === 0;
+}
+
+function renderVirtualLibrary(state, force = false) {
+  if (!state || state.view.hidden) return;
+  const metrics = virtualLibraryMetrics(state);
+  const rowCount = Math.ceil(state.filteredCards.length / metrics.columns);
+  const listTop = window.scrollY + state.list.getBoundingClientRect().top;
+  const viewportTop = Math.max(0, window.scrollY - listTop);
+  const firstVisibleRow = Math.floor(viewportTop / metrics.pitch);
+  const lastVisibleRow = Math.ceil((viewportTop + window.innerHeight) / metrics.pitch);
+  const startRow = Math.max(0, Math.min(rowCount, firstVisibleRow - VIRTUAL_LIBRARY_OVERSCAN_ROWS));
+  const endRow = Math.max(startRow, Math.min(
+    rowCount,
+    lastVisibleRow + VIRTUAL_LIBRARY_OVERSCAN_ROWS,
+  ));
+  const start = startRow * metrics.columns;
+  const end = Math.min(state.filteredCards.length, endRow * metrics.columns);
+  const layoutKey = `${metrics.columns}:${metrics.pitch}:${rowCount}`;
+  if (!force
+    && state.renderStart === start
+    && state.renderEnd === end
+    && state.layoutKey === layoutKey) return;
+
+  state.renderStart = start;
+  state.renderEnd = end;
+  state.layoutKey = layoutKey;
+  setVirtualSpacerHeight(state.topSpacer, startRow, metrics);
+  setVirtualSpacerHeight(state.bottomSpacer, Math.max(0, rowCount - endRow), metrics);
+  const fragment = document.createDocumentFragment();
+  fragment.append(state.topSpacer);
+  state.filteredCards.slice(start, end).forEach((card) => {
+    card.hidden = false;
+    fragment.append(card);
+  });
+  fragment.append(state.bottomSpacer);
+  state.list.replaceChildren(fragment);
+  inspectMediaImages(state.list);
+}
+
+function scheduleVirtualLibraryRender(state) {
+  if (!state || state.frame) return;
+  state.frame = window.requestAnimationFrame(() => {
+    state.frame = 0;
+    renderVirtualLibrary(state);
+  });
+}
+
+function refreshVirtualLibraryLayout(view) {
+  const state = initializeVirtualLibrary(view);
+  if (!state) return;
+  state.renderStart = -1;
+  state.renderEnd = -1;
+  state.layoutKey = "";
+  renderVirtualLibrary(state, true);
+}
+
+function virtualLibraryCard(viewName, selector) {
+  const state = virtualLibraries.get(viewName);
+  return state?.allCards.find((card) => card.matches(selector)) || null;
+}
+
+function removeVirtualLibraryCard(viewName, card) {
+  const state = virtualLibraries.get(viewName);
+  if (!state || !card) return;
+  state.allCards = state.allCards.filter((candidate) => candidate !== card);
+  state.filteredCards = state.filteredCards.filter((candidate) => candidate !== card);
+  card.remove();
+  filterShowView(state.view);
+}
+
 function filterShowView(view) {
   if (!view) return;
-  const preferences = libraryViewPreferences[view.dataset.view];
-  if (!preferences) return;
-  const query = searchQueries[view.dataset.view].trim().toLocaleLowerCase();
+  const viewName = view.dataset.view;
+  const preferences = libraryViewPreferences[viewName];
+  const state = initializeVirtualLibrary(view);
+  if (!preferences || !state) return;
+  const query = searchQueries[viewName].trim().toLocaleLowerCase();
   const searching = Boolean(query);
-  const list = view.querySelector("[data-library-results-list]");
-  const cards = [...view.querySelectorAll(".show-card")];
-  const mediaType = view.dataset.view === "movies" ? "movies" : "tv";
-  const cachedSort = librarySortCaches.get(view);
-  const canReuseSort = cachedSort
-    && cachedSort.field === preferences.sortField
-    && cachedSort.direction === preferences.sortDirection
-    && cachedSort.cards.length === cards.length
-    && cards.every((card) => (
-      cachedSort.cardSet.has(card)
-      && cachedSort.values.get(card) === (card.dataset[preferences.sortField] || "")
-    ));
-  const sortedCards = canReuseSort ? cachedSort.cards : [...cards].sort((first, second) => {
-    const firstValue = first.dataset[preferences.sortField] || "";
-    const secondValue = second.dataset[preferences.sortField] || "";
-    const comparison = firstValue.localeCompare(secondValue, undefined, { numeric: true, sensitivity: "base" });
-    if (comparison !== 0) return preferences.sortDirection === "asc" ? comparison : -comparison;
-    return Number(first.dataset.showId || first.dataset.movieId) - Number(second.dataset.showId || second.dataset.movieId);
-  });
-  if (!canReuseSort) {
-    librarySortCaches.set(view, {
-      field: preferences.sortField,
-      direction: preferences.sortDirection,
-      cards: sortedCards,
-      cardSet: new Set(sortedCards),
-      values: new Map(sortedCards.map((card) => [card, card.dataset[preferences.sortField] || ""])),
-    });
-  }
-  if (list && sortedCards.some((card, index) => list.children[index] !== card)) {
-    const fragment = document.createDocumentFragment();
-    sortedCards.forEach((card) => fragment.append(card));
-    list.append(fragment);
-  }
-  sortedCards.forEach((card) => {
-    const archiveType = mediaType === "movies" ? "movie-archive" : "tv-archive";
+  const mediaType = viewName === "movies" ? "movies" : "tv";
+  const archiveType = mediaType === "movies" ? "movie-archive" : "tv-archive";
+  const filteredCards = state.allCards.filter((card) => {
     const stateSelected = searching || (card.dataset.showState === TRACKING_STATE.ARCHIVED
       ? preferences.mediaTypes.includes(archiveType)
       : preferences.mediaTypes.includes(mediaType));
     const matchesProgress = searching || !preferences.progress
       || card.dataset.progressState === preferences.progress
-      || (card.dataset.progressState === PROGRESS_STATE.FINISHED && preferences.progress === PROGRESS_STATE.CAUGHT_UP);
-    const hidden = !(stateSelected && matchesProgress && card.dataset.showName.includes(query));
-    if (card.hidden !== hidden) card.hidden = hidden;
+      || (card.dataset.progressState === PROGRESS_STATE.FINISHED
+        && preferences.progress === PROGRESS_STATE.CAUGHT_UP);
+    return stateSelected
+      && matchesProgress
+      && (card.dataset.showName || "").includes(query);
   });
+  filteredCards.sort((first, second) => {
+    const firstValue = first.dataset[preferences.sortField] || "";
+    const secondValue = second.dataset[preferences.sortField] || "";
+    const comparison = firstValue.localeCompare(secondValue, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    if (comparison !== 0) return preferences.sortDirection === "asc" ? comparison : -comparison;
+    return Number(first.dataset.showId || first.dataset.movieId)
+      - Number(second.dataset.showId || second.dataset.movieId);
+  });
+  state.filteredCards = filteredCards;
+  state.renderStart = -1;
+  state.renderEnd = -1;
+  renderVirtualLibrary(state, true);
+
   const empty = view.querySelector("[data-library-empty]");
-  if (empty) empty.hidden = sortedCards.some((card) => !card.hidden) || Boolean(query);
+  if (empty) empty.hidden = filteredCards.length > 0 || searching;
   view.classList.toggle("is-searching", searching);
-  if (view.dataset.view === currentView) syncTvControlVisibility();
+  if (viewName === currentView) syncTvControlVisibility();
   hydratedLibraryViews.add(view.dataset.view);
-  if (view.dataset.view === "tv") syncTvSearchPresentation();
-  if (view.dataset.view === "movies") syncMovieSearchPresentation();
+  if (viewName === "tv") syncTvSearchPresentation();
+  if (viewName === "movies") syncMovieSearchPresentation();
 }
 
 function filterAllShowViews() {
   filterShowView(views.get("tv"));
+  filterShowView(views.get("movies"));
 }
 
 globalSearchInput?.addEventListener("input", () => {
@@ -4601,6 +4742,7 @@ searchBackButton?.addEventListener("click", () => {
 window.addEventListener("resize", () => {
   syncSearchTextPosition();
   fitEpisodeDetailTitle(views.get("detail"));
+  virtualLibraries.forEach((state) => refreshVirtualLibraryLayout(state.view));
 });
 
 window.addEventListener("focus", refreshScheduleForLocalDayChange);
@@ -4609,6 +4751,9 @@ document.addEventListener("visibilitychange", () => {
 });
 
 window.addEventListener("scroll", () => {
+  if (["tv", "movies"].includes(currentView)) {
+    scheduleVirtualLibraryRender(virtualLibraries.get(currentView));
+  }
   const currentScrollY = window.scrollY;
   if (currentView === "detail") {
     const switcher = views.get("detail")?.querySelector("[data-episode-navigation]");
