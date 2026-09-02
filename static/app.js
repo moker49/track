@@ -139,6 +139,7 @@ const librarySearchUpdates = { tv: false, movies: false };
 const virtualLibraries = new Map();
 const VIRTUAL_LIBRARY_OVERSCAN_ROWS = 4;
 const virtualTimelines = new Map();
+const pendingTimelineScrollRestores = new Map();
 restoreTvLayout();
 const showDetailCache = new Map();
 const movieDetailCache = new Map();
@@ -468,7 +469,7 @@ function selectProfileTab(tabName, { focus = false } = {}) {
   }
   if (tabName === "diary") {
     const diaryTimeline = initializeVirtualTimeline("diary");
-    window.requestAnimationFrame(() => renderVirtualTimeline(diaryTimeline, true));
+    renderVirtualTimeline(diaryTimeline, true);
   }
   if (retainDiaryPosition) {
     const chrome = profileView.querySelector(".profile-top-app-bar");
@@ -496,6 +497,7 @@ async function refreshDiaryContent() {
     panel.innerHTML = await response.text();
     renderedDiaryRevision = requestedRevision;
     initializeVirtualTimeline("diary", { force: true });
+    restoreTimelineScroll("diary", "profile");
   })().catch(() => undefined).finally(() => {
     panel.removeAttribute("aria-busy");
     diaryRequest = null;
@@ -618,6 +620,23 @@ function leaveProfile() {
   }
 }
 
+function restoreTimelineScroll(viewName, scrollKey = viewName, savedScrollY = null) {
+  const state = virtualTimelines.get(viewName);
+  const expectedView = viewName === "diary" ? "profile" : viewName;
+  if (currentView !== expectedView || !state || !virtualTimelineIsVisible(state)) return;
+  const targetScrollY = savedScrollY ?? scrollPositions[scrollKey] ?? 0;
+  // Commit the virtual slice at the saved location synchronously. Deferring
+  // this by a frame makes the timeline briefly paint its top slice on return.
+  window.scrollTo({ top: targetScrollY, behavior: "auto" });
+  renderVirtualTimeline(state, true);
+  window.scrollTo({ top: targetScrollY, behavior: "auto" });
+}
+
+function guardTimelineScrollRestore(viewName, savedScrollY) {
+  if (savedScrollY <= 0) return;
+  pendingTimelineScrollRestores.set(viewName, { savedScrollY });
+}
+
 function showView(viewName, historyMode = null) {
   if (!views.has(viewName) || viewName === currentView) return;
 
@@ -636,6 +655,7 @@ function showView(viewName, historyMode = null) {
     && !revealedViewAnimations.has(`tv:${libraryViewPreferences.tv.state}`);
   const firstScheduleDataReady = firstScheduleReveal && scheduleViewsHydrated;
   const targetScrollY = scrollPositions[viewName] || 0;
+  pendingTimelineScrollRestores.delete(currentView);
   if (firstScheduleReveal) {
     revealedViewAnimations.add(viewName);
     if (!firstScheduleDataReady) {
@@ -669,10 +689,15 @@ function showView(viewName, historyMode = null) {
   if (["tv", "movies"].includes(viewName)) {
     filterShowView(views.get(viewName));
   }
-  if (["backlog", "upcoming"].includes(viewName)) filterSchedule(viewName);
+  if (["backlog", "upcoming"].includes(viewName)) {
+    filterSchedule(viewName);
+    restoreTimelineScroll(viewName, viewName, targetScrollY);
+    guardTimelineScrollRestore(viewName, targetScrollY);
+  }
   if (viewName === "profile") {
     const diaryTimeline = initializeVirtualTimeline("diary");
-    window.requestAnimationFrame(() => renderVirtualTimeline(diaryTimeline, true));
+    renderVirtualTimeline(diaryTimeline, true);
+    restoreTimelineScroll("diary", "profile", targetScrollY);
   }
   if (viewName === "tv") {
     window.requestAnimationFrame(() => {
@@ -1507,6 +1532,10 @@ async function refreshScheduleContent({ preserveView = null, background = false 
     if (incoming && current) current.replaceWith(incoming);
     formatDisplayDates(views.get(viewName));
     filterSchedule(viewName);
+    if (viewName === currentView) {
+      const pendingRestore = pendingTimelineScrollRestores.get(viewName);
+      restoreTimelineScroll(viewName, viewName, pendingRestore?.savedScrollY);
+    }
   });
   scheduleViewsHydrated = true;
 }
@@ -4914,7 +4943,29 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") refreshScheduleForLocalDayChange();
 });
 
+function releaseTimelineScrollRestore() {
+  if (["backlog", "upcoming"].includes(currentView)) {
+    pendingTimelineScrollRestores.delete(currentView);
+  }
+}
+
+window.addEventListener("wheel", releaseTimelineScrollRestore, { passive: true });
+window.addEventListener("touchstart", releaseTimelineScrollRestore, { passive: true });
+window.addEventListener("pointerdown", releaseTimelineScrollRestore, { passive: true });
+window.addEventListener("keydown", (event) => {
+  if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(event.key)) {
+    releaseTimelineScrollRestore();
+  }
+});
+
 window.addEventListener("scroll", () => {
+  if (["backlog", "upcoming"].includes(currentView)) {
+    const pendingRestore = pendingTimelineScrollRestores.get(currentView);
+    if (pendingRestore && Math.abs(window.scrollY - pendingRestore.savedScrollY) > 1) {
+      restoreTimelineScroll(currentView, currentView, pendingRestore.savedScrollY);
+    }
+    scrollPositions[currentView] = window.scrollY;
+  }
   if (["tv", "movies"].includes(currentView)) {
     scheduleVirtualLibraryRender(virtualLibraries.get(currentView));
   }
@@ -4922,6 +4973,7 @@ window.addEventListener("scroll", () => {
     scheduleVirtualTimelineRender(virtualTimelines.get(currentView));
   } else if (currentView === "profile"
     && !views.get("profile")?.querySelector('[data-profile-panel="diary"]')?.hidden) {
+    scrollPositions.profile = window.scrollY;
     scheduleVirtualTimelineRender(virtualTimelines.get("diary"));
   }
   const currentScrollY = window.scrollY;
