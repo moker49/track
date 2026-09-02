@@ -2890,11 +2890,13 @@ html.app-booting .schedule-empty-reveal {
   transition: padding-left 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.app-bar-search:has([data-tv-view-toggle]:not([hidden])) input {
+.app-bar-search:has([data-tv-view-toggle]:not([hidden])) input,
+.app-bar-search:has([data-catalog-search-submit]:not([hidden])) input {
   padding-right: 48px;
 }
 
-.tv-view-toggle {
+.tv-view-toggle,
+.catalog-search-submit {
   position: absolute;
   top: 4px;
   right: 4px;
@@ -2903,7 +2905,8 @@ html.app-booting .schedule-empty-reveal {
   color: var(--primary);
 }
 
-.tv-view-toggle:focus-visible {
+.tv-view-toggle:focus-visible,
+.catalog-search-submit:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: -2px;
 }

@@ -62,6 +62,7 @@ const searchBackButton = document.querySelector("[data-search-back]");
 const searchProfileButton = document.querySelector("[data-search-profile]");
 const searchClearButton = document.querySelector("[data-clear-search]");
 const tvViewToggle = document.querySelector("[data-tv-view-toggle]");
+const catalogSearchSubmit = document.querySelector("[data-catalog-search-submit]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
 const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, profile: 0 };
@@ -379,9 +380,19 @@ function syncTvLayout() {
     if (view) view.dataset.tvLayout = libraryViewPreferences[name].layout === "compact" ? "compact" : "list";
   });
   const isCompact = libraryViewPreferences[currentView]?.layout === "compact";
-  if (!tvViewToggle) return;
   const visible = ["tv", "movies"].includes(currentView);
-  tvViewToggle.hidden = !visible;
+  const showCatalogSearch = visible
+    && globalSearchInput.value.trim().length >= 3
+    && document.activeElement === globalSearchInput;
+  if (catalogSearchSubmit) {
+    catalogSearchSubmit.hidden = !showCatalogSearch;
+    catalogSearchSubmit.setAttribute(
+      "aria-label",
+      `Search ${currentView === "movies" ? "movies" : "TV"} on TMDB`,
+    );
+  }
+  if (!tvViewToggle) return;
+  tvViewToggle.hidden = !visible || showCatalogSearch;
   tvViewToggle.setAttribute("aria-pressed", String(isCompact));
   tvViewToggle.setAttribute("aria-label", isCompact
     ? "Switch to list view"
@@ -4365,16 +4376,25 @@ new MutationObserver((mutations) => {
   mutations.forEach((mutation) => mutation.addedNodes.forEach(inspectMediaImages));
 }).observe(document.documentElement, { childList: true, subtree: true });
 
+function performCatalogSearch() {
+  if (!["tv", "movies"].includes(currentView)) return;
+  const searchValue = globalSearchInput?.value || searchQueries[currentView];
+  const query = searchValue.trim();
+  if (query.length < 3) return;
+  searchQueries[currentView] = searchValue;
+  globalSearchInput?.blur();
+  syncTvLayout();
+  if (currentView === "tv") searchTvCatalog(query);
+  else searchMovieCatalog(query);
+}
+
 document.addEventListener("submit", (event) => {
   if (!event.target.matches("[data-view-search]")) return;
   event.preventDefault();
-  if (!["tv", "movies"].includes(currentView)) return;
-  const query = searchQueries[currentView].trim();
-  if (!query) return;
-  globalSearchInput?.blur();
-  if (currentView === "tv") searchTvCatalog(query);
-  else searchMovieCatalog(query);
+  performCatalogSearch();
 });
+
+catalogSearchSubmit?.addEventListener("click", performCatalogSearch);
 
 function updateProgress(progress, data) {
   if (!progress) return;
@@ -4798,6 +4818,7 @@ function clearSearchFromHistory({ refocus = false } = {}) {
 globalSearchInput?.addEventListener("input", () => {
   if (currentView === "detail") return;
   syncSearchChrome();
+  syncTvLayout();
   syncSearchTextPosition();
   const query = globalSearchInput.value;
   const previousQuery = searchQueries[currentView];
@@ -4837,6 +4858,14 @@ globalSearchInput?.addEventListener("input", () => {
     }
     window.history.back();
   }
+});
+
+globalSearchInput?.addEventListener("focus", () => {
+  syncTvLayout();
+});
+globalSearchInput?.addEventListener("blur", (event) => {
+  if (event.relatedTarget === catalogSearchSubmit) return;
+  syncTvLayout();
 });
 
 searchClearButton?.addEventListener("click", () => {
