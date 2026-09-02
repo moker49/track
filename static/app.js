@@ -105,21 +105,21 @@ const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   backlog: {
     state: TRACKING_STATE.ACTIVE,
-    progress: "",
+    progress: [PROGRESS_STATE.STARTED],
     sortField: "lastWatched",
     sortDirection: "desc",
     mediaTypes: ["tv"],
   },
   upcoming: {
     state: TRACKING_STATE.ACTIVE,
-    progress: "",
+    progress: [],
     sortField: "releaseDate",
     sortDirection: "asc",
     mediaTypes: ["tv", "movies"],
   },
   tv: {
     state: TRACKING_STATE.ACTIVE,
-    progress: "",
+    progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP],
     sortField: "name",
     sortDirection: "asc",
     layout: "list",
@@ -127,9 +127,9 @@ const libraryViewPreferences = {
   },
   movies: {
     state: TRACKING_STATE.ACTIVE,
-    progress: "",
-    sortField: "name",
-    sortDirection: "asc",
+    progress: [PROGRESS_STATE.NEW],
+    sortField: "dateAdded",
+    sortDirection: "desc",
     mediaTypes: ["movies"],
     layout: "list",
   },
@@ -2766,10 +2766,10 @@ const sortFieldLabels = {
 };
 
 const libraryViewDefaults = {
-  backlog: { progress: "", sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv"] },
-  upcoming: { progress: "", sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "movies"] },
-  tv: { progress: "", sortField: "name", sortDirection: "asc", mediaTypes: ["tv"] },
-  movies: { progress: "", sortField: "name", sortDirection: "asc", mediaTypes: ["movies"] },
+  backlog: { progress: [PROGRESS_STATE.STARTED], sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv"] },
+  upcoming: { progress: [], sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "movies"] },
+  tv: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP], sortField: "name", sortDirection: "asc", mediaTypes: ["tv"] },
+  movies: { progress: [PROGRESS_STATE.NEW], sortField: "dateAdded", sortDirection: "desc", mediaTypes: ["movies"] },
 };
 
 function mediaTypeLabel(mediaTypes, defaultMediaTypes) {
@@ -2788,6 +2788,26 @@ function mediaTypeLabel(mediaTypes, defaultMediaTypes) {
 function hasDefaultMediaTypes(mediaTypes, defaultMediaTypes) {
   return mediaTypes.length === defaultMediaTypes.length
     && defaultMediaTypes.every((type) => mediaTypes.includes(type));
+}
+
+function hasSameSelections(values, defaults) {
+  return values.length === defaults.length
+    && defaults.every((value) => values.includes(value));
+}
+
+function progressFilterLabel(progresses, viewName) {
+  const available = [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP]
+    .filter((value) => viewName !== "movies" || value !== PROGRESS_STATE.STARTED);
+  if (progresses.length === 0 || hasSameSelections(progresses, available)) return "All";
+  if (viewName === "tv" && hasSameSelections(
+    progresses,
+    [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP],
+  )) return "Current";
+  return progresses.map((value) => (
+    viewName === "movies" && value === PROGRESS_STATE.CAUGHT_UP
+      ? "Watched"
+      : progressFilterLabels[value]
+  )).join(" + ");
 }
 
 function syncTvControlBar(view = views.get(currentView)) {
@@ -2813,9 +2833,7 @@ function syncTvControlBar(view = views.get(currentView)) {
     }
   }
   if (progressLabel) {
-    progressLabel.textContent = viewName === "movies" && preferences.progress === PROGRESS_STATE.CAUGHT_UP
-      ? "Watched"
-      : progressFilterLabels[preferences.progress];
+    progressLabel.textContent = progressFilterLabel(preferences.progress, viewName);
   }
   if (sortLabel) {
     sortLabel.textContent = sortFieldLabels[preferences.sortField];
@@ -2827,7 +2845,7 @@ function syncTvControlBar(view = views.get(currentView)) {
   }
   [
     ["media", !mediaIsDefault],
-    ["filter", preferences.progress !== defaults.progress],
+    ["filter", !hasSameSelections(preferences.progress, defaults.progress)],
     ["sort", preferences.sortField !== defaults.sortField
       || preferences.sortDirection !== defaults.sortDirection],
   ].forEach(([control, isActive]) => {
@@ -2861,8 +2879,8 @@ function syncTvControlBar(view = views.get(currentView)) {
     if (value === PROGRESS_STATE.CAUGHT_UP) {
       button.querySelector("span:last-child").textContent = viewName === "movies" ? "Watched" : "Caught-up";
     }
-    const selected = button.dataset.tvProgressOption === preferences.progress;
-    button.classList.toggle("is-unselected-default", button.dataset.tvProgressOption === defaults.progress && !selected);
+    const selected = preferences.progress.includes(value);
+    button.classList.toggle("is-unselected-default", defaults.progress.includes(value) && !selected);
     button.setAttribute("aria-checked", String(selected));
     button.querySelector(".tv-dropdown-selection").classList.toggle("is-hidden", !selected);
   });
@@ -3967,11 +3985,13 @@ document.addEventListener("click", (event) => {
   if (progressOption) {
     const preferences = libraryViewPreferences[currentView];
     if (!preferences) return;
-    preferences.progress = progressOption.dataset.tvProgressOption;
+    const value = progressOption.dataset.tvProgressOption;
+    preferences.progress = preferences.progress.includes(value)
+      ? preferences.progress.filter((selected) => selected !== value)
+      : [...preferences.progress, value];
     if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
     else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
     else syncTvControlBar(views.get(currentView));
-    closeTvDropdowns();
     return;
   }
 
@@ -4582,10 +4602,10 @@ function applyVirtualTimelineFilters(state) {
     const matchesState = searching || (card.dataset.trackingState === TRACKING_STATE.ACTIVE
       ? preferences.mediaTypes.includes(mediaType)
       : preferences.mediaTypes.includes(`${mediaType}-archive`));
-    const matchesProgress = searching || !preferences.progress
-      || card.dataset.progressState === preferences.progress
+    const matchesProgress = searching || preferences.progress.length === 0
+      || preferences.progress.includes(card.dataset.progressState)
       || (card.dataset.progressState === PROGRESS_STATE.FINISHED
-        && preferences.progress === PROGRESS_STATE.CAUGHT_UP);
+        && preferences.progress.includes(PROGRESS_STATE.CAUGHT_UP));
     return matchesSearch && matchesState && matchesProgress;
   });
   state.filteredCards = visibleCards;
@@ -4749,10 +4769,10 @@ function filterShowView(view) {
     const stateSelected = searching || (card.dataset.showState === TRACKING_STATE.ARCHIVED
       ? preferences.mediaTypes.includes(archiveType)
       : preferences.mediaTypes.includes(mediaType));
-    const matchesProgress = searching || !preferences.progress
-      || card.dataset.progressState === preferences.progress
+    const matchesProgress = searching || preferences.progress.length === 0
+      || preferences.progress.includes(card.dataset.progressState)
       || (card.dataset.progressState === PROGRESS_STATE.FINISHED
-        && preferences.progress === PROGRESS_STATE.CAUGHT_UP);
+        && preferences.progress.includes(PROGRESS_STATE.CAUGHT_UP));
     return stateSelected
       && matchesProgress
       && (card.dataset.showName || "").includes(query);

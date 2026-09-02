@@ -22,11 +22,11 @@
         aria-hidden="true">expand_more</span>
     </button>
     <div class="tv-dropdown-menu" data-tv-dropdown-menu="filter" role="menu" popover="manual" hidden>
-      {% for value, label in [('', 'All'), ('not-started', 'New'), ('started', 'Started'), ('caught-up', 'Caught-up')]
+      {% for value, label in [('not-started', 'New'), ('started', 'Started'), ('caught-up', 'Caught-up')]
       %}
-      <button type="button" data-tv-progress-option="{{ value }}" role="menuitemradio"
-        aria-checked="{{ 'true' if not value else 'false' }}"><span
-          class="material-symbols-rounded tv-dropdown-selection{% if value %} is-hidden{% endif %}"
+      <button type="button" data-tv-progress-option="{{ value }}" role="menuitemcheckbox"
+        aria-checked="false"><span
+          class="material-symbols-rounded tv-dropdown-selection is-hidden"
           aria-hidden="true">check</span><span>{{ label }}</span></button>
       {% endfor %}
     </div>
