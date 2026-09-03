@@ -40,7 +40,8 @@
   --error: hsl(0 75% 72%);
   --shadow: hsl(0 0% 0% / 0.4);
   --scrim: hsl(0 0% 100% / 0.08);
-  --nav-surface: hsl(260 12% 11% / 0.96);
+  --chrome-surface-opacity: 0.92;
+  --nav-surface: hsl(260 12% 11% / var(--chrome-surface-opacity));
   --radius-sm: 12px;
   --radius-md: 16px;
   --radius-lg: 24px;
@@ -160,7 +161,9 @@ dialog:not(.image-viewer)::backdrop {
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  background: var(--surface);
+  background: var(--nav-surface);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 
 .global-search-app-bar {
@@ -718,11 +721,11 @@ html.profile-transition-return::view-transition-new(root) {
   padding-top: 0;
 }
 
-.virtual-timeline > .schedule-timeline-item {
+.virtual-timeline>.schedule-timeline-item {
   height: 144px;
 }
 
-.virtual-timeline > .diary-timeline-item {
+.virtual-timeline>.diary-timeline-item {
   height: 76px;
 }
 
@@ -870,10 +873,8 @@ html.app-booting .schedule-empty-reveal {
   display: none;
 }
 
-[data-virtual-timeline="upcoming"] > .schedule-timeline-item.is-virtual-group-last
-  .schedule-timeline-content::after,
-[data-virtual-timeline="diary"] > .schedule-timeline-item.is-virtual-group-last
-  .schedule-timeline-content::after {
+[data-virtual-timeline="upcoming"]>.schedule-timeline-item.is-virtual-group-last .schedule-timeline-content::after,
+[data-virtual-timeline="diary"]>.schedule-timeline-item.is-virtual-group-last .schedule-timeline-content::after {
   display: none;
 }
 
@@ -1454,15 +1455,15 @@ html.app-booting .schedule-empty-reveal {
   gap: 12px;
 }
 
-.virtual-timeline > .schedule-timeline-item.is-virtual-group-first .schedule-timeline-rail::before {
+.virtual-timeline>.schedule-timeline-item.is-virtual-group-first .schedule-timeline-rail::before {
   background: linear-gradient(to bottom, transparent, var(--outline-soft) 32px);
 }
 
-.virtual-timeline > .schedule-timeline-item.is-virtual-group-last .schedule-timeline-rail::before {
+.virtual-timeline>.schedule-timeline-item.is-virtual-group-last .schedule-timeline-rail::before {
   background: linear-gradient(to bottom, var(--outline-soft) calc(100% - 32px), transparent);
 }
 
-.virtual-timeline > .schedule-timeline-item.is-virtual-group-only .schedule-timeline-rail::before {
+.virtual-timeline>.schedule-timeline-item.is-virtual-group-only .schedule-timeline-rail::before {
   background: linear-gradient(to bottom,
       transparent,
       var(--outline-soft) 32px,
@@ -1503,23 +1504,90 @@ html.app-booting .schedule-empty-reveal {
   box-shadow: none;
 }
 
-[data-view="movies"][data-tv-layout="compact"] .show-card-open { height: auto; display: block; overflow: visible; border-radius: 0; }
+[data-view="movies"][data-tv-layout="compact"] .show-card-open {
+  height: auto;
+  display: block;
+  overflow: visible;
+  border-radius: 0;
+}
+
 [data-view="movies"][data-tv-layout="compact"] .poster,
-[data-view="movies"][data-tv-layout="compact"] .mini-poster { width: 88px; height: var(--compact-card-height); min-height: 0; padding: 0; border-radius: 0; }
+[data-view="movies"][data-tv-layout="compact"] .mini-poster {
+  width: 88px;
+  height: var(--compact-card-height);
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+}
+
 [data-view="movies"][data-tv-layout="compact"] .show-card-body,
-[data-view="movies"][data-tv-layout="compact"] .popular-card-copy { min-height: 0; padding: 7px 0 0; display: block; }
-[data-view="movies"][data-tv-layout="compact"] .show-card-heading { padding: 0; }
+[data-view="movies"][data-tv-layout="compact"] .popular-card-copy {
+  min-height: 0;
+  padding: 7px 0 0;
+  display: block;
+}
+
+[data-view="movies"][data-tv-layout="compact"] .show-card-heading {
+  padding: 0;
+}
+
 [data-view="movies"][data-tv-layout="compact"] .show-card-meta,
 [data-view="movies"][data-tv-layout="compact"] .popular-card .catalog-overview,
-[data-view="movies"][data-tv-layout="compact"] .popular-card-actions { display: none; }
-[data-view="movies"][data-tv-layout="compact"] .popular-card.is-cached::after { display: none; }
+[data-view="movies"][data-tv-layout="compact"] .popular-card-actions {
+  display: none;
+}
+
+[data-view="movies"][data-tv-layout="compact"] .popular-card.is-cached::after {
+  display: none;
+}
+
 [data-view="movies"][data-tv-layout="compact"] .show-card h3,
-[data-view="movies"][data-tv-layout="compact"] .popular-card h3 { margin: 0; font-size: .78rem; font-weight: 700; line-height: 1.25; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+[data-view="movies"][data-tv-layout="compact"] .popular-card h3 {
+  margin: 0;
+  font-size: .78rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 [data-view="movies"][data-tv-layout="compact"] .show-card-year,
-[data-view="movies"][data-tv-layout="compact"] .popular-card-copy > p:not(.catalog-overview) { position: absolute; z-index: 4; top: 7px; left: 7px; margin: 0; padding: 3px 5px; border-radius: 5px; color: var(--on-surface); background: hsl(0 0% 0% / .58); font-size: .68rem; line-height: 1; }
-[data-view="movies"][data-tv-layout="compact"] .progress-block { position: absolute; z-index: 4; top: calc(var(--compact-card-height) - 4px); right: 0; left: 0; padding: 0; border-radius: 0; background: hsl(0 0% 0% / .58); }
-[data-view="movies"][data-tv-layout="compact"] .progress-copy { display: none; }
-[data-view="movies"][data-tv-layout="compact"] .show-card .progress-track { height: 4px; margin: 0; border-radius: 0; }
+[data-view="movies"][data-tv-layout="compact"] .popular-card-copy>p:not(.catalog-overview) {
+  position: absolute;
+  z-index: 4;
+  top: 7px;
+  left: 7px;
+  margin: 0;
+  padding: 3px 5px;
+  border-radius: 5px;
+  color: var(--on-surface);
+  background: hsl(0 0% 0% / .58);
+  font-size: .68rem;
+  line-height: 1;
+}
+
+[data-view="movies"][data-tv-layout="compact"] .progress-block {
+  position: absolute;
+  z-index: 4;
+  top: calc(var(--compact-card-height) - 4px);
+  right: 0;
+  left: 0;
+  padding: 0;
+  border-radius: 0;
+  background: hsl(0 0% 0% / .58);
+}
+
+[data-view="movies"][data-tv-layout="compact"] .progress-copy {
+  display: none;
+}
+
+[data-view="movies"][data-tv-layout="compact"] .show-card .progress-track {
+  height: 4px;
+  margin: 0;
+  border-radius: 0;
+}
 
 [data-view="tv"][data-tv-layout="compact"] .show-card {
   width: 88px;
@@ -2930,12 +2998,14 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
   z-index: 9;
   top: calc(80px + env(safe-area-inset-top));
   width: 100%;
-  padding: 8px 12px;
+  padding: 0 12px 12px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   border-bottom: 1px solid var(--outline-soft);
-  background: var(--surface);
+  background: var(--nav-surface);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 
 .tv-library-button-group {
@@ -3219,7 +3289,7 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
   -webkit-line-clamp: 2;
 }
 
-[data-view="tv"][data-tv-layout="compact"] .popular-card-copy > p:not(.catalog-overview) {
+[data-view="tv"][data-tv-layout="compact"] .popular-card-copy>p:not(.catalog-overview) {
   position: absolute;
   z-index: 2;
   top: 7px;
