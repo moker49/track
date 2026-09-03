@@ -167,6 +167,13 @@ dialog:not(.image-viewer)::backdrop {
 }
 
 .global-search-app-bar {
+  padding: max(12px, env(safe-area-inset-top)) 0 0;
+  justify-content: flex-start;
+}
+
+.global-search-row {
+  width: 100%;
+  padding: 0 4px 12px;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) 48px;
   gap: 4px;
@@ -2994,18 +3001,14 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
 }
 
 .tv-inline-bar {
-  position: sticky;
-  z-index: 9;
-  top: calc(80px + env(safe-area-inset-top));
+  position: relative;
   width: 100%;
   padding: 0 12px 12px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   border-bottom: 1px solid var(--outline-soft);
-  background: var(--nav-surface);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+  background: transparent;
 }
 
 .tv-library-button-group {
