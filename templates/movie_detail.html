@@ -1,7 +1,9 @@
 {% set watched = movie.watch_count > 0 %}
+{% set upcoming = not watched and movie.is_upcoming|default(false) %}
 <div data-detail-movie data-detail-title="{{ movie.title }}" data-movie-id="{{ movie.id if movie.id is not none else '' }}" data-tmdb-id="{{ movie.tmdb_id }}"
   data-movie-state="{{ movie.state }}" data-watch-count="{{ movie.watch_count }}"
   data-liked="{{ 'true' if movie.liked else 'false' }}"
+  data-movie-upcoming="{{ 'true' if upcoming else 'false' }}"
   data-progress-state="{{ 'finished' if watched else 'not-started' }}">
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back aria-label="Back">
@@ -42,7 +44,7 @@
     </button>{% endif %}
     <div class="hero-copy">
       {% if movie.is_tracked %}<span class="state-label progress-tag" data-movie-progress-tag>{{ 'Watched' if watched
-        else 'New' }}</span>{% endif %}
+        else 'Upcoming' if upcoming else 'New' }}</span>{% endif %}
       <h1>{{ movie.title }}</h1>
       <p>{{ movie.release_date[:4] if movie.release_date else '' }}{% if movie.runtime_minutes %} · {{
         movie.runtime_minutes }} min{% endif %}{% if movie.genres %}<br>{{ movie.genres }}{% endif %}</p>

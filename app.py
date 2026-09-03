@@ -373,6 +373,10 @@ def create_app(test_config: dict | None = None) -> Flask:
             "overview": payload.get("overview"),
             "poster_path": payload.get("poster_path"),
             "release_date": payload.get("release_date"),
+            "is_upcoming": bool(
+                payload.get("release_date")
+                and payload["release_date"] > datetime.now().date().isoformat()
+            ),
             "runtime_minutes": payload.get("runtime"),
             "genres": ", ".join(genre.get("name", "") for genre in payload.get("genres", [])),
             "state": saved_movie["state"] if saved_movie else TRACKING_ACTIVE,
@@ -386,7 +390,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     def movie_detail_fragment(movie_id: int):
         movie = get_db().execute(
             """
-            SELECT m.*, COUNT(mwh.id) AS watch_count
+            SELECT m.*, COUNT(mwh.id) AS watch_count,
+                   CASE WHEN m.release_date > date('now', 'localtime') THEN 1 ELSE 0 END AS is_upcoming
             FROM movies m
             LEFT JOIN movie_watch_history mwh ON mwh.movie_id = m.id
             WHERE m.id = ?

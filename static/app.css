@@ -1577,6 +1577,10 @@ html.app-booting .schedule-empty-reveal {
   line-height: 1;
 }
 
+[data-view="movies"][data-tv-layout="compact"] .show-card-year.is-upcoming {
+  color: color-mix(in srgb, var(--progress-not-started) 75%, transparent);
+}
+
 [data-view="movies"][data-tv-layout="compact"] .progress-block {
   position: absolute;
   z-index: 4;

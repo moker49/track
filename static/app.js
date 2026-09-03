@@ -3232,7 +3232,9 @@ function updateMovieWatchUi(detailMovie, watchCount) {
   detailMovie.dataset.watchCount = watchCount;
   detailMovie.dataset.progressState = watchCount > 0 ? "finished" : "not-started";
   const tag = detailMovie.querySelector("[data-movie-progress-tag]");
-  if (tag) tag.textContent = watchCount > 0 ? "Watched" : "New";
+  if (tag) tag.textContent = watchCount > 0
+    ? "Watched"
+    : detailMovie.dataset.movieUpcoming === "true" ? "Upcoming" : "New";
   const control = detailMovie.querySelector("[data-movie-detail-watch]");
   if (!control) return;
   control.dataset.watchCount = watchCount;

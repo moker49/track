@@ -732,6 +732,7 @@ def get_movie_library(db: sqlite3.Connection) -> list[sqlite3.Row]:
     movies = db.execute(
         """
         SELECT m.*, COUNT(mwh.id) AS watched_count,
+               CASE WHEN m.release_date > date('now', 'localtime') THEN 1 ELSE 0 END AS is_upcoming,
                MAX(COALESCE(mwh.watch_date, substr(mwh.added_at, 1, 10))) AS last_watched_at
         FROM movies m
         LEFT JOIN movie_watch_history mwh ON mwh.movie_id = m.id
