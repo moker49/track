@@ -421,6 +421,10 @@ function toggleTvLayout() {
   const preferences = libraryViewPreferences[currentView];
   const tvView = views.get(currentView);
   const applyLayout = () => {
+    // The outgoing layout has finished fading; reset before the incoming
+    // virtual layout is measured and its stagger begins.
+    scrollPositions[currentView] = 0;
+    window.scrollTo({ top: 0, behavior: "auto" });
     preferences.layout = preferences.layout === "compact" ? "list" : "compact";
     try {
       window.localStorage.setItem(`track.${currentView}-layout`, preferences.layout);
