@@ -40,8 +40,10 @@
   --error: hsl(0 75% 72%);
   --shadow: hsl(0 0% 0% / 0.4);
   --scrim: hsl(0 0% 100% / 0.08);
-  --chrome-surface-opacity: 0.92;
+  --chrome-surface-opacity: 0.9;
   --nav-surface: hsl(260 12% 11% / var(--chrome-surface-opacity));
+  --chrome-control-surface: hsl(260 10% 18% / var(--chrome-surface-opacity));
+  --chrome-control-surface-low: hsl(260 10% 13% / var(--chrome-surface-opacity));
   --radius-sm: 12px;
   --radius-md: 16px;
   --radius-lg: 24px;
@@ -2931,7 +2933,9 @@ html.app-booting .schedule-empty-reveal {
   border-radius: 28px;
   display: block;
   color: var(--on-surface-muted);
-  background: var(--surface-high);
+  background: var(--chrome-control-surface);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 
 .app-bar-search:has(input:focus) {
@@ -3077,7 +3081,9 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
   align-items: center;
   gap: 4px;
   color: var(--on-surface-muted);
-  background: var(--surface-card);
+  background: var(--chrome-control-surface);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
   font: inherit;
   font-size: 0.76rem;
   font-weight: 500;
