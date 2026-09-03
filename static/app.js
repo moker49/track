@@ -2962,7 +2962,7 @@ function showFloatingMenu(menu, trigger) {
     Math.min(triggerBounds.right - menuWidth, window.innerWidth - menuWidth - viewportInset),
   );
   const desiredTop = menu.matches("[data-tv-dropdown-menu]")
-    ? triggerBounds.top - bounds.height - 8
+    ? triggerBounds.bottom + 8
     : triggerBounds.bottom + 4;
   const top = Math.max(
     viewportInset,
