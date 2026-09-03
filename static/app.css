@@ -142,20 +142,12 @@ dialog:not(.image-viewer)::backdrop {
   backdrop-filter: blur(2px);
 }
 
-.app-content.has-library-controls {
-  padding-bottom: calc(140px + env(safe-area-inset-bottom));
-}
-
 .app-content.is-profile-view {
   padding-bottom: 0;
 }
 
 .app-view {
   min-height: calc(100dvh - 168px - var(--app-shell-vertical-inset) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-}
-
-.app-content.has-library-controls .app-view {
-  min-height: calc(100dvh - 220px - var(--app-shell-vertical-inset) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 
 .top-app-bar {
@@ -2934,14 +2926,16 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
 }
 
 .tv-inline-bar {
-  position: relative;
+  position: sticky;
+  z-index: 9;
+  top: calc(80px + env(safe-area-inset-top));
   width: 100%;
   padding: 8px 12px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  border-top: 1px solid var(--outline-soft);
-  background: transparent;
+  border-bottom: 1px solid var(--outline-soft);
+  background: var(--surface);
 }
 
 .tv-library-button-group {
