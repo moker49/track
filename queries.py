@@ -70,7 +70,8 @@ def watch_payload(
         "percent": round(watched_count / episode_count * 100) if episode_count else 0,
         "last_watched_at": db.execute(
             """
-            SELECT MAX(COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)))
+            SELECT MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
+                            THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END)
             FROM episode_watch_history wh
             JOIN episodes e ON e.id = wh.episode_id
             JOIN seasons sn ON sn.id = e.season_id
@@ -100,7 +101,8 @@ def get_library_show(
         SELECT s.*,
                COUNT(DISTINCT e.id) AS episode_count,
                COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count,
-               MAX(COALESCE(wh.watch_date, substr(wh.added_at, 1, 10))) AS last_watched_at
+               MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
+                        THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
         FROM shows s
         LEFT JOIN seasons sn ON sn.show_id = s.id
         LEFT JOIN episodes e ON e.season_id = sn.id
@@ -127,7 +129,8 @@ def get_catch_up_episodes(
             SELECT s.id AS show_id,
                    COUNT(DISTINCT e.id) AS episode_count,
                    COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count,
-                   MAX(COALESCE(wh.watch_date, substr(wh.added_at, 1, 10))) AS last_watched_at
+                   MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
+                            THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
             FROM shows s
             JOIN seasons sn ON sn.show_id = s.id AND sn.is_progress_counted = 1
             JOIN episodes e ON e.season_id = sn.id AND e.air_date <= ?
@@ -184,7 +187,8 @@ def get_upcoming_episodes(
             SELECT s.id AS show_id,
                    COUNT(DISTINCT e.id) AS episode_count,
                    COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count,
-                   MAX(COALESCE(wh.watch_date, substr(wh.added_at, 1, 10))) AS last_watched_at
+                   MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
+                            THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
             FROM shows s
             JOIN seasons sn ON sn.show_id = s.id AND sn.is_progress_counted = 1
             JOIN episodes e ON e.season_id = sn.id AND e.air_date <= ?
@@ -705,7 +709,8 @@ def get_tv_library_shows(
         SELECT s.*,
                COUNT(DISTINCT e.id) AS episode_count,
                COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count,
-               MAX(COALESCE(wh.watch_date, substr(wh.added_at, 1, 10))) AS last_watched_at
+               MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
+                        THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
         FROM shows s
         LEFT JOIN seasons sn ON sn.show_id = s.id
         LEFT JOIN episodes e ON e.season_id = sn.id
@@ -733,7 +738,8 @@ def get_movie_library(db: sqlite3.Connection) -> list[sqlite3.Row]:
         """
         SELECT m.*, COUNT(mwh.id) AS watched_count,
                CASE WHEN m.release_date > date('now', 'localtime') THEN 1 ELSE 0 END AS is_upcoming,
-               MAX(COALESCE(mwh.watch_date, substr(mwh.added_at, 1, 10))) AS last_watched_at
+               MAX(CASE WHEN COALESCE(mwh.show_in_diary, 1) = 1
+                        THEN COALESCE(mwh.watch_date, substr(mwh.added_at, 1, 10)) END) AS last_watched_at
         FROM movies m
         LEFT JOIN movie_watch_history mwh ON mwh.movie_id = m.id
         WHERE m.is_tracked = 1
