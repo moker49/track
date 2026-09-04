@@ -71,7 +71,7 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
             page.locator('[data-list-filter="watch-again"]').click()
             self.assertEqual(page.locator('[data-list-filter="watch-again"]').get_attribute("aria-pressed"), "true")
             page.go_back()
-            page.locator('[data-view="statistics"]').wait_for(state="visible")
+            page.locator('[data-view="tv"]').wait_for(state="visible")
 
             page.locator('[data-nav-view="tv"]').click()
             page.locator('[data-view="tv"]').wait_for(state="visible")

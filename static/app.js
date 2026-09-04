@@ -4165,7 +4165,10 @@ document.addEventListener("click", (event) => {
   const drawerView = event.target.closest("[data-drawer-view]");
   if (drawerView) {
     closeNavigationDrawer({ preserveHistory: true });
-    showView(drawerView.dataset.drawerView, "push");
+    // The drawer entry becomes this destination, so it must no longer be
+    // treated as an open drawer if the user subsequently goes back.
+    navigationDrawerHistoryActive = false;
+    showView(drawerView.dataset.drawerView, "replace");
     return;
   }
 

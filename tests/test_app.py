@@ -210,7 +210,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('classList.add("search-text-positioned")', javascript)
         self.assertIn("function openNavigationDrawer()", javascript)
         self.assertIn("function closeNavigationDrawer({ preserveHistory = false } = {})", javascript)
-        self.assertIn('showView(drawerView.dataset.drawerView, "push")', javascript)
+        self.assertIn('showView(drawerView.dataset.drawerView, "replace")', javascript)
+        self.assertIn("navigationDrawerHistoryActive = false;", javascript)
         self.assertIn('data-reaction-toggle', javascript)
 
     def test_initial_library_order_matches_natural_default_sort(self):
