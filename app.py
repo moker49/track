@@ -631,15 +631,21 @@ def create_app(test_config: dict | None = None) -> Flask:
         db = get_db()
         show = db.execute(
             """
-            SELECT s.*,
-                   COUNT(DISTINCT e.id) AS episode_count,
-                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
+            WITH episode_counts AS (
+                SELECT e.id AS episode_id, sn.show_id, COUNT(wh.id) AS watch_count
+                FROM seasons sn
+                JOIN episodes e ON e.season_id = sn.id
+                  AND sn.is_progress_counted = 1
+                  AND e.air_date <= ?
+                LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+                GROUP BY e.id
+            )
+            SELECT s.*, COUNT(ec.episode_id) AS episode_count,
+                   COALESCE(SUM(CASE WHEN ec.watch_count > 0 THEN 1 ELSE 0 END), 0) AS watched_count,
+                   COALESCE(SUM(ec.watch_count), 0) AS total_watch_count,
+                   COALESCE(MIN(ec.watch_count), 0) AS completed_watch_count
             FROM shows s
-            LEFT JOIN seasons sn ON sn.show_id = s.id
-            LEFT JOIN episodes e ON e.season_id = sn.id
-              AND sn.is_progress_counted = 1
-              AND e.air_date <= ?
-            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+            LEFT JOIN episode_counts ec ON ec.show_id = s.id
             WHERE s.id = ?
             GROUP BY s.id
             """,

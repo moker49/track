@@ -3642,6 +3642,8 @@ function applyShowProgress(data) {
   if (showCard) {
     showCard.dataset.watchedCount = data.watched_count;
     showCard.dataset.episodeCount = data.episode_count;
+    showCard.dataset.totalWatchCount = data.total_watch_count;
+    showCard.dataset.completedWatchCount = data.completed_watch_count;
     showCard.dataset.progress = data.percent;
     showCard.dataset.lastWatched = data.last_watched_at || "";
     showCard.querySelector("[data-card-progress-copy]").textContent =
@@ -3651,13 +3653,17 @@ function applyShowProgress(data) {
     cardProgress.querySelector("span").style.width = `${data.percent}%`;
     showCard.querySelector(".progress-copy strong").textContent = `${data.percent}%`;
     syncProgressState(showCard);
+    syncOverwatchTag(showCard, data);
   }
 
   const detailShow = document.querySelector(`[data-detail-show][data-show-id="${data.show_id}"]`);
   if (detailShow) {
     detailShow.dataset.watchedCount = data.watched_count;
     detailShow.dataset.episodeCount = data.episode_count;
+    detailShow.dataset.totalWatchCount = data.total_watch_count;
+    detailShow.dataset.completedWatchCount = data.completed_watch_count;
     syncProgressState(detailShow);
+    syncOverwatchTag(detailShow, data);
   }
   filterAllShowViews();
 }
@@ -4509,12 +4515,39 @@ catalogSearchSubmit?.addEventListener("click", performCatalogSearch);
 
 function updateProgress(progress, data) {
   if (!progress) return;
+  const totalWatchCount = data.total_watch_count ?? data.watched_count;
+  const percent = data.episode_count
+    ? Math.round((totalWatchCount / data.episode_count) * 100)
+    : 0;
   progress.querySelector("[data-progress-copy]").textContent =
-    `${data.watched_count}/${data.episode_count}`;
-  progress.querySelector("[data-progress-percent]").textContent = `${data.percent}%`;
+    `${totalWatchCount}/${data.episode_count}`;
+  progress.querySelector("[data-progress-percent]").textContent = `${percent}%`;
   const bar = progress.querySelector(".progress-track");
-  bar.setAttribute("aria-valuenow", data.percent);
-  bar.querySelector("span").style.width = `${data.percent}%`;
+  bar.setAttribute("aria-valuenow", percent);
+  bar.querySelector("span").style.width = `${Math.min(percent, 100)}%`;
+}
+
+function syncOverwatchTag(showElement, data) {
+  const tags = showElement.querySelector("[data-show-progress-tags]");
+  if (!tags) return;
+  const totalWatchCount = Number(data.total_watch_count ?? showElement.dataset.totalWatchCount ?? 0);
+  const episodeCount = Number(data.episode_count ?? showElement.dataset.episodeCount ?? 0);
+  const completedWatchCount = Number(
+    data.completed_watch_count ?? showElement.dataset.completedWatchCount ?? 0,
+  );
+  let tag = tags.querySelector("[data-overwatch-tag]");
+  const isOverwatching = totalWatchCount > episodeCount && completedWatchCount > 0;
+  if (!isOverwatching) {
+    tag?.remove();
+    return;
+  }
+  if (!tag) {
+    tag = document.createElement("span");
+    tag.className = "state-label overwatch-tag";
+    tag.dataset.overwatchTag = "";
+    tags.append(tag);
+  }
+  tag.textContent = `×${completedWatchCount}`;
 }
 
 function createVirtualTimelineSpacer(position) {

@@ -9,6 +9,7 @@
   data-progress="{{ percent }}" data-show-state="{{ show.state }}"
   data-show-status="{{ show.status or '' }}"
   data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
+  data-total-watch-count="{{ show.total_watch_count }}" data-completed-watch-count="{{ show.completed_watch_count }}"
   data-progress-state="{{ progress.css_state }}">
   <button class="show-card-open" type="button" data-show-open aria-label="Open {{ show.name }}">
     <div class="poster poster-purple{% if show.poster_path %} has-media-image{% endif %}" aria-hidden="true">
@@ -21,8 +22,11 @@
     </div>
     <div class="show-card-body">
       <div class="show-card-heading">
-        <div class="show-card-meta">
+        <div class="show-card-meta" data-show-progress-tags>
           <span class="state-label progress-tag" data-progress-tag>{{ progress.label }}</span>
+          {% if show.total_watch_count > show.episode_count and show.completed_watch_count %}
+          <span class="state-label overwatch-tag" data-overwatch-tag>×{{ show.completed_watch_count }}</span>
+          {% endif %}
         </div>
         <h3>{{ show.name }}</h3>
         <span class="show-card-year">{{ show.first_air_date[:4] }}</span>

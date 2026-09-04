@@ -1300,6 +1300,7 @@ html.app-booting .schedule-empty-reveal {
 .show-card-meta {
   display: flex;
   align-items: center;
+  gap: 6px;
 }
 
 .show-card-year {
@@ -1360,6 +1361,11 @@ html.app-booting .schedule-empty-reveal {
 .progress-tag {
   color: var(--progress-color);
   background: color-mix(in srgb, var(--progress-color) 18%, transparent);
+}
+
+.overwatch-tag {
+  color: var(--progress-complete);
+  background: color-mix(in srgb, var(--progress-complete) 18%, transparent);
 }
 
 .progress-copy {
@@ -1998,6 +2004,26 @@ html.app-booting .schedule-empty-reveal {
 
 .hero-copy {
   padding-top: 0;
+}
+
+.hero-progress-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.schedule-timeline-copy>strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.schedule-overwatch-tag {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  line-height: 1;
 }
 
 .hero h1 {

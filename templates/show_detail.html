@@ -6,6 +6,7 @@
   data-tmdb-refreshed-at="{{ show.tmdb_refreshed_at or '' }}"
   data-metadata-refresh-due="{{ 'true' if metadata_refresh_due else 'false' }}"
   data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
+  data-total-watch-count="{{ show.total_watch_count }}" data-completed-watch-count="{{ show.completed_watch_count }}"
   data-progress-state="{{ progress.css_state }}">
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back aria-label="Back">
@@ -50,8 +51,12 @@
       {% if show.poster_path %}
     </button>{% endif %}
     <div class="hero-copy">
-      {% if show.is_tracked %}<span class="state-label progress-tag" data-progress-tag>{{ progress.label }}</span>{% endif
-      %}
+      {% if show.is_tracked %}<div class="hero-progress-tags" data-show-progress-tags>
+        <span class="state-label progress-tag" data-progress-tag>{{ progress.label }}</span>
+        {% if show.total_watch_count > show.episode_count and show.completed_watch_count %}
+        <span class="state-label overwatch-tag" data-overwatch-tag>×{{ show.completed_watch_count }}</span>
+        {% endif %}
+      </div>{% endif %}
       <h1>{{ show.name }}</h1>
       <p>{{ show.first_air_date[:4] }} · {{ show.status }}<br>{{ show.genres }}</p>
     </div>
@@ -64,15 +69,16 @@
     </div>
 
     {% if show.is_tracked %}
-    {% set percent = ((show.watched_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
+    {% set percent = ((show.total_watch_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
+    {% set fill_percent = [percent, 100]|min %}
     <div class="detail-progress" data-progress-summary>
       <div class="progress-copy">
-        <span data-progress-copy>{{ show.watched_count }}/{{ show.episode_count }}</span>
+        <span data-progress-copy>{{ show.total_watch_count }}/{{ show.episode_count }}</span>
         <strong data-progress-percent>{{ percent }}%</strong>
       </div>
       <div class="progress-track" role="progressbar" aria-label="Show progress" aria-valuemin="0" aria-valuemax="100"
         aria-valuenow="{{ percent }}">
-        <span style="width: {{ percent }}%"></span>
+        <span style="width: {{ fill_percent }}%"></span>
       </div>
     </div>
     {% else %}

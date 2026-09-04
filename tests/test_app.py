@@ -676,6 +676,9 @@ class TrackAppTest(unittest.TestCase):
         next_rewatch = self.client.get("/api/schedule/shows/1/catch-up")
         self.assertEqual(next_rewatch.status_code, 200)
         self.assertIn(b'data-episode-id="2"', next_rewatch.data)
+        self.assertIn(b">8%</strong>", next_rewatch.data)
+        self.assertIn(b">1/13</span>", next_rewatch.data)
+        self.assertIn(b">+1</span>", next_rewatch.data)
 
         self.assertEqual(
             self.client.post(
@@ -686,6 +689,31 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(
             b'data-episode-id="3"',
             self.client.get("/api/schedule/shows/1/catch-up").data,
+        )
+
+    def test_show_detail_displays_total_watch_progress_and_overwatch_count(self):
+        connection = sqlite3.connect(self.database)
+        connection.executemany(
+            "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
+            [(episode_id, "2026-09-04T12:00:00+00:00") for episode_id in range(1, 14)],
+        )
+        connection.commit()
+        connection.close()
+
+        detail = self.client.get("/api/shows/1")
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn(b'data-total-watch-count="18"', detail.data)
+        self.assertIn(b">18/13</span>", detail.data)
+        self.assertIn(b">138%</strong>", detail.data)
+        self.assertIn(b'data-overwatch-tag>\xc3\x971</span>', detail.data)
+
+        home = self.client.get("/")
+        self.assertIn(
+            b'<div class="show-card-meta" data-show-progress-tags>\n'
+            b'          <span class="state-label progress-tag" data-progress-tag>Finished</span>\n'
+            b'          \n'
+            b'          <span class="state-label overwatch-tag" data-overwatch-tag>\xc3\x971</span>',
+            home.data,
         )
 
     def test_schedule_includes_archived_but_excludes_untracked_shows(self):

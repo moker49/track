@@ -25,12 +25,19 @@ def natural_title_key(value: str) -> tuple:
 def get_show_progress(db: sqlite3.Connection, show_id: int) -> sqlite3.Row:
     return db.execute(
         """
-        SELECT COUNT(DISTINCT e.id) AS episode_count,
-               COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count
-        FROM seasons sn
-        JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
-        LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
-        WHERE sn.show_id = ? AND sn.is_progress_counted = 1
+        WITH episode_counts AS (
+            SELECT e.id, COUNT(wh.id) AS watch_count
+            FROM seasons sn
+            JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
+            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+            WHERE sn.show_id = ? AND sn.is_progress_counted = 1
+            GROUP BY e.id
+        )
+        SELECT COUNT(*) AS episode_count,
+               COALESCE(SUM(CASE WHEN watch_count > 0 THEN 1 ELSE 0 END), 0) AS watched_count,
+               COALESCE(SUM(watch_count), 0) AS total_watch_count,
+               COALESCE(MIN(watch_count), 0) AS completed_watch_count
+        FROM episode_counts
         """,
         (show_id,),
     ).fetchone()
@@ -67,6 +74,8 @@ def watch_payload(
         "progress_state": presentation.state,
         "watched_count": watched_count,
         "episode_count": episode_count,
+        "total_watch_count": progress["total_watch_count"],
+        "completed_watch_count": progress["completed_watch_count"],
         "percent": round(watched_count / episode_count * 100) if episode_count else 0,
         "last_watched_at": db.execute(
             """
@@ -98,17 +107,24 @@ def get_library_show(
 ) -> sqlite3.Row | None:
     return db.execute(
         """
-        SELECT s.*,
-               COUNT(DISTINCT e.id) AS episode_count,
-               COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count,
-               MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
-                        THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
+        WITH episode_counts AS (
+            SELECT e.id AS episode_id, sn.show_id, COUNT(wh.id) AS watch_count,
+                   MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
+                            THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
+            FROM seasons sn
+            JOIN episodes e ON e.season_id = sn.id
+              AND sn.is_progress_counted = 1
+              AND e.air_date <= date('now')
+            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+            GROUP BY e.id
+        )
+        SELECT s.*, COUNT(ec.episode_id) AS episode_count,
+               COALESCE(SUM(CASE WHEN ec.watch_count > 0 THEN 1 ELSE 0 END), 0) AS watched_count,
+               COALESCE(SUM(ec.watch_count), 0) AS total_watch_count,
+               COALESCE(MIN(ec.watch_count), 0) AS completed_watch_count,
+               MAX(ec.last_watched_at) AS last_watched_at
         FROM shows s
-        LEFT JOIN seasons sn ON sn.show_id = s.id
-        LEFT JOIN episodes e ON e.season_id = sn.id
-          AND sn.is_progress_counted = 1
-          AND e.air_date <= date('now')
-        LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+        LEFT JOIN episode_counts ec ON ec.show_id = s.id
         WHERE s.id = ?
         GROUP BY s.id
         """,
@@ -145,13 +161,23 @@ def get_catch_up_episodes(
               AND e.air_date <= ?
             GROUP BY e.id
         ),
-        show_progress AS (
+        show_progress_base AS (
             SELECT show_id,
                    COUNT(*) AS episode_count,
                    SUM(CASE WHEN watch_count > 0 THEN 1 ELSE 0 END) AS watched_count,
+                   SUM(watch_count) AS total_watch_count,
+                   MIN(watch_count) AS completed_watch_count,
                    MAX(last_visible_watched_at) AS last_watched_at
             FROM episode_counts
             GROUP BY show_id
+        ),
+        show_progress AS (
+            SELECT progress.*,
+                   SUM(CASE WHEN ec.watch_count > progress.completed_watch_count THEN 1 ELSE 0 END)
+                       AS rewatch_watched_count
+            FROM show_progress_base progress
+            JOIN episode_counts ec ON ec.show_id = progress.show_id
+            GROUP BY progress.show_id
         ),
         normal_unresolved AS (
             SELECT ec.*, ROW_NUMBER() OVER (
@@ -203,7 +229,8 @@ def get_catch_up_episodes(
             WHERE episode_rank = 1
         )
         SELECT unresolved.*, show_progress.episode_count, show_progress.watched_count,
-               show_progress.last_watched_at
+               show_progress.total_watch_count, show_progress.completed_watch_count,
+               show_progress.rewatch_watched_count, show_progress.last_watched_at
         FROM unresolved
         JOIN show_progress ON show_progress.show_id = unresolved.show_id
         WHERE (? IS NULL OR unresolved.show_id = ?)
@@ -744,17 +771,24 @@ def get_tv_library_shows(
 ) -> tuple[list[sqlite3.Row], list[sqlite3.Row]]:
     shows = db.execute(
         """
-        SELECT s.*,
-               COUNT(DISTINCT e.id) AS episode_count,
-               COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count,
-               MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
-                        THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
+        WITH episode_counts AS (
+            SELECT e.id AS episode_id, sn.show_id, COUNT(wh.id) AS watch_count,
+                   MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
+                            THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
+            FROM seasons sn
+            JOIN episodes e ON e.season_id = sn.id
+              AND sn.is_progress_counted = 1
+              AND e.air_date <= date('now')
+            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+            GROUP BY e.id
+        )
+        SELECT s.*, COUNT(ec.episode_id) AS episode_count,
+               COALESCE(SUM(CASE WHEN ec.watch_count > 0 THEN 1 ELSE 0 END), 0) AS watched_count,
+               COALESCE(SUM(ec.watch_count), 0) AS total_watch_count,
+               COALESCE(MIN(ec.watch_count), 0) AS completed_watch_count,
+               MAX(ec.last_watched_at) AS last_watched_at
         FROM shows s
-        LEFT JOIN seasons sn ON sn.show_id = s.id
-        LEFT JOIN episodes e ON e.season_id = sn.id
-          AND sn.is_progress_counted = 1
-          AND e.air_date <= date('now')
-        LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+        LEFT JOIN episode_counts ec ON ec.show_id = s.id
         WHERE s.is_tracked = 1 AND s.state IN ('ACTIVE', 'ARCHIVED')
         GROUP BY s.id
         ORDER BY CASE s.state WHEN 'ACTIVE' THEN 0 ELSE 1 END, s.id ASC
