@@ -76,6 +76,7 @@ const imageViewerPreview = imageViewer?.querySelector("[data-image-viewer-previe
 const imageViewerImage = imageViewer?.querySelector("[data-image-viewer-image]");
 const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]");
 const menuScrim = document.querySelector("[data-menu-scrim]");
+const navigationDrawer = document.querySelector("[data-navigation-drawer]");
 const sharedDialogs = [removeDialog, finishedArchiveDialog, resumeShowDialog, datePicker].filter(Boolean);
 
 // Standard dialog contract: blurred backdrop, outside-click and Escape
@@ -358,7 +359,7 @@ function syncSearchTextPosition() {
 
 function syncGlobalSearch() {
   if (!globalSearchBar || !globalSearchInput) return;
-  const hasDedicatedAppBar = ["detail", "profile"].includes(currentView);
+  const hasDedicatedAppBar = ["detail", "diary", "statistics", "lists"].includes(currentView);
   globalSearchBar.hidden = hasDedicatedAppBar;
   if (hasDedicatedAppBar) return;
 
@@ -491,7 +492,7 @@ function selectProfileTab(tabName, { focus = false } = {}) {
 
 async function refreshDiaryContent() {
   if (diaryRequest) return diaryRequest;
-  const panel = views.get("profile")?.querySelector('[data-profile-panel="diary"]');
+  const panel = views.get("diary")?.querySelector("[data-diary-content]");
   if (!panel) return undefined;
   const requestedRevision = diaryRevision;
   panel.setAttribute("aria-busy", "true");
@@ -503,7 +504,7 @@ async function refreshDiaryContent() {
     panel.innerHTML = await response.text();
     renderedDiaryRevision = requestedRevision;
     initializeVirtualTimeline("diary", { force: true });
-    restoreTimelineScroll("diary", "profile");
+    restoreTimelineScroll("diary", "diary");
   })().catch(() => undefined).finally(() => {
     panel.removeAttribute("aria-busy");
     diaryRequest = null;
@@ -513,7 +514,7 @@ async function refreshDiaryContent() {
 
 async function refreshStatisticsContent() {
   if (statisticsRequest) return statisticsRequest;
-  const panel = views.get("profile")?.querySelector('[data-profile-panel="statistics"]');
+  const panel = views.get("statistics")?.querySelector("[data-statistics-content]");
   if (!panel) return undefined;
   const requestedRevision = diaryRevision;
   panel.setAttribute("aria-busy", "true");
@@ -628,7 +629,7 @@ function leaveProfile() {
 
 function restoreTimelineScroll(viewName, scrollKey = viewName, savedScrollY = null) {
   const state = virtualTimelines.get(viewName);
-  const expectedView = viewName === "diary" ? "profile" : viewName;
+  const expectedView = viewName;
   if (currentView !== expectedView || !state || !virtualTimelineIsVisible(state)) return;
   const targetScrollY = savedScrollY ?? scrollPositions[scrollKey] ?? 0;
   // Commit the virtual slice at the saved location synchronously. Deferring
@@ -680,10 +681,7 @@ function showView(viewName, historyMode = null) {
   // app bar at the Profile scroll offset, then shift it into place.
   window.scrollTo({ top: targetScrollY, behavior: "auto" });
 
-  updateActiveNav(viewName === "detail"
-    ? (detailParentView === "profile" ? profileParentView : detailParentView)
-    : viewName === "profile" ? profileParentView
-      : viewName);
+  updateActiveNav(viewName === "detail" ? detailParentView : viewName);
   currentView = viewName;
   const profileOpen = viewName === "profile";
   if (bottomChrome) bottomChrome.hidden = profileOpen;
@@ -700,10 +698,10 @@ function showView(viewName, historyMode = null) {
     restoreTimelineScroll(viewName, viewName, targetScrollY);
     guardTimelineScrollRestore(viewName, targetScrollY);
   }
-  if (viewName === "profile") {
+  if (viewName === "diary") {
     const diaryTimeline = initializeVirtualTimeline("diary");
     renderVirtualTimeline(diaryTimeline, true);
-    restoreTimelineScroll("diary", "profile", targetScrollY);
+    restoreTimelineScroll("diary", "diary", targetScrollY);
   }
   if (viewName === "tv") {
     window.requestAnimationFrame(() => {
@@ -719,13 +717,10 @@ function showView(viewName, historyMode = null) {
   if (viewName === "movies") {
     window.requestAnimationFrame(() => revealMoviesOnce(views.get("movies")));
   }
-  if (viewName === "profile" && renderedDiaryRevision !== diaryRevision) {
+  if (viewName === "diary" && renderedDiaryRevision !== diaryRevision) {
     refreshDiaryContent();
   }
-  if (viewName === "profile"
-    && views.get("profile")?.querySelector('[data-profile-tab="statistics"]')
-      ?.getAttribute("aria-selected") === "true"
-    && renderedStatisticsRevision !== diaryRevision) {
+  if (viewName === "statistics" && renderedStatisticsRevision !== diaryRevision) {
     refreshStatisticsContent();
   }
   const titles = {
@@ -734,7 +729,9 @@ function showView(viewName, historyMode = null) {
     tv: "TV · Track",
     movies: "Movies · Track",
     detail: "Track",
-    profile: "Profile · Track",
+    diary: "Diary · Track",
+    statistics: "Statistics · Track",
+    lists: "My lists · Track",
   };
   document.title = titles[viewName] || "Track";
   if (["backlog", "upcoming"].includes(viewName)) {
@@ -751,10 +748,7 @@ function showView(viewName, historyMode = null) {
     }
   }
   if (historyMode && viewName !== "detail") {
-    const state = viewName === "profile"
-      ? { view: viewName, parentView: profileParentView }
-      : { view: viewName };
-    writeHistory(state, historyMode);
+    writeHistory({ view: viewName }, historyMode);
   }
 }
 
@@ -2108,7 +2102,7 @@ async function openShow(
   returnContext = null,
 ) {
   const cacheKey = String(showId);
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "profile"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "lists"].includes(parentView)
     ? parentView
     : "backlog";
   if (historyMode) {
@@ -2209,7 +2203,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
 }
 
 async function openMovie(movieId, parentView = "movies", historyMode = "push") {
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "profile"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "lists"].includes(parentView)
     ? parentView : "movies";
   if (historyMode) {
     writeHistory({ view: "detail", detailType: "movie", movieId: String(movieId), parentView: detailParentView }, historyMode);
@@ -3448,6 +3442,21 @@ function maybeOpenFinishedArchiveDialog(data) {
   openSharedDialog(finishedArchiveDialog);
 }
 
+function closeNavigationDrawer() {
+  if (!navigationDrawer || navigationDrawer.hidden) return;
+  navigationDrawer.hidden = true;
+  syncMenuScrim();
+}
+
+function openNavigationDrawer() {
+  if (!navigationDrawer) return;
+  closeShowMenus();
+  closeWatchMenus();
+  closeTvDropdowns();
+  navigationDrawer.hidden = false;
+  syncMenuScrim();
+}
+
 function requestShowResume(data, onResume) {
   if (!resumeShowDialog || resumeShowDialog.open) return;
   pendingResumeShow = {
@@ -3792,6 +3801,7 @@ document.addEventListener("pointerdown", (event) => {
 
 document.addEventListener("click", (event) => {
   if (event.target.closest("[data-menu-scrim]")) {
+    closeNavigationDrawer();
     closeShowMenus();
     closeWatchMenus();
     closeWatchLogMenus();
@@ -3819,8 +3829,8 @@ document.addEventListener("click", (event) => {
 
   const statisticsShow = event.target.closest("[data-stats-show-open]");
   if (statisticsShow) {
-    detailParentView = "profile";
-    openShow(statisticsShow.dataset.statsShowOpen, "profile");
+    detailParentView = "statistics";
+    openShow(statisticsShow.dataset.statsShowOpen, "statistics");
     return;
   }
 
@@ -3856,7 +3866,7 @@ document.addEventListener("click", (event) => {
 
   const scheduleEpisodeOpen = event.target.closest("[data-schedule-episode-open]");
   if (scheduleEpisodeOpen) {
-    detailParentView = ["upcoming", "profile"].includes(currentView)
+    detailParentView = ["upcoming", "diary"].includes(currentView)
       ? currentView
       : "backlog";
     openEpisode(scheduleEpisodeOpen.closest("[data-episode-id]").dataset.episodeId);
@@ -4097,7 +4107,7 @@ document.addEventListener("click", (event) => {
   const scheduleMovieOpen = event.target.closest("[data-schedule-movie-open]");
   if (scheduleMovieOpen) {
     const card = scheduleMovieOpen.closest("[data-schedule-card]");
-    const parentView = currentView === "profile" ? "profile" : "upcoming";
+    const parentView = currentView === "diary" ? "diary" : "upcoming";
     detailParentView = parentView;
     openMovie(card.dataset.movieId, parentView, "push");
     return;
@@ -4107,7 +4117,7 @@ document.addEventListener("click", (event) => {
   if (scheduleShowOpen) {
     const card = scheduleShowOpen.closest("[data-schedule-card]");
     const openSeasonIds = card.dataset.seasonIds.split(",").filter(Boolean);
-    const parentView = currentView === "profile" ? "profile" : "upcoming";
+    const parentView = currentView === "diary" ? "diary" : "upcoming";
     detailParentView = parentView;
     openShow(card.dataset.showId, parentView, true, "push", {
       openSeasonIds,
@@ -4312,6 +4322,41 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  if (event.target.closest("[data-search-menu]")) {
+    openNavigationDrawer();
+    return;
+  }
+
+  if (event.target.closest("[data-navigation-drawer-close]")) {
+    closeNavigationDrawer();
+    return;
+  }
+
+  const drawerView = event.target.closest("[data-drawer-view]");
+  if (drawerView) {
+    closeNavigationDrawer();
+    showView(drawerView.dataset.drawerView, "push");
+    return;
+  }
+
+  const listFilter = event.target.closest("[data-list-filter]");
+  if (listFilter) {
+    document.querySelectorAll("[data-list-filter]").forEach((filter) => {
+      const selected = filter === listFilter;
+      filter.classList.toggle("is-selected", selected);
+      filter.setAttribute("aria-pressed", String(selected));
+    });
+    return;
+  }
+
+  const reactionToggle = event.target.closest("[data-reaction-toggle]");
+  if (reactionToggle) {
+    const selected = reactionToggle.getAttribute("aria-pressed") !== "true";
+    reactionToggle.setAttribute("aria-pressed", String(selected));
+    reactionToggle.classList.toggle("is-selected", selected);
+    return;
+  }
+
   if (event.target.closest("[data-cancel-resume-show]")) {
     resumeShowDialog.close();
     pendingResumeShow = null;
@@ -4401,6 +4446,7 @@ document.addEventListener("keydown", (event) => {
     if (event.key !== " " || !event.target.closest("button")) event.preventDefault();
   }
   if (event.key === "Escape" && menuScrim && !menuScrim.hidden) {
+    closeNavigationDrawer();
     closeShowMenus();
     closeWatchMenus();
     closeTvDropdowns();
@@ -5015,9 +5061,8 @@ window.addEventListener("scroll", () => {
   }
   if (["backlog", "upcoming"].includes(currentView)) {
     scheduleVirtualTimelineRender(virtualTimelines.get(currentView));
-  } else if (currentView === "profile"
-    && !views.get("profile")?.querySelector('[data-profile-panel="diary"]')?.hidden) {
-    scrollPositions.profile = window.scrollY;
+  } else if (currentView === "diary") {
+    scrollPositions.diary = window.scrollY;
     scheduleVirtualTimelineRender(virtualTimelines.get("diary"));
   }
   const currentScrollY = window.scrollY;
@@ -5029,7 +5074,6 @@ window.addEventListener("scroll", () => {
     lastEpisodeDetailScrollY = currentScrollY;
     return;
   }
-  if (currentView === "profile") keepProfileChromeAtViewportEdge();
 }, { passive: true });
 const finishInitialSearchTextPosition = () => {
   syncSearchTextPosition();
@@ -5114,25 +5158,13 @@ function restoreHistoryState(state) {
 
   const legacyViews = { schedule: "backlog", watching: "tv", archive: "tv", discover: "tv" };
   const restoredView = legacyViews[state.view] || state.view;
-  if (restoredView === "profile") {
-    const restoredParent = legacyViews[state.parentView] || state.parentView;
-    profileParentView = ["backlog", "upcoming", "tv", "movies"].includes(restoredParent)
-      ? restoredParent
-      : "backlog";
-    showView("profile");
-    return;
-  }
   if (restoredView !== "detail") {
-    if (currentView === "profile") {
-      transitionProfileView(() => showView(restoredView), "return");
-    } else {
-      showView(restoredView);
-    }
+    showView(restoredView);
     return;
   }
 
   const restoredParent = legacyViews[state.parentView] || state.parentView;
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "profile"].includes(restoredParent)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "lists"].includes(restoredParent)
     ? restoredParent
     : "backlog";
   if (state.detailType === "show" && state.showId) {

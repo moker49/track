@@ -69,6 +69,11 @@
     </div>
 
     {% if show.is_tracked %}
+    <div class="reaction-button-group" role="group" aria-label="Your reactions to {{ show.name }}">
+      <button type="button" data-reaction-toggle="liked" aria-pressed="false"><span class="material-symbols-rounded" aria-hidden="true">favorite</span><span>Like</span></button>
+      <button type="button" data-reaction-toggle="favorite" aria-pressed="false"><span class="material-symbols-rounded" aria-hidden="true">star</span><span>Favorite</span></button>
+      <button type="button" data-reaction-toggle="watch-again" aria-pressed="false"><span class="material-symbols-rounded" aria-hidden="true">replay</span><span>Watch again</span></button>
+    </div>
     {% set percent = ((show.total_watch_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
     {% set fill_percent = [percent, 100]|min %}
     <div class="detail-progress" data-progress-summary>

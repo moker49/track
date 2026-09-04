@@ -21,9 +21,7 @@
         <span class="material-symbols-rounded" aria-hidden="true">search</span>
       </button>
     </form>
-    <button class="icon-button top-bar-action" type="button" data-search-profile aria-label="Profile">
-      <span class="material-symbols-rounded is-filled" aria-hidden="true">account_circle</span>
-    </button>
+    <span aria-hidden="true"></span>
     <button class="icon-button top-bar-action" type="button" data-clear-search aria-label="Clear search" hidden>
       <span class="material-symbols-rounded" aria-hidden="true">close</span>
     </button>
@@ -49,35 +47,36 @@
 
 <section class="app-view" data-view="detail" aria-label="Show details" aria-live="polite" hidden></section>
 
-<section class="app-view profile-view" data-view="profile" aria-label="Profile" hidden>
-  <div class="profile-top-app-bar">
-    <div class="profile-title-row">
-      <button class="icon-button" type="button" data-profile-back aria-label="Back">
-        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
-      </button>
-      <h1>Profile</h1>
-    </div>
-    <div class="profile-tabs" role="tablist" aria-label="Profile sections">
-      <button type="button" role="tab" id="profile-tab-diary" aria-selected="true"
-        aria-controls="profile-panel-diary" data-profile-tab="diary">
-        <span class="material-symbols-rounded" aria-hidden="true">menu_book</span>
-        <span>Diary</span>
-      </button>
-      <button type="button" role="tab" id="profile-tab-statistics" aria-selected="false"
-        aria-controls="profile-panel-statistics" data-profile-tab="statistics" tabindex="-1">
-        <span class="material-symbols-rounded" aria-hidden="true">bar_chart</span>
-        <span>Statistics</span>
-      </button>
-    </div>
+<section class="app-view utility-view" data-view="diary" aria-label="Diary" hidden>
+  <header class="utility-app-bar">
+    <button class="icon-button" type="button" data-search-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
+    <h1>Diary</h1>
+  </header>
+  <section data-diary-content>{% include "_diary_content.html" %}</section>
+</section>
+
+<section class="app-view utility-view" data-view="statistics" aria-label="Statistics" hidden>
+  <header class="utility-app-bar">
+    <button class="icon-button" type="button" data-search-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
+    <h1>Statistics</h1>
+  </header>
+  <section data-statistics-content>{% include "_statistics_content.html" %}</section>
+</section>
+
+<section class="app-view utility-view lists-view" data-view="lists" aria-label="My lists" hidden>
+  <header class="utility-app-bar">
+    <button class="icon-button" type="button" data-search-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
+    <h1>My lists</h1>
+  </header>
+  <div class="list-filter-chips" role="group" aria-label="List filters">
+    <button type="button" class="is-selected" data-list-filter="liked" aria-pressed="true">Liked</button>
+    <button type="button" data-list-filter="favorite" aria-pressed="false">Favorites</button>
+    <button type="button" data-list-filter="watch-again" aria-pressed="false">Watch again</button>
   </div>
-  <section class="profile-tab-panel" id="profile-panel-diary" role="tabpanel"
-    aria-labelledby="profile-tab-diary" data-profile-panel="diary">
-    {% include "_diary_content.html" %}
-  </section>
-  <section class="profile-tab-panel" id="profile-panel-statistics" role="tabpanel"
-    aria-labelledby="profile-tab-statistics" data-profile-panel="statistics" hidden>
-    {% include "_statistics_content.html" %}
-  </section>
+  <div class="lists-empty-state">
+    <span class="material-symbols-rounded" aria-hidden="true">bookmark</span>
+    <p>Your lists will appear here.</p>
+  </div>
 </section>
 
 <template id="detail-loading-template">
