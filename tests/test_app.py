@@ -209,7 +209,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('style.setProperty("--search-text-centered-inset"', javascript)
         self.assertIn('classList.add("search-text-positioned")', javascript)
         self.assertIn("function openNavigationDrawer()", javascript)
-        self.assertIn("function closeNavigationDrawer()", javascript)
+        self.assertIn("function closeNavigationDrawer({ preserveHistory = false } = {})", javascript)
         self.assertIn('showView(drawerView.dataset.drawerView, "push")', javascript)
         self.assertIn('data-reaction-toggle', javascript)
 

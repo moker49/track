@@ -63,6 +63,8 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
             page.locator('[data-view="statistics"]').wait_for(state="visible")
             self.assertTrue(page.locator('.stats-overview-card').is_visible())
             self.assertTrue(page.locator('.stats-ranking-list').is_visible())
+            page.locator('[data-utility-back]').click()
+            page.locator('[data-view="tv"]').wait_for(state="visible")
             page.locator('[data-search-menu]').click()
             page.locator('[data-drawer-view="lists"]').click()
             page.locator('[data-view="lists"]').wait_for(state="visible")

@@ -49,7 +49,7 @@
 
 <section class="app-view utility-view" data-view="diary" aria-label="Diary" hidden>
   <header class="utility-app-bar">
-    <button class="icon-button" type="button" data-search-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
+    <button class="icon-button" type="button" data-utility-back aria-label="Back"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button>
     <h1>Diary</h1>
   </header>
   <section data-diary-content>{% include "_diary_content.html" %}</section>
@@ -57,21 +57,23 @@
 
 <section class="app-view utility-view" data-view="statistics" aria-label="Statistics" hidden>
   <header class="utility-app-bar">
-    <button class="icon-button" type="button" data-search-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
+    <button class="icon-button" type="button" data-utility-back aria-label="Back"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button>
     <h1>Statistics</h1>
   </header>
   <section data-statistics-content>{% include "_statistics_content.html" %}</section>
 </section>
 
 <section class="app-view utility-view lists-view" data-view="lists" aria-label="My lists" hidden>
-  <header class="utility-app-bar">
-    <button class="icon-button" type="button" data-search-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
-    <h1>My lists</h1>
-  </header>
-  <div class="list-filter-chips" role="group" aria-label="List filters">
-    <button type="button" class="is-selected" data-list-filter="liked" aria-pressed="true">Liked</button>
-    <button type="button" data-list-filter="favorite" aria-pressed="false">Favorites</button>
-    <button type="button" data-list-filter="watch-again" aria-pressed="false">Watch again</button>
+  <div class="lists-top-chrome">
+    <header class="utility-app-bar">
+      <button class="icon-button" type="button" data-utility-back aria-label="Back"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button>
+      <h1>My lists</h1>
+    </header>
+    <div class="list-filter-chips" role="group" aria-label="List filters">
+      <button type="button" class="is-selected" data-list-filter="liked" aria-pressed="true">Liked</button>
+      <button type="button" data-list-filter="favorite" aria-pressed="false">Favorites</button>
+      <button type="button" data-list-filter="watch-again" aria-pressed="false">Watch again</button>
+    </div>
   </div>
   <div class="lists-empty-state">
     <span class="material-symbols-rounded" aria-hidden="true">bookmark</span>

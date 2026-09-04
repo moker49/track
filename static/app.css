@@ -2096,21 +2096,40 @@ html.app-booting .schedule-empty-reveal {
   font-weight: 500;
 }
 
-.list-filter-chips {
-  padding: 12px 16px 8px;
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
+.utility-view:not(.lists-view) .utility-app-bar {
+  border-bottom: 1px solid var(--outline-soft);
 }
 
-.list-filter-chips::-webkit-scrollbar {
-  display: none;
+.lists-top-chrome {
+  position: sticky;
+  z-index: 10;
+  top: 0;
+  border-bottom: 1px solid var(--outline-soft);
+  background: var(--nav-surface);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.lists-top-chrome .utility-app-bar {
+  position: relative;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.list-filter-chips {
+  width: 100%;
+  padding: 0 12px 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .list-filter-chips button {
+  width: 100%;
   min-height: 40px;
-  padding: 0 16px;
+  min-width: 0;
+  padding: 0 8px;
   border: 1px solid var(--outline-soft);
   border-radius: 999px;
   color: var(--on-surface-muted);
@@ -2147,11 +2166,10 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .reaction-button-group {
-  border: 1px solid var(--outline-soft);
-  border-radius: var(--radius-md);
+  width: 100%;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  overflow: hidden;
+  gap: 4px;
 }
 
 .reaction-button-group button {
@@ -2159,13 +2177,13 @@ html.app-booting .schedule-empty-reveal {
   min-height: 52px;
   padding: 6px 4px;
   border: 0;
-  border-right: 1px solid var(--outline-soft);
+  border-radius: 12px;
   display: grid;
   grid-template-columns: 1fr;
   place-items: center;
   gap: 2px;
-  color: var(--on-surface-muted);
-  background: transparent;
+  color: var(--on-surface);
+  background: var(--primary-light);
   font: inherit;
   font-size: .72rem;
   font-weight: 500;
@@ -2173,13 +2191,20 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .reaction-button-group button:last-child {
-  border-right: 0;
+  border-start-end-radius: 24px;
+  border-end-end-radius: 24px;
+}
+
+.reaction-button-group button:first-child {
+  border-start-start-radius: 24px;
+  border-end-start-radius: 24px;
 }
 
 .reaction-button-group button.is-selected,
 .reaction-button-group button[aria-pressed="true"] {
-  color: var(--primary-dark);
-  background: var(--primary-light);
+  border-radius: 24px;
+  color: var(--on-primary);
+  background: var(--primary);
 }
 
 .reaction-button-group button[aria-pressed="true"] .material-symbols-rounded {

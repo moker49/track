@@ -199,6 +199,7 @@ let movieSearchComplete = false;
 let movieSearchError = "";
 let tvLayoutTransitionTimer = null;
 let tvDropdownHistoryActive = false;
+let navigationDrawerHistoryActive = false;
 let searchHistoryActive = false;
 let searchHistoryView = null;
 let searchHistoryClosing = false;
@@ -3442,17 +3443,26 @@ function maybeOpenFinishedArchiveDialog(data) {
   openSharedDialog(finishedArchiveDialog);
 }
 
-function closeNavigationDrawer() {
+function closeNavigationDrawer({ preserveHistory = false } = {}) {
   if (!navigationDrawer || navigationDrawer.hidden) return;
   navigationDrawer.hidden = true;
+  if (navigationDrawerHistoryActive && !preserveHistory) {
+    navigationDrawerHistoryActive = false;
+    if (window.history.state?.navigationDrawerOpen) window.history.back();
+  }
   syncMenuScrim();
 }
 
 function openNavigationDrawer() {
-  if (!navigationDrawer) return;
+  if (!navigationDrawer || !navigationDrawer.hidden) return;
   closeShowMenus();
   closeWatchMenus();
   closeTvDropdowns();
+  navigationDrawerHistoryActive = true;
+  window.history.pushState(
+    { ...window.history.state, trackApp: true, navigationDrawerOpen: true },
+    "",
+  );
   navigationDrawer.hidden = false;
   syncMenuScrim();
 }
@@ -4334,8 +4344,17 @@ document.addEventListener("click", (event) => {
 
   const drawerView = event.target.closest("[data-drawer-view]");
   if (drawerView) {
-    closeNavigationDrawer();
+    closeNavigationDrawer({ preserveHistory: true });
     showView(drawerView.dataset.drawerView, "push");
+    return;
+  }
+
+  if (event.target.closest("[data-utility-back]")) {
+    if (window.history.state?.trackApp && window.history.state.view === currentView) {
+      window.history.back();
+    } else {
+      showView("backlog");
+    }
     return;
   }
 
@@ -4555,9 +4574,9 @@ function createVirtualTimelineSpacer(position) {
 }
 
 function initializeVirtualTimeline(viewName, { force = false } = {}) {
-  const view = viewName === "diary" ? views.get("profile") : views.get(viewName);
+  const view = views.get(viewName);
   const panel = viewName === "diary"
-    ? view?.querySelector('[data-profile-panel="diary"]')
+    ? view?.querySelector("[data-diary-content]")
     : view?.querySelector("[data-schedule-panel]");
   const container = viewName === "backlog"
     ? panel?.querySelector("[data-catch-up-list]")
@@ -5152,6 +5171,11 @@ window.addEventListener("resize", () => {
 
 function restoreHistoryState(state) {
   if (!state?.trackApp) return;
+  if (navigationDrawerHistoryActive || state.navigationDrawerOpen) {
+    navigationDrawerHistoryActive = false;
+    if (navigationDrawer) navigationDrawer.hidden = true;
+    syncMenuScrim();
+  }
   closeShowMenus();
   closeWatchMenus();
   if (detailRequest) detailRequest.abort();
