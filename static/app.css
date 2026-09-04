@@ -2011,6 +2011,14 @@ html.navigation-drawer-closing .menu-scrim {
   margin: 0;
 }
 
+.lists-results {
+  padding: 16px;
+}
+
+.lists-media-list {
+  padding: 0;
+}
+
 .reaction-button-group {
   width: 100%;
   display: grid;

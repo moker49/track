@@ -70,10 +70,10 @@
       <button type="button" data-list-filter="watch-again" aria-pressed="false">Watch again</button>
     </div>
   </div>
-  <div class="lists-empty-state">
-    <span class="material-symbols-rounded" aria-hidden="true">bookmark</span>
-    <p>Your lists will appear here.</p>
-  </div>
+  <section class="lists-results" data-lists-content>
+    {% set reaction = "liked" %}{% set shows = reaction_shows %}{% set movies = reaction_movies %}
+    {% include "_reaction_list.html" %}
+  </section>
 </section>
 
 <template id="detail-loading-template">

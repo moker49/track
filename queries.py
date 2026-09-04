@@ -846,6 +846,18 @@ def get_movie_library(db: sqlite3.Connection) -> list[sqlite3.Row]:
     return movies
 
 
+def get_reaction_media(
+    db: sqlite3.Connection, reaction: str
+) -> tuple[list[sqlite3.Row], list[sqlite3.Row]]:
+    column = {"liked": "liked", "favorite": "is_favorite", "watch-again": "watch_again"}.get(reaction)
+    if column is None:
+        raise ValueError(f"Unknown reaction: {reaction}")
+    active_shows, archived_shows = get_tv_library_shows(db)
+    shows = [show for show in (*active_shows, *archived_shows) if show[column]]
+    movies = [movie for movie in get_movie_library(db) if movie[column]]
+    return shows, movies
+
+
 def get_movie_activity(db: sqlite3.Connection, movie_id: int) -> list[sqlite3.Row]:
     return db.execute(
         f"""

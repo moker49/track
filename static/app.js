@@ -3171,38 +3171,60 @@ function updateMovieWatchUi(detailMovie, watchCount) {
   control.querySelector("[data-movie-detail-watch-label]").textContent = watchCount === 1 ? "watch" : "watches";
 }
 
-function updateMovieLikeUi(detailMovie, liked) {
-  detailMovie.dataset.liked = String(liked);
-  const button = detailMovie.querySelector("[data-movie-like]");
-  if (!button) return;
-  button.classList.toggle("is-liked", liked);
-  button.setAttribute("aria-pressed", String(liked));
-  button.setAttribute("aria-label", `${liked ? "Unlike" : "Like"} ${detailMovie.dataset.detailTitle}`);
-  button.querySelector(".material-symbols-rounded")?.classList.toggle("is-filled", liked);
+function reactionDatasetKey(reaction) {
+  return reaction === "watch-again" ? "watchAgain" : reaction;
 }
 
-async function toggleMovieLike(detailMovie) {
-  const liked = detailMovie.dataset.liked !== "true";
-  const button = detailMovie.querySelector("[data-movie-like]");
-  if (!button) return;
+async function refreshReactionList(reaction) {
+  const panel = views.get("lists")?.querySelector("[data-lists-content]");
+  if (!panel) return;
+  panel.setAttribute("aria-busy", "true");
+  try {
+    const response = await fetch(`/api/lists/${reaction}`, {
+      headers: { "X-Requested-With": "Track" },
+    });
+    if (!response.ok) throw new Error("Could not load this list");
+    panel.innerHTML = await response.text();
+    formatDisplayDates(panel);
+    inspectMediaImages(panel);
+  } catch (error) {
+    showSnackbar(error.message || "Couldn't load this list.");
+  } finally {
+    panel.removeAttribute("aria-busy");
+  }
+}
+
+async function toggleMediaReaction(button) {
+  const detail = button.closest("[data-detail-show], [data-detail-movie]");
+  if (!detail) return;
+  const reaction = button.dataset.reactionToggle;
+  const selected = button.getAttribute("aria-pressed") !== "true";
+  const isMovie = detail.matches("[data-detail-movie]");
+  const mediaId = isMovie ? detail.dataset.movieId : detail.dataset.showId;
+  if (!mediaId) return;
   button.disabled = true;
   try {
-    const movieId = detailMovie.dataset.movieId;
-    const endpoint = movieId
-      ? `/api/movies/${movieId}/liked`
-      : `/api/movies/tmdb/${detailMovie.dataset.tmdbId}/liked`;
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ liked }),
-    });
+    const response = await fetch(
+      `/api/${isMovie ? "movies" : "shows"}/${mediaId}/reactions/${reaction}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selected }),
+      },
+    );
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Could not update like");
-    if (!movieId) detailMovie.dataset.movieId = String(data.movie_id);
-    updateMovieLikeUi(detailMovie, data.liked);
-    movieDetailCache.delete(String(data.movie_id));
+    if (!response.ok) throw new Error(data.error || "Could not update reaction");
+    detail.dataset[reactionDatasetKey(reaction)] = String(data.selected);
+    button.setAttribute("aria-pressed", String(data.selected));
+    button.classList.toggle("is-selected", data.selected);
+    if (isMovie) movieDetailCache.delete(String(mediaId));
+    else showDetailCache.delete(String(mediaId));
+    if (currentView === "lists") {
+      const activeReaction = document.querySelector('[data-list-filter][aria-pressed="true"]')?.dataset.listFilter;
+      if (activeReaction) refreshReactionList(activeReaction);
+    }
   } catch (error) {
-    showSnackbar(error.message || "Couldn't update like.");
+    showSnackbar(error.message || "Couldn't update reaction.");
   } finally {
     button.disabled = false;
   }
@@ -4112,13 +4134,6 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const movieLikeButton = event.target.closest("[data-movie-like]");
-  if (movieLikeButton) {
-    const detailMovie = movieLikeButton.closest("[data-detail-movie]");
-    if (detailMovie) toggleMovieLike(detailMovie);
-    return;
-  }
-
   const movieMenuButton = event.target.closest("[data-movie-menu-button]");
   if (movieMenuButton) {
     toggleMovieMenu(movieMenuButton);
@@ -4287,14 +4302,13 @@ document.addEventListener("click", (event) => {
       filter.classList.toggle("is-selected", selected);
       filter.setAttribute("aria-pressed", String(selected));
     });
+    refreshReactionList(listFilter.dataset.listFilter);
     return;
   }
 
   const reactionToggle = event.target.closest("[data-reaction-toggle]");
   if (reactionToggle) {
-    const selected = reactionToggle.getAttribute("aria-pressed") !== "true";
-    reactionToggle.setAttribute("aria-pressed", String(selected));
-    reactionToggle.classList.toggle("is-selected", selected);
+    toggleMediaReaction(reactionToggle);
     return;
   }
 

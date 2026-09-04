@@ -700,6 +700,36 @@ class TrackAppTest(unittest.TestCase):
             home.data,
         )
 
+    def test_media_reactions_persist_and_feed_the_builtin_lists(self):
+        show_response = self.client.post(
+            "/api/shows/1/reactions/watch-again", json={"selected": True}
+        )
+        self.assertEqual(show_response.status_code, 200)
+        self.assertTrue(show_response.get_json()["selected"])
+        self.assertIn(
+            b'data-reaction-toggle="watch-again" aria-pressed="true"',
+            self.client.get("/api/shows/1").data,
+        )
+
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            "INSERT INTO movies (tmdb_id, title, is_tracked, added_at) VALUES (?, ?, 1, ?)",
+            (901001, "Reaction Test Movie", "2026-09-04T12:00:00+00:00"),
+        )
+        movie_id = connection.execute(
+            "SELECT id FROM movies WHERE tmdb_id = ?", (901001,)
+        ).fetchone()[0]
+        connection.commit()
+        connection.close()
+
+        movie_response = self.client.post(
+            f"/api/movies/{movie_id}/reactions/favorite", json={"selected": True}
+        )
+        self.assertEqual(movie_response.status_code, 200)
+        self.assertTrue(movie_response.get_json()["selected"])
+        self.assertIn(b"Reaction Test Movie", self.client.get("/api/lists/favorite").data)
+        self.assertIn(b"Active Test Show", self.client.get("/api/lists/watch-again").data)
+
     def test_schedule_includes_archived_but_excludes_untracked_shows(self):
         connection = sqlite3.connect(self.database)
         connection.executemany(

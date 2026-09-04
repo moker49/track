@@ -28,6 +28,7 @@ from queries import (
     get_diary_page,
     get_library_show,
     get_movie_library,
+    get_reaction_media,
     get_movie_activity,
     get_show_progress,
     watch_payload,
@@ -206,6 +207,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         local_date = request_local_date()
         active_shows, archived_shows = get_tv_library_shows(db)
         movies = get_movie_library(db)
+        reaction_shows, reaction_movies = get_reaction_media(db, "liked")
         diary_entries, diary_has_more = get_diary_page(db, page_size=None)
         return render_template(
             "index.html",
@@ -218,6 +220,8 @@ def create_app(test_config: dict | None = None) -> Flask:
             active_shows=active_shows,
             archived_shows=archived_shows,
             movies=movies,
+            reaction_shows=reaction_shows,
+            reaction_movies=reaction_movies,
         )
 
     @app.get("/api/tv")
@@ -232,6 +236,14 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.get("/api/movies")
     def movies_fragment():
         return render_template("movies.html", movies=get_movie_library(get_db()))
+
+    @app.get("/api/lists/<reaction>")
+    def reaction_list_fragment(reaction: str):
+        try:
+            shows, movies = get_reaction_media(get_db(), reaction)
+        except ValueError:
+            abort(404)
+        return render_template("_reaction_list.html", reaction=reaction, shows=shows, movies=movies)
 
     @app.get("/api/schedule")
     def schedule_fragment():
@@ -400,6 +412,28 @@ def create_app(test_config: dict | None = None) -> Flask:
         if movie is None:
             abort(404)
         return render_template("movie_detail.html", movie=movie, activity=get_movie_activity(get_db(), movie_id))
+
+    def update_media_reaction(table: str, media_id: int, reaction: str):
+        column = {"liked": "liked", "favorite": "is_favorite", "watch-again": "watch_again"}.get(reaction)
+        if column is None:
+            abort(404)
+        selected = bool((request.get_json(silent=True) or {}).get("selected"))
+        cursor = get_db().execute(
+            f"UPDATE {table} SET {column} = ?, updated_at = ? WHERE id = ? AND is_tracked = 1",
+            (int(selected), utc_now(), media_id),
+        )
+        if cursor.rowcount == 0:
+            return jsonify(error="Media not found"), 404
+        get_db().commit()
+        return jsonify(media_id=media_id, reaction=reaction, selected=selected)
+
+    @app.post("/api/shows/<int:show_id>/reactions/<reaction>")
+    def set_show_reaction(show_id: int, reaction: str):
+        return update_media_reaction("shows", show_id, reaction)
+
+    @app.post("/api/movies/<int:movie_id>/reactions/<reaction>")
+    def set_movie_reaction(movie_id: int, reaction: str):
+        return update_media_reaction("movies", movie_id, reaction)
 
     @app.post("/api/movies/<int:movie_id>/liked")
     def set_movie_liked(movie_id: int):

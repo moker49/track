@@ -40,7 +40,10 @@ def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None
     # table, so keep existing personal libraries compatible with new fields.
     for table, column, definition in (
         ("shows", "liked", "INTEGER NOT NULL DEFAULT 0 CHECK (liked IN (0, 1))"),
+        ("shows", "watch_again", "INTEGER NOT NULL DEFAULT 0 CHECK (watch_again IN (0, 1))"),
         ("movies", "liked", "INTEGER NOT NULL DEFAULT 0 CHECK (liked IN (0, 1))"),
+        ("movies", "is_favorite", "INTEGER NOT NULL DEFAULT 0 CHECK (is_favorite IN (0, 1))"),
+        ("movies", "watch_again", "INTEGER NOT NULL DEFAULT 0 CHECK (watch_again IN (0, 1))"),
         ("episode_watch_history", "show_in_diary", "INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))"),
         ("season_watch_history", "show_in_diary", "INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))"),
         ("movie_watch_history", "show_in_diary", "INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))"),
