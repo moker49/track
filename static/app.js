@@ -540,12 +540,12 @@ function animateUtilityEntry(view) {
   );
 }
 
-function showView(viewName, historyMode = null) {
+function showView(viewName, historyMode = null, { animateUtility = true } = {}) {
   if (!views.has(viewName) || viewName === currentView) return;
 
   const previousView = views.get(currentView);
   const enteringUtility = views.get(viewName)?.classList.contains("utility-view");
-  if (previousView?.classList.contains("utility-view")) animateUtilityExit(previousView);
+  if (animateUtility && previousView?.classList.contains("utility-view")) animateUtilityExit(previousView);
 
   if (currentView === "backlog" && viewName !== "backlog") {
     clearCaughtUpScheduleItems();
@@ -620,7 +620,9 @@ function showView(viewName, historyMode = null) {
   if (viewName === "statistics" && renderedStatisticsRevision === diaryRevision) {
     revealStatisticsOnce(views.get("statistics"));
   }
-  if (enteringUtility) window.requestAnimationFrame(() => animateUtilityEntry(views.get(viewName)));
+  if (animateUtility && enteringUtility) {
+    window.requestAnimationFrame(() => animateUtilityEntry(views.get(viewName)));
+  }
   const titles = {
     backlog: "Queue · Track",
     upcoming: "Upcoming · Track",
@@ -5102,7 +5104,7 @@ function restoreHistoryState(state) {
   const legacyViews = { schedule: "backlog", watching: "tv", archive: "tv", discover: "tv" };
   const restoredView = legacyViews[state.view] || state.view;
   if (restoredView !== "detail") {
-    showView(restoredView);
+    showView(restoredView, null, { animateUtility: false });
     return;
   }
 

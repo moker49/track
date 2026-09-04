@@ -2017,6 +2017,96 @@ html.navigation-drawer-closing .menu-scrim {
 
 .lists-media-list {
   padding: 0;
+  grid-template-columns: repeat(auto-fill, 88px);
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px 12px;
+}
+
+.lists-media-list .show-card {
+  width: 88px;
+  height: 184px;
+  display: block;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.lists-media-list .show-card-open {
+  height: auto;
+  display: block;
+  overflow: visible;
+  border-radius: 0;
+}
+
+.lists-media-list .poster {
+  width: 88px;
+  height: var(--compact-card-height);
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+}
+
+.lists-media-list .show-card-body {
+  min-height: 0;
+  padding: 7px 0 0;
+  display: block;
+}
+
+.lists-media-list .show-card-heading {
+  padding: 0;
+}
+
+.lists-media-list .show-card-meta,
+.lists-media-list .card-menu-button {
+  display: none;
+}
+
+.lists-media-list .show-card h3 {
+  margin: 0;
+  font-size: .78rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.lists-media-list .show-card-year {
+  position: absolute;
+  z-index: 4;
+  top: 7px;
+  left: 7px;
+  margin: 0;
+  padding: 3px 5px;
+  border-radius: 5px;
+  color: var(--on-surface);
+  background: hsl(0 0% 0% / .58);
+  font-size: .68rem;
+  line-height: 1;
+}
+
+.lists-media-list .progress-block {
+  position: absolute;
+  z-index: 4;
+  top: calc(var(--compact-card-height) - 4px);
+  right: 0;
+  left: 0;
+  padding: 0;
+  border-radius: 0;
+  background: hsl(0 0% 0% / .58);
+}
+
+.lists-media-list .progress-copy {
+  display: none;
+}
+
+.lists-media-list .show-card .progress-track {
+  height: 4px;
+  margin: 0;
+  border-radius: 0;
 }
 
 .reaction-button-group {
