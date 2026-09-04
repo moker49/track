@@ -57,7 +57,6 @@ CREATE TABLE IF NOT EXISTS episodes (
     air_date TEXT,
     runtime_minutes INTEGER,
     still_path TEXT,
-    is_watched_without_diary INTEGER NOT NULL DEFAULT 0 CHECK (is_watched_without_diary IN (0, 1)),
     tmdb_payload TEXT NOT NULL DEFAULT '{}',
     UNIQUE (season_id, episode_number)
 );
@@ -132,7 +131,6 @@ CREATE TABLE IF NOT EXISTS movies (
     state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
     is_tracked INTEGER NOT NULL DEFAULT 1 CHECK (is_tracked IN (0, 1)),
     liked INTEGER NOT NULL DEFAULT 0 CHECK (liked IN (0, 1)),
-    is_watched_without_diary INTEGER NOT NULL DEFAULT 0 CHECK (is_watched_without_diary IN (0, 1)),
     added_at TEXT NOT NULL,
     active_at TEXT,
     archived_at TEXT,

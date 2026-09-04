@@ -190,6 +190,56 @@ class DatabaseBootstrapSmokeTest(unittest.TestCase):
             self.assertNotIn("schema_migrations", tables)
             self.assertTrue(any(name.startswith("idx_") for name in indexes))
 
+    def test_legacy_hidden_watch_markers_become_history_events(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "legacy-markers.db"
+            schema = Path(__file__).parents[1] / "schema.sql"
+            db = connect_database(database)
+            initialize_database(db, schema)
+            db.executescript(
+                """
+                ALTER TABLE episodes ADD COLUMN is_watched_without_diary INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE movies ADD COLUMN is_watched_without_diary INTEGER NOT NULL DEFAULT 0;
+                INSERT INTO shows (id, tmdb_id, name, state, added_at)
+                VALUES (1, 1001, 'Legacy show', 'ACTIVE', '2026-01-02T00:00:00+00:00');
+                INSERT INTO seasons (id, show_id, tmdb_id, season_number, name)
+                VALUES (1, 1, 2001, 1, 'Season 1');
+                INSERT INTO episodes (id, season_id, tmdb_id, episode_number, name, is_watched_without_diary)
+                VALUES (1, 1, 3001, 1, 'Episode 1', 1);
+                INSERT INTO movies (id, tmdb_id, title, state, added_at, is_watched_without_diary)
+                VALUES (1, 4001, 'Legacy movie', 'ACTIVE', '2026-01-03T00:00:00+00:00', 1);
+                """
+            )
+            db.commit()
+            db.close()
+
+            db = connect_database(database)
+            initialize_database(db, schema)
+            episode_history = db.execute(
+                "SELECT episode_id, added_at, watch_date, show_in_diary FROM episode_watch_history"
+            ).fetchall()
+            movie_history = db.execute(
+                "SELECT movie_id, added_at, watch_date, show_in_diary FROM movie_watch_history"
+            ).fetchall()
+            episode_columns = {
+                row["name"] for row in db.execute("PRAGMA table_info(episodes)")
+            }
+            movie_columns = {
+                row["name"] for row in db.execute("PRAGMA table_info(movies)")
+            }
+            db.close()
+
+            self.assertEqual(
+                [tuple(row) for row in episode_history],
+                [(1, "2026-01-02T00:00:00+00:00", None, 0)],
+            )
+            self.assertEqual(
+                [tuple(row) for row in movie_history],
+                [(1, "2026-01-03T00:00:00+00:00", None, 0)],
+            )
+            self.assertNotIn("is_watched_without_diary", episode_columns)
+            self.assertNotIn("is_watched_without_diary", movie_columns)
+
 
 if __name__ == "__main__":
     unittest.main()

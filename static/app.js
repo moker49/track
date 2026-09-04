@@ -3326,40 +3326,6 @@ async function changeMovieWatchCount(detailMovie, action) {
   }
 }
 
-async function setMovieWatchedWithoutDiary(detailMovie, watched) {
-  if (pendingWatchChanges.has(detailMovie)) return;
-  pendingWatchChanges.add(detailMovie);
-  try {
-    const response = await fetch(`/api/movies/${detailMovie.dataset.movieId}/watched`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched }),
-    });
-    if (!response.ok) throw new Error("Could not update movie");
-    const data = await response.json();
-    movieDetailCache.delete(String(data.movie_id));
-    updateMovieWatchUi(detailMovie, data.watch_count);
-    refreshMoviesContent();
-  } catch (_error) {
-    showSnackbar("Couldn't update this movie. Try again.");
-  } finally {
-    pendingWatchChanges.delete(detailMovie);
-  }
-}
-
-async function setShowWatchedWithoutDiary(showElement, watched) {
-  try {
-    const response = await fetch(`/api/shows/${showElement.dataset.showId}/watched`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched }),
-    });
-    if (!response.ok) throw new Error("Could not update show");
-    const data = await response.json();
-    showDetailCache.delete(String(data.show_id));
-    showSeasonsCache.delete(String(data.show_id));
-    await Promise.all([refreshTvContent(), openShow(data.show_id, detailParentView, false, null)]);
-  } catch (_error) {
-    showSnackbar("Couldn't update this show. Try again.");
-  }
-}
-
 async function moveMovie(movieElement, targetState, actionButton) {
   actionButton.disabled = true;
   try {
@@ -4303,11 +4269,7 @@ document.addEventListener("click", (event) => {
     closeWatchMenus();
     if (detailMovie) {
       const action = movieWatchAction.dataset.movieWatchAction;
-      if (action === "mark-watched" || action === "mark-unwatched") {
-        setMovieWatchedWithoutDiary(detailMovie, action === "mark-watched");
-      } else {
-        changeMovieWatchCount(detailMovie, action);
-      }
+      changeMovieWatchCount(detailMovie, action);
     }
     return;
   }
@@ -4346,8 +4308,6 @@ document.addEventListener("click", (event) => {
       moveShow(showElement, showAction.dataset.targetState, showAction);
     } else if (showAction.dataset.showAction === "refresh") {
       refreshShowMetadata(showElement.dataset.showId, { force: true, trigger: showAction });
-    } else if (showAction.dataset.showAction === "mark-watched") {
-      setShowWatchedWithoutDiary(showElement, showAction.dataset.watched === "true");
     } else {
       requestShowRemoval(showElement);
     }

@@ -59,15 +59,15 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def upsert_movie(db, movie: dict, state: str, liked: bool, undated_watched: bool) -> int:
+def upsert_movie(db, movie: dict, state: str, liked: bool) -> int:
     timestamp = now()
     db.execute(
         """
         INSERT INTO movies (tmdb_id, title, original_title, overview, poster_path,
           backdrop_path, release_date, runtime_minutes, status, genres,
-          original_language, state, is_tracked, liked, is_watched_without_diary,
+          original_language, state, is_tracked, liked,
           added_at, active_at, archived_at, updated_at, tmdb_refreshed_at, tmdb_payload)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?,?,?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
           title=excluded.title, original_title=excluded.original_title,
           overview=excluded.overview, poster_path=excluded.poster_path,
@@ -75,7 +75,6 @@ def upsert_movie(db, movie: dict, state: str, liked: bool, undated_watched: bool
           runtime_minutes=excluded.runtime_minutes, status=excluded.status,
           genres=excluded.genres, original_language=excluded.original_language,
           state=excluded.state, is_tracked=1, liked=excluded.liked,
-          is_watched_without_diary=excluded.is_watched_without_diary,
           updated_at=excluded.updated_at, tmdb_refreshed_at=excluded.tmdb_refreshed_at,
           tmdb_payload=excluded.tmdb_payload
         """,
@@ -83,7 +82,7 @@ def upsert_movie(db, movie: dict, state: str, liked: bool, undated_watched: bool
          movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"),
          movie.get("release_date"), movie.get("runtime"), movie.get("status"),
          ", ".join(item.get("name", "") for item in movie.get("genres", [])),
-         movie.get("original_language"), state, int(liked), int(undated_watched), timestamp,
+          movie.get("original_language"), state, int(liked), timestamp,
          timestamp if state == TRACKING_ACTIVE else None,
          timestamp if state == TRACKING_ARCHIVED else None, timestamp, timestamp,
          json.dumps(movie)),
@@ -141,13 +140,17 @@ def main(export_path: str, retry_skipped: bool = False) -> int:
                 continue
             movie = client.movie(selected["id"])
             state = TRACKING_ACTIVE
-            movie_id = upsert_movie(db, movie, state, (title, year) in liked,
-                                    (title, year) in watched and not diary[(title, year)])
+            movie_id = upsert_movie(db, movie, state, (title, year) in liked)
             db.execute("DELETE FROM movie_watch_history WHERE movie_id = ?", (movie_id,))
             db.executemany(
                 "INSERT INTO movie_watch_history (movie_id, added_at, watch_date) VALUES (?, ?, ?)",
                 [(movie_id, f"{watch_date}T12:00:00+00:00", watch_date) for watch_date in diary[(title, year)]],
             )
+            if (title, year) in watched and not diary[(title, year)]:
+                db.execute(
+                    "INSERT INTO movie_watch_history (movie_id, added_at, watch_date, show_in_diary) VALUES (?, ?, NULL, 0)",
+                    (movie_id, now()),
+                )
             db.commit()
             imported += 1
             print(f"{index}/{len(entries)} imported: {title} ({year})")

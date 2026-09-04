@@ -41,8 +41,6 @@ def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None
     for table, column, definition in (
         ("shows", "liked", "INTEGER NOT NULL DEFAULT 0 CHECK (liked IN (0, 1))"),
         ("movies", "liked", "INTEGER NOT NULL DEFAULT 0 CHECK (liked IN (0, 1))"),
-        ("movies", "is_watched_without_diary", "INTEGER NOT NULL DEFAULT 0 CHECK (is_watched_without_diary IN (0, 1))"),
-        ("episodes", "is_watched_without_diary", "INTEGER NOT NULL DEFAULT 0 CHECK (is_watched_without_diary IN (0, 1))"),
         ("episode_watch_history", "show_in_diary", "INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))"),
         ("season_watch_history", "show_in_diary", "INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))"),
         ("movie_watch_history", "show_in_diary", "INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))"),
@@ -50,18 +48,44 @@ def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None
         columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
         if column not in columns:
             db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-    # Convert the short-lived undated-movie marker into a normal watch record
-    # that is intentionally hidden from the diary.
-    db.execute(
-        """
-        INSERT INTO movie_watch_history (movie_id, added_at, watch_date, show_in_diary)
-        SELECT m.id, m.added_at, NULL, 0
-        FROM movies m
-        WHERE m.is_watched_without_diary = 1
-          AND NOT EXISTS (SELECT 1 FROM movie_watch_history h WHERE h.movie_id = m.id)
-        """
-    )
-    db.execute("UPDATE movies SET is_watched_without_diary = 0 WHERE is_watched_without_diary = 1")
+    # A retired boolean marker represented a watch that should stay out of the
+    # diary. Preserve it as a normal hidden history event, then remove the
+    # obsolete column so all watch state has one source of truth.
+    episode_columns = {
+        row["name"] for row in db.execute("PRAGMA table_info(episodes)")
+    }
+    if "is_watched_without_diary" in episode_columns:
+        db.execute(
+            """
+            INSERT INTO episode_watch_history (episode_id, added_at, watch_date, show_in_diary)
+            SELECT e.id, s.added_at, NULL, 0
+            FROM episodes e
+            JOIN seasons sn ON sn.id = e.season_id
+            JOIN shows s ON s.id = sn.show_id
+            WHERE e.is_watched_without_diary = 1
+              AND NOT EXISTS (
+                  SELECT 1 FROM episode_watch_history h WHERE h.episode_id = e.id
+              )
+            """
+        )
+        db.execute("ALTER TABLE episodes DROP COLUMN is_watched_without_diary")
+
+    movie_columns = {
+        row["name"] for row in db.execute("PRAGMA table_info(movies)")
+    }
+    if "is_watched_without_diary" in movie_columns:
+        db.execute(
+            """
+            INSERT INTO movie_watch_history (movie_id, added_at, watch_date, show_in_diary)
+            SELECT m.id, m.added_at, NULL, 0
+            FROM movies m
+            WHERE m.is_watched_without_diary = 1
+              AND NOT EXISTS (
+                  SELECT 1 FROM movie_watch_history h WHERE h.movie_id = m.id
+              )
+            """
+        )
+        db.execute("ALTER TABLE movies DROP COLUMN is_watched_without_diary")
     # Movies have one unified library. Preserve prior archive timestamps, but
     # migrate every tracked movie into the single active collection.
     db.execute("UPDATE movies SET state = 'ACTIVE', active_at = COALESCE(active_at, archived_at, added_at) WHERE state = 'ARCHIVED'")
@@ -75,3 +99,4 @@ def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None
         """
     )
     db.execute("PRAGMA optimize")
+    db.commit()
