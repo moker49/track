@@ -12,18 +12,13 @@
     <form class="app-bar-search" role="search" data-view-search>
       <input type="search" placeholder="Search queue" aria-label="Search queue episodes" autocomplete="off"
         data-global-search>
-      <button class="icon-button tv-view-toggle" type="button" data-tv-view-toggle
-        aria-label="Switch to compact poster view" aria-pressed="false" hidden>
-        <span class="material-symbols-rounded" aria-hidden="true">grid_view</span>
-      </button>
-      <button class="icon-button catalog-search-submit" type="button" data-catalog-search-submit
-        aria-label="Search TMDB" hidden>
-        <span class="material-symbols-rounded" aria-hidden="true">search</span>
+      <button class="icon-button search-clear-button" type="button" data-clear-search aria-label="Clear search" hidden>
+        <span class="material-symbols-rounded" aria-hidden="true">close</span>
       </button>
     </form>
-    <span aria-hidden="true"></span>
-    <button class="icon-button top-bar-action" type="button" data-clear-search aria-label="Clear search" hidden>
-      <span class="material-symbols-rounded" aria-hidden="true">close</span>
+    <button class="icon-button top-bar-action top-bar-layout-toggle" type="button" data-tv-view-toggle
+      aria-label="Switch layout" aria-pressed="false">
+      <span class="material-symbols-rounded" aria-hidden="true">view_list</span>
     </button>
   </div>
   {% include "_tv_controls.html" %}

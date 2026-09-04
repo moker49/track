@@ -61,7 +61,6 @@ const searchMenuButton = document.querySelector("[data-search-menu]");
 const searchBackButton = document.querySelector("[data-search-back]");
 const searchClearButton = document.querySelector("[data-clear-search]");
 const tvViewToggle = document.querySelector("[data-tv-view-toggle]");
-const catalogSearchSubmit = document.querySelector("[data-catalog-search-submit]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
 const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, diary: 0, statistics: 0, lists: 0 };
@@ -378,27 +377,12 @@ function syncTvLayout() {
     const view = views.get(name);
     if (view) view.dataset.tvLayout = libraryViewPreferences[name].layout === "compact" ? "compact" : "list";
   });
-  const isCompact = libraryViewPreferences[currentView]?.layout === "compact";
-  const visible = ["tv", "movies"].includes(currentView);
-  const showCatalogSearch = visible
-    && globalSearchInput.value.trim().length >= 3
-    && document.activeElement === globalSearchInput;
-  if (catalogSearchSubmit) {
-    catalogSearchSubmit.hidden = !showCatalogSearch;
-    catalogSearchSubmit.setAttribute(
-      "aria-label",
-      `Search ${currentView === "movies" ? "movies" : "TV"} on TMDB`,
-    );
-  }
   if (!tvViewToggle) return;
-  tvViewToggle.hidden = !visible || showCatalogSearch;
+  const supportsLayout = ["tv", "movies"].includes(currentView);
+  const isCompact = libraryViewPreferences[currentView]?.layout === "compact";
+  tvViewToggle.disabled = !supportsLayout;
   tvViewToggle.setAttribute("aria-pressed", String(isCompact));
-  tvViewToggle.setAttribute("aria-label", isCompact
-    ? "Switch to list view"
-    : "Switch to compact poster view");
-  tvViewToggle.querySelector(".material-symbols-rounded").textContent = isCompact
-    ? "view_list"
-    : "grid_view";
+  tvViewToggle.setAttribute("aria-label", supportsLayout ? "Switch layout" : "Layout controls unavailable");
 }
 
 function restoreTvLayout() {
@@ -3908,6 +3892,7 @@ document.addEventListener("click", (event) => {
   }
 
   if (event.target.closest("[data-tv-view-toggle]")) {
+    if (tvViewToggle?.disabled) return;
     toggleTvLayout();
     return;
   }
@@ -4349,8 +4334,6 @@ document.addEventListener("submit", (event) => {
   event.preventDefault();
   performCatalogSearch();
 });
-
-catalogSearchSubmit?.addEventListener("click", performCatalogSearch);
 
 function updateProgress(progress, data) {
   if (!progress) return;
@@ -4845,10 +4828,7 @@ globalSearchInput?.addEventListener("input", () => {
 globalSearchInput?.addEventListener("focus", () => {
   syncTvLayout();
 });
-globalSearchInput?.addEventListener("blur", (event) => {
-  if (event.relatedTarget === catalogSearchSubmit) return;
-  syncTvLayout();
-});
+globalSearchInput?.addEventListener("blur", syncTvLayout);
 
 searchClearButton?.addEventListener("click", () => {
   searchDismissShouldFocus = true;
