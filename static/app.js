@@ -620,6 +620,11 @@ function showView(viewName, historyMode = null, { animateUtility = true } = {}) 
   if (viewName === "statistics" && renderedStatisticsRevision === diaryRevision) {
     revealStatisticsOnce(views.get("statistics"));
   }
+  if (viewName === "lists") {
+    const reaction = views.get("lists")
+      ?.querySelector('[data-list-filter][aria-pressed="true"]')?.dataset.listFilter;
+    if (reaction) window.requestAnimationFrame(() => revealReactionListOnce(reaction));
+  }
   if (animateUtility && enteringUtility) {
     window.requestAnimationFrame(() => animateUtilityEntry(views.get(viewName)));
   }
@@ -3189,11 +3194,24 @@ async function refreshReactionList(reaction) {
     panel.innerHTML = await response.text();
     formatDisplayDates(panel);
     inspectMediaImages(panel);
+    if (currentView === "lists") revealReactionListOnce(reaction);
   } catch (error) {
     showSnackbar(error.message || "Couldn't load this list.");
   } finally {
     panel.removeAttribute("aria-busy");
   }
+}
+
+function revealReactionListOnce(reaction) {
+  const revealKey = `lists:${reaction}`;
+  if (revealedViewAnimations.has(revealKey)) return;
+  const panel = views.get("lists")?.querySelector("[data-lists-content]");
+  if (!panel) return;
+  revealedViewAnimations.add(revealKey);
+  staggerTvSlices([
+    ...panel.querySelectorAll(".lists-media-list > .show-card:not([hidden])"),
+    panel.querySelector(".lists-empty-state:not([hidden])"),
+  ]);
 }
 
 async function toggleMediaReaction(button) {
