@@ -659,6 +659,35 @@ class TrackAppTest(unittest.TestCase):
         caught_up = self.client.get("/api/schedule/shows/1/catch-up")
         self.assertEqual(caught_up.status_code, 204)
 
+    def test_queue_continues_an_in_progress_rewatch(self):
+        for episode_id in range(6, 14):
+            watched = self.client.post(
+                f"/api/episodes/{episode_id}/watch-count",
+                json={"action": "increment"},
+            )
+            self.assertEqual(watched.status_code, 200)
+
+        self.assertEqual(self.client.get("/api/schedule/shows/1/catch-up").status_code, 204)
+
+        rewatch = self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "increment"}
+        )
+        self.assertEqual(rewatch.status_code, 200)
+        next_rewatch = self.client.get("/api/schedule/shows/1/catch-up")
+        self.assertEqual(next_rewatch.status_code, 200)
+        self.assertIn(b'data-episode-id="2"', next_rewatch.data)
+
+        self.assertEqual(
+            self.client.post(
+                "/api/episodes/2/watch-count", json={"action": "increment"}
+            ).status_code,
+            200,
+        )
+        self.assertIn(
+            b'data-episode-id="3"',
+            self.client.get("/api/schedule/shows/1/catch-up").data,
+        )
+
     def test_schedule_includes_archived_but_excludes_untracked_shows(self):
         connection = sqlite3.connect(self.database)
         connection.executemany(
@@ -1198,6 +1227,34 @@ class TrackAppTest(unittest.TestCase):
         ).fetchall()
         db.close()
         self.assertEqual(history, [])
+
+    def test_watching_an_episode_from_an_archived_show_requires_resume(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute("UPDATE shows SET state = 'ARCHIVED' WHERE id = 1")
+        original_count = connection.execute(
+            "SELECT COUNT(*) FROM episode_watch_history WHERE episode_id = 1"
+        ).fetchone()[0]
+        connection.commit()
+        connection.close()
+
+        response = self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "increment"}
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            response.get_json(),
+            {"requires_resume": True, "show_id": 1, "show_name": "Active Test Show"},
+        )
+
+        watched = self.client.post("/api/episodes/1/watched", json={"watched": True})
+        self.assertEqual(watched.status_code, 409)
+
+        connection = sqlite3.connect(self.database)
+        count = connection.execute(
+            "SELECT COUNT(*) FROM episode_watch_history WHERE episode_id = 1"
+        ).fetchone()[0]
+        connection.close()
+        self.assertEqual(count, original_count)
 
     def test_finishing_active_ended_show_prompts_once_for_archive(self):
         final_response = None

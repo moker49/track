@@ -918,6 +918,23 @@ def create_app(test_config: dict | None = None) -> Flask:
         payload = request.get_json(silent=True) or {}
         if type(payload.get("watched")) is not bool:
             return jsonify(error="watched must be a boolean"), 400
+        if payload["watched"]:
+            archived_show = get_db().execute(
+                """
+                SELECT s.id, s.name
+                FROM episodes e
+                JOIN seasons sn ON sn.id = e.season_id
+                JOIN shows s ON s.id = sn.show_id
+                WHERE e.id = ? AND s.is_tracked = 1 AND s.state = ?
+                """,
+                (episode_id, TRACKING_ARCHIVED),
+            ).fetchone()
+            if archived_show is not None:
+                return jsonify(
+                    requires_resume=True,
+                    show_id=archived_show["id"],
+                    show_name=archived_show["name"],
+                ), 409
         try:
             return jsonify(
                 set_episode_watched_record(get_db(), episode_id, payload["watched"])
@@ -932,6 +949,23 @@ def create_app(test_config: dict | None = None) -> Flask:
         action = payload.get("action")
         if action not in {"increment", "decrement"}:
             return jsonify(error="action must be increment or decrement"), 400
+        if action == "increment":
+            archived_show = get_db().execute(
+                """
+                SELECT s.id, s.name
+                FROM episodes e
+                JOIN seasons sn ON sn.id = e.season_id
+                JOIN shows s ON s.id = sn.show_id
+                WHERE e.id = ? AND s.is_tracked = 1 AND s.state = ?
+                """,
+                (episode_id, TRACKING_ARCHIVED),
+            ).fetchone()
+            if archived_show is not None:
+                return jsonify(
+                    requires_resume=True,
+                    show_id=archived_show["id"],
+                    show_name=archived_show["name"],
+                ), 409
         try:
             return jsonify(
                 change_episode_watch_count_record(get_db(), episode_id, action)

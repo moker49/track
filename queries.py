@@ -125,54 +125,92 @@ def get_catch_up_episodes(
     local_date_value = local_date.isoformat()
     return db.execute(
         """
-        WITH show_progress AS (
-            SELECT s.id AS show_id,
-                   COUNT(DISTINCT e.id) AS episode_count,
-                   COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count,
-                   MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
-                            THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
-            FROM shows s
-            JOIN seasons sn ON sn.show_id = s.id AND sn.is_progress_counted = 1
-            JOIN episodes e ON e.season_id = sn.id AND e.air_date <= ?
-            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
-            WHERE s.is_tracked = 1
-            GROUP BY s.id
-        ),
-        unresolved AS (
+        WITH episode_counts AS (
             SELECT s.id AS show_id, s.name AS show_name, s.poster_path,
                    s.state AS tracking_state, s.added_at AS show_added_at,
                    s.status AS show_status,
                    sn.season_number, sn.name AS season_name,
                    e.id AS episode_id, e.episode_number,
                    e.name AS episode_name, e.air_date, e.runtime_minutes,
-                   ROW_NUMBER() OVER (
-                       PARTITION BY s.id
-                       ORDER BY CASE WHEN sk.episode_id IS NULL THEN 0 ELSE 1 END,
-                                sk.skipped_at, e.air_date,
-                                sn.season_number, e.episode_number
-                   ) AS episode_rank
+                   COUNT(wh.id) AS watch_count,
+                   MAX(wh.added_at) AS last_watch_added_at,
+                   MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
+                            THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_visible_watched_at
             FROM shows s
-            JOIN seasons sn ON sn.show_id = s.id
+            JOIN seasons sn ON sn.show_id = s.id AND sn.is_progress_counted = 1
             JOIN episodes e ON e.season_id = sn.id
-            LEFT JOIN episode_skips sk ON sk.episode_id = e.id
+            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             WHERE s.is_tracked = 1
-              AND sn.is_progress_counted = 1
               AND e.air_date IS NOT NULL
               AND e.air_date <= ?
-              AND (? IS NULL OR s.id = ?)
+            GROUP BY e.id
+        ),
+        show_progress AS (
+            SELECT show_id,
+                   COUNT(*) AS episode_count,
+                   SUM(CASE WHEN watch_count > 0 THEN 1 ELSE 0 END) AS watched_count,
+                   MAX(last_visible_watched_at) AS last_watched_at
+            FROM episode_counts
+            GROUP BY show_id
+        ),
+        normal_unresolved AS (
+            SELECT ec.*, ROW_NUMBER() OVER (
+                PARTITION BY ec.show_id
+                ORDER BY CASE WHEN sk.episode_id IS NULL THEN 0 ELSE 1 END,
+                         sk.skipped_at, ec.air_date, ec.season_number, ec.episode_number
+            ) AS episode_rank
+            FROM episode_counts ec
+            LEFT JOIN episode_skips sk ON sk.episode_id = ec.episode_id
+            WHERE ec.watch_count = 0
+        ),
+        latest_rewatch AS (
+            SELECT ec.*, ROW_NUMBER() OVER (
+                PARTITION BY ec.show_id
+                ORDER BY ec.last_watch_added_at DESC, ec.season_number DESC, ec.episode_number DESC
+            ) AS rewatch_rank
+            FROM episode_counts ec
+            WHERE ec.watch_count > 1
+        ),
+        rewatch_candidates AS (
+            SELECT next_episode.*, ROW_NUMBER() OVER (
+                PARTITION BY latest_rewatch.show_id
+                ORDER BY next_episode.season_number, next_episode.episode_number
+            ) AS episode_rank
+            FROM latest_rewatch
+            JOIN episode_counts next_episode
+              ON next_episode.show_id = latest_rewatch.show_id
+             AND (next_episode.season_number > latest_rewatch.season_number
+                  OR (next_episode.season_number = latest_rewatch.season_number
+                      AND next_episode.episode_number > latest_rewatch.episode_number))
+             AND next_episode.watch_count < latest_rewatch.watch_count
+            WHERE latest_rewatch.rewatch_rank = 1
               AND NOT EXISTS (
-                  SELECT 1 FROM episode_watch_history wh WHERE wh.episode_id = e.id
+                  SELECT 1 FROM normal_unresolved normal
+                  WHERE normal.show_id = latest_rewatch.show_id
               )
+        ),
+        unresolved AS (
+            SELECT show_id, show_name, poster_path, tracking_state, show_added_at, show_status,
+                   season_number, season_name, episode_id, episode_number, episode_name,
+                   air_date, runtime_minutes, 0 AS is_rewatch
+            FROM normal_unresolved
+            WHERE episode_rank = 1
+            UNION ALL
+            SELECT show_id, show_name, poster_path, tracking_state, show_added_at, show_status,
+                   season_number, season_name, episode_id, episode_number, episode_name,
+                   air_date, runtime_minutes, 1 AS is_rewatch
+            FROM rewatch_candidates
+            WHERE episode_rank = 1
         )
         SELECT unresolved.*, show_progress.episode_count, show_progress.watched_count,
                show_progress.last_watched_at
         FROM unresolved
         JOIN show_progress ON show_progress.show_id = unresolved.show_id
-        WHERE unresolved.episode_rank = 1
+        WHERE (? IS NULL OR unresolved.show_id = ?)
         ORDER BY show_progress.last_watched_at DESC,
                  unresolved.show_name COLLATE NOCASE
         """,
-        (local_date_value, local_date_value, show_id, show_id),
+        (local_date_value, show_id, show_id),
     ).fetchall()
 
 

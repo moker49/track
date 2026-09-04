@@ -68,6 +68,7 @@ if ("scrollRestoration" in window.history) window.history.scrollRestoration = "m
 const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, profile: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const finishedArchiveDialog = document.querySelector("[data-finished-archive-dialog]");
+const resumeShowDialog = document.querySelector("[data-resume-show-dialog]");
 const datePicker = document.querySelector("[data-date-picker]");
 const imageViewer = document.querySelector("[data-image-viewer]");
 const imageViewerMedia = imageViewer?.querySelector("[data-image-viewer-media]");
@@ -75,7 +76,7 @@ const imageViewerPreview = imageViewer?.querySelector("[data-image-viewer-previe
 const imageViewerImage = imageViewer?.querySelector("[data-image-viewer-image]");
 const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]");
 const menuScrim = document.querySelector("[data-menu-scrim]");
-const sharedDialogs = [removeDialog, finishedArchiveDialog, datePicker].filter(Boolean);
+const sharedDialogs = [removeDialog, finishedArchiveDialog, resumeShowDialog, datePicker].filter(Boolean);
 
 // Standard dialog contract: blurred backdrop, outside-click and Escape
 // dismissal, plus locked background scrolling. Add future dialogs here.
@@ -174,6 +175,7 @@ let detailRequest = null;
 let pendingRemoveShowId = null;
 let pendingRemoveMovieId = null;
 let pendingFinishedArchiveShowId = null;
+let pendingResumeShow = null;
 let datePickerTarget = null;
 let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
@@ -1628,6 +1630,13 @@ async function processScheduleEpisode(card, action) {
         headers: scheduleRequestHeaders(),
       });
     const data = await response.json();
+    if (response.status === 409 && data.requires_resume) {
+      restoreScheduleActionConfirmation(card, actionConfirmation);
+      delete card.dataset.scheduleProcessing;
+      buttons.forEach((button) => { button.disabled = false; });
+      requestShowResume(data, () => processScheduleEpisode(card, action));
+      return;
+    }
     if (!response.ok) throw new Error(data.error || `Could not ${action} episode`);
     processed = true;
     if (action === "watch") {
@@ -3497,6 +3506,28 @@ function maybeOpenFinishedArchiveDialog(data) {
   openSharedDialog(finishedArchiveDialog);
 }
 
+function requestShowResume(data, onResume) {
+  if (!resumeShowDialog || resumeShowDialog.open) return;
+  pendingResumeShow = {
+    showId: String(data.show_id),
+    onResume,
+  };
+  const showName = resumeShowDialog.querySelector("[data-resume-show-name]");
+  if (showName) showName.textContent = data.show_name || "this show";
+  openSharedDialog(resumeShowDialog);
+}
+
+async function confirmShowResume() {
+  if (!pendingResumeShow) return;
+  const { showId, onResume } = pendingResumeShow;
+  const confirmButton = resumeShowDialog.querySelector("[data-confirm-resume-show]");
+  const resumed = await moveShow({ dataset: { showId } }, TRACKING_STATE.ACTIVE, confirmButton);
+  if (!resumed) return;
+  resumeShowDialog.close();
+  pendingResumeShow = null;
+  await onResume();
+}
+
 async function confirmArchiveFinishedShow() {
   if (!pendingFinishedArchiveShowId) return;
   const showId = pendingFinishedArchiveShowId;
@@ -3640,6 +3671,13 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
     });
+    if (response.status === 409) {
+      const data = await response.json();
+      if (data.requires_resume) {
+        requestShowResume(data, () => changeEpisodeWatchCount(episode, action, trigger));
+        return;
+      }
+    }
     if (!response.ok) throw new Error("Could not update episode");
     const data = await response.json();
     invalidateWatchCaches({
@@ -3692,6 +3730,13 @@ async function changeEpisodeDetailWatchCount(detailEpisode, action) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
     });
+    if (response.status === 409) {
+      const data = await response.json();
+      if (data.requires_resume) {
+        requestShowResume(data, () => changeEpisodeDetailWatchCount(detailEpisode, action));
+        return;
+      }
+    }
     if (!response.ok) throw new Error("Could not update episode");
     const data = await response.json();
     invalidateWatchCaches({
@@ -4308,6 +4353,17 @@ document.addEventListener("click", (event) => {
 
   if (event.target.closest("[data-confirm-finished-archive]")) {
     confirmArchiveFinishedShow();
+    return;
+  }
+
+  if (event.target.closest("[data-cancel-resume-show]")) {
+    resumeShowDialog.close();
+    pendingResumeShow = null;
+    return;
+  }
+
+  if (event.target.closest("[data-confirm-resume-show]")) {
+    confirmShowResume();
     return;
   }
 
@@ -5026,6 +5082,10 @@ finishedArchiveDialog?.addEventListener("close", () => {
 
 finishedArchiveDialog?.addEventListener("click", (event) => {
   if (event.target === finishedArchiveDialog) finishedArchiveDialog.close();
+});
+
+resumeShowDialog?.addEventListener("close", () => {
+  pendingResumeShow = null;
 });
 
 datePicker?.addEventListener("close", () => {

@@ -192,7 +192,9 @@ dialog:not(.image-viewer)::backdrop {
 .profile-top-app-bar {
   position: relative;
   z-index: 20;
-  background: var(--surface-card);
+  background: var(--nav-surface);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 
 .profile-chrome-handoff-clone {
@@ -207,6 +209,9 @@ dialog:not(.image-viewer)::backdrop {
   opacity: 1 !important;
   pointer-events: auto;
   transform: translateX(-50%);
+  background: var(--nav-surface);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 
 .profile-title-row {

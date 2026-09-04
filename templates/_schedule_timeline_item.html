@@ -1,7 +1,9 @@
 {% macro schedule_timeline_item(episode, mode) %}
 {% set is_backlog = mode == 'catch-up' %}
+{% set is_rewatch = episode.is_rewatch|default(false) %}
 {% set progress_percent = ((episode.watched_count * 100) / episode.episode_count)|round|int if episode.episode_count else 0 %}
 {% if episode.watched_count == 0 %}{% set progress_state = 'not-started' %}
+{% elif is_rewatch %}{% set progress_state = 'started' %}
 {% elif episode.episode_count and episode.watched_count >= episode.episode_count %}
   {% set progress_state = 'finished' if episode.show_status|lower in ['ended', 'canceled', 'cancelled'] else 'caught-up' %}
 {% else %}{% set progress_state = 'started' %}{% endif %}
