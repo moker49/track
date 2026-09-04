@@ -137,6 +137,10 @@ const libraryViewPreferences = {
 const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "" };
 const librarySearchUpdates = { tv: false, movies: false };
 const virtualLibraries = new Map();
+const virtualReactionLists = new Map();
+const reactionListMarkup = new Map();
+const reactionListRequests = new Map();
+let reactionListGeneration = 0;
 const VIRTUAL_LIBRARY_OVERSCAN_ROWS = 4;
 const virtualTimelines = new Map();
 const pendingTimelineScrollRestores = new Map();
@@ -196,6 +200,7 @@ let tvLayoutTransitionTimer = null;
 let tvDropdownHistoryActive = false;
 let navigationDrawerHistoryActive = false;
 let navigationDrawerCloseTimer = null;
+let reactionListsDirty = false;
 let searchHistoryActive = false;
 let searchHistoryView = null;
 let searchHistoryClosing = false;
@@ -623,7 +628,13 @@ function showView(viewName, historyMode = null, { animateUtility = true } = {}) 
   if (viewName === "lists") {
     const reaction = views.get("lists")
       ?.querySelector('[data-list-filter][aria-pressed="true"]')?.dataset.listFilter;
-    if (reaction) window.requestAnimationFrame(() => revealReactionListOnce(reaction));
+    if (reaction) {
+      if (reactionListsDirty) refreshReactionList(reaction);
+      else {
+        initializeVirtualReactionList(reaction);
+        window.requestAnimationFrame(() => revealReactionListOnce(reaction));
+      }
+    }
   }
   if (animateUtility && enteringUtility) {
     window.requestAnimationFrame(() => animateUtilityEntry(views.get(viewName)));
@@ -1531,6 +1542,7 @@ function hydrateOtherPrimaryViews(currentPrimaryView = null) {
           }));
         }
       }
+      hydrationTasks.push(prefetchReactionLists());
       Promise.allSettled(hydrationTasks);
     });
   });
@@ -3182,24 +3194,84 @@ function reactionDatasetKey(reaction) {
   return reaction === "watch-again" ? "watchAgain" : reaction;
 }
 
-async function refreshReactionList(reaction) {
+async function fetchReactionListMarkup(reaction, { force = false } = {}) {
+  if (!force && reactionListMarkup.has(reaction)) return reactionListMarkup.get(reaction);
+  const inFlight = reactionListRequests.get(reaction);
+  if (inFlight) return inFlight.promise;
+  const generation = reactionListGeneration;
+  const controller = new AbortController();
+  const request = fetch(`/api/lists/${reaction}`, {
+    headers: { "X-Requested-With": "Track" },
+    signal: controller.signal,
+  }).then(async (response) => {
+    if (!response.ok) throw new Error("Could not load this list");
+    const markup = await response.text();
+    if (generation !== reactionListGeneration) throw new DOMException("Stale reaction list", "AbortError");
+    reactionListMarkup.set(reaction, markup);
+    return markup;
+  }).finally(() => {
+    if (reactionListRequests.get(reaction)?.generation === generation) {
+      reactionListRequests.delete(reaction);
+    }
+  });
+  reactionListRequests.set(reaction, { promise: request, controller, generation });
+  return request;
+}
+
+function prefetchReactionLists({ includeLiked = false } = {}) {
+  const reactions = includeLiked ? ["liked", "favorite", "watch-again"] : ["favorite", "watch-again"];
+  return Promise.allSettled(
+    reactions.map((reaction) => fetchReactionListMarkup(reaction)),
+  );
+}
+
+function invalidateReactionLists() {
+  reactionListGeneration += 1;
+  reactionListMarkup.clear();
+  reactionListRequests.forEach(({ controller }) => controller.abort());
+  reactionListRequests.clear();
+  virtualReactionLists.clear();
+  reactionListsDirty = true;
+  prefetchReactionLists({ includeLiked: true });
+}
+
+function renderReactionListMarkup(reaction, markup) {
+  const panel = views.get("lists")?.querySelector("[data-lists-content]");
+  if (!panel) return;
+  virtualReactionLists.forEach((state) => window.cancelAnimationFrame(state.frame));
+  virtualReactionLists.clear();
+  panel.innerHTML = markup;
+  formatDisplayDates(panel);
+  initializeVirtualReactionList(reaction);
+  if (currentView === "lists") revealReactionListOnce(reaction);
+}
+
+async function refreshReactionList(reaction, { force = false } = {}) {
   const panel = views.get("lists")?.querySelector("[data-lists-content]");
   if (!panel) return;
   panel.setAttribute("aria-busy", "true");
   try {
-    const response = await fetch(`/api/lists/${reaction}`, {
-      headers: { "X-Requested-With": "Track" },
-    });
-    if (!response.ok) throw new Error("Could not load this list");
-    panel.innerHTML = await response.text();
-    formatDisplayDates(panel);
-    inspectMediaImages(panel);
-    if (currentView === "lists") revealReactionListOnce(reaction);
+    const markup = await fetchReactionListMarkup(reaction, { force });
+    renderReactionListMarkup(reaction, markup);
+    reactionListsDirty = false;
   } catch (error) {
-    showSnackbar(error.message || "Couldn't load this list.");
+    if (error.name !== "AbortError") showSnackbar(error.message || "Couldn't load this list.");
   } finally {
     panel.removeAttribute("aria-busy");
   }
+}
+
+function showReactionList(reaction) {
+  if (!reactionListMarkup.has(reaction)) {
+    refreshReactionList(reaction);
+    return;
+  }
+  renderReactionListMarkup(reaction, reactionListMarkup.get(reaction));
+}
+
+function cacheInitialReactionList() {
+  const panel = views.get("lists")?.querySelector("[data-lists-content]");
+  if (panel) reactionListMarkup.set("liked", panel.innerHTML);
 }
 
 function revealReactionListOnce(reaction) {
@@ -3207,6 +3279,7 @@ function revealReactionListOnce(reaction) {
   if (revealedViewAnimations.has(revealKey)) return;
   const panel = views.get("lists")?.querySelector("[data-lists-content]");
   if (!panel) return;
+  initializeVirtualReactionList(reaction);
   revealedViewAnimations.add(revealKey);
   staggerTvSlices([
     ...panel.querySelectorAll(".lists-media-list > .show-card:not([hidden])"),
@@ -3239,6 +3312,7 @@ async function toggleMediaReaction(button) {
     button.classList.toggle("is-selected", data.selected);
     if (isMovie) movieDetailCache.delete(String(mediaId));
     else showDetailCache.delete(String(mediaId));
+    invalidateReactionLists();
     if (currentView === "lists") {
       const activeReaction = document.querySelector('[data-list-filter][aria-pressed="true"]')?.dataset.listFilter;
       if (activeReaction) refreshReactionList(activeReaction);
@@ -4322,7 +4396,7 @@ document.addEventListener("click", (event) => {
       filter.classList.toggle("is-selected", selected);
       filter.setAttribute("aria-pressed", String(selected));
     });
-    refreshReactionList(listFilter.dataset.listFilter);
+    showReactionList(listFilter.dataset.listFilter);
     return;
   }
 
@@ -4814,6 +4888,72 @@ function scheduleVirtualLibraryRender(state) {
   });
 }
 
+function initializeVirtualReactionList(reaction) {
+  const view = views.get("lists");
+  const list = view?.querySelector("[data-lists-content] .lists-media-list");
+  if (!view || !list) return null;
+  let state = virtualReactionLists.get(reaction);
+  if (state?.list === list) return state;
+  const cards = [...list.querySelectorAll(":scope > .show-card")];
+  state = {
+    view,
+    list,
+    cards,
+    topSpacer: createVirtualLibrarySpacer("reaction-top"),
+    bottomSpacer: createVirtualLibrarySpacer("reaction-bottom"),
+    renderStart: -1,
+    renderEnd: -1,
+    layoutKey: "",
+    frame: 0,
+  };
+  virtualReactionLists.set(reaction, state);
+  list.replaceChildren(state.topSpacer, state.bottomSpacer);
+  renderVirtualReactionList(state, true);
+  return state;
+}
+
+function virtualReactionListMetrics(state) {
+  const columns = window.getComputedStyle(state.list).gridTemplateColumns
+    .split(" ")
+    .filter((track) => track && track !== "none").length
+    || Math.max(1, Math.floor((state.list.clientWidth + 12) / 100));
+  return { columns, pitch: 200 };
+}
+
+function renderVirtualReactionList(state, force = false) {
+  if (!state || state.view.hidden) return;
+  const metrics = virtualReactionListMetrics(state);
+  const rowCount = Math.ceil(state.cards.length / metrics.columns);
+  const listTop = window.scrollY + state.list.getBoundingClientRect().top;
+  const viewportTop = Math.max(0, window.scrollY - listTop);
+  const firstVisibleRow = Math.floor(viewportTop / metrics.pitch);
+  const lastVisibleRow = Math.ceil((viewportTop + window.innerHeight) / metrics.pitch);
+  const startRow = Math.max(0, Math.min(rowCount, firstVisibleRow - VIRTUAL_LIBRARY_OVERSCAN_ROWS));
+  const endRow = Math.max(startRow, Math.min(rowCount, lastVisibleRow + VIRTUAL_LIBRARY_OVERSCAN_ROWS));
+  const start = startRow * metrics.columns;
+  const end = Math.min(state.cards.length, endRow * metrics.columns);
+  const layoutKey = `${metrics.columns}:${rowCount}`;
+  if (!force && state.renderStart === start && state.renderEnd === end && state.layoutKey === layoutKey) return;
+  state.renderStart = start;
+  state.renderEnd = end;
+  state.layoutKey = layoutKey;
+  setVirtualSpacerHeight(state.topSpacer, startRow, { pitch: metrics.pitch, gap: 16 });
+  setVirtualSpacerHeight(state.bottomSpacer, Math.max(0, rowCount - endRow), { pitch: metrics.pitch, gap: 16 });
+  const fragment = document.createDocumentFragment();
+  fragment.append(state.topSpacer, ...state.cards.slice(start, end), state.bottomSpacer);
+  state.list.replaceChildren(fragment);
+  inspectMediaImages(state.list);
+}
+
+function scheduleVirtualReactionListRender() {
+  const state = [...virtualReactionLists.values()].find((candidate) => !candidate.view.hidden);
+  if (!state || state.frame) return;
+  state.frame = window.requestAnimationFrame(() => {
+    state.frame = 0;
+    renderVirtualReactionList(state);
+  });
+}
+
 function refreshVirtualLibraryLayout(view) {
   const state = initializeVirtualLibrary(view);
   if (!state) return;
@@ -4984,6 +5124,12 @@ window.addEventListener("resize", () => {
   syncSearchTextPosition();
   fitEpisodeDetailTitle(views.get("detail"));
   virtualLibraries.forEach((state) => refreshVirtualLibraryLayout(state.view));
+  virtualReactionLists.forEach((state) => {
+    state.renderStart = -1;
+    state.renderEnd = -1;
+    state.layoutKey = "";
+    renderVirtualReactionList(state, true);
+  });
   virtualTimelines.forEach((state) => renderVirtualTimeline(state, true));
 });
 
@@ -5018,6 +5164,7 @@ window.addEventListener("scroll", () => {
   if (["tv", "movies"].includes(currentView)) {
     scheduleVirtualLibraryRender(virtualLibraries.get(currentView));
   }
+  if (currentView === "lists") scheduleVirtualReactionListRender();
   if (["backlog", "upcoming"].includes(currentView)) {
     scheduleVirtualTimelineRender(virtualTimelines.get(currentView));
   } else if (currentView === "diary") {
@@ -5048,6 +5195,7 @@ filterSchedule("backlog");
 filterSchedule("upcoming");
 formatDisplayDates(document);
 syncGlobalSearch();
+cacheInitialReactionList();
 initializeVirtualTimeline("diary");
 
 removeDialog?.addEventListener("close", () => {
