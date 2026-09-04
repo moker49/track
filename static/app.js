@@ -1585,6 +1585,7 @@ async function processScheduleEpisode(card, action) {
     processed = true;
     if (action === "watch" || action === "skip") {
       invalidateWatchCaches({ showId, episodeId });
+      syncCompletedWatchAgain(data);
       applyShowProgress(data);
       maybeOpenFinishedArchiveDialog(data);
     }
@@ -3194,6 +3195,10 @@ function reactionDatasetKey(reaction) {
   return reaction === "watch-again" ? "watchAgain" : reaction;
 }
 
+function syncCompletedWatchAgain(data) {
+  if (data.watch_again_cleared) invalidateReactionLists();
+}
+
 async function fetchReactionListMarkup(reaction, { force = false } = {}) {
   if (!force && reactionListMarkup.has(reaction)) return reactionListMarkup.get(reaction);
   const inFlight = reactionListRequests.get(reaction);
@@ -3334,6 +3339,7 @@ async function changeMovieWatchCount(detailMovie, action) {
     if (!response.ok) throw new Error("Could not update movie");
     const data = await response.json();
     movieDetailCache.delete(String(data.movie_id));
+    syncCompletedWatchAgain(data);
     updateMovieWatchUi(detailMovie, data.watch_count);
     if (data.action === "increment") {
       addActivityItem({
@@ -3718,6 +3724,7 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
       showId: data.show_id,
       episodeId: episode.dataset.episodeId,
     });
+    syncCompletedWatchAgain(data);
     updateEpisodeWatchUi(episode, data.watch_count, true, data.latest_resolution_kind);
     applyShowProgress(data);
     maybeOpenFinishedArchiveDialog(data);
@@ -3780,6 +3787,7 @@ async function changeEpisodeDetailWatchCount(detailEpisode, action) {
       showId: data.show_id,
       episodeId: detailEpisode.dataset.episodeId,
     });
+    syncCompletedWatchAgain(data);
     updateEpisodeDetailWatchUi(detailEpisode, data.watch_count, data.latest_resolution_kind);
     applyShowProgress(data);
     maybeOpenFinishedArchiveDialog(data);
@@ -3817,6 +3825,7 @@ async function changeSeasonWatchCount(season, action, trigger) {
     if (!response.ok) throw new Error("Could not update season");
     const data = await response.json();
     invalidateWatchCaches({ showId: data.show_id, allEpisodes: true });
+    syncCompletedWatchAgain(data);
     if (season.dataset.episodesLoaded === "true") {
       data.episodes.forEach((episodeData) => {
         const episode = season.querySelector(`[data-episode-id="${episodeData.episode_id}"]`);
@@ -4753,6 +4762,7 @@ function applyVirtualTimelineFilters(state) {
   const preferences = libraryViewPreferences[viewName];
   const visibleCards = state.allCards.filter((card) => {
     if (viewName === "diary") return true;
+    if (viewName === "backlog" && card.dataset.watchAgain === "true") return true;
     const matchesSearch = !query || card.dataset.scheduleSearchText?.includes(query);
     const mediaType = card.dataset.mediaType || "tv";
     const matchesState = searching || (card.dataset.trackingState === TRACKING_STATE.ACTIVE

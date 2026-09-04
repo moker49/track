@@ -418,13 +418,21 @@ def create_app(test_config: dict | None = None) -> Flask:
         if column is None:
             abort(404)
         selected = bool((request.get_json(silent=True) or {}).get("selected"))
-        cursor = get_db().execute(
-            f"UPDATE {table} SET {column} = ?, updated_at = ? WHERE id = ? AND is_tracked = 1",
-            (int(selected), utc_now(), media_id),
-        )
+        db = get_db()
+        if table == "shows" and reaction == "watch-again":
+            baseline = get_show_progress(db, media_id)["completed_watch_count"] if selected else None
+            cursor = db.execute(
+                "UPDATE shows SET watch_again = ?, watch_again_baseline = ?, updated_at = ? WHERE id = ? AND is_tracked = 1",
+                (int(selected), baseline, utc_now(), media_id),
+            )
+        else:
+            cursor = db.execute(
+                f"UPDATE {table} SET {column} = ?, updated_at = ? WHERE id = ? AND is_tracked = 1",
+                (int(selected), utc_now(), media_id),
+            )
         if cursor.rowcount == 0:
             return jsonify(error="Media not found"), 404
-        get_db().commit()
+        db.commit()
         return jsonify(media_id=media_id, reaction=reaction, selected=selected)
 
     @app.post("/api/shows/<int:show_id>/reactions/<reaction>")
@@ -511,6 +519,10 @@ def create_app(test_config: dict | None = None) -> Flask:
                 (movie_id, changed_at),
             )
             watch_record_id = cursor.lastrowid
+            watch_again_cleared = db.execute(
+                "UPDATE movies SET watch_again = 0 WHERE id = ? AND watch_again = 1", (movie_id,)
+            ).rowcount > 0
+            db.execute("UPDATE movies SET watch_again = 0 WHERE id = ?", (movie_id,))
         else:
             watch = db.execute("SELECT id FROM movie_watch_history WHERE movie_id = ? ORDER BY added_at DESC, id DESC LIMIT 1", (movie_id,)).fetchone()
             if watch is None:
@@ -518,10 +530,12 @@ def create_app(test_config: dict | None = None) -> Flask:
             db.execute("DELETE FROM movie_watch_history WHERE id = ?", (watch["id"],))
             watch_record_id = watch["id"]
             changed_at = None
+            watch_again_cleared = False
         db.commit()
         watch_count = db.execute("SELECT COUNT(*) AS count FROM movie_watch_history WHERE movie_id = ?", (movie_id,)).fetchone()["count"]
         return jsonify(movie_id=movie_id, watch_count=watch_count, action=action,
-                       watch_record_id=watch_record_id, changed_at=changed_at)
+                       watch_record_id=watch_record_id, changed_at=changed_at,
+                       watch_again_cleared=watch_again_cleared)
 
     @app.post("/api/tv/shows/<int:tmdb_id>/import")
     def import_tv_show(tmdb_id: int):

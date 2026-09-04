@@ -11,6 +11,7 @@
 <article class="schedule-timeline-item{% if not is_backlog and episode.is_grouped %} is-multi-episode{% endif %}"
   data-schedule-card data-schedule-mode="{{ mode }}"{% if episode.is_movie %} data-movie-id="{{ episode.movie_id }}"{% else %} data-show-id="{{ episode.show_id }}"{% endif %}
   data-media-type="{{ episode.media_type or 'tv' }}"
+  data-watch-again="{{ 'true' if episode.watch_again else 'false' }}"
   data-tracking-state="{{ episode.tracking_state }}" data-progress-state="{{ progress_state }}"
   data-show-status="{{ episode.show_status or '' }}"
   data-name="{{ episode.show_name|lower }}" data-date-added="{{ episode.show_added_at }}"

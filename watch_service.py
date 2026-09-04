@@ -51,6 +51,23 @@ def _latest_episode_resolution(db: sqlite3.Connection, episode_id: int) -> sqlit
     ).fetchone()
 
 
+def _clear_completed_watch_again(db: sqlite3.Connection, show_id: int) -> bool:
+    show = db.execute(
+        "SELECT watch_again, watch_again_baseline FROM shows WHERE id = ?", (show_id,)
+    ).fetchone()
+    if not show or not show["watch_again"]:
+        return False
+    progress = get_show_progress(db, show_id)
+    baseline = show["watch_again_baseline"] or 0
+    if progress["episode_count"] and progress["completed_watch_count"] > baseline:
+        db.execute(
+            "UPDATE shows SET watch_again = 0, watch_again_baseline = NULL WHERE id = ?",
+            (show_id,),
+        )
+        return True
+    return False
+
+
 def set_episode_watched(
     db: sqlite3.Connection, episode_id: int, watched: bool
 ) -> dict:
@@ -79,10 +96,13 @@ def set_episode_watched(
             """,
             (episode_id,),
         )
+    watch_again_cleared = _clear_completed_watch_again(db, episode["show_id"]) if watched else False
     db.commit()
-    return watch_payload(
+    result = watch_payload(
         db, episode["show_id"], episode_id, previous_watched_count
     )
+    result["watch_again_cleared"] = watch_again_cleared
+    return result
 
 
 def change_episode_watch_count(
@@ -103,6 +123,7 @@ def change_episode_watch_count(
             watch_record_id = latest["resolution_id"]
             table = "episode_skips" if latest["resolution_kind"] == "skip" else "episode_watch_history"
             db.execute(f"DELETE FROM {table} WHERE id = ?", (watch_record_id,))
+    watch_again_cleared = _clear_completed_watch_again(db, episode["show_id"]) if action == "increment" else False
     db.commit()
     result = watch_payload(
         db, episode["show_id"], episode_id, previous_watched_count
@@ -112,6 +133,7 @@ def change_episode_watch_count(
         changed_at=changed_at,
         watch_record_id=watch_record_id,
         resolution_kind=("watch" if action == "increment" else (latest["resolution_kind"] if latest else None)),
+        watch_again_cleared=watch_again_cleared,
     )
     return result
 
@@ -182,6 +204,7 @@ def change_season_watch_count(
                 "DELETE FROM season_watch_history WHERE id = ?",
                 (season_watch_record_id,),
             )
+    watch_again_cleared = _clear_completed_watch_again(db, season["show_id"]) if action == "increment" else False
     db.commit()
 
     episode_counts = [
@@ -204,6 +227,7 @@ def change_season_watch_count(
         ),
         season_watched_at=(changed_at if action == "increment" and episode_ids else None),
         season_watch_record_id=season_watch_record_id,
+        watch_again_cleared=watch_again_cleared,
     )
     return result
 

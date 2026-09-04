@@ -164,7 +164,7 @@ def get_catch_up_episodes(
         WITH episode_counts AS (
             SELECT s.id AS show_id, s.name AS show_name, s.poster_path,
                    s.state AS tracking_state, s.added_at AS show_added_at,
-                   s.status AS show_status,
+                   s.status AS show_status, s.watch_again,
                    sn.season_number, sn.name AS season_name,
                    e.id AS episode_id, e.episode_number,
                    e.name AS episode_name, e.air_date, e.runtime_minutes,
@@ -237,18 +237,40 @@ def get_catch_up_episodes(
                   WHERE normal.show_id = latest_rewatch.show_id
               )
         ),
+        watch_again_candidates AS (
+            SELECT ranked.* FROM (
+                SELECT ec.*, ROW_NUMBER() OVER (
+                    PARTITION BY ec.show_id
+                    ORDER BY ec.watch_count, ec.season_number, ec.episode_number
+                ) AS episode_rank
+                FROM episode_counts ec
+                WHERE ec.watch_again = 1
+                  AND NOT EXISTS (
+                      SELECT 1 FROM normal_unresolved normal WHERE normal.show_id = ec.show_id
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM rewatch_candidates rewatch WHERE rewatch.show_id = ec.show_id
+                  )
+            ) ranked
+            WHERE ranked.episode_rank = 1
+        ),
         unresolved AS (
-            SELECT show_id, show_name, poster_path, tracking_state, show_added_at, show_status,
+            SELECT show_id, show_name, poster_path, tracking_state, show_added_at, show_status, watch_again,
                    season_number, season_name, episode_id, episode_number, episode_name,
                    air_date, runtime_minutes, 0 AS is_rewatch
             FROM normal_unresolved
             WHERE episode_rank = 1
             UNION ALL
-            SELECT show_id, show_name, poster_path, tracking_state, show_added_at, show_status,
+            SELECT show_id, show_name, poster_path, tracking_state, show_added_at, show_status, watch_again,
                    season_number, season_name, episode_id, episode_number, episode_name,
                    air_date, runtime_minutes, 1 AS is_rewatch
             FROM rewatch_candidates
             WHERE episode_rank = 1
+            UNION ALL
+            SELECT show_id, show_name, poster_path, tracking_state, show_added_at, show_status, watch_again,
+                   season_number, season_name, episode_id, episode_number, episode_name,
+                   air_date, runtime_minutes, 1 AS is_rewatch
+            FROM watch_again_candidates
         )
         SELECT unresolved.*, show_progress.episode_count, show_progress.watched_count,
                show_progress.total_watch_count, show_progress.completed_watch_count,

@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS shows (
     is_favorite INTEGER NOT NULL DEFAULT 0 CHECK (is_favorite IN (0, 1)),
     liked INTEGER NOT NULL DEFAULT 0 CHECK (liked IN (0, 1)),
     watch_again INTEGER NOT NULL DEFAULT 0 CHECK (watch_again IN (0, 1)),
+    watch_again_baseline INTEGER,
     added_at TEXT NOT NULL,
     active_at TEXT,
     archived_at TEXT,
