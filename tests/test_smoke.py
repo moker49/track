@@ -100,19 +100,35 @@ class WorkflowSmokeTest(unittest.TestCase):
             0,
         )
 
-    def test_queue_skip_rotates_and_watching_clears_the_skip(self):
+    def test_queue_skip_rotates_rewatch_candidates(self):
+        # Queue Skip applies to a rewatch pass: every released episode has one
+        # resolution, and a later extra watch establishes the pass to follow.
+        # Episode 6 is therefore the first candidate after episode 5's rewatch.
+        db = sqlite3.connect(self.database)
+        try:
+            db.executemany(
+                "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
+                [
+                    (episode_id, f"2026-06-{episode_id:02d}T01:20:00+00:00")
+                    for episode_id in range(6, 14)
+                ]
+                + [(5, "2026-07-01T01:20:00+00:00")],
+            )
+            db.commit()
+        finally:
+            db.close()
+
         before = self.client.get("/api/schedule/shows/1/catch-up")
         self.assertEqual(before.status_code, 200)
         self.assertIn(b'data-episode-id="6"', before.data)
         skipped = self.client.post("/api/episodes/6/skip")
         self.assertEqual(skipped.status_code, 200)
+        self.assertEqual(skipped.get_json()["resolution_kind"], "skip")
         after = self.client.get("/api/schedule/shows/1/catch-up")
         self.assertIn(b'data-episode-id="7"', after.data)
-        watched = self.client.post("/api/episodes/6/watched", json={"watched": True})
-        self.assertEqual(watched.status_code, 200)
         self.assertEqual(
             self.rows("SELECT COUNT(*) AS count FROM episode_skips WHERE episode_id = 6")[0]["count"],
-            0,
+            1,
         )
 
     def test_upcoming_includes_archived_but_excludes_untracked_and_specials(self):
