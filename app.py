@@ -30,6 +30,7 @@ from queries import (
     get_movie_library,
     get_movie_activity,
     get_show_progress,
+    watch_payload,
     get_show_activity,
     get_statistics,
     get_tv_library_shows,
@@ -632,13 +633,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         show = db.execute(
             """
             WITH episode_counts AS (
-                SELECT e.id AS episode_id, sn.show_id, COUNT(wh.id) AS watch_count
+                SELECT e.id AS episode_id, sn.show_id,
+                       (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)
+                       + (SELECT COUNT(*) FROM episode_skips sk WHERE sk.episode_id = e.id) AS watch_count
                 FROM seasons sn
                 JOIN episodes e ON e.season_id = sn.id
                   AND sn.is_progress_counted = 1
                   AND e.air_date <= ?
-                LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
-                GROUP BY e.id
             )
             SELECT s.*, COUNT(ec.episode_id) AS episode_count,
                    COALESCE(SUM(CASE WHEN ec.watch_count > 0 THEN 1 ELSE 0 END), 0) AS watched_count,
@@ -671,13 +672,12 @@ def create_app(test_config: dict | None = None) -> Flask:
             WITH episode_counts AS (
                 SELECT e.id,
                        e.season_id,
-                       COUNT(wh.id) AS watch_count
+                       (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)
+                       + (SELECT COUNT(*) FROM episode_skips sk WHERE sk.episode_id = e.id) AS watch_count
                 FROM episodes e
-                LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
                 WHERE e.season_id IN (
                     SELECT id FROM seasons WHERE show_id = ?
                 )
-                GROUP BY e.id
             )
             SELECT sn.*,
                    COUNT(ec.id) AS episode_count,
@@ -709,12 +709,20 @@ def create_app(test_config: dict | None = None) -> Flask:
             """
             SELECT e.id, e.season_id, e.episode_number, e.name, e.overview,
                    e.air_date, e.runtime_minutes, e.still_path,
-                   COUNT(wh.id) AS watch_count,
-                   MAX(wh.added_at) AS last_watched_at
+                   (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)
+                   + (SELECT COUNT(*) FROM episode_skips sk WHERE sk.episode_id = e.id) AS watch_count,
+                   (SELECT MAX(resolved_at) FROM (
+                     SELECT wh.added_at AS resolved_at FROM episode_watch_history wh WHERE wh.episode_id = e.id
+                     UNION ALL
+                     SELECT sk.skipped_at AS resolved_at FROM episode_skips sk WHERE sk.episode_id = e.id
+                   )) AS last_watched_at,
+                   (SELECT resolution_kind FROM (
+                     SELECT 'watch' AS resolution_kind, COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) AS resolved_at, wh.id FROM episode_watch_history wh WHERE wh.episode_id = e.id
+                     UNION ALL
+                     SELECT 'skip' AS resolution_kind, sk.skipped_at AS resolved_at, sk.id FROM episode_skips sk WHERE sk.episode_id = e.id
+                   ) ORDER BY resolved_at DESC, id DESC LIMIT 1) AS latest_resolution_kind
             FROM episodes e
-            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             WHERE e.season_id = ?
-            GROUP BY e.id
             ORDER BY e.episode_number
             """,
             (season_id,),
@@ -734,14 +742,17 @@ def create_app(test_config: dict | None = None) -> Flask:
                    s.name AS show_name,
                    s.status AS show_status,
                    s.genres AS show_genres,
-                   COUNT(wh.id) AS watch_count
+                   (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)
+                   + (SELECT COUNT(*) FROM episode_skips sk WHERE sk.episode_id = e.id) AS watch_count,
+                   (SELECT resolution_kind FROM (
+                     SELECT 'watch' AS resolution_kind, COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) AS resolved_at, wh.id FROM episode_watch_history wh WHERE wh.episode_id = e.id
+                     UNION ALL
+                     SELECT 'skip' AS resolution_kind, sk.skipped_at AS resolved_at, sk.id FROM episode_skips sk WHERE sk.episode_id = e.id
+                   ) ORDER BY resolved_at DESC, id DESC LIMIT 1) AS latest_resolution_kind
             FROM episodes e
             JOIN seasons sn ON sn.id = e.season_id
             JOIN shows s ON s.id = sn.show_id
-            LEFT JOIN episode_watch_history wh
-              ON wh.episode_id = e.id
             WHERE e.id = ?
-            GROUP BY e.id
             """,
             (episode_id,),
         ).fetchone()
@@ -749,6 +760,11 @@ def create_app(test_config: dict | None = None) -> Flask:
             abort(404)
 
         episode = dict(episode)
+        show_progress = get_show_progress(db, episode["show_id"])
+        episode["show_finished"] = (
+            show_progress["episode_count"] > 0
+            and show_progress["watched_count"] >= show_progress["episode_count"]
+        )
         neighbor_parameters = (
             episode["show_id"],
             episode["is_progress_counted"],
@@ -789,16 +805,18 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         watch_log = db.execute(
             f"""
-            SELECT id AS watch_record_id,
-                   added_at,
-                   watch_date,
-                   show_in_diary,
-                   {effective_watch_date_sql()} AS display_date
-            FROM episode_watch_history
-            WHERE episode_id = ?
-            ORDER BY display_date DESC, added_at DESC, id DESC
+            SELECT 'watched' AS event_type, 'Watched' AS title,
+                   id AS watch_record_id, added_at, watch_date, show_in_diary,
+                   {effective_watch_date_sql()} AS display_date, 'episode' AS watch_kind
+            FROM episode_watch_history WHERE episode_id = ?
+            UNION ALL
+            SELECT 'skipped' AS event_type, 'Skipped' AS title,
+                   id AS watch_record_id, skipped_at AS added_at, NULL AS watch_date,
+                   0 AS show_in_diary, substr(skipped_at, 1, 10) AS display_date, 'skip' AS watch_kind
+            FROM episode_skips WHERE episode_id = ?
+            ORDER BY display_date DESC, added_at DESC, watch_record_id DESC
             """,
-            (episode_id,),
+            (episode_id, episode_id),
         ).fetchall()
         return render_template(
             "episode_detail.html", episode=episode, watch_log=watch_log
@@ -994,26 +1012,30 @@ def create_app(test_config: dict | None = None) -> Flask:
               AND e.air_date <= ?
               AND sn.is_progress_counted = 1
               AND s.is_tracked = 1
-              AND s.state = 'ACTIVE'
-              AND NOT EXISTS (
-                  SELECT 1 FROM episode_watch_history wh
-                  WHERE wh.episode_id = e.id
-              )
             """,
             (episode_id, request_local_date().isoformat()),
         ).fetchone()
         if episode is None:
             return jsonify(error="Episode cannot be skipped"), 409
-        db.execute(
-            """
-            INSERT INTO episode_skips (episode_id, skipped_at)
-            VALUES (?, ?)
-            ON CONFLICT(episode_id) DO UPDATE SET skipped_at = excluded.skipped_at
-            """,
-            (episode_id, precise_utc_now()),
-        )
+        previous_watched_count = get_show_progress(db, episode["show_id"])["watched_count"]
+        if previous_watched_count < get_show_progress(db, episode["show_id"])["episode_count"]:
+            return jsonify(error="Finish the show before skipping episodes"), 409
+        changed_at = precise_utc_now()
+        skip_record_id = db.execute(
+            "INSERT INTO episode_skips (episode_id, skipped_at) VALUES (?, ?)",
+            (episode_id, changed_at),
+        ).lastrowid
         db.commit()
-        return jsonify(show_id=episode["show_id"], episode_id=episode_id)
+        payload = watch_payload(
+            db, episode["show_id"], episode_id, previous_watched_count
+        )
+        payload.update(
+            action="skip",
+            changed_at=changed_at,
+            watch_record_id=skip_record_id,
+            resolution_kind="skip",
+        )
+        return jsonify(payload)
 
     @app.delete("/api/episodes/<int:episode_id>/skip")
     def undo_skip_episode(episode_id: int):

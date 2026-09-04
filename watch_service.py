@@ -30,13 +30,33 @@ def _episode_context(db: sqlite3.Connection, episode_id: int) -> sqlite3.Row:
     return episode
 
 
+def _latest_episode_resolution(db: sqlite3.Connection, episode_id: int) -> sqlite3.Row | None:
+    return db.execute(
+        """
+        SELECT resolution_kind, resolution_id
+        FROM (
+            SELECT 'watch' AS resolution_kind, id AS resolution_id,
+                   COALESCE(watch_date, substr(added_at, 1, 10)) AS resolved_at,
+                   added_at AS added_at
+            FROM episode_watch_history WHERE episode_id = ?
+            UNION ALL
+            SELECT 'skip' AS resolution_kind, id AS resolution_id,
+                   substr(skipped_at, 1, 10) AS resolved_at, skipped_at AS added_at
+            FROM episode_skips WHERE episode_id = ?
+        )
+        ORDER BY resolved_at DESC, added_at DESC, resolution_id DESC
+        LIMIT 1
+        """,
+        (episode_id, episode_id),
+    ).fetchone()
+
+
 def set_episode_watched(
     db: sqlite3.Connection, episode_id: int, watched: bool
 ) -> dict:
     episode = _episode_context(db, episode_id)
     previous_watched_count = get_show_progress(db, episode["show_id"])["watched_count"]
     if watched:
-        db.execute("DELETE FROM episode_skips WHERE episode_id = ?", (episode_id,))
         exists = db.execute(
             "SELECT 1 FROM episode_watch_history WHERE episode_id = ? LIMIT 1",
             (episode_id,),
@@ -73,24 +93,16 @@ def change_episode_watch_count(
     changed_at = _now()
     watch_record_id = None
     if action == "increment":
-        db.execute("DELETE FROM episode_skips WHERE episode_id = ?", (episode_id,))
         watch_record_id = db.execute(
             "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
             (episode_id, changed_at),
         ).lastrowid
     else:
-        latest = db.execute(
-            f"""
-            SELECT id FROM episode_watch_history
-            WHERE episode_id = ?
-            ORDER BY {effective_watch_date_sql()} DESC, added_at DESC, id DESC
-            LIMIT 1
-            """,
-            (episode_id,),
-        ).fetchone()
+        latest = _latest_episode_resolution(db, episode_id)
         if latest is not None:
-            watch_record_id = latest["id"]
-            db.execute("DELETE FROM episode_watch_history WHERE id = ?", (latest["id"],))
+            watch_record_id = latest["resolution_id"]
+            table = "episode_skips" if latest["resolution_kind"] == "skip" else "episode_watch_history"
+            db.execute(f"DELETE FROM {table} WHERE id = ?", (watch_record_id,))
     db.commit()
     result = watch_payload(
         db, episode["show_id"], episode_id, previous_watched_count
@@ -99,6 +111,7 @@ def change_episode_watch_count(
         action=action,
         changed_at=changed_at,
         watch_record_id=watch_record_id,
+        resolution_kind=("watch" if action == "increment" else (latest["resolution_kind"] if latest else None)),
     )
     return result
 
@@ -123,12 +136,6 @@ def change_season_watch_count(
     changed_at = _now()
     season_watch_record_id = None
     if action == "increment":
-        if episode_ids:
-            placeholders = ",".join("?" for _episode_id in episode_ids)
-            db.execute(
-                f"DELETE FROM episode_skips WHERE episode_id IN ({placeholders})",
-                episode_ids,
-            )
         db.executemany(
             "INSERT INTO episode_watch_history (episode_id, added_at, show_in_diary) VALUES (?, ?, 0)",
             [(episode_id, changed_at) for episode_id in episode_ids],

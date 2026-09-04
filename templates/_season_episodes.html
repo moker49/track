@@ -1,6 +1,6 @@
 {% for episode in episodes %}
 <article class="episode {{ 'is-watched' if episode.watch_count else '' }}" data-episode-id="{{ episode.id }}"
-  data-watch-count="{{ episode.watch_count }}">
+  data-watch-count="{{ episode.watch_count }}" data-latest-resolution-kind="{{ episode.latest_resolution_kind or '' }}">
   <button class="episode-copy episode-open" type="button" data-open-episode
     aria-label="Open {{ episode.name }} details">
     <div class="episode-title">
@@ -29,9 +29,9 @@
         <span class="material-symbols-rounded" aria-hidden="true">add</span>
         <span>rewatch</span>
       </button>
-      <button type="button" data-watch-action="decrement">
-        <span class="material-symbols-rounded" aria-hidden="true">remove</span>
-        <span>unwatch</span>
+        <button type="button" data-watch-action="decrement">
+          <span class="material-symbols-rounded" aria-hidden="true">remove</span>
+          <span>{{ 'unskip' if episode.latest_resolution_kind == 'skip' else 'unwatch' }}</span>
       </button>
     </div>
   </div>

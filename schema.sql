@@ -80,8 +80,7 @@ CREATE TABLE IF NOT EXISTS season_watch_history (
 
 CREATE TABLE IF NOT EXISTS episode_skips (
     id INTEGER PRIMARY KEY,
-    episode_id INTEGER NOT NULL UNIQUE
-        REFERENCES episodes(id) ON DELETE CASCADE,
+    episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
     skipped_at TEXT NOT NULL
 );
 

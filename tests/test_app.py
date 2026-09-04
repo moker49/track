@@ -599,65 +599,56 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("openSeasonIds,", javascript)
 
     def test_schedule_skip_advances_without_creating_watch_history(self):
-        skipped = self.client.post("/api/episodes/6/skip")
+        self.assertNotIn(
+            b'data-watch-action="skip"', self.client.get("/api/episodes/6").data
+        )
+        blocked = self.client.post("/api/episodes/6/skip")
+        self.assertEqual(blocked.status_code, 409)
+
+        for episode_id in range(6, 14):
+            self.assertEqual(
+                self.client.post(
+                    f"/api/episodes/{episode_id}/watch-count",
+                    json={"action": "increment"},
+                ).status_code,
+                200,
+            )
+
+        self.assertIn(
+            b'data-watch-action="skip"', self.client.get("/api/episodes/1").data
+        )
+
+        skipped = self.client.post("/api/episodes/1/skip")
         self.assertEqual(skipped.status_code, 200)
+        self.assertEqual(skipped.get_json()["watched_count"], 13)
+        self.assertEqual(skipped.get_json()["total_watch_count"], 14)
 
         connection = sqlite3.connect(self.database)
         skip_count = connection.execute(
-            "SELECT COUNT(*) FROM episode_skips WHERE episode_id = 6"
+            "SELECT COUNT(*) FROM episode_skips WHERE episode_id = 1"
         ).fetchone()[0]
         watch_count = connection.execute(
-            "SELECT COUNT(*) FROM episode_watch_history WHERE episode_id = 6"
+            "SELECT COUNT(*) FROM episode_watch_history WHERE episode_id = 1"
         ).fetchone()[0]
         connection.close()
         self.assertEqual(skip_count, 1)
-        self.assertEqual(watch_count, 0)
+        self.assertEqual(watch_count, 1)
 
         next_card = self.client.get("/api/schedule/shows/1/catch-up")
-        self.assertIn(b'data-episode-id="7"', next_card.data)
-        self.assertNotIn(b"Skipped", self.client.get("/api/episodes/6").data)
+        self.assertIn(b'data-episode-id="2"', next_card.data)
+        skipped_detail = self.client.get("/api/episodes/1").data
+        self.assertIn(b"Skipped", skipped_detail)
+        self.assertIn(b">unskip</span>", skipped_detail)
+        self.assertNotIn(b"Skipped", self.client.get("/api/profile/diary").data)
 
-        undone = self.client.delete("/api/episodes/6/skip")
-        self.assertEqual(undone.status_code, 200)
-        restored_card = self.client.get("/api/schedule/shows/1/catch-up")
-        self.assertIn(b'data-episode-id="6"', restored_card.data)
-
-        self.client.post("/api/episodes/6/skip")
-        watched = self.client.post(
-            "/api/episodes/6/watch-count", json={"action": "increment"}
+        undone = self.client.post(
+            "/api/episodes/1/watch-count", json={"action": "decrement"}
         )
-        self.assertEqual(watched.status_code, 200)
-        connection = sqlite3.connect(self.database)
-        remaining_skip = connection.execute(
-            "SELECT COUNT(*) FROM episode_skips WHERE episode_id = 6"
-        ).fetchone()[0]
-        connection.close()
-        self.assertEqual(remaining_skip, 0)
-
-    def test_schedule_cycles_skipped_episodes_and_only_finishes_when_fully_watched(self):
-        for episode_id in range(6, 14):
-            skipped = self.client.post(f"/api/episodes/{episode_id}/skip")
-            self.assertEqual(skipped.status_code, 200)
-
-        wrapped = self.client.get("/api/schedule/shows/1/catch-up")
-        self.assertEqual(wrapped.status_code, 200)
-        self.assertIn(b'data-episode-id="6"', wrapped.data)
-
-        skipped_again = self.client.post("/api/episodes/6/skip")
-        self.assertEqual(skipped_again.status_code, 200)
-        rotated = self.client.get("/api/schedule/shows/1/catch-up")
-        self.assertEqual(rotated.status_code, 200)
-        self.assertIn(b'data-episode-id="7"', rotated.data)
-
-        for episode_id in range(6, 14):
-            watched = self.client.post(
-                f"/api/episodes/{episode_id}/watch-count",
-                json={"action": "increment"},
-            )
-            self.assertEqual(watched.status_code, 200)
-
-        caught_up = self.client.get("/api/schedule/shows/1/catch-up")
-        self.assertEqual(caught_up.status_code, 204)
+        self.assertEqual(undone.status_code, 200)
+        self.assertEqual(undone.get_json()["resolution_kind"], "skip")
+        self.assertNotIn(b"Skipped", self.client.get("/api/episodes/1").data)
+        restored_card = self.client.get("/api/schedule/shows/1/catch-up")
+        self.assertEqual(restored_card.status_code, 204)
 
     def test_queue_continues_an_in_progress_rewatch(self):
         for episode_id in range(6, 14):

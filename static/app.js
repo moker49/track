@@ -1639,7 +1639,7 @@ async function processScheduleEpisode(card, action) {
     }
     if (!response.ok) throw new Error(data.error || `Could not ${action} episode`);
     processed = true;
-    if (action === "watch") {
+    if (action === "watch" || action === "skip") {
       invalidateWatchCaches({ showId, episodeId });
       applyShowProgress(data);
       maybeOpenFinishedArchiveDialog(data);
@@ -2582,6 +2582,7 @@ function addActivityItem({
     archived: "archive",
     activated: "resume",
     season_watched: "done_all",
+    skipped: "skip_next",
   }[type] || "history";
 
   const copy = document.createElement("span");
@@ -2597,7 +2598,7 @@ function addActivityItem({
   dateRow.append(time);
   copy.append(heading, dateRow);
 
-  if (recordId) {
+  if (recordId && watchKind !== "skip") {
     const button = document.createElement("button");
     button.className = "activity-item-button";
     button.type = "button";
@@ -3628,10 +3629,17 @@ function syncSeasonFromEpisodes(season) {
   updateSeasonWatchSummary(season, episodes.length, watchedCount, minimumWatchCount);
 }
 
-function updateEpisodeWatchUi(episode, watchCount, syncSeason = true) {
+function syncEpisodeResolutionMenu(episode, latestResolutionKind) {
+  episode.dataset.latestResolutionKind = latestResolutionKind || "";
+  const label = episode.querySelector('[data-watch-action="decrement"] span:last-child');
+  if (label) label.textContent = latestResolutionKind === "skip" ? "unskip" : "unwatch";
+}
+
+function updateEpisodeWatchUi(episode, watchCount, syncSeason = true, latestResolutionKind = null) {
   episode.dataset.watchCount = watchCount;
   episode.classList.toggle("is-watched", watchCount > 0);
   setWatchControl(episode.querySelector("[data-episode-watch]"), watchCount);
+  if (latestResolutionKind !== null) syncEpisodeResolutionMenu(episode, latestResolutionKind);
   if (syncSeason) syncSeasonFromEpisodes(episode.closest(".season"));
 }
 
@@ -3672,10 +3680,12 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
   if (pendingWatchChanges.has(episode)) return;
   pendingWatchChanges.add(episode);
   try {
-    const response = await fetch(`/api/episodes/${episode.dataset.episodeId}/watch-count`, {
+    const response = await fetch(action === "skip"
+      ? `/api/episodes/${episode.dataset.episodeId}/skip`
+      : `/api/episodes/${episode.dataset.episodeId}/watch-count`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
+      body: action === "skip" ? undefined : JSON.stringify({ action }),
     });
     if (response.status === 409) {
       const data = await response.json();
@@ -3690,7 +3700,7 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
       showId: data.show_id,
       episodeId: episode.dataset.episodeId,
     });
-    updateEpisodeWatchUi(episode, data.watch_count);
+    updateEpisodeWatchUi(episode, data.watch_count, true, data.latest_resolution_kind);
     applyShowProgress(data);
     maybeOpenFinishedArchiveDialog(data);
     cacheCurrentSeasonEpisodes(episode.closest(".season"));
@@ -3702,21 +3712,22 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
   }
 }
 
-function updateEpisodeDetailWatchUi(detailEpisode, watchCount) {
+function updateEpisodeDetailWatchUi(detailEpisode, watchCount, latestResolutionKind = null) {
   detailEpisode.dataset.watchCount = watchCount;
   const control = detailEpisode.querySelector("[data-episode-detail-watch]");
   if (!control) return;
   control.dataset.watchCount = watchCount;
   control.querySelector("[data-episode-detail-watch-count]").textContent = watchCount;
   control.querySelector("[data-episode-detail-watch-label]").textContent =
-    watchCount === 1 ? "watch" : "watches";
+    watchCount === 1 ? "resolution" : "resolutions";
+  if (latestResolutionKind !== null) syncEpisodeResolutionMenu(detailEpisode, latestResolutionKind);
 }
 
-function removeEpisodeWatchActivity(recordId) {
+function removeEpisodeWatchActivity(recordId, watchKind = "episode") {
   if (!recordId) return;
   const log = views.get("detail").querySelector("[data-activity-log]");
   const list = log?.querySelector("[data-activity-list]");
-  list?.querySelector(`.activity-item[data-watch-kind="episode"][data-watch-record-id="${recordId}"]`)?.remove();
+  list?.querySelector(`.activity-item[data-watch-kind="${watchKind}"][data-watch-record-id="${recordId}"]`)?.remove();
   if (list && !list.querySelector(".activity-item")) {
     const empty = document.createElement("li");
     empty.className = "activity-empty";
@@ -3731,10 +3742,12 @@ async function changeEpisodeDetailWatchCount(detailEpisode, action) {
   if (pendingWatchChanges.has(detailEpisode)) return;
   pendingWatchChanges.add(detailEpisode);
   try {
-    const response = await fetch(`/api/episodes/${detailEpisode.dataset.episodeId}/watch-count`, {
+    const response = await fetch(action === "skip"
+      ? `/api/episodes/${detailEpisode.dataset.episodeId}/skip`
+      : `/api/episodes/${detailEpisode.dataset.episodeId}/watch-count`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
+      body: action === "skip" ? undefined : JSON.stringify({ action }),
     });
     if (response.status === 409) {
       const data = await response.json();
@@ -3749,20 +3762,23 @@ async function changeEpisodeDetailWatchCount(detailEpisode, action) {
       showId: data.show_id,
       episodeId: detailEpisode.dataset.episodeId,
     });
-    updateEpisodeDetailWatchUi(detailEpisode, data.watch_count);
+    updateEpisodeDetailWatchUi(detailEpisode, data.watch_count, data.latest_resolution_kind);
     applyShowProgress(data);
     maybeOpenFinishedArchiveDialog(data);
-    if (data.action === "increment") {
+    if (data.action === "increment" || data.action === "skip") {
       addActivityItem({
-        type: "watched",
-        title: "Watched",
+        type: data.action === "skip" ? "skipped" : "watched",
+        title: data.action === "skip" ? "Skipped" : "Watched",
         occurredAt: data.changed_at,
         recordId: String(data.watch_record_id),
-        watchKind: "episode",
+        watchKind: data.resolution_kind === "skip" ? "skip" : "episode",
         addedAt: data.changed_at,
       });
     } else {
-      removeEpisodeWatchActivity(data.watch_record_id);
+      removeEpisodeWatchActivity(
+        data.watch_record_id,
+        data.resolution_kind === "skip" ? "skip" : "episode",
+      );
     }
   } catch (_error) {
     showSnackbar("Couldn't update this episode. Try again.");

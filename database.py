@@ -14,6 +14,28 @@ def connect_database(path: str | Path) -> sqlite3.Connection:
 def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None:
     schema = Path(schema_path).read_text(encoding="utf-8")
     db.executescript(schema)
+    # Skips used to be a single mutable marker per episode. They are now dated,
+    # repeatable resolution records, so preserve every existing marker while
+    # replacing the old uniqueness constraint.
+    skip_schema = db.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'episode_skips'"
+    ).fetchone()
+    if skip_schema and "episode_id INTEGER NOT NULL UNIQUE" in (skip_schema["sql"] or ""):
+        db.execute("ALTER TABLE episode_skips RENAME TO episode_skips_legacy")
+        db.execute(
+            """
+            CREATE TABLE episode_skips (
+                id INTEGER PRIMARY KEY,
+                episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
+                skipped_at TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            "INSERT INTO episode_skips (id, episode_id, skipped_at) SELECT id, episode_id, skipped_at FROM episode_skips_legacy"
+        )
+        db.execute("DROP TABLE episode_skips_legacy")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_episode_skips_episode ON episode_skips(episode_id)")
     # SQLite does not add columns when CREATE TABLE IF NOT EXISTS sees an older
     # table, so keep existing personal libraries compatible with new fields.
     for table, column, definition in (

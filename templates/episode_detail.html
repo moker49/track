@@ -1,5 +1,6 @@
 <div data-detail-episode data-detail-title="{{ episode.name }}" data-episode-id="{{ episode.id }}"
-  data-show-id="{{ episode.show_id }}" data-watch-count="{{ episode.watch_count }}">
+  data-show-id="{{ episode.show_id }}" data-watch-count="{{ episode.watch_count }}"
+  data-latest-resolution-kind="{{ episode.latest_resolution_kind or '' }}">
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back data-back-show-id="{{ episode.show_id }}"
       aria-label="Back to {{ episode.show_name }}">
@@ -42,7 +43,7 @@
         data-watch-count="{{ episode.watch_count }}" aria-label="Watch options for {{ episode.name }}">
         <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
         <span><strong data-episode-detail-watch-count>{{ episode.watch_count }}</strong>
-          <span data-episode-detail-watch-label>{{ 'watches' if episode.watch_count != 1 else 'watch' }}</span></span>
+          <span data-episode-detail-watch-label>{{ 'resolutions' if episode.watch_count != 1 else 'resolution' }}</span></span>
       </button>
       <div class="show-menu watch-menu episode-detail-watch-menu" data-watch-menu popover="manual" hidden>
         <button type="button" data-watch-action="increment">
@@ -51,8 +52,12 @@
         </button>
         <button type="button" data-watch-action="decrement">
           <span class="material-symbols-rounded" aria-hidden="true">remove</span>
-          <span>unwatch</span>
+          <span>{{ 'unskip' if episode.latest_resolution_kind == 'skip' else 'unwatch' }}</span>
         </button>
+        {% if episode.show_finished %}<button type="button" data-watch-action="skip">
+          <span class="material-symbols-rounded" aria-hidden="true">skip_next</span>
+          <span>skip</span>
+        </button>{% endif %}
       </div>
     </div>
 

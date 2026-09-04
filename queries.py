@@ -26,12 +26,12 @@ def get_show_progress(db: sqlite3.Connection, show_id: int) -> sqlite3.Row:
     return db.execute(
         """
         WITH episode_counts AS (
-            SELECT e.id, COUNT(wh.id) AS watch_count
+            SELECT e.id,
+                   (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)
+                   + (SELECT COUNT(*) FROM episode_skips sk WHERE sk.episode_id = e.id) AS watch_count
             FROM seasons sn
             JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
-            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             WHERE sn.show_id = ? AND sn.is_progress_counted = 1
-            GROUP BY e.id
         )
         SELECT COUNT(*) AS episode_count,
                COALESCE(SUM(CASE WHEN watch_count > 0 THEN 1 ELSE 0 END), 0) AS watched_count,
@@ -45,8 +45,11 @@ def get_show_progress(db: sqlite3.Connection, show_id: int) -> sqlite3.Row:
 
 def get_episode_watch_count(db: sqlite3.Connection, episode_id: int) -> int:
     return db.execute(
-        "SELECT COUNT(*) FROM episode_watch_history WHERE episode_id = ?",
-        (episode_id,),
+        """
+        SELECT (SELECT COUNT(*) FROM episode_watch_history WHERE episode_id = ?)
+             + (SELECT COUNT(*) FROM episode_skips WHERE episode_id = ?)
+        """,
+        (episode_id, episode_id),
     ).fetchone()[0]
 
 
@@ -88,6 +91,21 @@ def watch_payload(
             """,
             (show_id,),
         ).fetchone()[0],
+        "latest_resolution_kind": db.execute(
+            """
+            SELECT COALESCE((
+                SELECT resolution_kind FROM (
+                    SELECT 'watch' AS resolution_kind,
+                           COALESCE(watch_date, substr(added_at, 1, 10)) AS resolved_at, id
+                    FROM episode_watch_history WHERE episode_id = ?
+                    UNION ALL
+                    SELECT 'skip' AS resolution_kind, skipped_at AS resolved_at, id
+                    FROM episode_skips WHERE episode_id = ?
+                ) ORDER BY resolved_at DESC, id DESC LIMIT 1
+            ), '')
+            """,
+            (episode_id, episode_id),
+        ).fetchone()[0] if episode_id is not None else None,
         "became_finished": (
             previous_watched_count is not None
             and previous_watched_count < episode_count
@@ -108,7 +126,9 @@ def get_library_show(
     return db.execute(
         """
         WITH episode_counts AS (
-            SELECT e.id AS episode_id, sn.show_id, COUNT(wh.id) AS watch_count,
+            SELECT e.id AS episode_id, sn.show_id,
+                   (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)
+                   + (SELECT COUNT(*) FROM episode_skips sk WHERE sk.episode_id = e.id) AS watch_count,
                    MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
                             THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
             FROM seasons sn
@@ -148,18 +168,22 @@ def get_catch_up_episodes(
                    sn.season_number, sn.name AS season_name,
                    e.id AS episode_id, e.episode_number,
                    e.name AS episode_name, e.air_date, e.runtime_minutes,
-                   COUNT(wh.id) AS watch_count,
-                   MAX(wh.added_at) AS last_watch_added_at,
-                   MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
-                            THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_visible_watched_at
+                   (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)
+                   + (SELECT COUNT(*) FROM episode_skips sk WHERE sk.episode_id = e.id) AS watch_count,
+                   (SELECT MAX(resolved_at) FROM (
+                       SELECT wh.added_at AS resolved_at FROM episode_watch_history wh WHERE wh.episode_id = e.id
+                       UNION ALL
+                       SELECT sk.skipped_at AS resolved_at FROM episode_skips sk WHERE sk.episode_id = e.id
+                   )) AS last_watch_added_at,
+                   (SELECT MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
+                                    THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END)
+                    FROM episode_watch_history wh WHERE wh.episode_id = e.id) AS last_visible_watched_at
             FROM shows s
             JOIN seasons sn ON sn.show_id = s.id AND sn.is_progress_counted = 1
             JOIN episodes e ON e.season_id = sn.id
-            LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             WHERE s.is_tracked = 1
               AND e.air_date IS NOT NULL
               AND e.air_date <= ?
-            GROUP BY e.id
         ),
         show_progress_base AS (
             SELECT show_id,
@@ -182,11 +206,9 @@ def get_catch_up_episodes(
         normal_unresolved AS (
             SELECT ec.*, ROW_NUMBER() OVER (
                 PARTITION BY ec.show_id
-                ORDER BY CASE WHEN sk.episode_id IS NULL THEN 0 ELSE 1 END,
-                         sk.skipped_at, ec.air_date, ec.season_number, ec.episode_number
+                ORDER BY ec.air_date, ec.season_number, ec.episode_number
             ) AS episode_rank
             FROM episode_counts ec
-            LEFT JOIN episode_skips sk ON sk.episode_id = ec.episode_id
             WHERE ec.watch_count = 0
         ),
         latest_rewatch AS (
@@ -772,7 +794,9 @@ def get_tv_library_shows(
     shows = db.execute(
         """
         WITH episode_counts AS (
-            SELECT e.id AS episode_id, sn.show_id, COUNT(wh.id) AS watch_count,
+            SELECT e.id AS episode_id, sn.show_id,
+                   (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)
+                   + (SELECT COUNT(*) FROM episode_skips sk WHERE sk.episode_id = e.id) AS watch_count,
                    MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
                             THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
             FROM seasons sn

@@ -14,18 +14,18 @@
     {% endif %}
     <ol class="activity-list" data-activity-list>
       {% for item in activity_items %}
-      {% set event_type = item.event_type if activity_mode in ['show', 'movie'] else 'watched' %}
-      {% set event_title = item.title if activity_mode in ['show', 'movie'] else 'Watched' %}
+      {% set event_type = item.event_type if activity_mode in ['show', 'movie'] or item.event_type is defined else 'watched' %}
+      {% set event_title = item.title if activity_mode in ['show', 'movie'] or item.title is defined else 'Watched' %}
       {% set event_time = item.occurred_at if activity_mode in ['show', 'movie'] else item.display_date %}
       {% set record_id = item.watch_record_id %}
-      {% set watch_kind = item.watch_kind if activity_mode in ['show', 'movie'] else 'episode' %}
+      {% set watch_kind = item.watch_kind if activity_mode in ['show', 'movie'] or item.watch_kind is defined else 'episode' %}
       {% set added_at = item.watch_added_at if activity_mode in ['show', 'movie'] else item.added_at %}
       {% set watch_date = item.watch_date %}
       <li class="activity-item" data-activity-type="{{ event_type }}" data-sort-date="{{ event_time }}" {% if
         activity_mode=='show' and item.season_id %} data-season-id="{{ item.season_id }}" {% endif %}{% if record_id %}
         data-watch-record-id="{{ record_id }}" data-watch-kind="{{ watch_kind }}" data-added-at="{{ added_at }}"
         data-watch-date="{{ watch_date or '' }}" data-show-in-diary="{{ item.show_in_diary if item.show_in_diary is defined else 1 }}" {% if item.season_diary_state is defined and item.season_diary_state %}data-season-diary-state="{{ item.season_diary_state }}"{% endif %} {% endif %}>
-        {% if record_id %}<button class="activity-item-button" type="button" {% if watch_kind == 'season' %}data-season-diary-menu-button{% else %}data-watch-log-menu-button{% endif %}
+        {% if record_id and watch_kind != 'skip' %}<button class="activity-item-button" type="button" {% if watch_kind == 'season' %}data-season-diary-menu-button{% else %}data-watch-log-menu-button{% endif %}
           aria-label="Set date for {{ event_title }}">{% endif %}
           <span class="material-symbols-rounded activity-icon" aria-hidden="true">
             {%- if event_type == 'added' -%}add_circle
@@ -33,6 +33,7 @@
             {%- elif event_type == 'archived' -%}archive
             {%- elif event_type == 'activated' -%}resume
             {%- elif event_type == 'season_watched' -%}done_all
+            {%- elif event_type == 'skipped' -%}skip_next
             {%- else -%}check_circle
             {%- endif -%}
           </span>
@@ -40,12 +41,12 @@
             <strong>{{ event_title }}</strong>
             <span class="activity-date-row"><time datetime="{{ event_time }}" data-display-date>{{ event_time[:10] }}</time>{% if record_id and item.show_in_diary is defined and not item.show_in_diary %}<span class="material-symbols-rounded activity-diary-hidden-icon" role="img" aria-label="Hidden from diary" title="Hidden from diary">visibility_off</span>{% endif %}</span>
           </span>
-          {% if record_id %}<span class="material-symbols-rounded activity-edit-icon"
+          {% if record_id and watch_kind != 'skip' %}<span class="material-symbols-rounded activity-edit-icon"
             aria-hidden="true">{% if watch_kind == 'season' %}visibility{% else %}more_vert{% endif %}</span></button>{% endif %}
           {% if watch_kind == 'season' %}<div class="show-menu" data-season-diary-menu popover="manual" hidden>
             <button type="button" data-season-diary-action><span class="material-symbols-rounded" aria-hidden="true">visibility_off</span><span>{% if item.season_diary_state == 'shown' %}Hide from diary{% else %}Show in diary{% endif %}</span></button>
           </div>{% endif %}
-          {% if record_id and watch_kind != 'season' %}<div class="show-menu" data-watch-log-menu popover="manual" hidden>
+          {% if record_id and watch_kind not in ['season', 'skip'] %}<div class="show-menu" data-watch-log-menu popover="manual" hidden>
             <button type="button" data-watch-log-set-date><span class="material-symbols-rounded" aria-hidden="true">edit_calendar</span><span>Set date</span></button>
             <button type="button" data-watch-log-diary-action><span class="material-symbols-rounded" aria-hidden="true">visibility_off</span><span>{% if item.show_in_diary %}Hide from diary{% else %}Show in diary{% endif %}</span></button>
           </div>{% endif %}
