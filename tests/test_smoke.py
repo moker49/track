@@ -206,8 +206,8 @@ class DatabaseBootstrapSmokeTest(unittest.TestCase):
                 VALUES (1, 1, 2001, 1, 'Season 1');
                 INSERT INTO episodes (id, season_id, tmdb_id, episode_number, name, is_watched_without_diary)
                 VALUES (1, 1, 3001, 1, 'Episode 1', 1);
-                INSERT INTO movies (id, tmdb_id, title, state, added_at, is_watched_without_diary)
-                VALUES (1, 4001, 'Legacy movie', 'ACTIVE', '2026-01-03T00:00:00+00:00', 1);
+                INSERT INTO movies (id, tmdb_id, title, added_at, is_watched_without_diary)
+                VALUES (1, 4001, 'Legacy movie', '2026-01-03T00:00:00+00:00', 1);
                 """
             )
             db.commit()

@@ -1,7 +1,7 @@
 {% set watched = movie.watch_count > 0 %}
 {% set upcoming = not watched and movie.is_upcoming|default(false) %}
 <div data-detail-movie data-detail-title="{{ movie.title }}" data-movie-id="{{ movie.id if movie.id is not none else '' }}" data-tmdb-id="{{ movie.tmdb_id }}"
-  data-movie-state="{{ movie.state }}" data-watch-count="{{ movie.watch_count }}"
+  data-watch-count="{{ movie.watch_count }}"
   data-liked="{{ 'true' if movie.liked else 'false' }}"
   data-movie-upcoming="{{ 'true' if upcoming else 'false' }}"
   data-progress-state="{{ 'finished' if watched else 'not-started' }}">
@@ -75,8 +75,8 @@
     {% include '_activity_log.html' %}
     {% else %}
     <div class="md-button-group detail-add-group" aria-label="Add movie to library">
-      <button type="button" data-track-movie-state="new"><span class="material-symbols-rounded" aria-hidden="true">add</span><span>Add</span></button>
-      <button type="button" data-track-movie-state="watched"><span class="material-symbols-rounded" aria-hidden="true">visibility</span><span>Watch</span></button>
+      <button type="button" data-track-movie-action="new"><span class="material-symbols-rounded" aria-hidden="true">add</span><span>Add</span></button>
+      <button type="button" data-track-movie-action="watched"><span class="material-symbols-rounded" aria-hidden="true">visibility</span><span>Watch</span></button>
     </div>
     {% endif %}
   </section>

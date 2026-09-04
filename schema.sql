@@ -128,12 +128,9 @@ CREATE TABLE IF NOT EXISTS movies (
     status TEXT,
     genres TEXT,
     original_language TEXT,
-    state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
     is_tracked INTEGER NOT NULL DEFAULT 1 CHECK (is_tracked IN (0, 1)),
     liked INTEGER NOT NULL DEFAULT 0 CHECK (liked IN (0, 1)),
     added_at TEXT NOT NULL,
-    active_at TEXT,
-    archived_at TEXT,
     updated_at TEXT,
     tmdb_refreshed_at TEXT,
     tmdb_payload TEXT NOT NULL DEFAULT '{}'
@@ -147,15 +144,7 @@ CREATE TABLE IF NOT EXISTS movie_watch_history (
     show_in_diary INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))
 );
 
-CREATE TABLE IF NOT EXISTS movie_state_history (
-    id INTEGER PRIMARY KEY,
-    movie_id INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
-    state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
-    entered_at TEXT NOT NULL
-);
-
 CREATE INDEX IF NOT EXISTS idx_movie_watch_history_movie ON movie_watch_history(movie_id);
-CREATE INDEX IF NOT EXISTS idx_movie_state_history_movie ON movie_state_history(movie_id);
 
 CREATE TABLE IF NOT EXISTS image_cache (
     id INTEGER PRIMARY KEY,

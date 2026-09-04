@@ -1730,13 +1730,11 @@ html.app-booting .schedule-empty-reveal {
   padding-bottom: 76px;
 }
 
-/* Movies use two state containers for filtering, but they should read as one list. */
 [data-view="movies"] {
   padding-bottom: 76px;
 }
 
-[data-view="movies"] .tv-library-section,
-[data-view="movies"] .archived-section {
+[data-view="movies"] .tv-library-section {
   padding-top: 12px;
   padding-bottom: 0;
 }

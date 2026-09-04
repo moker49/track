@@ -2277,16 +2277,16 @@ async function previewCatalogMovie(card, historyMode = "push") {
   }
 }
 
-async function trackDetailMovie(movieElement, state, trigger) {
+async function trackDetailMovie(movieElement, action, trigger) {
   trigger.disabled = true;
   try {
     const response = await fetch(`/api/movies/${movieElement.dataset.tmdbId}/import`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched: state === "watched" }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched: action === "watched" }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add movie");
     document.querySelectorAll(`.popular-card[data-tmdb-id="${movieElement.dataset.tmdbId}"]`)
-      .forEach((card) => markCatalogTracked(card, state, String(data.movie_id)));
+      .forEach((card) => markCatalogTracked(card, action, String(data.movie_id)));
     openMovie(data.movie_id, "movies", "replace");
   } catch (error) {
     trigger.disabled = false;
@@ -2820,12 +2820,10 @@ function mediaTypeLabel(mediaTypes, defaultMediaTypes) {
   if (selected.size === defaultMediaTypes.length
     && defaultMediaTypes.every((type) => selected.has(type))) return "Library";
   const tvArchive = selected.has("tv-archive");
-  const movieArchive = selected.has("movie-archive");
-  if (selected.has("tv") && selected.has("movies")) return tvArchive || movieArchive ? "All+" : "All";
+  if (selected.has("tv") && selected.has("movies")) return tvArchive ? "All+" : "All";
   if (selected.has("tv")) return tvArchive ? "TV+" : "TV";
-  if (selected.has("movies")) return movieArchive ? "Movies+" : "Movies";
-  if (tvArchive && movieArchive) return "Archive";
-  return tvArchive ? "TV archive" : movieArchive ? "Movie archive" : "None";
+  if (selected.has("movies")) return "Movies";
+  return tvArchive ? "TV archive" : "None";
 }
 
 function hasDefaultMediaTypes(mediaTypes, defaultMediaTypes) {
@@ -2898,17 +2896,13 @@ function syncTvControlBar(view = views.get(currentView)) {
 
   tvControlBar.querySelectorAll("[data-tv-media-option]").forEach((button) => {
     const type = button.dataset.tvMediaOption;
-    const excluded = (viewName === "backlog" && ["movies", "movie-archive"].includes(type))
-      || (viewName === "tv" && ["movies", "movie-archive"].includes(type))
-      || (viewName === "movies" && ["tv", "tv-archive", "movie-archive"].includes(type))
-      || (viewName === "upcoming" && type === "movie-archive");
+    const excluded = (viewName === "backlog" && type === "movies")
+      || (viewName === "tv" && type === "movies")
+      || (viewName === "movies" && ["tv", "tv-archive"].includes(type));
     button.hidden = excluded;
     const label = button.querySelector("[data-tv-media-option-label]");
     if (label) {
-      label.textContent = (type === "tv-archive")
-        || (viewName === "movies" && type === "movie-archive")
-        ? "Archive"
-        : ({ tv: "TV", movies: "Movies", "tv-archive": "Archive", "movie-archive": "Movie archive" }[type]);
+      label.textContent = ({ tv: "TV", movies: "Movies", "tv-archive": "Archive" }[type]);
     }
     const selected = preferences.mediaTypes.includes(type);
     button.classList.toggle("is-unselected-default", defaults.mediaTypes.includes(type) && !selected);
@@ -3323,25 +3317,6 @@ async function changeMovieWatchCount(detailMovie, action) {
     showSnackbar("Couldn't update this movie. Try again.");
   } finally {
     pendingWatchChanges.delete(detailMovie);
-  }
-}
-
-async function moveMovie(movieElement, targetState, actionButton) {
-  actionButton.disabled = true;
-  try {
-    const response = await fetch(`/api/movies/${movieElement.dataset.movieId}/state`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: targetState }),
-    });
-    if (!response.ok) throw new Error("Could not move movie");
-    movieDetailCache.delete(String(movieElement.dataset.movieId));
-    await refreshMoviesContent();
-    refreshUpcomingForMovieChange();
-    if (currentView === "detail") openMovie(movieElement.dataset.movieId, detailParentView, null);
-    showSnackbar(targetState === TRACKING_STATE.ARCHIVED ? "Movie archived" : "Movie made active");
-  } catch (_error) {
-    showSnackbar("Couldn't move this movie. Try again.");
-  } finally {
-    actionButton.disabled = false;
   }
 }
 
@@ -3912,15 +3887,15 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const trackMovieButton = event.target.closest("[data-track-movie-state]");
+  const trackMovieButton = event.target.closest("[data-track-movie-action]");
   if (trackMovieButton) {
-    if (trackMovieButton.dataset.trackMovieState === "watched") {
+    if (trackMovieButton.dataset.trackMovieAction === "watched") {
       openMovieImportDatePicker(trackMovieButton.closest("[data-detail-movie]").dataset.tmdbId);
       return;
     }
     trackDetailMovie(
       trackMovieButton.closest("[data-detail-movie]"),
-      trackMovieButton.dataset.trackMovieState,
+      trackMovieButton.dataset.trackMovieAction,
       trackMovieButton,
     );
     return;
@@ -4289,8 +4264,7 @@ document.addEventListener("click", (event) => {
   if (movieAction) {
     const movieElement = movieAction.closest("[data-movie-id]");
     closeShowMenus();
-    if (movieAction.dataset.movieAction === "move") moveMovie(movieElement, movieAction.dataset.targetState, movieAction);
-    else requestMovieRemoval(movieElement);
+    requestMovieRemoval(movieElement);
     return;
   }
 
@@ -4864,10 +4838,9 @@ function filterShowView(view) {
   const query = searchQueries[viewName].trim().toLocaleLowerCase();
   const searching = Boolean(query);
   const mediaType = viewName === "movies" ? "movies" : "tv";
-  const archiveType = mediaType === "movies" ? "movie-archive" : "tv-archive";
   const filteredCards = state.allCards.filter((card) => {
     const stateSelected = searching || (card.dataset.showState === TRACKING_STATE.ARCHIVED
-      ? preferences.mediaTypes.includes(archiveType)
+      ? preferences.mediaTypes.includes("tv-archive")
       : preferences.mediaTypes.includes(mediaType));
     const matchesProgress = searching || preferences.progress.length === 0
       || preferences.progress.includes(card.dataset.progressState)

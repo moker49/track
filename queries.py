@@ -367,7 +367,7 @@ def get_upcoming_episodes(
     movie_rows = db.execute(
         """
         SELECT id AS movie_id, title AS show_name, poster_path,
-               state AS tracking_state, added_at AS show_added_at,
+               'ACTIVE' AS tracking_state, added_at AS show_added_at,
                release_date AS air_date
         FROM movies
         WHERE is_tracked = 1
@@ -853,11 +853,11 @@ def get_movie_activity(db: sqlite3.Connection, movie_id: int) -> list[sqlite3.Ro
                watch_added_at, watch_date, show_in_diary
         FROM (
             SELECT 'added' AS event_type, 'Added to Watchlist' AS title,
-                   msh.entered_at AS occurred_at, NULL AS watch_record_id,
+                   m.added_at AS occurred_at, NULL AS watch_record_id,
                    NULL AS watch_kind, NULL AS watch_added_at, NULL AS watch_date,
                    NULL AS show_in_diary
-            FROM movie_state_history msh
-            WHERE msh.movie_id = ?
+            FROM movies m
+            WHERE m.id = ? AND m.is_tracked = 1
             UNION ALL
             SELECT 'watched', 'Watched', {effective_watch_date_sql('mwh')},
                    mwh.id, 'movie', mwh.added_at, mwh.watch_date, mwh.show_in_diary

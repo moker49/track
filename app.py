@@ -186,8 +186,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             )}
             removed = {row["tmdb_id"] for row in get_db().execute(
                 f"""SELECT m.tmdb_id FROM movies m WHERE m.is_tracked = 0
-                    AND m.tmdb_id IN ({placeholders})
-                    AND EXISTS (SELECT 1 FROM movie_state_history h WHERE h.movie_id = m.id)""",
+                    AND m.tmdb_id IN ({placeholders})""",
                 [item["tmdb_id"] for item in results],
             )}
             for item in results:
@@ -345,12 +344,11 @@ def create_app(test_config: dict | None = None) -> Flask:
         if movie.get("id") != tmdb_id: return jsonify(error="TMDB returned the wrong movie"), 502
         now = utc_now()
         db = get_db()
-        db.execute("""INSERT INTO movies (tmdb_id,title,original_title,overview,poster_path,backdrop_path,release_date,runtime_minutes,status,genres,original_language,state,added_at,active_at,archived_at,updated_at,tmdb_refreshed_at,tmdb_payload)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tmdb_id) DO UPDATE SET is_tracked=1,state=excluded.state,updated_at=excluded.updated_at""",
-          (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), TRACKING_ACTIVE, now, now, None, now, now, json.dumps(movie)))
+        db.execute("""INSERT INTO movies (tmdb_id,title,original_title,overview,poster_path,backdrop_path,release_date,runtime_minutes,status,genres,original_language,is_tracked,added_at,updated_at,tmdb_refreshed_at,tmdb_payload)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tmdb_id) DO UPDATE SET is_tracked=1,updated_at=excluded.updated_at""",
+          (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), 1, now, now, now, json.dumps(movie)))
         db.commit()
         movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)).fetchone()["id"]
-        db.execute("INSERT INTO movie_state_history (movie_id, state, entered_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM movie_state_history WHERE movie_id = ?)", (movie_id, TRACKING_ACTIVE, now, movie_id))
         if watched:
             db.execute("INSERT INTO movie_watch_history (movie_id, added_at, watch_date, show_in_diary) SELECT ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM movie_watch_history WHERE movie_id = ?)", (movie_id, now, watch_date, int(bool(watch_date)), movie_id))
         db.commit()
@@ -365,7 +363,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if payload.get("id") != tmdb_id:
             return jsonify(error="TMDB returned the wrong movie"), 502
         saved_movie = get_db().execute(
-            "SELECT id, state, is_tracked, liked FROM movies WHERE tmdb_id = ?", (tmdb_id,)
+            "SELECT id, is_tracked, liked FROM movies WHERE tmdb_id = ?", (tmdb_id,)
         ).fetchone()
         movie = {
             "id": saved_movie["id"] if saved_movie else None,
@@ -380,7 +378,6 @@ def create_app(test_config: dict | None = None) -> Flask:
             ),
             "runtime_minutes": payload.get("runtime"),
             "genres": ", ".join(genre.get("name", "") for genre in payload.get("genres", [])),
-            "state": saved_movie["state"] if saved_movie else TRACKING_ACTIVE,
             "is_tracked": bool(saved_movie["is_tracked"]) if saved_movie else False,
             "liked": bool(saved_movie["liked"]) if saved_movie else False,
             "watch_count": 0,
@@ -439,39 +436,19 @@ def create_app(test_config: dict | None = None) -> Flask:
             now = utc_now()
             cursor = db.execute(
                 """INSERT INTO movies (tmdb_id,title,original_title,overview,poster_path,backdrop_path,
-                  release_date,runtime_minutes,status,genres,original_language,state,is_tracked,liked,
+                  release_date,runtime_minutes,status,genres,original_language,is_tracked,liked,
                   added_at,updated_at,tmdb_refreshed_at,tmdb_payload)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)""",
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"),
                  movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"),
                  movie.get("release_date"), movie.get("runtime"), movie.get("status"),
                  ", ".join(genre.get("name", "") for genre in movie.get("genres", [])),
-                 movie.get("original_language"), TRACKING_ACTIVE, int(liked), now, now, now,
+                 movie.get("original_language"), 0, int(liked), now, now, now,
                  json.dumps(movie)),
             )
             movie_id = cursor.lastrowid
         db.commit()
         return jsonify(movie_id=movie_id, liked=liked)
-
-    @app.post("/api/movies/<int:movie_id>/state")
-    def set_movie_state(movie_id: int):
-        target_state = (request.get_json(silent=True) or {}).get("state")
-        if target_state not in TRACKING_STATES:
-            return jsonify(error="state must be ACTIVE or ARCHIVED"), 400
-        db = get_db()
-        movie = db.execute("SELECT id, state, is_tracked FROM movies WHERE id = ?", (movie_id,)).fetchone()
-        if movie is None or not movie["is_tracked"]:
-            return jsonify(error="Movie not found"), 404
-        now = utc_now()
-        timestamp_column = "archived_at" if target_state == TRACKING_ARCHIVED else "active_at"
-        db.execute(
-            f"UPDATE movies SET state = ?, {timestamp_column} = ?, updated_at = ? WHERE id = ?",
-            (target_state, now, now, movie_id),
-        )
-        if movie["state"] != target_state:
-            db.execute("INSERT INTO movie_state_history (movie_id, state, entered_at) VALUES (?, ?, ?)", (movie_id, target_state, now))
-        db.commit()
-        return jsonify(movie_id=movie_id, state=target_state)
 
     @app.delete("/api/movies/<int:movie_id>")
     def remove_movie(movie_id: int):

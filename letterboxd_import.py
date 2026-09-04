@@ -59,22 +59,22 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def upsert_movie(db, movie: dict, state: str, liked: bool) -> int:
+def upsert_movie(db, movie: dict, liked: bool) -> int:
     timestamp = now()
     db.execute(
         """
         INSERT INTO movies (tmdb_id, title, original_title, overview, poster_path,
           backdrop_path, release_date, runtime_minutes, status, genres,
-          original_language, state, is_tracked, liked,
-          added_at, active_at, archived_at, updated_at, tmdb_refreshed_at, tmdb_payload)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+          original_language, is_tracked, liked,
+          added_at, updated_at, tmdb_refreshed_at, tmdb_payload)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
           title=excluded.title, original_title=excluded.original_title,
           overview=excluded.overview, poster_path=excluded.poster_path,
           backdrop_path=excluded.backdrop_path, release_date=excluded.release_date,
           runtime_minutes=excluded.runtime_minutes, status=excluded.status,
           genres=excluded.genres, original_language=excluded.original_language,
-          state=excluded.state, is_tracked=1, liked=excluded.liked,
+          is_tracked=1, liked=excluded.liked,
           updated_at=excluded.updated_at, tmdb_refreshed_at=excluded.tmdb_refreshed_at,
           tmdb_payload=excluded.tmdb_payload
         """,
@@ -82,16 +82,10 @@ def upsert_movie(db, movie: dict, state: str, liked: bool) -> int:
          movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"),
          movie.get("release_date"), movie.get("runtime"), movie.get("status"),
          ", ".join(item.get("name", "") for item in movie.get("genres", [])),
-          movie.get("original_language"), state, int(liked), timestamp,
-         timestamp if state == TRACKING_ACTIVE else None,
-         timestamp if state == TRACKING_ARCHIVED else None, timestamp, timestamp,
+          movie.get("original_language"), int(liked), timestamp, timestamp, timestamp,
          json.dumps(movie)),
     )
     movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (movie["id"],)).fetchone()[0]
-    db.execute(
-        "INSERT INTO movie_state_history (movie_id, state, entered_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM movie_state_history WHERE movie_id = ?)",
-        (movie_id, state, timestamp, movie_id),
-    )
     return movie_id
 
 
@@ -139,8 +133,7 @@ def main(export_path: str, retry_skipped: bool = False) -> int:
                 print(f"SKIP {title} ({year}): no title/year or one-year-off match")
                 continue
             movie = client.movie(selected["id"])
-            state = TRACKING_ACTIVE
-            movie_id = upsert_movie(db, movie, state, (title, year) in liked)
+            movie_id = upsert_movie(db, movie, (title, year) in liked)
             db.execute("DELETE FROM movie_watch_history WHERE movie_id = ?", (movie_id,))
             db.executemany(
                 "INSERT INTO movie_watch_history (movie_id, added_at, watch_date) VALUES (?, ?, ?)",
@@ -176,8 +169,7 @@ def import_manual_corrections(export_path: str) -> int:
     for title, year in (("Hamilton", "2020"), ("The Upside", "2017")):
         result = next(item for item in client.search_movie(title)["results"] if norm(item.get("title")) == norm(title))
         movie = client.movie(result["id"])
-        state = TRACKING_ACTIVE
-        upsert_movie(db, movie, state, (title, year) in liked, (title, year) in watched)
+        upsert_movie(db, movie, (title, year) in liked)
         db.commit()
         print(f"imported movie: {title} ({movie.get('release_date', '')[:4]})")
     title, year = "The Playlist", "2022"
@@ -204,19 +196,12 @@ def apply_letterboxd_state_dates(export_path: str) -> int:
     db = connect_database(BASE_DIR / "instance" / "track.db")
     initialize_database(db, BASE_DIR / "schema.sql")
     movie_updates = show_updates = 0
-    for movie in db.execute("SELECT id, title, state FROM movies WHERE is_tracked = 1").fetchall():
+    for movie in db.execute("SELECT id, title FROM movies WHERE is_tracked = 1").fetchall():
         source_date = source_dates.get(movie["title"]) or normalized_source_dates.get(norm(movie["title"]))
         if not source_date:
             continue
         timestamp = f"{source_date}T12:00:00+00:00"
-        db.execute(
-            "UPDATE movies SET added_at = ?, active_at = CASE WHEN state = 'ACTIVE' THEN ? ELSE active_at END, archived_at = CASE WHEN state = 'ARCHIVED' THEN ? ELSE archived_at END WHERE id = ?",
-            (timestamp, timestamp, timestamp, movie["id"]),
-        )
-        db.execute(
-            "UPDATE movie_state_history SET entered_at = ? WHERE id = (SELECT id FROM movie_state_history WHERE movie_id = ? ORDER BY id LIMIT 1)",
-            (timestamp, movie["id"]),
-        )
+        db.execute("UPDATE movies SET added_at = ? WHERE id = ?", (timestamp, movie["id"]))
         movie_updates += 1
     for title, source_date in source_dates.items():
         # The Playlist is the sole TV item explicitly imported from this

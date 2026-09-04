@@ -86,17 +86,5 @@ def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None
             """
         )
         db.execute("ALTER TABLE movies DROP COLUMN is_watched_without_diary")
-    # Movies have one unified library. Preserve prior archive timestamps, but
-    # migrate every tracked movie into the single active collection.
-    db.execute("UPDATE movies SET state = 'ACTIVE', active_at = COALESCE(active_at, archived_at, added_at) WHERE state = 'ARCHIVED'")
-    db.execute(
-        """
-        INSERT INTO movie_state_history (movie_id, state, entered_at)
-        SELECT id, state, COALESCE(archived_at, active_at, added_at)
-        FROM movies m
-        WHERE is_tracked = 1
-          AND NOT EXISTS (SELECT 1 FROM movie_state_history h WHERE h.movie_id = m.id)
-        """
-    )
     db.execute("PRAGMA optimize")
     db.commit()
