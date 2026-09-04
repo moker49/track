@@ -162,6 +162,7 @@ const revealedViewAnimations = new Set();
 const tvRevealAnimationHandlers = new WeakMap();
 const scheduleRevealAnimationHandlers = new WeakMap();
 const detailRevealAnimationHandlers = new WeakMap();
+const utilityRevealAnimationHandlers = new WeakMap();
 let currentView = "backlog";
 let detailParentView = "backlog";
 let diaryRevision = 0;
@@ -194,6 +195,7 @@ let movieSearchError = "";
 let tvLayoutTransitionTimer = null;
 let tvDropdownHistoryActive = false;
 let navigationDrawerHistoryActive = false;
+let navigationDrawerCloseTimer = null;
 let searchHistoryActive = false;
 let searchHistoryView = null;
 let searchHistoryClosing = false;
@@ -383,6 +385,9 @@ function syncTvLayout() {
   tvViewToggle.disabled = !supportsLayout;
   tvViewToggle.setAttribute("aria-pressed", String(isCompact));
   tvViewToggle.setAttribute("aria-label", supportsLayout ? "Switch layout" : "Layout controls unavailable");
+  tvViewToggle.querySelector(".material-symbols-rounded").textContent = isCompact
+    ? "view_list"
+    : "grid_view";
 }
 
 function restoreTvLayout() {
@@ -451,6 +456,7 @@ async function refreshDiaryContent() {
     renderedDiaryRevision = requestedRevision;
     initializeVirtualTimeline("diary", { force: true });
     restoreTimelineScroll("diary", "diary");
+    if (currentView === "diary") revealDiaryOnce(views.get("diary"));
   })().catch(() => undefined).finally(() => {
     panel.removeAttribute("aria-busy");
     diaryRequest = null;
@@ -471,6 +477,7 @@ async function refreshStatisticsContent() {
     if (!response.ok) throw new Error("Could not refresh statistics");
     panel.innerHTML = await response.text();
     renderedStatisticsRevision = requestedRevision;
+    if (currentView === "statistics") revealStatisticsOnce(views.get("statistics"));
   })().catch(() => undefined).finally(() => {
     panel.removeAttribute("aria-busy");
     statisticsRequest = null;
@@ -495,8 +502,50 @@ function guardTimelineScrollRestore(viewName, savedScrollY) {
   pendingTimelineScrollRestores.set(viewName, { savedScrollY });
 }
 
+function motionIsReduced() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function animateUtilityExit(view) {
+  if (!view || motionIsReduced()) return;
+  const bounds = view.getBoundingClientRect();
+  const snapshot = view.cloneNode(true);
+  snapshot.className = "utility-view-transition-snapshot";
+  snapshot.setAttribute("aria-hidden", "true");
+  snapshot.inert = true;
+  Object.assign(snapshot.style, {
+    top: `${bounds.top}px`,
+    left: `${bounds.left}px`,
+    width: `${bounds.width}px`,
+    height: `${bounds.height}px`,
+  });
+  document.body.append(snapshot);
+  snapshot.animate(
+    [
+      { opacity: 1, transform: "translateX(0)" },
+      { opacity: 0, transform: "translateX(18px)" },
+    ],
+    { duration: 180, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "both" },
+  ).finished.catch(() => undefined).finally(() => snapshot.remove());
+}
+
+function animateUtilityEntry(view) {
+  if (!view || motionIsReduced()) return;
+  view.animate(
+    [
+      { opacity: 0, transform: "translateX(18px)" },
+      { opacity: 1, transform: "translateX(0)" },
+    ],
+    { duration: 240, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+  );
+}
+
 function showView(viewName, historyMode = null) {
   if (!views.has(viewName) || viewName === currentView) return;
+
+  const previousView = views.get(currentView);
+  const enteringUtility = views.get(viewName)?.classList.contains("utility-view");
+  if (previousView?.classList.contains("utility-view")) animateUtilityExit(previousView);
 
   if (currentView === "backlog" && viewName !== "backlog") {
     clearCaughtUpScheduleItems();
@@ -546,6 +595,7 @@ function showView(viewName, historyMode = null) {
     const diaryTimeline = initializeVirtualTimeline("diary");
     renderVirtualTimeline(diaryTimeline, true);
     restoreTimelineScroll("diary", "diary", targetScrollY);
+    if (renderedDiaryRevision === diaryRevision) revealDiaryOnce(views.get("diary"));
   }
   if (viewName === "tv") {
     window.requestAnimationFrame(() => {
@@ -567,6 +617,10 @@ function showView(viewName, historyMode = null) {
   if (viewName === "statistics" && renderedStatisticsRevision !== diaryRevision) {
     refreshStatisticsContent();
   }
+  if (viewName === "statistics" && renderedStatisticsRevision === diaryRevision) {
+    revealStatisticsOnce(views.get("statistics"));
+  }
+  if (enteringUtility) window.requestAnimationFrame(() => animateUtilityEntry(views.get(viewName)));
   const titles = {
     backlog: "Queue · Track",
     upcoming: "Upcoming · Track",
@@ -1154,6 +1208,39 @@ function clearScheduleFirstReveal(view) {
     slice.classList.remove("schedule-item-reveal", "schedule-empty-reveal");
     slice.style.removeProperty("--schedule-item-delay");
   });
+}
+
+function staggerUtilityContentReveal(slices) {
+  if (motionIsReduced()) return;
+  slices.filter(Boolean).forEach((slice, index) => {
+    slice.classList.add("utility-slice-reveal");
+    slice.style.setProperty("--utility-slice-delay", `${index * 55}ms`);
+    const finishReveal = (event) => {
+      if (event.target !== slice || event.animationName !== "detail-slice-reveal") return;
+      slice.classList.remove("utility-slice-reveal");
+      slice.style.removeProperty("--utility-slice-delay");
+      slice.removeEventListener("animationend", finishReveal);
+      utilityRevealAnimationHandlers.delete(slice);
+    };
+    utilityRevealAnimationHandlers.set(slice, finishReveal);
+    slice.addEventListener("animationend", finishReveal);
+  });
+}
+
+function revealDiaryOnce(view) {
+  if (!view || revealedViewAnimations.has("diary")) return;
+  revealedViewAnimations.add("diary");
+  staggerScheduleFirstReveal(view);
+}
+
+function revealStatisticsOnce(view) {
+  if (!view || revealedViewAnimations.has("statistics")) return;
+  revealedViewAnimations.add("statistics");
+  const content = view.querySelector("[data-statistics-content]");
+  const slices = content
+    ? [...content.querySelectorAll(":scope > .statistics-content > :not([hidden])")]
+    : [];
+  staggerUtilityContentReveal(slices);
 }
 
 function parseIsoDate(value) {
@@ -3287,20 +3374,32 @@ function maybeOpenFinishedArchiveDialog(data) {
 }
 
 function closeNavigationDrawer({ preserveHistory = false } = {}) {
-  if (!navigationDrawer || navigationDrawer.hidden) return;
-  navigationDrawer.hidden = true;
+  if (!navigationDrawer || navigationDrawer.hidden || navigationDrawer.classList.contains("is-closing")) return;
+  navigationDrawer.classList.add("is-closing");
+  document.documentElement.classList.add("navigation-drawer-closing");
+  document.documentElement.classList.remove("navigation-drawer-open");
   if (navigationDrawerHistoryActive && !preserveHistory) {
     navigationDrawerHistoryActive = false;
     if (window.history.state?.navigationDrawerOpen) window.history.back();
   }
-  syncMenuScrim();
+  window.clearTimeout(navigationDrawerCloseTimer);
+  navigationDrawerCloseTimer = window.setTimeout(() => {
+    navigationDrawer.hidden = true;
+    navigationDrawer.classList.remove("is-closing");
+    document.documentElement.classList.remove("navigation-drawer-closing");
+    syncMenuScrim();
+  }, motionIsReduced() ? 0 : 180);
 }
 
 function openNavigationDrawer() {
-  if (!navigationDrawer || !navigationDrawer.hidden) return;
+  if (!navigationDrawer || (!navigationDrawer.hidden && !navigationDrawer.classList.contains("is-closing"))) return;
   closeShowMenus();
   closeWatchMenus();
   closeTvDropdowns();
+  window.clearTimeout(navigationDrawerCloseTimer);
+  navigationDrawer.classList.remove("is-closing");
+  document.documentElement.classList.remove("navigation-drawer-closing");
+  document.documentElement.classList.add("navigation-drawer-open");
   navigationDrawerHistoryActive = true;
   window.history.pushState(
     { ...window.history.state, trackApp: true, navigationDrawerOpen: true },
@@ -4980,8 +5079,7 @@ function restoreHistoryState(state) {
   if (!state?.trackApp) return;
   if (navigationDrawerHistoryActive || state.navigationDrawerOpen) {
     navigationDrawerHistoryActive = false;
-    if (navigationDrawer) navigationDrawer.hidden = true;
-    syncMenuScrim();
+    closeNavigationDrawer({ preserveHistory: true });
   }
   closeShowMenus();
   closeWatchMenus();
