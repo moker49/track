@@ -28,7 +28,7 @@ Every watch mutation goes through `invalidateWatchCaches(...)`. It clears the af
 
 Frontend modularization is intentionally deferred until a bundler is introduced.
 
-Profile uses one normal-flow top bar with a visual-only, downward-scroll edge clamp and a narrow handoff clone when it returns to the top edge. Its behavior contract is documented in [profile-floating-chrome.md](profile-floating-chrome.md); do not add layout-changing scroll effects to this interaction.
+The former Profile floating-chrome interaction is retained as an implementation reference in [profile-floating-chrome.md](profile-floating-chrome.md). It is not active in the current navigation.
 
 ## Database startup
 

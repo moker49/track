@@ -59,13 +59,12 @@ const globalSearchBar = document.querySelector("[data-global-search-bar]");
 const globalSearchInput = document.querySelector("[data-global-search]");
 const searchMenuButton = document.querySelector("[data-search-menu]");
 const searchBackButton = document.querySelector("[data-search-back]");
-const searchProfileButton = document.querySelector("[data-search-profile]");
 const searchClearButton = document.querySelector("[data-clear-search]");
 const tvViewToggle = document.querySelector("[data-tv-view-toggle]");
 const catalogSearchSubmit = document.querySelector("[data-catalog-search-submit]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, profile: 0 };
+const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, diary: 0, statistics: 0, lists: 0 };
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const finishedArchiveDialog = document.querySelector("[data-finished-archive-dialog]");
 const resumeShowDialog = document.querySelector("[data-resume-show-dialog]");
@@ -166,7 +165,6 @@ const scheduleRevealAnimationHandlers = new WeakMap();
 const detailRevealAnimationHandlers = new WeakMap();
 let currentView = "backlog";
 let detailParentView = "backlog";
-let profileParentView = "backlog";
 let diaryRevision = 0;
 let renderedDiaryRevision = 0;
 let diaryRequest = null;
@@ -183,9 +181,6 @@ let datePickerMonth = new Date();
 let datePickerYearVisible = false;
 let pendingMovieImport = null;
 let lastEpisodeDetailScrollY = 0;
-let lastProfileScrollY = 0;
-let profileChromeVisualOffset = 0;
-let profileChromeHandoffClone = null;
 let episodeNavigationPending = false;
 let tvSearchTimer = null;
 let tvSearchRequest = null;
@@ -340,7 +335,6 @@ function syncSearchChrome() {
   const hasText = Boolean(globalSearchInput?.value);
   if (searchMenuButton) searchMenuButton.hidden = hasText;
   if (searchBackButton) searchBackButton.hidden = !hasText;
-  if (searchProfileButton) searchProfileButton.hidden = hasText;
   if (searchClearButton) searchClearButton.hidden = !hasText;
 }
 
@@ -458,39 +452,6 @@ function toggleTvLayout() {
   tvLayoutTransitionTimer = window.setTimeout(applyLayout, 75);
 }
 
-function selectProfileTab(tabName, { focus = false } = {}) {
-  const profileView = views.get("profile");
-  const selectedTabs = profileView?.querySelectorAll(`[data-profile-tab="${tabName}"]`);
-  const selectedTab = selectedTabs?.[0];
-  if (!profileView || !selectedTab) return;
-  const retainDiaryPosition = tabName === "diary" && window.scrollY > 0;
-  document.querySelectorAll("[data-profile-tab]").forEach((tab) => {
-    const selected = tab.dataset.profileTab === tabName;
-    tab.setAttribute("aria-selected", String(selected));
-    tab.tabIndex = selected ? 0 : -1;
-  });
-  profileView.querySelectorAll("[data-profile-panel]").forEach((panel) => {
-    panel.hidden = panel.dataset.profilePanel !== tabName;
-  });
-  if (tabName === "statistics" && renderedStatisticsRevision !== diaryRevision) {
-    refreshStatisticsContent();
-  }
-  if (tabName === "diary") {
-    const diaryTimeline = initializeVirtualTimeline("diary");
-    renderVirtualTimeline(diaryTimeline, true);
-  }
-  if (retainDiaryPosition) {
-    const chrome = profileView.querySelector(".profile-top-app-bar");
-    spawnProfileChromeHandoff(chrome);
-    lastProfileScrollY = window.scrollY;
-  } else {
-    scrollPositions.profile = 0;
-    resetProfileChromePosition();
-    window.scrollTo({ top: 0, behavior: "auto" });
-  }
-  if (focus) selectedTab.focus();
-}
-
 async function refreshDiaryContent() {
   if (diaryRequest) return diaryRequest;
   const panel = views.get("diary")?.querySelector("[data-diary-content]");
@@ -531,101 +492,6 @@ async function refreshStatisticsContent() {
     statisticsRequest = null;
   });
   return statisticsRequest;
-}
-
-function transitionProfileView(change, direction) {
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!document.startViewTransition || reduceMotion) {
-    change();
-    return Promise.resolve();
-  }
-
-  const root = document.documentElement;
-  root.classList.add(`profile-transition-${direction}`);
-  const transition = document.startViewTransition(change);
-  return transition.finished.catch(() => undefined).finally(() => {
-    root.classList.remove(`profile-transition-${direction}`);
-  });
-}
-
-function resetProfileChromePosition() {
-  const chrome = views.get("profile")?.querySelector(".profile-top-app-bar");
-  profileChromeHandoffClone?.remove();
-  profileChromeHandoffClone = null;
-  profileChromeVisualOffset = 0;
-  lastProfileScrollY = window.scrollY;
-  chrome?.style.removeProperty("transform");
-}
-
-function spawnProfileChromeHandoff(chrome) {
-  if (profileChromeHandoffClone) return;
-  const clone = chrome.cloneNode(true);
-  clone.classList.add("profile-chrome-handoff-clone");
-  clone.style.removeProperty("transform");
-  clone.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
-  document.body.append(clone);
-  profileChromeHandoffClone = clone;
-  profileChromeVisualOffset = 0;
-  chrome.style.removeProperty("transform");
-}
-
-function keepProfileChromeAtViewportEdge() {
-  const chrome = views.get("profile")?.querySelector(".profile-top-app-bar");
-  const currentScrollY = window.scrollY;
-  if (!chrome || currentView !== "profile") {
-    lastProfileScrollY = currentScrollY;
-    return;
-  }
-
-  const observedDirection = currentScrollY > lastProfileScrollY ? "down"
-    : currentScrollY < lastProfileScrollY ? "up"
-      : null;
-  const direction = observedDirection;
-  const upwardDistance = direction === "up" ? lastProfileScrollY - currentScrollY : 0;
-  if (profileChromeHandoffClone) {
-    if (direction === "down") {
-      const top = chrome.getBoundingClientRect().top;
-      profileChromeVisualOffset = -top;
-      chrome.style.transform = `translateY(${profileChromeVisualOffset}px)`;
-      profileChromeHandoffClone.remove();
-      profileChromeHandoffClone = null;
-    }
-    lastProfileScrollY = currentScrollY;
-    return;
-  }
-
-  if (direction === "up") {
-    const bottom = chrome.getBoundingClientRect().bottom;
-    if (bottom < 0) {
-      profileChromeVisualOffset -= bottom;
-      chrome.style.transform = `translateY(${profileChromeVisualOffset}px)`;
-    }
-    // Mobile browsers can apply an inertial scroll step before dispatching the
-    // next scroll event. Predict one additional upward step—not a whole
-    // header—so the clone is ready for a fast crossing without appearing as
-    // soon as the original begins to re-enter.
-    const handoffBuffer = upwardDistance * 2;
-    if (chrome.getBoundingClientRect().top >= -handoffBuffer) {
-      spawnProfileChromeHandoff(chrome);
-    }
-  }
-  lastProfileScrollY = currentScrollY;
-}
-
-function openProfileFromTrigger(_trigger) {
-  profileParentView = ["backlog", "upcoming", "tv"].includes(currentView)
-    ? currentView
-    : "backlog";
-  scrollPositions.profile = 0;
-  transitionProfileView(() => showView("profile", "push"), "enter");
-}
-
-function leaveProfile() {
-  if (window.history.state?.trackApp && window.history.state.view === "profile") {
-    window.history.back();
-  } else {
-    transitionProfileView(() => showView(profileParentView), "return");
-  }
 }
 
 function restoreTimelineScroll(viewName, scrollKey = viewName, savedScrollY = null) {
@@ -677,18 +543,11 @@ function showView(viewName, historyMode = null) {
     view.classList.toggle("is-active", active);
   });
 
-  // Restore the destination's scroll position before its sticky chrome becomes
-  // visible. Otherwise a returning Profile view can briefly reveal the global
-  // app bar at the Profile scroll offset, then shift it into place.
   window.scrollTo({ top: targetScrollY, behavior: "auto" });
 
   updateActiveNav(viewName === "detail" ? detailParentView : viewName);
   currentView = viewName;
-  const profileOpen = viewName === "profile";
-  if (bottomChrome) bottomChrome.hidden = profileOpen;
-  appContent?.classList.toggle("is-profile-view", profileOpen);
-  if (profileOpen) resetProfileChromePosition();
-  else resetProfileChromePosition();
+  if (bottomChrome) bottomChrome.hidden = false;
   syncGlobalSearch();
   syncTvControlVisibility();
   if (["tv", "movies"].includes(viewName)) {
@@ -3803,12 +3662,6 @@ document.addEventListener("toggle", (event) => {
   if (season?.open) loadSeasonEpisodes(season);
 }, true);
 
-document.addEventListener("pointerdown", (event) => {
-  if (event.target.closest(".profile-chrome-handoff-clone [data-profile-back]")) {
-    event.preventDefault();
-  }
-}, true);
-
 document.addEventListener("click", (event) => {
   if (event.target.closest("[data-menu-scrim]")) {
     closeNavigationDrawer();
@@ -3816,24 +3669,6 @@ document.addEventListener("click", (event) => {
     closeWatchMenus();
     closeWatchLogMenus();
     closeTvDropdowns();
-    return;
-  }
-
-  const profileTrigger = event.target.closest("[data-search-profile]");
-  if (profileTrigger) {
-    openProfileFromTrigger(profileTrigger);
-    return;
-  }
-
-  if (event.target.closest("[data-profile-back]")) {
-    event.preventDefault();
-    leaveProfile();
-    return;
-  }
-
-  const profileTab = event.target.closest("[data-profile-tab]");
-  if (profileTab) {
-    selectProfileTab(profileTab.dataset.profileTab);
     return;
   }
 
@@ -4254,7 +4089,7 @@ document.addEventListener("click", (event) => {
 
   const diaryMovieOpen = event.target.closest("[data-diary-movie-open]");
   if (diaryMovieOpen) {
-    openMovie(diaryMovieOpen.closest("[data-movie-id]").dataset.movieId, "profile");
+    openMovie(diaryMovieOpen.closest("[data-movie-id]").dataset.movieId, "diary");
     return;
   }
 
@@ -4472,17 +4307,6 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
-  const profileTab = event.target.closest("[data-profile-tab]");
-  if (profileTab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-    event.preventDefault();
-    const tabs = [...profileTab.parentElement.querySelectorAll("[data-profile-tab]")];
-    const currentIndex = tabs.indexOf(profileTab);
-    const nextIndex = event.key === "Home" ? 0
-      : event.key === "End" ? tabs.length - 1
-        : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
-    selectProfileTab(tabs[nextIndex].dataset.profileTab, { focus: true });
-    return;
-  }
   const card = event.target.closest(".popular-card[data-tmdb-id]");
   if (!card || event.target.closest("button") || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
