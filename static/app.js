@@ -4364,11 +4364,6 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  if (event.target.closest("[data-navigation-drawer-close]")) {
-    closeNavigationDrawer();
-    return;
-  }
-
   const drawerView = event.target.closest("[data-drawer-view]");
   if (drawerView) {
     closeNavigationDrawer({ preserveHistory: true });

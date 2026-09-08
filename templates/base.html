@@ -29,47 +29,48 @@
   <button class="menu-scrim" type="button" data-menu-scrim aria-label="Close menu" hidden></button>
   <aside class="navigation-drawer" data-navigation-drawer data-overlay-menu aria-label="More destinations" hidden>
     <div class="navigation-drawer-heading">
-      <span>More</span>
-      <button class="icon-button" type="button" data-navigation-drawer-close aria-label="Close menu">
-        <span class="material-symbols-rounded" aria-hidden="true">close</span>
-      </button>
+      <span>Track</span>
     </div>
     <nav class="navigation-drawer-links" aria-label="Secondary navigation">
-      <button type="button" data-drawer-view="diary"><span class="material-symbols-rounded" aria-hidden="true">menu_book</span><span>Diary</span></button>
-      <button type="button" data-drawer-view="lists"><span class="material-symbols-rounded" aria-hidden="true">bookmark</span><span>My lists</span></button>
-      <button type="button" data-drawer-view="statistics"><span class="material-symbols-rounded" aria-hidden="true">bar_chart</span><span>Statistics</span></button>
+      <button type="button" data-drawer-view="diary"><span class="material-symbols-rounded"
+          aria-hidden="true">menu_book</span><span>Diary</span></button>
+      <button type="button" data-drawer-view="lists"><span class="material-symbols-rounded"
+          aria-hidden="true">bookmark</span><span>My lists</span></button>
+      <button type="button" data-drawer-view="statistics"><span class="material-symbols-rounded"
+          aria-hidden="true">bar_chart</span><span>Statistics</span></button>
     </nav>
     <div class="navigation-drawer-divider" aria-hidden="true"></div>
-    <button class="navigation-drawer-settings" type="button" disabled><span class="material-symbols-rounded" aria-hidden="true">settings</span><span>Settings</span></button>
+    <button class="navigation-drawer-settings" type="button" disabled><span class="material-symbols-rounded"
+        aria-hidden="true">settings</span><span>Settings</span></button>
   </aside>
   <div class="app-shell">
     <main class="app-content">{% block content %}{% endblock %}</main>
     <div class="bottom-chrome">
       <nav class="bottom-nav" aria-label="Primary navigation">
-      <button class="nav-item active" type="button" data-nav-view="backlog" aria-current="page">
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-rounded">resume</span>
-        </span>
-        <span>Queue</span>
-      </button>
-      <button class="nav-item" type="button" data-nav-view="upcoming">
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-rounded">event</span>
-        </span>
-        <span>Upcoming</span>
-      </button>
-      <button class="nav-item" type="button" data-nav-view="tv">
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-rounded">tv</span>
-        </span>
-        <span>TV</span>
-      </button>
-      <button class="nav-item" type="button" data-nav-view="movies">
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-rounded">movie</span>
-        </span>
-        <span>Movies</span>
-      </button>
+        <button class="nav-item active" type="button" data-nav-view="backlog" aria-current="page">
+          <span class="nav-icon" aria-hidden="true">
+            <span class="material-symbols-rounded">resume</span>
+          </span>
+          <span>Queue</span>
+        </button>
+        <button class="nav-item" type="button" data-nav-view="upcoming">
+          <span class="nav-icon" aria-hidden="true">
+            <span class="material-symbols-rounded">event</span>
+          </span>
+          <span>Upcoming</span>
+        </button>
+        <button class="nav-item" type="button" data-nav-view="tv">
+          <span class="nav-icon" aria-hidden="true">
+            <span class="material-symbols-rounded">tv</span>
+          </span>
+          <span>TV</span>
+        </button>
+        <button class="nav-item" type="button" data-nav-view="movies">
+          <span class="nav-icon" aria-hidden="true">
+            <span class="material-symbols-rounded">movie</span>
+          </span>
+          <span>Movies</span>
+        </button>
       </nav>
     </div>
   </div>
