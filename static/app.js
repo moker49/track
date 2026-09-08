@@ -2660,6 +2660,17 @@ function openWatchDatePicker(item) {
 }
 
 function applyCreatedLog(data) {
+  if (data.movie_id) {
+    const detailMovie = document.querySelector(`[data-detail-movie][data-movie-id="${data.movie_id}"]`);
+    if (detailMovie) {
+      updateMovieWatchUi(detailMovie, data.watch_count);
+      addActivityItem({ type: "watched", title: "Watched", occurredAt: data.display_date,
+        recordId: data.watch_record_id, watchKind: "movie", addedAt: data.added_at });
+    }
+    movieDetailCache.delete(String(data.movie_id));
+    diaryRevision += 1;
+    return;
+  }
   applyShowProgress(data);
   const episodeUpdates = data.episodes || (data.episode_id
     ? [{ episode_id: data.episode_id, watch_count: data.watch_count }] : []);
@@ -2697,9 +2708,9 @@ function applyCreatedLog(data) {
   });
 }
 
-function openLogDatePicker(target, action = "watch") {
+function openLogDatePicker(target, action = "watch", hideActions = false) {
   if (!datePicker) return;
-  datePicker.classList.remove("is-editing-log");
+  datePicker.classList.toggle("is-editing-log", hideActions);
   logDatePickerTarget = target;
   logDatePickerAction = action;
   datePickerTarget = null;
@@ -2715,6 +2726,7 @@ function openLogDatePicker(target, action = "watch") {
 
 function openMovieImportDatePicker(tmdbId) {
   if (!datePicker) return;
+  datePicker.classList.add("is-editing-log");
   pendingMovieImport = String(tmdbId);
   datePickerTarget = null;
   datePickerSelectedDate = new Date();
@@ -3995,7 +4007,7 @@ document.addEventListener("click", (event) => {
 
   const scheduleMovieAction = event.target.closest("[data-schedule-movie-action]");
   if (scheduleMovieAction) {
-    processScheduleMovie(scheduleMovieAction.closest("[data-schedule-card]"));
+    openLogDatePicker({ type: "movie", id: scheduleMovieAction.closest("[data-schedule-card]").dataset.movieId }, "watch", true);
     return;
   }
 
@@ -4131,6 +4143,12 @@ document.addEventListener("click", (event) => {
         if (data.episode_id) {
           document.querySelectorAll(`[data-detail-episode][data-episode-id="${data.episode_id}"]`)
             .forEach((detailEpisode) => updateEpisodeDetailWatchUi(detailEpisode, data.watch_count));
+        }
+        if (data.movie_id) {
+          document.querySelectorAll(`[data-detail-movie][data-movie-id="${data.movie_id}"]`)
+            .forEach((detailMovie) => updateMovieWatchUi(detailMovie, data.movie_watch_count));
+          movieDetailCache.delete(String(data.movie_id));
+          diaryRevision += 1;
         }
         if (data.season_id && data.episodes?.length) {
           const season = document.querySelector(`.season[data-season-id="${data.season_id}"]`);
@@ -4424,8 +4442,7 @@ document.addEventListener("click", (event) => {
     const detailMovie = movieWatchAction.closest("[data-detail-movie]");
     closeWatchMenus();
     if (detailMovie) {
-      const action = movieWatchAction.dataset.movieWatchAction;
-      changeMovieWatchCount(detailMovie, action);
+      openLogDatePicker({ type: "movie", id: detailMovie.dataset.movieId }, "watch", true);
     }
     return;
   }
@@ -4433,11 +4450,7 @@ document.addEventListener("click", (event) => {
   const movieWatchControl = event.target.closest("[data-movie-detail-watch]");
   if (movieWatchControl) {
     const detailMovie = movieWatchControl.closest("[data-detail-movie]");
-    if (detailMovie && Number(detailMovie.dataset.watchCount) === 0) {
-      changeMovieWatchCount(detailMovie, "increment");
-    } else if (detailMovie) {
-      toggleWatchMenu(movieWatchControl);
-    }
+    if (detailMovie) openLogDatePicker({ type: "movie", id: detailMovie.dataset.movieId }, "watch", true);
     return;
   }
 

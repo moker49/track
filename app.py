@@ -540,6 +540,31 @@ def create_app(test_config: dict | None = None) -> Flask:
                        watch_record_id=watch_record_id, changed_at=changed_at,
                        watch_again_cleared=watch_again_cleared)
 
+    @app.post("/api/movies/<int:movie_id>/log")
+    def log_movie(movie_id: int):
+        payload = request.get_json(silent=True) or {}
+        log_date = payload.get("log_date")
+        if payload.get("action_kind") != "watch" or not isinstance(log_date, str):
+            return jsonify(error="A watch log date is required"), 400
+        try:
+            date.fromisoformat(log_date)
+        except ValueError:
+            return jsonify(error="log_date must be an ISO date"), 400
+        db = get_db()
+        movie = db.execute("SELECT id FROM movies WHERE id = ? AND is_tracked = 1", (movie_id,)).fetchone()
+        if movie is None:
+            return jsonify(error="Movie not found"), 404
+        added_at = precise_utc_now()
+        record_id = db.execute(
+            "INSERT INTO movie_watch_history (movie_id, added_at, watch_date) VALUES (?, ?, ?)",
+            (movie_id, added_at, log_date),
+        ).lastrowid
+        db.commit()
+        watch_count = db.execute("SELECT COUNT(*) FROM movie_watch_history WHERE movie_id = ?", (movie_id,)).fetchone()[0]
+        return jsonify(movie_id=movie_id, watch_count=watch_count, watch_record_id=record_id,
+                       watch_kind="movie", action_kind="watch", added_at=added_at,
+                       watch_date=log_date, display_date=log_date)
+
     @app.post("/api/tv/shows/<int:tmdb_id>/import")
     def import_tv_show(tmdb_id: int):
         payload = request.get_json(silent=True) or {}
