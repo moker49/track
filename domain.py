@@ -56,12 +56,9 @@ def move_presentation(tracking_state: str) -> MovePresentation:
 def effective_watch_date_sql(alias: str = "") -> str:
     """Return the canonical effective-date SQL for a watch-history row.
 
-    ``watch_date`` is the user's date-only override. When it is absent, the UTC
-    calendar date of immutable ``added_at`` is used.
+    ``diary_date`` is the user's explicit Diary date and is never inferred from
+    the immutable audit timestamp.
     """
 
     prefix = f"{alias}." if alias else ""
-    return (
-        f"COALESCE({prefix}watch_date, "
-        f"substr({prefix}added_at, 1, 10))"
-    )
+    return f"{prefix}diary_date"

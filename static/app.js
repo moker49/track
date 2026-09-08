@@ -2517,7 +2517,7 @@ function addActivityItem({
     item.dataset.watchKind = watchKind;
     item.dataset.addedAt = addedAt;
     item.dataset.watchDate = "";
-    item.dataset.showInDiary = String(showInDiary);
+    item.dataset.diaryDate = showInDiary ? occurredAt : "";
   }
 
   const icon = document.createElement("span");
@@ -2549,7 +2549,7 @@ function addActivityItem({
     button.className = "activity-item-button";
     button.type = "button";
     button.dataset.watchLogMenuButton = "";
-    button.setAttribute("aria-label", `Set date for ${title}`);
+    button.setAttribute("aria-label", `Edit ${title}`);
     const editIcon = document.createElement("span");
     editIcon.className = "material-symbols-rounded activity-edit-icon";
     editIcon.setAttribute("aria-hidden", "true");
@@ -2561,12 +2561,13 @@ function addActivityItem({
     menu.setAttribute("popover", "manual");
     menu.hidden = true;
     menu.dataset.watchLogMenu = "";
-    menu.innerHTML = `<button type="button" data-watch-log-set-date><span class="material-symbols-rounded" aria-hidden="true">edit_calendar</span><span>Set date</span></button>${["skip", "season-skip"].includes(watchKind) ? "" : '<button type="button" data-watch-log-diary-action><span class="material-symbols-rounded" aria-hidden="true">visibility_off</span><span>Hide from diary</span></button>'}<button type="button" data-watch-log-remove><span class="material-symbols-rounded" aria-hidden="true">delete</span><span>Remove</span></button>`;
+    menu.innerHTML = `<button type="button" data-watch-log-set-date><span class="material-symbols-rounded" aria-hidden="true">edit_calendar</span><span>Edit</span></button><button type="button" data-watch-log-remove><span class="material-symbols-rounded" aria-hidden="true">delete</span><span>Remove</span></button>`;
     item.append(menu);
   } else {
     item.append(icon, copy);
   }
   list.prepend(item);
+  syncDiaryDateIcon(item);
   formatDisplayDates(item);
   sortActivityItems(log);
   syncActivityCount(log);
@@ -2665,7 +2666,8 @@ function applyCreatedLog(data) {
     if (detailMovie) {
       updateMovieWatchUi(detailMovie, data.watch_count);
       addActivityItem({ type: "watched", title: "Watched", occurredAt: data.display_date,
-        recordId: data.watch_record_id, watchKind: "movie", addedAt: data.added_at });
+        recordId: data.watch_record_id, watchKind: "movie", addedAt: data.added_at,
+        showInDiary: Boolean(data.watch_date) });
     }
     movieDetailCache.delete(String(data.movie_id));
     diaryRevision += 1;
@@ -2704,7 +2706,7 @@ function applyCreatedLog(data) {
     recordId: data.watch_record_id,
     watchKind: data.watch_kind,
     addedAt: data.added_at,
-    showInDiary: data.action_kind === "watch" ? 1 : 0,
+    showInDiary: data.action_kind === "watch" && Boolean(data.watch_date),
   });
 }
 
@@ -2731,7 +2733,7 @@ function openMovieImportDatePicker(tmdbId) {
   datePickerTarget = null;
   datePickerSelectedDate = new Date();
   datePickerMonth = new Date();
-  datePicker.querySelector("[data-date-picker-clear]").textContent = "Skip";
+  datePicker.querySelector("[data-date-picker-clear]").textContent = "Unknown";
   datePicker.querySelector("[data-date-picker-save]").textContent = "Watch";
   renderDatePicker();
   openSharedDialog(datePicker);
@@ -2754,7 +2756,7 @@ async function saveWatchDate() {
     try {
       const response = await fetch(`/api/${logDatePickerTarget.type}s/${logDatePickerTarget.id}/log`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action_kind: logDatePickerAction, log_date: toIsoDate(datePickerSelectedDate || new Date()) }),
+        body: JSON.stringify({ action_kind: logDatePickerAction, log_date: datePickerSelectedDate ? toIsoDate(datePickerSelectedDate) : null }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error("Could not add log entry");
@@ -2795,11 +2797,14 @@ async function saveWatchDate() {
     if (!response.ok) throw new Error("Could not update watch date");
     const data = await response.json();
     datePickerTarget.dataset.watchDate = data.watch_date || "";
+    datePickerTarget.dataset.diaryDate = data.watch_date || "";
     datePickerTarget.dataset.addedAt = data.added_at;
     datePickerTarget.dataset.sortDate = data.display_date;
     const time = datePickerTarget.querySelector("[data-display-date]");
     time.dateTime = data.display_date;
     formatDisplayDates(datePickerTarget);
+    syncDiaryDateIcon(datePickerTarget);
+    syncActivityCount(datePickerTarget.closest("[data-activity-log]"));
     sortActivityItems(datePickerTarget.closest("[data-activity-log]"));
     const detailShow = datePickerTarget.closest("[data-detail-show]");
     if (detailShow) invalidateShowCache(detailShow.dataset.showId);
@@ -2807,7 +2812,7 @@ async function saveWatchDate() {
     if (detailEpisode) invalidateEpisodeCache(detailEpisode.dataset.episodeId);
     const detailMovie = datePickerTarget.closest("[data-detail-movie]");
     if (detailMovie) movieDetailCache.delete(detailMovie.dataset.movieId);
-    if (["episode", "movie"].includes(data.watch_kind)) diaryRevision += 1;
+    if (["episode", "season", "movie"].includes(data.watch_kind)) diaryRevision += 1;
     datePicker.close();
   } catch (_error) {
     showSnackbar("Couldn't update the watch date. Try again.");
@@ -3189,11 +3194,13 @@ function toggleShowMenu(button) {
   preserveMenuScrollPosition(scrollPosition);
 }
 
-function syncDiaryHiddenIcon(item) {
+function syncDiaryDateIcon(item) {
   const dateRow = item?.querySelector(".activity-date-row");
   if (!dateRow) return;
   const existing = dateRow.querySelector(".activity-diary-hidden-icon");
-  if (item.dataset.showInDiary !== "0") {
+  const isHiddenWatch = ["episode", "season", "movie"].includes(item.dataset.watchKind)
+    && !item.dataset.diaryDate;
+  if (!isHiddenWatch) {
     existing?.remove();
     return;
   }
@@ -3248,7 +3255,7 @@ function toggleWatchMenu(control) {
 }
 
 function closeWatchLogMenus(exceptMenu = null) {
-  document.querySelectorAll("[data-watch-log-menu], [data-season-diary-menu]").forEach((menu) => {
+  document.querySelectorAll("[data-watch-log-menu]").forEach((menu) => {
     if (menu !== exceptMenu) hideFloatingMenu(menu);
   });
   syncMenuScrim();
@@ -3650,7 +3657,7 @@ function requestShowRemoval(showElement) {
 }
 
 function isDiaryHiddenLogItem(item) {
-  return item.dataset.showInDiary === "0" || item.dataset.seasonDiaryState === "hidden";
+  return !["skip", "season-skip"].includes(item.dataset.watchKind) && !item.dataset.diaryDate;
 }
 
 function syncDisplayHiddenLogItemsSetting(root = document) {
@@ -4082,10 +4089,6 @@ document.addEventListener("click", (event) => {
     const item = watchLogMenuButton.closest("[data-watch-record-id]");
     const menu = item?.querySelector("[data-watch-log-menu]");
     if (menu) {
-      const diaryLabel = menu.querySelector("[data-watch-log-diary-action] span:last-child");
-      const diaryIcon = menu.querySelector("[data-watch-log-diary-action] .material-symbols-rounded");
-      if (diaryLabel) diaryLabel.textContent = item.dataset.showInDiary === "0" ? "Show in diary" : "Hide from diary";
-      if (diaryIcon) diaryIcon.textContent = item.dataset.showInDiary === "0" ? "visibility" : "visibility_off";
       closeWatchLogMenus(menu);
       if (menu.hidden) {
         menuScrollLockPosition = { x: window.scrollX, y: window.scrollY };
@@ -4103,26 +4106,6 @@ document.addEventListener("click", (event) => {
     hideFloatingMenu(watchLogSetDate.closest("[data-watch-log-menu]"));
     syncMenuScrim();
     if (item) openWatchDatePicker(item);
-    return;
-  }
-
-  const watchLogDiaryAction = event.target.closest("[data-watch-log-diary-action]");
-  if (watchLogDiaryAction) {
-    const item = watchLogDiaryAction.closest("[data-watch-record-id]");
-    hideFloatingMenu(watchLogDiaryAction.closest("[data-watch-log-menu]"));
-    syncMenuScrim();
-    if (!item) return;
-    const visible = item.dataset.showInDiary === "0";
-    fetch(`/api/watch-history/${item.dataset.watchKind}/${item.dataset.watchRecordId}/diary`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ show_in_diary: visible }),
-    }).then((response) => response.ok ? response.json() : Promise.reject())
-      .then(() => {
-        item.dataset.showInDiary = visible ? "1" : "0";
-        syncDiaryHiddenIcon(item);
-        syncDisplayHiddenLogItemsSetting();
-        diaryRevision += 1;
-      })
-      .catch(() => showSnackbar("Couldn't update the diary setting. Try again."));
     return;
   }
 
@@ -4211,13 +4194,8 @@ document.addEventListener("click", (event) => {
   }
 
   if (event.target.closest("[data-date-picker-clear]")) {
-    if (pendingMovieImport) {
-      datePickerSelectedDate = null;
-      saveWatchDate().catch((error) => showSnackbar(error.message));
-      return;
-    }
     datePickerSelectedDate = null;
-    renderDatePicker();
+    saveWatchDate().catch((error) => showSnackbar(error.message));
     return;
   }
 
@@ -4380,48 +4358,6 @@ document.addEventListener("click", (event) => {
   const movieMenuButton = event.target.closest("[data-movie-menu-button]");
   if (movieMenuButton) {
     toggleMovieMenu(movieMenuButton);
-    return;
-  }
-
-  const seasonDiaryMenuButton = event.target.closest("[data-season-diary-menu-button]");
-  if (seasonDiaryMenuButton) {
-    const item = seasonDiaryMenuButton.closest("[data-watch-record-id]");
-    const menu = item?.querySelector("[data-season-diary-menu]");
-    if (menu) {
-      const actionLabel = menu.querySelector("[data-season-diary-action] span:last-child");
-      const actionIcon = menu.querySelector("[data-season-diary-action] .material-symbols-rounded");
-      if (actionLabel) actionLabel.textContent = item.dataset.seasonDiaryState === "shown" ? "Hide from diary" : "Show in diary";
-      if (actionIcon) actionIcon.textContent = item.dataset.seasonDiaryState === "shown" ? "visibility_off" : "visibility";
-      closeWatchLogMenus(menu);
-      if (menu.hidden) {
-        menuScrollLockPosition = { x: window.scrollX, y: window.scrollY };
-        showFloatingMenu(menu, seasonDiaryMenuButton);
-      }
-      else hideFloatingMenu(menu);
-      syncMenuScrim();
-    }
-    return;
-  }
-
-  const seasonDiaryAction = event.target.closest("[data-season-diary-action]");
-  if (seasonDiaryAction) {
-    const item = seasonDiaryAction.closest("[data-watch-record-id]");
-    const menu = seasonDiaryAction.closest("[data-season-diary-menu]");
-    if (menu) hideFloatingMenu(menu);
-    syncMenuScrim();
-    if (!item) return;
-    fetch(`/api/seasons/${item.dataset.seasonId}/diary`, { method: "PATCH" })
-      .then((response) => response.ok ? response.json() : Promise.reject())
-      .then((data) => {
-        item.closest("[data-activity-log]")?.querySelectorAll(`[data-season-id="${data.season_id}"]`)
-          .forEach((entry) => {
-            entry.dataset.seasonDiaryState = data.show_in_diary ? "shown" : "hidden";
-            entry.dataset.showInDiary = data.show_in_diary ? "1" : "0";
-          });
-        syncDisplayHiddenLogItemsSetting();
-        diaryRevision += 1;
-      })
-      .catch(() => showSnackbar("Couldn't update the diary setting. Try again."));
     return;
   }
 
@@ -5376,7 +5312,7 @@ datePicker?.addEventListener("close", () => {
   datePicker.classList.remove("is-editing-log");
   datePickerSelectedDate = null;
   datePickerYearVisible = false;
-  datePicker.querySelector("[data-date-picker-clear]").textContent = "Clear";
+  datePicker.querySelector("[data-date-picker-clear]").textContent = "Unknown";
   datePicker.querySelector("[data-date-picker-save]").textContent = "OK";
 });
 

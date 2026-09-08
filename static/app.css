@@ -3241,8 +3241,9 @@ html.navigation-drawer-closing .menu-scrim {
   color: var(--on-surface-muted);
 }
 
-html:not(.display-hidden-log-items) .activity-item[data-show-in-diary="0"],
-html:not(.display-hidden-log-items) .activity-item[data-season-diary-state="hidden"] {
+html:not(.display-hidden-log-items) .activity-item[data-watch-kind="episode"][data-diary-date=""],
+html:not(.display-hidden-log-items) .activity-item[data-watch-kind="season"][data-diary-date=""],
+html:not(.display-hidden-log-items) .activity-item[data-watch-kind="movie"][data-diary-date=""] {
   display: none;
 }
 

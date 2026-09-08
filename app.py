@@ -365,7 +365,10 @@ def create_app(test_config: dict | None = None) -> Flask:
         db.commit()
         movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)).fetchone()["id"]
         if watched:
-            db.execute("INSERT INTO movie_watch_history (movie_id, added_at, watch_date, show_in_diary) SELECT ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM movie_watch_history WHERE movie_id = ?)", (movie_id, now, watch_date, int(bool(watch_date)), movie_id))
+            db.execute("""INSERT INTO movie_watch_history (movie_id, added_at, diary_date, show_in_diary)
+                          SELECT ?, ?, ?, ?
+                          WHERE NOT EXISTS (SELECT 1 FROM movie_watch_history WHERE movie_id = ?)""",
+                       (movie_id, now, watch_date, int(bool(watch_date)), movie_id))
         db.commit()
         return jsonify(ok=True, movie_id=movie_id)
 
@@ -518,7 +521,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if action == "increment":
             changed_at = precise_utc_now()
             cursor = db.execute(
-                "INSERT INTO movie_watch_history (movie_id, added_at) VALUES (?, ?)",
+                "INSERT INTO movie_watch_history (movie_id, added_at, show_in_diary) VALUES (?, ?, 0)",
                 (movie_id, changed_at),
             )
             watch_record_id = cursor.lastrowid
@@ -544,26 +547,29 @@ def create_app(test_config: dict | None = None) -> Flask:
     def log_movie(movie_id: int):
         payload = request.get_json(silent=True) or {}
         log_date = payload.get("log_date")
-        if payload.get("action_kind") != "watch" or not isinstance(log_date, str):
-            return jsonify(error="A watch log date is required"), 400
-        try:
-            date.fromisoformat(log_date)
-        except ValueError:
-            return jsonify(error="log_date must be an ISO date"), 400
+        if payload.get("action_kind") != "watch" or (log_date is not None and not isinstance(log_date, str)):
+            return jsonify(error="log_date must be an ISO date or null"), 400
+        if log_date is not None:
+            try:
+                date.fromisoformat(log_date)
+            except ValueError:
+                return jsonify(error="log_date must be an ISO date"), 400
         db = get_db()
         movie = db.execute("SELECT id FROM movies WHERE id = ? AND is_tracked = 1", (movie_id,)).fetchone()
         if movie is None:
             return jsonify(error="Movie not found"), 404
         added_at = precise_utc_now()
         record_id = db.execute(
-            "INSERT INTO movie_watch_history (movie_id, added_at, watch_date) VALUES (?, ?, ?)",
-            (movie_id, added_at, log_date),
+            """INSERT INTO movie_watch_history
+               (movie_id, added_at, diary_date, show_in_diary)
+               VALUES (?, ?, ?, ?)""",
+            (movie_id, added_at, log_date, int(log_date is not None)),
         ).lastrowid
         db.commit()
         watch_count = db.execute("SELECT COUNT(*) FROM movie_watch_history WHERE movie_id = ?", (movie_id,)).fetchone()[0]
         return jsonify(movie_id=movie_id, watch_count=watch_count, watch_record_id=record_id,
                        watch_kind="movie", action_kind="watch", added_at=added_at,
-                       watch_date=log_date, display_date=log_date)
+                       watch_date=log_date, display_date=log_date or added_at[:10])
 
     @app.post("/api/tv/shows/<int:tmdb_id>/import")
     def import_tv_show(tmdb_id: int):
@@ -751,9 +757,9 @@ def create_app(test_config: dict | None = None) -> Flask:
                      SELECT sk.skipped_at AS resolved_at FROM episode_skips sk WHERE sk.episode_id = e.id
                    )) AS last_watched_at,
                    (SELECT resolution_kind FROM (
-                     SELECT 'watch' AS resolution_kind, COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) AS resolved_at, wh.id FROM episode_watch_history wh WHERE wh.episode_id = e.id
+                     SELECT 'watch' AS resolution_kind, COALESCE(wh.diary_date, substr(wh.added_at, 1, 10)) AS resolved_at, wh.id FROM episode_watch_history wh WHERE wh.episode_id = e.id
                      UNION ALL
-                     SELECT 'skip' AS resolution_kind, sk.skipped_at AS resolved_at, sk.id FROM episode_skips sk WHERE sk.episode_id = e.id
+                     SELECT 'skip' AS resolution_kind, COALESCE(sk.diary_date, substr(sk.skipped_at, 1, 10)) AS resolved_at, sk.id FROM episode_skips sk WHERE sk.episode_id = e.id
                    ) ORDER BY resolved_at DESC, id DESC LIMIT 1) AS latest_resolution_kind
             FROM episodes e
             WHERE e.season_id = ?
@@ -779,9 +785,9 @@ def create_app(test_config: dict | None = None) -> Flask:
                    (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)
                    + (SELECT COUNT(*) FROM episode_skips sk WHERE sk.episode_id = e.id) AS watch_count,
                    (SELECT resolution_kind FROM (
-                     SELECT 'watch' AS resolution_kind, COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) AS resolved_at, wh.id FROM episode_watch_history wh WHERE wh.episode_id = e.id
+                     SELECT 'watch' AS resolution_kind, COALESCE(wh.diary_date, substr(wh.added_at, 1, 10)) AS resolved_at, wh.id FROM episode_watch_history wh WHERE wh.episode_id = e.id
                      UNION ALL
-                     SELECT 'skip' AS resolution_kind, sk.skipped_at AS resolved_at, sk.id FROM episode_skips sk WHERE sk.episode_id = e.id
+                     SELECT 'skip' AS resolution_kind, COALESCE(sk.diary_date, substr(sk.skipped_at, 1, 10)) AS resolved_at, sk.id FROM episode_skips sk WHERE sk.episode_id = e.id
                    ) ORDER BY resolved_at DESC, id DESC LIMIT 1) AS latest_resolution_kind
             FROM episodes e
             JOIN seasons sn ON sn.id = e.season_id
@@ -840,13 +846,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         watch_log = db.execute(
             f"""
             SELECT 'watched' AS event_type, 'Watched' AS title,
-                   id AS watch_record_id, added_at, watch_date, show_in_diary,
-                   {effective_watch_date_sql()} AS display_date, 'episode' AS watch_kind
+                   id AS watch_record_id, added_at, diary_date AS watch_date, show_in_diary,
+                   COALESCE({effective_watch_date_sql()}, substr(added_at, 1, 10)) AS display_date, 'episode' AS watch_kind
             FROM episode_watch_history WHERE episode_id = ?
             UNION ALL
             SELECT 'skipped' AS event_type, 'Skipped' AS title,
-                   id AS watch_record_id, skipped_at AS added_at, skip_date AS watch_date,
-                   0 AS show_in_diary, COALESCE(skip_date, substr(skipped_at, 1, 10)) AS display_date, 'skip' AS watch_kind
+                   id AS watch_record_id, skipped_at AS added_at, diary_date AS watch_date,
+                   0 AS show_in_diary, COALESCE(diary_date, substr(skipped_at, 1, 10)) AS display_date, 'skip' AS watch_kind
             FROM episode_skips WHERE episode_id = ?
             ORDER BY display_date DESC, added_at DESC, watch_record_id DESC
             """,
@@ -1002,10 +1008,11 @@ def create_app(test_config: dict | None = None) -> Flask:
     def log_episode(episode_id: int):
         payload = request.get_json(silent=True) or {}
         action_kind, log_date = payload.get("action_kind"), payload.get("log_date")
-        if action_kind not in {"watch", "skip"} or not isinstance(log_date, str):
+        if action_kind not in {"watch", "skip"} or (log_date is not None and not isinstance(log_date, str)):
             return jsonify(error="action_kind and log_date are required"), 400
-        try: date.fromisoformat(log_date)
-        except ValueError: return jsonify(error="log_date must be an ISO date"), 400
+        if log_date is not None:
+            try: date.fromisoformat(log_date)
+            except ValueError: return jsonify(error="log_date must be an ISO date"), 400
         try: return jsonify(create_episode_log(get_db(), episode_id, action_kind, log_date))
         except WatchNotFoundError as error: return jsonify(error=str(error)), 404
 
@@ -1088,10 +1095,11 @@ def create_app(test_config: dict | None = None) -> Flask:
     def log_season(season_id: int):
         payload = request.get_json(silent=True) or {}
         action_kind, log_date = payload.get("action_kind"), payload.get("log_date")
-        if action_kind not in {"watch", "skip"} or not isinstance(log_date, str):
+        if action_kind not in {"watch", "skip"} or (log_date is not None and not isinstance(log_date, str)):
             return jsonify(error="action_kind and log_date are required"), 400
-        try: date.fromisoformat(log_date)
-        except ValueError: return jsonify(error="log_date must be an ISO date"), 400
+        if log_date is not None:
+            try: date.fromisoformat(log_date)
+            except ValueError: return jsonify(error="log_date must be an ISO date"), 400
         try: return jsonify(create_season_log(get_db(), season_id, action_kind, log_date))
         except WatchNotFoundError as error: return jsonify(error=str(error)), 404
 
@@ -1122,15 +1130,20 @@ def create_app(test_config: dict | None = None) -> Flask:
             row = db.execute("SELECT skipped_at FROM episode_skips WHERE id = ?", (record_id,)).fetchone()
             if row is None:
                 return jsonify(error="Skip entry not found"), 404
-            db.execute("UPDATE episode_skips SET skip_date = ? WHERE id = ?", (watch_date, record_id))
+            db.execute("UPDATE episode_skips SET skip_date = NULL, diary_date = ? WHERE id = ?", (watch_date, record_id))
             db.commit()
             return jsonify(watch_kind="skip", watch_record_id=record_id, added_at=row["skipped_at"], watch_date=watch_date, display_date=watch_date or row["skipped_at"][:10])
         if watch_kind == "season-skip":
             db = get_db()
-            row = db.execute("SELECT added_at FROM season_skip_history WHERE id = ?", (record_id,)).fetchone()
+            row = db.execute("SELECT added_at, batch_id FROM season_skip_history WHERE id = ?", (record_id,)).fetchone()
             if row is None:
                 return jsonify(error="Skip entry not found"), 404
-            db.execute("UPDATE season_skip_history SET skip_date = ? WHERE id = ?", (watch_date, record_id))
+            db.execute("UPDATE season_skip_history SET skip_date = NULL, diary_date = ? WHERE id = ?", (watch_date, record_id))
+            if row["batch_id"]:
+                db.execute(
+                    "UPDATE episode_skips SET skip_date = NULL, diary_date = ? WHERE batch_id = ?",
+                    (watch_date, row["batch_id"]),
+                )
             db.commit()
             return jsonify(watch_kind="season-skip", watch_record_id=record_id, added_at=row["added_at"], watch_date=watch_date, display_date=watch_date or row["added_at"][:10])
         if watch_kind == "movie":
@@ -1140,7 +1153,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             ).fetchone()
             if row is None:
                 return jsonify(error="Movie watch history not found"), 404
-            db.execute("UPDATE movie_watch_history SET watch_date = ?, show_in_diary = 1 WHERE id = ?", (watch_date, record_id))
+            db.execute("UPDATE movie_watch_history SET watch_date = NULL, diary_date = ?, show_in_diary = ? WHERE id = ?", (watch_date, int(watch_date is not None), record_id))
             db.commit()
             return jsonify(
                 watch_kind="movie", watch_record_id=record_id, added_at=row["added_at"],
@@ -1154,40 +1167,6 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
         except WatchNotFoundError as error:
             return jsonify(error=str(error)), 404
-
-    @app.patch("/api/watch-history/<string:watch_kind>/<int:record_id>/diary")
-    def set_watch_history_diary_visibility(watch_kind: str, record_id: int):
-        table = {"episode": "episode_watch_history", "season": "season_watch_history", "movie": "movie_watch_history"}.get(watch_kind)
-        visible = (request.get_json(silent=True) or {}).get("show_in_diary")
-        if table is None or not isinstance(visible, bool):
-            return jsonify(error="Invalid diary setting"), 400
-        cursor = get_db().execute(f"UPDATE {table} SET show_in_diary = ? WHERE id = ?", (int(visible), record_id))
-        if cursor.rowcount == 0:
-            return jsonify(error="Watch entry not found"), 404
-        get_db().commit()
-        return jsonify(watch_kind=watch_kind, watch_record_id=record_id, show_in_diary=visible)
-
-    @app.patch("/api/seasons/<int:season_id>/diary")
-    def toggle_season_diary_visibility(season_id: int):
-        db = get_db()
-        rows = db.execute(
-            "SELECT h.show_in_diary FROM episode_watch_history h JOIN episodes e ON e.id = h.episode_id WHERE e.season_id = ?",
-            (season_id,),
-        ).fetchall()
-        if not rows:
-            return jsonify(error="Season has no watch history"), 409
-        visible = any(not row["show_in_diary"] for row in rows)
-        db.execute(
-            "UPDATE episode_watch_history SET show_in_diary = ? WHERE episode_id IN (SELECT id FROM episodes WHERE season_id = ?)",
-            (int(visible), season_id),
-        )
-        db.execute(
-            "UPDATE season_watch_history SET show_in_diary = ? WHERE season_id = ?",
-            (int(visible), season_id),
-        )
-        db.commit()
-        return jsonify(season_id=season_id, show_in_diary=visible)
-
 
     @app.errorhandler(404)
     def not_found(_error):

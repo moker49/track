@@ -82,8 +82,7 @@ def watch_payload(
         "percent": round(watched_count / episode_count * 100) if episode_count else 0,
         "last_watched_at": db.execute(
             """
-            SELECT MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
-                            THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END)
+            SELECT MAX(wh.diary_date)
             FROM episode_watch_history wh
             JOIN episodes e ON e.id = wh.episode_id
             JOIN seasons sn ON sn.id = e.season_id
@@ -96,10 +95,10 @@ def watch_payload(
             SELECT COALESCE((
                 SELECT resolution_kind FROM (
                     SELECT 'watch' AS resolution_kind,
-                           COALESCE(watch_date, substr(added_at, 1, 10)) AS resolved_at, id
+                           COALESCE(diary_date, substr(added_at, 1, 10)) AS resolved_at, id
                     FROM episode_watch_history WHERE episode_id = ?
                     UNION ALL
-                    SELECT 'skip' AS resolution_kind, skipped_at AS resolved_at, id
+                    SELECT 'skip' AS resolution_kind, COALESCE(diary_date, substr(skipped_at, 1, 10)) AS resolved_at, id
                     FROM episode_skips WHERE episode_id = ?
                 ) ORDER BY resolved_at DESC, id DESC LIMIT 1
             ), '')
@@ -129,8 +128,7 @@ def get_library_show(
             SELECT e.id AS episode_id, sn.show_id,
                    (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)
                    + (SELECT COUNT(*) FROM episode_skips sk WHERE sk.episode_id = e.id) AS watch_count,
-                   MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
-                            THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
+                   MAX(wh.diary_date) AS last_watched_at
             FROM seasons sn
             JOIN episodes e ON e.season_id = sn.id
               AND sn.is_progress_counted = 1
@@ -175,8 +173,7 @@ def get_catch_up_episodes(
                        UNION ALL
                        SELECT sk.skipped_at AS resolved_at FROM episode_skips sk WHERE sk.episode_id = e.id
                    )) AS last_watch_added_at,
-                   (SELECT MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
-                                    THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END)
+                   (SELECT MAX(wh.diary_date)
                     FROM episode_watch_history wh WHERE wh.episode_id = e.id) AS last_visible_watched_at
             FROM shows s
             JOIN seasons sn ON sn.show_id = s.id AND sn.is_progress_counted = 1
@@ -320,8 +317,7 @@ def get_upcoming_episodes(
             SELECT s.id AS show_id,
                    COUNT(DISTINCT e.id) AS episode_count,
                    COUNT(DISTINCT CASE WHEN wh.id IS NOT NULL THEN e.id END) AS watched_count,
-                   MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
-                            THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
+                   MAX(wh.diary_date) AS last_watched_at
             FROM shows s
             JOIN seasons sn ON sn.show_id = s.id AND sn.is_progress_counted = 1
             JOIN episodes e ON e.season_id = sn.id AND e.air_date <= ?
@@ -465,7 +461,7 @@ def get_diary_page(
     rows = db.execute(
         f"""
         WITH diary_watches AS (
-            SELECT wh.id AS watch_record_id, wh.added_at, wh.watch_date,
+            SELECT wh.id AS watch_record_id, wh.added_at, wh.diary_date,
                    {effective_date} AS watched_date,
                    s.id AS show_id, s.name AS show_name, s.poster_path,
                    sn.id AS season_id, sn.season_number,
@@ -478,7 +474,7 @@ def get_diary_page(
             JOIN episodes e ON e.id = wh.episode_id
             JOIN seasons sn ON sn.id = e.season_id
             JOIN shows s ON s.id = sn.show_id
-            WHERE wh.show_in_diary = 1
+            WHERE wh.diary_date IS NOT NULL
         ),
         grouped_entries AS (
             SELECT 'episode' AS entry_type, watched_date, show_id,
@@ -510,7 +506,7 @@ def get_diary_page(
                    m.release_date
             FROM movie_watch_history mwh
             JOIN movies m ON m.id = mwh.movie_id
-            WHERE mwh.show_in_diary = 1
+            WHERE mwh.diary_date IS NOT NULL
         )
         SELECT entry_type, watched_date, show_id, show_name, poster_path,
                season_id, season_number, watch_iteration, episode_id,
@@ -587,6 +583,7 @@ def get_statistics(db: sqlite3.Connection, local_date: date | None = None) -> di
             JOIN episodes e ON e.id = wh.episode_id
             JOIN seasons sn ON sn.id = e.season_id
             JOIN shows s ON s.id = sn.show_id
+            WHERE wh.diary_date IS NOT NULL
             ORDER BY watched_date, wh.added_at, wh.id
             """
         ).fetchall()
@@ -600,6 +597,7 @@ def get_statistics(db: sqlite3.Connection, local_date: date | None = None) -> di
                    COALESCE(m.runtime_minutes, 0) AS runtime_minutes
             FROM movie_watch_history mwh
             JOIN movies m ON m.id = mwh.movie_id
+            WHERE mwh.diary_date IS NOT NULL
             ORDER BY watched_date, mwh.added_at, mwh.id
             """
         ).fetchall()
@@ -811,18 +809,9 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
             UNION ALL
 
             SELECT 'season_watched', sn.name || ' watched',
-                   {effective_date}, sn.id, swh.id, 'season',
-                   swh.added_at, swh.watch_date,
-                   swh.show_in_diary,
-                   CASE WHEN EXISTS (
-                       SELECT 1 FROM episode_watch_history wh
-                       JOIN episodes e ON e.id = wh.episode_id
-                       WHERE e.season_id = sn.id AND wh.show_in_diary = 0
-                   ) THEN CASE WHEN EXISTS (
-                       SELECT 1 FROM episode_watch_history wh
-                       JOIN episodes e ON e.id = wh.episode_id
-                       WHERE e.season_id = sn.id AND wh.show_in_diary = 1
-                   ) THEN 'mixed' ELSE 'hidden' END ELSE 'shown' END
+                   COALESCE({effective_date}, substr(swh.added_at, 1, 10)), sn.id, swh.id, 'season',
+                   swh.added_at, swh.diary_date,
+                   NULL, NULL
             FROM season_watch_history swh
             JOIN seasons sn ON sn.id = swh.season_id
             WHERE sn.show_id = ?
@@ -830,8 +819,8 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
             UNION ALL
 
             SELECT 'season_skipped', sn.name || ' skipped',
-                   COALESCE(ssh.skip_date, substr(ssh.added_at, 1, 10)), sn.id, ssh.id, 'season-skip',
-                   ssh.added_at, ssh.skip_date, 0, 'hidden'
+                   COALESCE(ssh.diary_date, substr(ssh.added_at, 1, 10)), sn.id, ssh.id, 'season-skip',
+                   ssh.added_at, ssh.diary_date, NULL, NULL
             FROM season_skip_history ssh
             JOIN seasons sn ON sn.id = ssh.season_id
             WHERE sn.show_id = ?
@@ -855,8 +844,7 @@ def get_tv_library_shows(
             SELECT e.id AS episode_id, sn.show_id,
                    (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)
                    + (SELECT COUNT(*) FROM episode_skips sk WHERE sk.episode_id = e.id) AS watch_count,
-                   MAX(CASE WHEN COALESCE(wh.show_in_diary, 1) = 1
-                            THEN COALESCE(wh.watch_date, substr(wh.added_at, 1, 10)) END) AS last_watched_at
+                   MAX(wh.diary_date) AS last_watched_at
             FROM seasons sn
             JOIN episodes e ON e.season_id = sn.id
               AND sn.is_progress_counted = 1
@@ -892,8 +880,7 @@ def get_movie_library(db: sqlite3.Connection) -> list[sqlite3.Row]:
         """
         SELECT m.*, COUNT(mwh.id) AS watched_count,
                CASE WHEN m.release_date > date('now', 'localtime') THEN 1 ELSE 0 END AS is_upcoming,
-               MAX(CASE WHEN COALESCE(mwh.show_in_diary, 1) = 1
-                        THEN COALESCE(mwh.watch_date, substr(mwh.added_at, 1, 10)) END) AS last_watched_at
+               MAX(mwh.diary_date) AS last_watched_at
         FROM movies m
         LEFT JOIN movie_watch_history mwh ON mwh.movie_id = m.id
         WHERE m.is_tracked = 1
@@ -929,8 +916,8 @@ def get_movie_activity(db: sqlite3.Connection, movie_id: int) -> list[sqlite3.Ro
             FROM movies m
             WHERE m.id = ? AND m.is_tracked = 1
             UNION ALL
-            SELECT 'watched', 'Watched', {effective_watch_date_sql('mwh')},
-                   mwh.id, 'movie', mwh.added_at, mwh.watch_date, mwh.show_in_diary
+            SELECT 'watched', 'Watched', COALESCE({effective_watch_date_sql('mwh')}, substr(mwh.added_at, 1, 10)),
+                   mwh.id, 'movie', mwh.added_at, mwh.diary_date, NULL
             FROM movie_watch_history mwh
             WHERE mwh.movie_id = ?
         )
