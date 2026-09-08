@@ -2027,6 +2027,8 @@ html.navigation-drawer-closing .menu-scrim {
 .log-date-picker-actions button + button { border-left: 1px solid var(--outline-soft); }
 .log-date-picker-actions button[aria-pressed="true"] { color: var(--on-primary); background: var(--primary); }
 
+.log-date-picker.is-editing-log .log-date-picker-actions { display: none; }
+
 .utility-view:not(.lists-view) .utility-app-bar {
   border-bottom: 1px solid var(--outline-soft);
 }

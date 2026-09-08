@@ -1073,8 +1073,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.delete("/api/logs/<string:watch_kind>/<int:record_id>")
     def delete_log(watch_kind: str, record_id: int):
         try:
-            remove_log(get_db(), watch_kind, record_id)
-            return jsonify(watch_kind=watch_kind, watch_record_id=record_id)
+            result = remove_log(get_db(), watch_kind, record_id)
+            return jsonify(watch_kind=watch_kind, watch_record_id=record_id, **result)
         except WatchNotFoundError as error:
             return jsonify(error=str(error)), 404
 

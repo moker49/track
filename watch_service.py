@@ -283,9 +283,12 @@ def create_episode_log(db: sqlite3.Connection, episode_id: int, action_kind: str
     else:
         raise WatchNotFoundError("Unknown log action")
     db.commit()
-    return {"episode_id": episode_id, "show_id": episode["show_id"], "watch_record_id": record_id,
+    result = watch_payload(db, episode["show_id"], episode_id)
+    result.update({"episode_id": episode_id, "watch_record_id": record_id,
             "watch_kind": "episode" if action_kind == "watch" else "skip", "action_kind": action_kind,
-            "added_at": created_at, "watch_date": log_date, "display_date": log_date}
+            "added_at": created_at, "watch_date": log_date, "display_date": log_date,
+            "watch_count": get_episode_watch_count(db, episode_id)})
+    return result
 
 
 def create_season_log(db: sqlite3.Connection, season_id: int, action_kind: str, log_date: str) -> dict:
@@ -323,21 +326,37 @@ def create_season_log(db: sqlite3.Connection, season_id: int, action_kind: str, 
     else:
         raise WatchNotFoundError("Unknown log action")
     db.commit()
-    return {"season_id": season_id, "show_id": season["show_id"], "season_name": season["name"],
+    episodes = [
+        {"episode_id": episode_id, "watch_count": get_episode_watch_count(db, episode_id)}
+        for episode_id in episode_ids
+    ]
+    result = watch_payload(db, season["show_id"])
+    result.update({"season_id": season_id, "season_name": season["name"],
             "watch_record_id": record_id, "watch_kind": watch_kind, "action_kind": action_kind,
-            "batch_id": batch_id, "added_at": created_at, "watch_date": log_date, "display_date": log_date}
+            "batch_id": batch_id, "added_at": created_at, "watch_date": log_date, "display_date": log_date,
+            "episodes": episodes})
+    return result
 
 
-def remove_log(db: sqlite3.Connection, watch_kind: str, record_id: int) -> None:
+def remove_log(db: sqlite3.Connection, watch_kind: str, record_id: int) -> dict:
+    season_id = None
+    episode_id = None
     if watch_kind == "episode":
+        row = db.execute("SELECT episode_id FROM episode_watch_history WHERE id = ?", (record_id,)).fetchone()
+        if row is None: raise WatchNotFoundError("Log entry not found")
+        episode_id = row["episode_id"]
         cursor = db.execute("DELETE FROM episode_watch_history WHERE id = ?", (record_id,))
     elif watch_kind == "skip":
+        row = db.execute("SELECT episode_id FROM episode_skips WHERE id = ?", (record_id,)).fetchone()
+        if row is None: raise WatchNotFoundError("Log entry not found")
+        episode_id = row["episode_id"]
         cursor = db.execute("DELETE FROM episode_skips WHERE id = ?", (record_id,))
     elif watch_kind in {"season", "season-skip"}:
         table = "season_watch_history" if watch_kind == "season" else "season_skip_history"
-        row = db.execute(f"SELECT batch_id FROM {table} WHERE id = ?", (record_id,)).fetchone()
+        row = db.execute(f"SELECT batch_id, season_id FROM {table} WHERE id = ?", (record_id,)).fetchone()
         if row is None: raise WatchNotFoundError("Log entry not found")
         if not row["batch_id"]: raise WatchNotFoundError("Legacy season entry cannot be removed as a batch")
+        season_id = row["season_id"]
         if watch_kind == "season": db.execute("DELETE FROM episode_watch_history WHERE batch_id = ?", (row["batch_id"],))
         else: db.execute("DELETE FROM episode_skips WHERE batch_id = ?", (row["batch_id"],))
         cursor = db.execute(f"DELETE FROM {table} WHERE id = ?", (record_id,))
@@ -345,3 +364,12 @@ def remove_log(db: sqlite3.Connection, watch_kind: str, record_id: int) -> None:
     else: raise WatchNotFoundError("Unknown log entry")
     if cursor.rowcount == 0: raise WatchNotFoundError("Log entry not found")
     db.commit()
+    episodes = []
+    if season_id is not None:
+        episodes = [
+            {"episode_id": row["id"], "watch_count": get_episode_watch_count(db, row["id"])}
+            for row in db.execute("SELECT id FROM episodes WHERE season_id = ?", (season_id,))
+        ]
+    return {"season_id": season_id, "episode_id": episode_id,
+            "watch_count": get_episode_watch_count(db, episode_id) if episode_id is not None else None,
+            "episodes": episodes}

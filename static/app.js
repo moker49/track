@@ -2500,6 +2500,7 @@ function addActivityItem({
   recordId = null,
   watchKind = null,
   addedAt = null,
+  showInDiary = 1,
 }) {
   const log = views.get("detail").querySelector("[data-activity-log]");
   const list = log?.querySelector("[data-activity-list]");
@@ -2516,7 +2517,7 @@ function addActivityItem({
     item.dataset.watchKind = watchKind;
     item.dataset.addedAt = addedAt;
     item.dataset.watchDate = "";
-    item.dataset.showInDiary = "1";
+    item.dataset.showInDiary = String(showInDiary);
   }
 
   const icon = document.createElement("span");
@@ -2526,6 +2527,7 @@ function addActivityItem({
     archived: "archive",
     activated: "resume",
     season_watched: "done_all",
+    season_skipped: "skip_next",
     skipped: "skip_next",
   }[type] || "history";
 
@@ -2542,31 +2544,24 @@ function addActivityItem({
   dateRow.append(time);
   copy.append(heading, dateRow);
 
-  if (recordId && watchKind !== "skip") {
+  if (recordId) {
     const button = document.createElement("button");
     button.className = "activity-item-button";
     button.type = "button";
-    if (watchKind === "season") button.dataset.seasonDiaryMenuButton = "";
-    else button.dataset.watchLogMenuButton = "";
+    button.dataset.watchLogMenuButton = "";
     button.setAttribute("aria-label", `Set date for ${title}`);
     const editIcon = document.createElement("span");
     editIcon.className = "material-symbols-rounded activity-edit-icon";
     editIcon.setAttribute("aria-hidden", "true");
-    editIcon.textContent = watchKind === "season" ? "visibility" : "more_vert";
+    editIcon.textContent = "more_vert";
     button.append(icon, copy, editIcon);
     item.append(button);
     const menu = document.createElement("div");
     menu.className = "show-menu";
     menu.setAttribute("popover", "manual");
     menu.hidden = true;
-    if (watchKind === "season") {
-      item.dataset.seasonDiaryState = "hidden";
-      menu.dataset.seasonDiaryMenu = "";
-      menu.innerHTML = '<button type="button" data-season-diary-action><span class="material-symbols-rounded" aria-hidden="true">visibility</span><span>Show in diary</span></button>';
-    } else {
-      menu.dataset.watchLogMenu = "";
-      menu.innerHTML = '<button type="button" data-watch-log-set-date><span class="material-symbols-rounded" aria-hidden="true">edit_calendar</span><span>Set date</span></button><button type="button" data-watch-log-diary-action><span class="material-symbols-rounded" aria-hidden="true">visibility_off</span><span>Hide from diary</span></button>';
-    }
+    menu.dataset.watchLogMenu = "";
+    menu.innerHTML = `<button type="button" data-watch-log-set-date><span class="material-symbols-rounded" aria-hidden="true">edit_calendar</span><span>Set date</span></button>${["skip", "season-skip"].includes(watchKind) ? "" : '<button type="button" data-watch-log-diary-action><span class="material-symbols-rounded" aria-hidden="true">visibility_off</span><span>Hide from diary</span></button>'}<button type="button" data-watch-log-remove><span class="material-symbols-rounded" aria-hidden="true">delete</span><span>Remove</span></button>`;
     item.append(menu);
   } else {
     item.append(icon, copy);
@@ -2654,6 +2649,7 @@ function renderDatePicker() {
 
 function openWatchDatePicker(item) {
   if (!datePicker) return;
+  datePicker.classList.add("is-editing-log");
   datePickerTarget = item;
   datePickerSelectedDate = parseIsoDate(item.dataset.watchDate);
   const visibleDate = datePickerSelectedDate || parseIsoDate(item.dataset.sortDate) || new Date();
@@ -2663,8 +2659,47 @@ function openWatchDatePicker(item) {
   openSharedDialog(datePicker);
 }
 
+function applyCreatedLog(data) {
+  applyShowProgress(data);
+  const episodeUpdates = data.episodes || (data.episode_id
+    ? [{ episode_id: data.episode_id, watch_count: data.watch_count }] : []);
+  episodeUpdates.forEach(({ episode_id: episodeId, watch_count: watchCount }) => {
+    document.querySelectorAll(`.episode[data-episode-id="${episodeId}"]`)
+      .forEach((episode) => updateEpisodeWatchUi(episode, watchCount));
+    document.querySelectorAll(`[data-detail-episode][data-episode-id="${episodeId}"]`)
+      .forEach((detailEpisode) => updateEpisodeDetailWatchUi(detailEpisode, watchCount, data.latest_resolution_kind));
+  });
+  if (data.season_id && episodeUpdates.length) {
+    const season = document.querySelector(`.season[data-season-id="${data.season_id}"]`);
+    const counts = episodeUpdates.map((episode) => episode.watch_count);
+    if (season) updateSeasonWatchSummary(
+      season, counts.length, counts.filter((count) => count > 0).length, Math.min(...counts),
+    );
+  }
+  const detail = views.get("detail");
+  if (currentView !== "detail" || !detail) return;
+  const isSeason = Boolean(data.season_id);
+  const belongsToCurrentDetail = isSeason
+    ? detail.querySelector(`[data-detail-show][data-show-id="${data.show_id}"]`)
+    : detail.querySelector(`[data-detail-episode][data-episode-id="${data.episode_id}"]`);
+  if (!belongsToCurrentDetail) return;
+  addActivityItem({
+    type: isSeason ? (data.action_kind === "watch" ? "season_watched" : "season_skipped")
+      : (data.action_kind === "watch" ? "watched" : "skipped"),
+    title: isSeason ? `${data.season_name} ${data.action_kind === "watch" ? "watched" : "skipped"}`
+      : (data.action_kind === "watch" ? "Watched" : "Skipped"),
+    occurredAt: data.display_date,
+    seasonId: data.season_id,
+    recordId: data.watch_record_id,
+    watchKind: data.watch_kind,
+    addedAt: data.added_at,
+    showInDiary: data.action_kind === "watch" ? 1 : 0,
+  });
+}
+
 function openLogDatePicker(target, action = "watch") {
   if (!datePicker) return;
+  datePicker.classList.remove("is-editing-log");
   logDatePickerTarget = target;
   logDatePickerAction = action;
   datePickerTarget = null;
@@ -2709,9 +2744,10 @@ async function saveWatchDate() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action_kind: logDatePickerAction, log_date: toIsoDate(datePickerSelectedDate || new Date()) }),
       });
+      const data = await response.json();
       if (!response.ok) throw new Error("Could not add log entry");
+      applyCreatedLog(data);
       datePicker.close();
-      window.location.reload();
     } catch (_error) {
       showSnackbar("Couldn't add the log entry. Try again.");
     } finally { saveButton.disabled = false; }
@@ -4084,8 +4120,30 @@ document.addEventListener("click", (event) => {
     hideFloatingMenu(watchLogRemove.closest("[data-watch-log-menu]"));
     if (!item) return;
     fetch(`/api/logs/${item.dataset.watchKind}/${item.dataset.watchRecordId}`, { method: "DELETE" })
-      .then((response) => response.ok ? item.remove() : Promise.reject())
-      .then(() => syncDisplayHiddenLogItemsSetting())
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((data) => {
+        item.remove();
+        (data.episodes || []).forEach(({ episode_id: episodeId, watch_count: watchCount }) => {
+          document.querySelectorAll(`.episode[data-episode-id="${episodeId}"]`).forEach((episode) => {
+            updateEpisodeWatchUi(episode, watchCount);
+          });
+        });
+        if (data.episode_id) {
+          document.querySelectorAll(`[data-detail-episode][data-episode-id="${data.episode_id}"]`)
+            .forEach((detailEpisode) => updateEpisodeDetailWatchUi(detailEpisode, data.watch_count));
+        }
+        if (data.season_id && data.episodes?.length) {
+          const season = document.querySelector(`.season[data-season-id="${data.season_id}"]`);
+          const counts = data.episodes.map((episode) => episode.watch_count);
+          if (season) updateSeasonWatchSummary(
+            season,
+            counts.length,
+            counts.filter((count) => count > 0).length,
+            Math.min(...counts),
+          );
+        }
+        syncDisplayHiddenLogItemsSetting();
+      })
       .catch(() => showSnackbar("Couldn't remove the log entry. Try again."));
     return;
   }
@@ -5302,6 +5360,7 @@ datePicker?.addEventListener("close", () => {
   pendingMovieImport = null;
   logDatePickerTarget = null;
   logDatePickerAction = "watch";
+  datePicker.classList.remove("is-editing-log");
   datePickerSelectedDate = null;
   datePickerYearVisible = false;
   datePicker.querySelector("[data-date-picker-clear]").textContent = "Clear";
