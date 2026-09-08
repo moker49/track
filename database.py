@@ -61,15 +61,6 @@ def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None
         columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
         if column not in columns:
             db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-    for table in ("episode_watch_history", "season_watch_history", "movie_watch_history"):
-        db.execute(
-            f"UPDATE {table} SET diary_date = CASE WHEN show_in_diary = 1 THEN COALESCE(watch_date, substr(added_at, 1, 10)) ELSE NULL END WHERE diary_date IS NULL"
-        )
-        db.execute(f"UPDATE {table} SET watch_date = NULL")
-    db.execute("UPDATE episode_skips SET diary_date = skip_date WHERE diary_date IS NULL")
-    db.execute("UPDATE season_skip_history SET diary_date = skip_date WHERE diary_date IS NULL")
-    db.execute("UPDATE episode_skips SET skip_date = NULL")
-    db.execute("UPDATE season_skip_history SET skip_date = NULL")
     db.execute("CREATE INDEX IF NOT EXISTS idx_episode_watch_history_batch ON episode_watch_history(batch_id)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_episode_skips_batch ON episode_skips(batch_id)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_season_watch_history_batch ON season_watch_history(batch_id)")
