@@ -1974,12 +1974,35 @@ html.navigation-drawer-closing .menu-scrim {
   line-height: 1.35;
 }
 
-.settings-toggle input {
-  width: 20px;
-  height: 20px;
-  margin: 0;
-  flex: 0 0 auto;
-  accent-color: var(--primary);
+.settings-toggle-input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.settings-toggle-icon {
+  font-size: 28px;
+  color: var(--on-surface-muted);
+}
+
+.settings-toggle-icon-on {
+  display: none;
+  color: var(--primary);
+}
+
+.settings-toggle-input:checked~.settings-toggle-icon-off {
+  display: none;
+}
+
+.settings-toggle-input:checked~.settings-toggle-icon-on {
+  display: block;
 }
 
 .utility-view:not(.lists-view) .utility-app-bar {

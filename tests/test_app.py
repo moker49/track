@@ -162,7 +162,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'/static/app.css?v=', home.data)
         self.assertIn(b'/static/app.js?v=', home.data)
         self.assertEqual(home.data.count(b"data-clear-search"), 1)
-        self.assertEqual(home.data.count(b">close</span>"), 3)
+        self.assertEqual(home.data.count(b">close</span>"), 2)
         self.assertIn(b'data-progress-state="started"', home.data)
         self.assertIn(b'data-progress-state="finished"', home.data)
         self.assertIn(b'data-show-id="1"', home.data)
