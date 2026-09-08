@@ -56,7 +56,6 @@ def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None
         columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
         if column not in columns:
             db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-    _backfill_season_watch_batches(db)
     db.execute("CREATE INDEX IF NOT EXISTS idx_episode_watch_history_batch ON episode_watch_history(batch_id)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_episode_skips_batch ON episode_skips(batch_id)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_season_watch_history_batch ON season_watch_history(batch_id)")
@@ -101,38 +100,3 @@ def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None
         db.execute("ALTER TABLE movies DROP COLUMN is_watched_without_diary")
     db.execute("PRAGMA optimize")
     db.commit()
-
-
-def _backfill_season_watch_batches(db: sqlite3.Connection) -> None:
-    """Link only legacy season actions whose generated episode rows are exact matches."""
-    import uuid
-
-    rows = db.execute(
-        "SELECT id, season_id, added_at FROM season_watch_history WHERE batch_id IS NULL"
-    ).fetchall()
-    for row in rows:
-        episode_ids = [entry[0] for entry in db.execute(
-            "SELECT id FROM episodes WHERE season_id = ?", (row["season_id"],)
-        )]
-        if not episode_ids:
-            continue
-        matches = db.execute(
-            """
-            SELECT wh.id FROM episode_watch_history wh
-            JOIN episodes e ON e.id = wh.episode_id
-            WHERE e.season_id = ? AND wh.added_at = ? AND wh.batch_id IS NULL
-            """,
-            (row["season_id"], row["added_at"]),
-        ).fetchall()
-        if len(matches) != len(episode_ids):
-            continue
-        batch_id = str(uuid.uuid4())
-        db.execute(
-            "INSERT INTO season_log_batches (id, season_id, action_kind, created_at) VALUES (?, ?, 'watch', ?)",
-            (batch_id, row["season_id"], row["added_at"]),
-        )
-        db.execute("UPDATE season_watch_history SET batch_id = ? WHERE id = ?", (batch_id, row["id"]))
-        db.execute(
-            "UPDATE episode_watch_history SET batch_id = ? WHERE id IN (%s)" % ",".join("?" * len(matches)),
-            (batch_id, *[match["id"] for match in matches]),
-        )
