@@ -156,10 +156,10 @@ def get_catch_up_episodes(
     db: sqlite3.Connection,
     show_id: int | None = None,
     local_date: date | None = None,
-) -> list[sqlite3.Row]:
+) -> list[sqlite3.Row | dict]:
     local_date = local_date or date.today()
     local_date_value = local_date.isoformat()
-    return db.execute(
+    episodes = db.execute(
         """
         WITH episode_counts AS (
             SELECT s.id AS show_id, s.name AS show_name, s.poster_path,
@@ -283,6 +283,30 @@ def get_catch_up_episodes(
         """,
         (local_date_value, show_id, show_id),
     ).fetchall()
+    if show_id is not None:
+        return episodes
+
+    watch_again_movies = db.execute(
+        """
+        SELECT NULL AS show_id, m.id AS movie_id, m.title AS show_name, m.poster_path,
+               'ACTIVE' AS tracking_state, m.added_at AS show_added_at, m.status AS show_status,
+               m.watch_again, NULL AS season_number, 'Movie' AS season_name,
+               NULL AS episode_id, NULL AS episode_number, m.title AS episode_name,
+               m.release_date AS air_date, m.runtime_minutes, 1 AS is_rewatch,
+               1 AS episode_count, 0 AS watched_count, 0 AS total_watch_count,
+               0 AS completed_watch_count, 0 AS rewatch_watched_count,
+               MAX(mwh.added_at) AS last_watched_at, 1 AS is_movie, 'movies' AS media_type
+        FROM movies m
+        LEFT JOIN movie_watch_history mwh ON mwh.movie_id = m.id
+        WHERE m.is_tracked = 1 AND m.watch_again = 1
+        GROUP BY m.id
+        """
+    ).fetchall()
+    queue_items = [dict(episode) for episode in episodes]
+    queue_items.extend(dict(movie) for movie in watch_again_movies)
+    queue_items.sort(key=lambda item: item["show_name"].casefold())
+    queue_items.sort(key=lambda item: item["last_watched_at"] or "", reverse=True)
+    return queue_items
 
 
 def get_upcoming_episodes(

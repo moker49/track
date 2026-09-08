@@ -1639,6 +1639,30 @@ async function processScheduleEpisode(card, action) {
   }
 }
 
+async function processScheduleMovie(card) {
+  if (card.dataset.scheduleProcessing === "true") return;
+  card.dataset.scheduleProcessing = "true";
+  const button = card.querySelector("[data-schedule-movie-action]");
+  button.disabled = true;
+  try {
+    const response = await fetch(`/api/movies/${card.dataset.movieId}/watch-count`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "increment" }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not mark movie watched");
+    movieDetailCache.delete(String(data.movie_id));
+    syncCompletedWatchAgain(data);
+    diaryRevision += 1;
+    await Promise.all([refreshScheduleContent(), refreshMoviesContent()]);
+  } catch (error) {
+    showSnackbar(error.message || "Couldn't update this movie.");
+    delete card.dataset.scheduleProcessing;
+    button.disabled = false;
+  }
+}
+
 function finishDetailLoad({ resetScroll = true } = {}) {
   const detailView = views.get("detail");
   formatDisplayDates(detailView);
@@ -2841,8 +2865,7 @@ function syncTvControlBar(view = views.get(currentView)) {
 
   tvControlBar.querySelectorAll("[data-tv-media-option]").forEach((button) => {
     const type = button.dataset.tvMediaOption;
-    const excluded = (viewName === "backlog" && type === "movies")
-      || (viewName === "tv" && type === "movies")
+    const excluded = (viewName === "tv" && type === "movies")
       || (viewName === "movies" && ["tv", "tv-archive"].includes(type));
     button.hidden = excluded;
     const label = button.querySelector("[data-tv-media-option-label]");
@@ -3908,6 +3931,12 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const scheduleMovieAction = event.target.closest("[data-schedule-movie-action]");
+  if (scheduleMovieAction) {
+    processScheduleMovie(scheduleMovieAction.closest("[data-schedule-card]"));
+    return;
+  }
+
   const scheduleAction = event.target.closest("[data-schedule-action]");
   if (scheduleAction) {
     processScheduleEpisode(
@@ -4161,7 +4190,9 @@ document.addEventListener("click", (event) => {
   const scheduleMovieOpen = event.target.closest("[data-schedule-movie-open]");
   if (scheduleMovieOpen) {
     const card = scheduleMovieOpen.closest("[data-schedule-card]");
-    const parentView = currentView === "diary" ? "diary" : "upcoming";
+    const parentView = currentView === "diary"
+      ? "diary"
+      : currentView === "backlog" ? "backlog" : "upcoming";
     detailParentView = parentView;
     openMovie(card.dataset.movieId, parentView, "push");
     return;

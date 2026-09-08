@@ -1,30 +1,33 @@
 {% macro schedule_timeline_item(episode, mode) %}
 {% set is_backlog = mode == 'catch-up' %}
+{% set is_movie = episode.is_movie|default(false) %}
 {% set is_rewatch = episode.is_rewatch|default(false) %}
 {% set display_watched_count = episode.rewatch_watched_count if is_rewatch else episode.watched_count %}
-{% set progress_percent = ((display_watched_count * 100) / episode.episode_count)|round|int if episode.episode_count else 0 %}
+{% set progress_percent = ((display_watched_count * 100) / episode.episode_count)|round|int if episode.episode_count
+else 0 %}
 {% if episode.watched_count == 0 %}{% set progress_state = 'not-started' %}
 {% elif is_rewatch %}{% set progress_state = 'started' %}
 {% elif episode.episode_count and episode.watched_count >= episode.episode_count %}
-  {% set progress_state = 'finished' if episode.show_status|lower in ['ended', 'canceled', 'cancelled'] else 'caught-up' %}
+{% set progress_state = 'finished' if episode.show_status|lower in ['ended', 'canceled', 'cancelled'] else 'caught-up'
+%}
 {% else %}{% set progress_state = 'started' %}{% endif %}
 <article class="schedule-timeline-item{% if not is_backlog and episode.is_grouped %} is-multi-episode{% endif %}"
-  data-schedule-card data-schedule-mode="{{ mode }}"{% if episode.is_movie %} data-movie-id="{{ episode.movie_id }}"{% else %} data-show-id="{{ episode.show_id }}"{% endif %}
-  data-media-type="{{ episode.media_type or 'tv' }}"
-  data-watch-again="{{ 'true' if episode.watch_again else 'false' }}"
-  data-tracking-state="{{ episode.tracking_state }}" data-progress-state="{{ progress_state }}"
-  data-show-status="{{ episode.show_status or '' }}"
+  data-schedule-card data-schedule-mode="{{ mode }}" {% if is_movie %} data-movie-id="{{ episode.movie_id }}" {% else %}
+  data-show-id="{{ episode.show_id }}" {% endif %} data-media-type="{{ episode.media_type or 'tv' }}"
+  data-watch-again="{{ 'true' if episode.watch_again else 'false' }}" data-tracking-state="{{ episode.tracking_state }}"
+  data-progress-state="{{ progress_state }}" data-show-status="{{ episode.show_status or '' }}"
   data-name="{{ episode.show_name|lower }}" data-date-added="{{ episode.show_added_at }}"
   data-release-date="{{ episode.air_date }}" data-last-watched="{{ episode.last_watched_at or '' }}"
-  data-progress="{{ progress_percent }}"
-  {% if is_backlog %}data-watched-count="{{ display_watched_count }}" data-episode-count="{{ episode.episode_count }}"{% endif %}
-  {% if not is_backlog and episode.is_grouped %}data-season-ids="{{ episode.season_ids }}"{% else
-  %}data-episode-id="{{ episode.episode_id }}"{% endif %}
+  data-progress="{{ progress_percent }}" {% if is_backlog %}data-watched-count="{{ display_watched_count }}"
+  data-episode-count="{{ episode.episode_count }}" {% endif %} {% if not is_movie and not is_backlog and
+  episode.is_grouped %}data-season-ids="{{ episode.season_ids }}" {% elif not is_movie
+  %}data-episode-id="{{ episode.episode_id }}" {% endif %}
   data-schedule-search-text="{{ episode.search_text if not is_backlog else (episode.show_name|lower ~ ' ' ~ episode.episode_name|lower) }}">
   <div class="schedule-timeline-marker" aria-hidden="true">
     {% if is_backlog %}
+    {% if is_movie %}<strong>0%</strong><span>0/1</span>{% else %}
     <strong>{{ progress_percent }}%</strong>
-    <span>{{ display_watched_count }}/{{ episode.episode_count }}</span>
+    <span>{{ display_watched_count }}/{{ episode.episode_count }}</span>{% endif %}
     {% else %}
     <strong>{{ episode.day_label }}</strong>
     <span>{{ episode.weekday_label }}</span>
@@ -32,41 +35,52 @@
   </div>
   <span class="schedule-timeline-rail" aria-hidden="true"><span></span></span>
   <div class="schedule-timeline-content">
-    <button class="schedule-timeline-open" type="button"
-      {% if episode.is_movie %}data-schedule-movie-open
-      aria-label="Open {{ episode.show_name }} details"{% elif not is_backlog and episode.is_grouped %}data-schedule-show-open
-      aria-label="Open {{ episode.show_name }} details"{% else %}data-schedule-episode-open
-      aria-label="Open {{ episode.episode_name }} details"{% endif %}>
+    <button class="schedule-timeline-open" type="button" {% if is_movie %}data-schedule-movie-open
+      aria-label="Open {{ episode.show_name }} details" {% elif not is_backlog and episode.is_grouped
+      %}data-schedule-show-open aria-label="Open {{ episode.show_name }} details" {% else %}data-schedule-episode-open
+      aria-label="Open {{ episode.episode_name }} details" {% endif %}>
       <span class="schedule-timeline-poster{% if episode.poster_path %} has-media-image{% endif %}" aria-hidden="true">
-        {% if episode.poster_path %}<img src="{{ url_for('cached_tmdb_image', image_type='poster', size='w185', tmdb_path=episode.poster_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span>{{ episode.show_name[:1]|upper }}</span></template>{% else %}<span>{{ episode.show_name[:1]|upper }}</span>{% endif %}
+        {% if episode.poster_path %}<img
+          src="{{ url_for('cached_tmdb_image', image_type='poster', size='w185', tmdb_path=episode.poster_path[1:]) }}"
+          alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span>{{
+            episode.show_name[:1]|upper }}</span></template>{% else %}<span>{{ episode.show_name[:1]|upper }}</span>{%
+        endif %}
       </span>
       <span class="schedule-timeline-copy">
-    <strong>{{ episode.show_name }}{% if is_rewatch and episode.completed_watch_count %}<span class="state-label overwatch-tag schedule-overwatch-tag">+{{ episode.completed_watch_count }}</span>{% endif %}</strong>
-        <span{% if is_backlog %} data-schedule-advance-line{% endif %}>{% if is_backlog %}Season {{ episode.season_number }} · Episode {{ episode.episode_number }}{% else %}{{
-          episode.release_metadata }}{% endif %}</span>
-        <span class="schedule-timeline-episode-title"{% if is_backlog %} data-schedule-advance-line{% endif %}>{{ episode.episode_name if is_backlog else episode.release_detail
-          }}</span>
+        <strong>{{ episode.show_name }}{% if is_rewatch and episode.completed_watch_count %}<span
+            class="state-label overwatch-tag schedule-overwatch-tag">+{{ episode.completed_watch_count }}</span>{% endif
+          %}</strong>
+        <span{% if is_backlog and not is_movie %} data-schedule-advance-line{% endif %}>{% if is_movie %}Movie{% elif
+          is_backlog %}Season {{ episode.season_number }} · Episode {{ episode.episode_number }}{% else %}{{
+          episode.release_metadata }}{% endif %}
+      </span>
+      {% if not is_movie %}<span class="schedule-timeline-episode-title" {% if is_backlog %}
+        data-schedule-advance-line{% endif %}>{{ episode.episode_name if is_backlog else episode.release_detail
+        }}</span>{% endif %}
       </span>
       {% if not is_backlog %}
       <span class="schedule-timeline-countdown{% if episode.is_live %} is-live{% endif %}">
-        {% if episode.is_live %}live{% elif episode.days_until == 0 %}today{% elif episode.days_until == 1 %}tomorrow{% else %}{{ episode.days_until }} days{% endif %}
+        {% if episode.is_live %}live{% elif episode.days_until == 0 %}today{% elif episode.days_until == 1 %}tomorrow{%
+        else %}{{ episode.days_until }} days{% endif %}
       </span>
       {% endif %}
     </button>
     {% if is_backlog %}
     <div class="schedule-timeline-actions">
-      {% if is_rewatch %}<span class="schedule-action-slot schedule-skip-slot">
+      {% if is_rewatch and not is_movie %}<span class="schedule-action-slot schedule-skip-slot">
         <button class="schedule-skip-button" type="button" data-schedule-action="skip">Skip</button>
       </span>{% endif %}
       <span class="schedule-action-slot schedule-watch-slot">
-        <button class="schedule-watch-button" type="button" data-schedule-action="watch">Watch</button>
+        <button class="schedule-watch-button" type="button" {% if is_movie %}data-schedule-movie-action{% else
+          %}data-schedule-action="watch" {% endif %}>Watch</button>
         <span class="schedule-action-confirmation schedule-watch-confirmation material-symbols-rounded"
           aria-hidden="true">check</span>
       </span>
     </div>
-    <div class="schedule-timeline-progress" aria-label="{{ display_watched_count }} of {{ episode.episode_count }} episodes watched">
+    <div class="schedule-timeline-progress"
+      aria-label="{{ 'Movie not watched yet' if is_movie else display_watched_count ~ ' of ' ~ episode.episode_count ~ ' episodes watched' }}">
       <div class="progress-track" aria-hidden="true">
-        <span style="width: {{ progress_percent }}%"></span>
+        <span style="width: {{ 0 if is_movie else progress_percent }}%"></span>
       </div>
     </div>
     {% endif %}
