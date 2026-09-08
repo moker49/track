@@ -61,9 +61,18 @@ const searchMenuButton = document.querySelector("[data-search-menu]");
 const searchBackButton = document.querySelector("[data-search-back]");
 const searchClearButton = document.querySelector("[data-clear-search]");
 const tvViewToggle = document.querySelector("[data-tv-view-toggle]");
+const displayHiddenLogItemsToggle = document.querySelector("[data-setting-display-hidden-log-items]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, diary: 0, statistics: 0, lists: 0 };
+const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, diary: 0, statistics: 0, lists: 0, settings: 0 };
+const DISPLAY_HIDDEN_LOG_ITEMS_STORAGE_KEY = "track.display-hidden-log-items";
+let displayHiddenLogItems = false;
+
+try {
+  displayHiddenLogItems = window.localStorage.getItem(DISPLAY_HIDDEN_LOG_ITEMS_STORAGE_KEY) === "true";
+} catch (_error) {
+  // The setting still works for this session when storage is unavailable.
+}
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const finishedArchiveDialog = document.querySelector("[data-finished-archive-dialog]");
 const resumeShowDialog = document.querySelector("[data-resume-show-dialog]");
@@ -360,7 +369,7 @@ function syncSearchTextPosition() {
 
 function syncGlobalSearch() {
   if (!globalSearchBar || !globalSearchInput) return;
-  const hasDedicatedAppBar = ["detail", "diary", "statistics", "lists"].includes(currentView);
+  const hasDedicatedAppBar = ["detail", "diary", "statistics", "lists", "settings"].includes(currentView);
   globalSearchBar.hidden = hasDedicatedAppBar;
   if (hasDedicatedAppBar) return;
 
@@ -607,6 +616,7 @@ function showView(viewName, historyMode = null) {
     diary: "Diary · Track",
     statistics: "Statistics · Track",
     lists: "My lists · Track",
+    settings: "Settings · Track",
   };
   document.title = titles[viewName] || "Track";
   if (["backlog", "upcoming"].includes(viewName)) {
@@ -2036,7 +2046,7 @@ async function openShow(
   returnContext = null,
 ) {
   const cacheKey = String(showId);
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "lists"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "lists", "settings"].includes(parentView)
     ? parentView
     : "backlog";
   if (historyMode) {
@@ -2129,6 +2139,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
     staggerDetailSlices(slices);
   }
   views.get("detail").replaceChildren(showTemplate.content);
+  syncDisplayHiddenLogItemsSetting(views.get("detail"));
   enableWatchControls(views.get("detail"));
   finishDetailLoad();
   restoreShowDetailContext(detailShow.dataset.showId, returnContext);
@@ -2137,7 +2148,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
 }
 
 async function openMovie(movieId, parentView = "movies", historyMode = "push") {
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "lists"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "lists", "settings"].includes(parentView)
     ? parentView : "movies";
   if (historyMode) {
     writeHistory({ view: "detail", detailType: "movie", movieId: String(movieId), parentView: detailParentView }, historyMode);
@@ -2172,6 +2183,7 @@ function renderMovieDetail(movieHtml, animate) {
   const detailMovie = template.content.querySelector("[data-detail-movie]");
   if (animate) staggerDetailSlices([detailMovie.querySelector(".hero"), ...detailMovie.querySelectorAll(".detail-content > *")]);
   views.get("detail").replaceChildren(template.content);
+  syncDisplayHiddenLogItemsSetting(views.get("detail"));
   finishDetailLoad();
 }
 
@@ -2446,6 +2458,7 @@ function renderEpisodeDetail(episodeHtml, previousWasShow, animate, entryDirecti
     staggerDetailSlices([episodeHero, ...episodeContent.children]);
   }
   views.get("detail").replaceChildren(episodeTemplate.content);
+  syncDisplayHiddenLogItemsSetting(views.get("detail"));
   fitEpisodeDetailTitle(views.get("detail"));
   const detailEpisode = views.get("detail").querySelector("[data-detail-episode]");
   lastEpisodeDetailScrollY = window.scrollY;
@@ -2457,7 +2470,8 @@ function renderEpisodeDetail(episodeHtml, previousWasShow, animate, entryDirecti
 
 function syncActivityCount(log) {
   if (!log) return;
-  const count = log.querySelectorAll(".activity-item").length;
+  const count = [...log.querySelectorAll(".activity-item")]
+    .filter((item) => displayHiddenLogItems || !isDiaryHiddenLogItem(item)).length;
   const countElement = log.querySelector("[data-activity-count]");
   const labelElement = log.querySelector("[data-activity-count-label]");
   if (countElement) countElement.textContent = count;
@@ -3554,6 +3568,26 @@ function requestShowRemoval(showElement) {
   openSharedDialog(removeDialog);
 }
 
+function isDiaryHiddenLogItem(item) {
+  return item.dataset.showInDiary === "0" || item.dataset.seasonDiaryState === "hidden";
+}
+
+function syncDisplayHiddenLogItemsSetting(root = document) {
+  document.documentElement.classList.toggle("display-hidden-log-items", displayHiddenLogItems);
+  if (displayHiddenLogItemsToggle) displayHiddenLogItemsToggle.checked = displayHiddenLogItems;
+  root.querySelectorAll("[data-activity-log]").forEach(syncActivityCount);
+}
+
+function setDisplayHiddenLogItems(enabled) {
+  displayHiddenLogItems = Boolean(enabled);
+  try {
+    window.localStorage.setItem(DISPLAY_HIDDEN_LOG_ITEMS_STORAGE_KEY, String(displayHiddenLogItems));
+  } catch (_error) {
+    // The selected setting remains active until the page is closed.
+  }
+  syncDisplayHiddenLogItemsSetting();
+}
+
 function requestMovieRemoval(movieElement) {
   pendingRemoveMovieId = movieElement.dataset.movieId;
   const movieName = movieElement.querySelector("h1, h3")?.textContent.trim() || "this movie";
@@ -3726,7 +3760,7 @@ function updateEpisodeDetailWatchUi(detailEpisode, watchCount, latestResolutionK
   control.dataset.watchCount = watchCount;
   control.querySelector("[data-episode-detail-watch-count]").textContent = watchCount;
   control.querySelector("[data-episode-detail-watch-label]").textContent =
-    watchCount === 1 ? "resolution" : "resolutions";
+    watchCount === 1 ? "watch" : "watches";
   if (latestResolutionKind !== null) syncEpisodeResolutionMenu(detailEpisode, latestResolutionKind);
 }
 
@@ -4007,6 +4041,7 @@ document.addEventListener("click", (event) => {
       .then(() => {
         item.dataset.showInDiary = visible ? "1" : "0";
         syncDiaryHiddenIcon(item);
+        syncDisplayHiddenLogItemsSetting();
         diaryRevision += 1;
       })
       .catch(() => showSnackbar("Couldn't update the diary setting. Try again."));
@@ -4267,6 +4302,7 @@ document.addEventListener("click", (event) => {
           .forEach((entry) => {
             entry.dataset.seasonDiaryState = data.show_in_diary ? "shown" : "hidden";
           });
+        syncDisplayHiddenLogItemsSetting();
         diaryRevision += 1;
       })
       .catch(() => showSnackbar("Couldn't update the diary setting. Try again."));
@@ -5189,9 +5225,14 @@ filterAllShowViews();
 filterSchedule("backlog");
 filterSchedule("upcoming");
 formatDisplayDates(document);
+syncDisplayHiddenLogItemsSetting();
 syncGlobalSearch();
 cacheInitialReactionList();
 initializeVirtualTimeline("diary");
+
+displayHiddenLogItemsToggle?.addEventListener("change", () => {
+  setDisplayHiddenLogItems(displayHiddenLogItemsToggle.checked);
+});
 
 removeDialog?.addEventListener("close", () => {
   pendingRemoveShowId = null;
@@ -5270,7 +5311,7 @@ function restoreHistoryState(state) {
   }
 
   const restoredParent = legacyViews[state.parentView] || state.parentView;
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "lists"].includes(restoredParent)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "lists", "settings"].includes(restoredParent)
     ? restoredParent
     : "backlog";
   if (state.detailType === "show" && state.showId) {

@@ -76,6 +76,23 @@
   </section>
 </section>
 
+<section class="app-view utility-view settings-view" data-view="settings" aria-label="Settings" hidden>
+  <header class="utility-app-bar">
+    <button class="icon-button" type="button" data-utility-back aria-label="Back"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button>
+    <h1>Settings</h1>
+  </header>
+  <section class="settings-content" aria-labelledby="settings-display-title">
+    <h2 id="settings-display-title">Display</h2>
+    <label class="settings-toggle">
+      <span class="settings-toggle-copy">
+        <strong>Display hidden log items</strong>
+        <small>UI logs include entries hidden from the diary.</small>
+      </span>
+      <input type="checkbox" data-setting-display-hidden-log-items>
+    </label>
+  </section>
+</section>
+
 <template id="detail-loading-template">
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back aria-label="Back">

@@ -10,74 +10,81 @@
   </header>
 
   <div class="episode-detail-page-content" data-episode-page-content>
-  <section class="hero episode-hero">
-    {% if episode.still_path %}<button class="image-preview-button hero-image-button" type="button"
-      data-full-image-src="https://image.tmdb.org/t/p/w780{{ episode.still_path }}"
-      data-full-image-alt="Still from {{ episode.name }}" aria-label="View still from {{ episode.name }}">{% endif %}
-    <div class="hero-poster poster{% if episode.still_path %} has-media-image{% endif %}" aria-hidden="true">
-      {% if episode.still_path %}<img class="poster-image episode-still-image" src="{{ url_for('cached_tmdb_image', image_type='still', size='w300', tmdb_path=episode.still_path[1:]) }}" alt="" decoding="async" data-media-image><template data-media-fallback-template><span class="poster-mark episode-poster-mark">S{{ episode.season_number }}E{{ episode.episode_number }}</span><span class="poster-label">{{ episode.show_name }}</span></template>{% else %}<span class="poster-mark episode-poster-mark">S{{ episode.season_number }}E{{ episode.episode_number }}</span><span class="poster-label">{{ episode.show_name }}</span>{% endif %}
-    </div>
-    {% if episode.still_path %}</button>{% endif %}
-    <div class="hero-copy">
-      <span class="state-label">Episode {{ episode.episode_number }}</span>
-      <h1 data-responsive-episode-title>{{ episode.name }}</h1>
-      <p>{{ episode.season_name }}{% if episode.air_date or episode.runtime_minutes %}<br>{% if episode.air_date
+    <section class="hero episode-hero">
+      {% if episode.still_path %}<button class="image-preview-button hero-image-button" type="button"
+        data-full-image-src="https://image.tmdb.org/t/p/w780{{ episode.still_path }}"
+        data-full-image-alt="Still from {{ episode.name }}" aria-label="View still from {{ episode.name }}">{% endif %}
+        <div class="hero-poster poster{% if episode.still_path %} has-media-image{% endif %}" aria-hidden="true">
+          {% if episode.still_path %}<img class="poster-image episode-still-image"
+            src="{{ url_for('cached_tmdb_image', image_type='still', size='w300', tmdb_path=episode.still_path[1:]) }}"
+            alt="" decoding="async" data-media-image><template data-media-fallback-template><span
+              class="poster-mark episode-poster-mark">S{{ episode.season_number }}E{{ episode.episode_number
+              }}</span><span class="poster-label">{{ episode.show_name }}</span></template>{% else %}<span
+            class="poster-mark episode-poster-mark">S{{ episode.season_number }}E{{ episode.episode_number
+            }}</span><span class="poster-label">{{ episode.show_name }}</span>{% endif %}
+        </div>
+        {% if episode.still_path %}
+      </button>{% endif %}
+      <div class="hero-copy">
+        <span class="state-label">Episode {{ episode.episode_number }}</span>
+        <h1 data-responsive-episode-title>{{ episode.name }}</h1>
+        <p>{{ episode.season_name }}{% if episode.air_date or episode.runtime_minutes %}<br>{% if episode.air_date
           %}<time datetime="{{ episode.air_date }}" data-display-date>{{ episode.air_date }}</time>{% endif %}{% if
           episode.air_date and episode.runtime_minutes %} · {% endif %}{% if episode.runtime_minutes %}{{
           episode.runtime_minutes }} min{% endif %}{% endif %}</p>
-    </div>
-  </section>
-
-  <section class="detail-content episode-detail-content">
-    <p class="overview episode-overview">{{ episode.overview }}</p>
-
-    <button class="episode-show-link" type="button" data-episode-show-open data-show-id="{{ episode.show_id }}"
-      aria-label="Open {{ episode.show_name }} show details">
-      <span class="material-symbols-rounded" aria-hidden="true">tv</span>
-      <span>{{ episode.show_name }}</span>
-      <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
-    </button>
-
-    <div class="episode-watch-summary-wrap watch-control-wrap">
-      <button class="episode-watch-summary" type="button" data-episode-detail-watch
-        data-watch-count="{{ episode.watch_count }}" aria-label="Watch options for {{ episode.name }}">
-        <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
-        <span><strong data-episode-detail-watch-count>{{ episode.watch_count }}</strong>
-          <span data-episode-detail-watch-label>{{ 'resolutions' if episode.watch_count != 1 else 'resolution' }}</span></span>
-      </button>
-      <div class="show-menu watch-menu episode-detail-watch-menu" data-watch-menu popover="manual" hidden>
-        <button type="button" data-watch-action="increment">
-          <span class="material-symbols-rounded" aria-hidden="true">add</span>
-          <span>rewatch</span>
-        </button>
-        <button type="button" data-watch-action="decrement">
-          <span class="material-symbols-rounded" aria-hidden="true">remove</span>
-          <span>{{ 'unskip' if episode.latest_resolution_kind == 'skip' else 'unwatch' }}</span>
-        </button>
-        {% if episode.show_finished %}<button type="button" data-watch-action="skip">
-          <span class="material-symbols-rounded" aria-hidden="true">skip_next</span>
-          <span>skip</span>
-        </button>{% endif %}
       </div>
-    </div>
+    </section>
 
-    {% set activity_title = 'Watch log' %}
-    {% set activity_items = watch_log %}
-    {% set activity_mode = 'episode' %}
-    {% set activity_empty = 'This episode has not been watched yet.' %}
-    {% include '_activity_log.html' %}
-  </section>
+    <section class="detail-content episode-detail-content">
+      <p class="overview episode-overview">{{ episode.overview }}</p>
+
+      <button class="episode-show-link" type="button" data-episode-show-open data-show-id="{{ episode.show_id }}"
+        aria-label="Open {{ episode.show_name }} show details">
+        <span class="material-symbols-rounded" aria-hidden="true">tv</span>
+        <span>{{ episode.show_name }}</span>
+        <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+      </button>
+
+      <div class="episode-watch-summary-wrap watch-control-wrap">
+        <button class="episode-watch-summary" type="button" data-episode-detail-watch
+          data-watch-count="{{ episode.watch_count }}" aria-label="Watch options for {{ episode.name }}">
+          <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
+          <span><strong data-episode-detail-watch-count>{{ episode.watch_count }}</strong>
+            <span data-episode-detail-watch-label>{{ 'watches' if episode.watch_count != 1 else 'watch' }}</span></span>
+        </button>
+        <div class="show-menu watch-menu episode-detail-watch-menu" data-watch-menu popover="manual" hidden>
+          <button type="button" data-watch-action="increment">
+            <span class="material-symbols-rounded" aria-hidden="true">add</span>
+            <span>rewatch</span>
+          </button>
+          <button type="button" data-watch-action="decrement">
+            <span class="material-symbols-rounded" aria-hidden="true">remove</span>
+            <span>{{ 'unskip' if episode.latest_resolution_kind == 'skip' else 'unwatch' }}</span>
+          </button>
+          {% if episode.show_finished %}<button type="button" data-watch-action="skip">
+            <span class="material-symbols-rounded" aria-hidden="true">skip_next</span>
+            <span>skip</span>
+          </button>{% endif %}
+        </div>
+      </div>
+
+      {% set activity_title = 'Watch log' %}
+      {% set activity_items = watch_log %}
+      {% set activity_mode = 'episode' %}
+      {% set activity_empty = 'This episode has not been watched yet.' %}
+      {% include '_activity_log.html' %}
+    </section>
   </div>
 
   <div class="bottom-context-switcher episode-navigation-switcher" data-episode-navigation role="group"
     aria-label="Episode navigation">
-    <button type="button" data-adjacent-episode="previous"
-      {% if episode.previous_episode_id %}data-episode-id="{{ episode.previous_episode_id }}"{% else %}disabled{% endif %}>
+    <button type="button" data-adjacent-episode="previous" {% if episode.previous_episode_id
+      %}data-episode-id="{{ episode.previous_episode_id }}" {% else %}disabled{% endif %}>
       <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
       <span>Previous</span>
     </button>
-    <button type="button" data-adjacent-episode="next"
-      {% if episode.next_episode_id %}data-episode-id="{{ episode.next_episode_id }}"{% else %}disabled{% endif %}>
+    <button type="button" data-adjacent-episode="next" {% if episode.next_episode_id
+      %}data-episode-id="{{ episode.next_episode_id }}" {% else %}disabled{% endif %}>
       <span>Next</span>
       <span class="material-symbols-rounded" aria-hidden="true">chevron_right</span>
     </button>

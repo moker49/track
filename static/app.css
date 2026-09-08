@@ -1890,7 +1890,9 @@ html.navigation-drawer-closing .menu-scrim {
 }
 
 .navigation-drawer-links button:hover,
-.navigation-drawer-links button:focus-visible {
+.navigation-drawer-links button:focus-visible,
+.navigation-drawer-settings:hover,
+.navigation-drawer-settings:focus-visible {
   background: var(--primary-light);
 }
 
@@ -1902,8 +1904,6 @@ html.navigation-drawer-closing .menu-scrim {
 
 .navigation-drawer-settings {
   width: 100%;
-  color: var(--on-surface-muted);
-  cursor: default;
 }
 
 .utility-view {
@@ -1931,6 +1931,55 @@ html.navigation-drawer-closing .menu-scrim {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 500;
+}
+
+.settings-content {
+  padding: 24px 16px;
+}
+
+.settings-content h2 {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--on-surface-muted);
+}
+
+.settings-toggle {
+  min-height: 72px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--surface-card);
+  box-shadow: 0 1px 4px var(--shadow);
+  cursor: pointer;
+}
+
+.settings-toggle-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.settings-toggle-copy strong {
+  font-size: 0.94rem;
+  font-weight: 500;
+}
+
+.settings-toggle-copy small {
+  color: var(--on-surface-muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.settings-toggle input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--primary);
 }
 
 .utility-view:not(.lists-view) .utility-app-bar {
@@ -3143,6 +3192,11 @@ html.navigation-drawer-closing .menu-scrim {
   width: 48px;
   height: 48px;
   color: var(--on-surface-muted);
+}
+
+html:not(.display-hidden-log-items) .activity-item[data-show-in-diary="0"],
+html:not(.display-hidden-log-items) .activity-item[data-season-diary-state="hidden"] {
+  display: none;
 }
 
 .search-clear-button:focus-visible {
