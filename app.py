@@ -1107,6 +1107,10 @@ def create_app(test_config: dict | None = None) -> Flask:
             "UPDATE episode_watch_history SET show_in_diary = ? WHERE episode_id IN (SELECT id FROM episodes WHERE season_id = ?)",
             (int(visible), season_id),
         )
+        db.execute(
+            "UPDATE season_watch_history SET show_in_diary = ? WHERE season_id = ?",
+            (int(visible), season_id),
+        )
         db.commit()
         return jsonify(season_id=season_id, show_in_diary=visible)
 

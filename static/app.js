@@ -4301,6 +4301,7 @@ document.addEventListener("click", (event) => {
         item.closest("[data-activity-log]")?.querySelectorAll(`[data-season-id="${data.season_id}"]`)
           .forEach((entry) => {
             entry.dataset.seasonDiaryState = data.show_in_diary ? "shown" : "hidden";
+            entry.dataset.showInDiary = data.show_in_diary ? "1" : "0";
           });
         syncDisplayHiddenLogItemsSetting();
         diaryRevision += 1;
