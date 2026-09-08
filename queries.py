@@ -826,6 +826,15 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
             FROM season_watch_history swh
             JOIN seasons sn ON sn.id = swh.season_id
             WHERE sn.show_id = ?
+
+            UNION ALL
+
+            SELECT 'season_skipped', sn.name || ' skipped',
+                   COALESCE(ssh.skip_date, substr(ssh.added_at, 1, 10)), sn.id, ssh.id, 'season-skip',
+                   ssh.added_at, ssh.skip_date, 0, 'hidden'
+            FROM season_skip_history ssh
+            JOIN seasons sn ON sn.id = ssh.season_id
+            WHERE sn.show_id = ?
         )
         SELECT event_type, title, occurred_at, season_id,
                watch_record_id, watch_kind, watch_added_at, watch_date,
@@ -833,7 +842,7 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
         FROM activity
         ORDER BY occurred_at DESC, watch_added_at DESC
         """,
-        (show_id, show_id, show_id),
+        (show_id, show_id, show_id, show_id),
     ).fetchall()
 
 

@@ -1606,10 +1606,10 @@ class TrackAppTest(unittest.TestCase):
         ]
         db.close()
         self.assertEqual(
-            episode_columns, ["id", "episode_id", "added_at", "watch_date", "show_in_diary"]
+            episode_columns, ["id", "episode_id", "added_at", "watch_date", "show_in_diary", "batch_id"]
         )
         self.assertEqual(
-            season_columns, ["id", "season_id", "added_at", "watch_date", "show_in_diary"]
+            season_columns, ["id", "season_id", "added_at", "watch_date", "show_in_diary", "batch_id"]
         )
 
     def test_watch_date_can_be_set_cleared_sorted_and_controls_unwatch_order(self):

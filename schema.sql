@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS episode_watch_history (
     episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
     added_at TEXT NOT NULL,
     watch_date TEXT,
-    show_in_diary INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))
+    show_in_diary INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1)),
+    batch_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS season_watch_history (
@@ -76,13 +77,31 @@ CREATE TABLE IF NOT EXISTS season_watch_history (
     season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
     added_at TEXT NOT NULL,
     watch_date TEXT,
-    show_in_diary INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))
+    show_in_diary INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1)),
+    batch_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS episode_skips (
     id INTEGER PRIMARY KEY,
     episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
-    skipped_at TEXT NOT NULL
+    skipped_at TEXT NOT NULL,
+    skip_date TEXT,
+    batch_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS season_skip_history (
+    id INTEGER PRIMARY KEY,
+    season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+    added_at TEXT NOT NULL,
+    skip_date TEXT,
+    batch_id TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS season_log_batches (
+    id TEXT PRIMARY KEY,
+    season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+    action_kind TEXT NOT NULL CHECK (action_kind IN ('watch', 'skip')),
+    created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS show_notes (

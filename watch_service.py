@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import uuid
 from datetime import datetime, timezone
 
 from domain import effective_watch_date_sql
@@ -264,3 +265,83 @@ def set_watch_history_date(
         "watch_date": row["watch_date"],
         "display_date": row["display_date"],
     }
+
+
+def create_episode_log(db: sqlite3.Connection, episode_id: int, action_kind: str, log_date: str) -> dict:
+    episode = _episode_context(db, episode_id)
+    created_at = _now()
+    if action_kind == "watch":
+        record_id = db.execute(
+            "INSERT INTO episode_watch_history (episode_id, added_at, watch_date) VALUES (?, ?, ?)",
+            (episode_id, created_at, log_date),
+        ).lastrowid
+    elif action_kind == "skip":
+        record_id = db.execute(
+            "INSERT INTO episode_skips (episode_id, skipped_at, skip_date) VALUES (?, ?, ?)",
+            (episode_id, created_at, log_date),
+        ).lastrowid
+    else:
+        raise WatchNotFoundError("Unknown log action")
+    db.commit()
+    return {"episode_id": episode_id, "show_id": episode["show_id"], "watch_record_id": record_id,
+            "watch_kind": "episode" if action_kind == "watch" else "skip", "action_kind": action_kind,
+            "added_at": created_at, "watch_date": log_date, "display_date": log_date}
+
+
+def create_season_log(db: sqlite3.Connection, season_id: int, action_kind: str, log_date: str) -> dict:
+    season = db.execute("SELECT id, show_id, name FROM seasons WHERE id = ?", (season_id,)).fetchone()
+    if season is None:
+        raise WatchNotFoundError("Season not found")
+    episode_ids = [row["id"] for row in db.execute(
+        "SELECT id FROM episodes WHERE season_id = ? ORDER BY episode_number", (season_id,)
+    )]
+    if not episode_ids:
+        raise WatchNotFoundError("Season has no episodes")
+    batch_id, created_at = str(uuid.uuid4()), _now()
+    db.execute("INSERT INTO season_log_batches (id, season_id, action_kind, created_at) VALUES (?, ?, ?, ?)",
+               (batch_id, season_id, action_kind, created_at))
+    if action_kind == "watch":
+        record_id = db.execute(
+            "INSERT INTO season_watch_history (season_id, added_at, watch_date, batch_id) VALUES (?, ?, ?, ?)",
+            (season_id, created_at, log_date, batch_id),
+        ).lastrowid
+        db.executemany(
+            "INSERT INTO episode_watch_history (episode_id, added_at, watch_date, batch_id) VALUES (?, ?, ?, ?)",
+            [(episode_id, created_at, log_date, batch_id) for episode_id in episode_ids],
+        )
+        watch_kind = "season"
+    elif action_kind == "skip":
+        record_id = db.execute(
+            "INSERT INTO season_skip_history (season_id, added_at, skip_date, batch_id) VALUES (?, ?, ?, ?)",
+            (season_id, created_at, log_date, batch_id),
+        ).lastrowid
+        db.executemany(
+            "INSERT INTO episode_skips (episode_id, skipped_at, skip_date, batch_id) VALUES (?, ?, ?, ?)",
+            [(episode_id, created_at, log_date, batch_id) for episode_id in episode_ids],
+        )
+        watch_kind = "season-skip"
+    else:
+        raise WatchNotFoundError("Unknown log action")
+    db.commit()
+    return {"season_id": season_id, "show_id": season["show_id"], "season_name": season["name"],
+            "watch_record_id": record_id, "watch_kind": watch_kind, "action_kind": action_kind,
+            "batch_id": batch_id, "added_at": created_at, "watch_date": log_date, "display_date": log_date}
+
+
+def remove_log(db: sqlite3.Connection, watch_kind: str, record_id: int) -> None:
+    if watch_kind == "episode":
+        cursor = db.execute("DELETE FROM episode_watch_history WHERE id = ?", (record_id,))
+    elif watch_kind == "skip":
+        cursor = db.execute("DELETE FROM episode_skips WHERE id = ?", (record_id,))
+    elif watch_kind in {"season", "season-skip"}:
+        table = "season_watch_history" if watch_kind == "season" else "season_skip_history"
+        row = db.execute(f"SELECT batch_id FROM {table} WHERE id = ?", (record_id,)).fetchone()
+        if row is None: raise WatchNotFoundError("Log entry not found")
+        if not row["batch_id"]: raise WatchNotFoundError("Legacy season entry cannot be removed as a batch")
+        if watch_kind == "season": db.execute("DELETE FROM episode_watch_history WHERE batch_id = ?", (row["batch_id"],))
+        else: db.execute("DELETE FROM episode_skips WHERE batch_id = ?", (row["batch_id"],))
+        cursor = db.execute(f"DELETE FROM {table} WHERE id = ?", (record_id,))
+        db.execute("DELETE FROM season_log_batches WHERE id = ?", (row["batch_id"],))
+    else: raise WatchNotFoundError("Unknown log entry")
+    if cursor.rowcount == 0: raise WatchNotFoundError("Log entry not found")
+    db.commit()

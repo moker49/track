@@ -2005,6 +2005,28 @@ html.navigation-drawer-closing .menu-scrim {
   display: block;
 }
 
+.log-date-picker-actions {
+  margin: 0 16px 12px;
+  display: flex;
+  border: 1px solid var(--outline-soft);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.log-date-picker-actions button {
+  min-height: 40px;
+  flex: 1;
+  border: 0;
+  color: var(--on-surface-muted);
+  background: var(--surface-card);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.log-date-picker-actions button + button { border-left: 1px solid var(--outline-soft); }
+.log-date-picker-actions button[aria-pressed="true"] { color: var(--on-primary); background: var(--primary); }
+
 .utility-view:not(.lists-view) .utility-app-bar {
   border-bottom: 1px solid var(--outline-soft);
 }

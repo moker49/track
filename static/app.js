@@ -76,7 +76,7 @@ try {
 const removeDialog = document.querySelector("[data-remove-dialog]");
 const finishedArchiveDialog = document.querySelector("[data-finished-archive-dialog]");
 const resumeShowDialog = document.querySelector("[data-resume-show-dialog]");
-const datePicker = document.querySelector("[data-date-picker]");
+const datePicker = document.querySelector("[data-log-date-picker]");
 const imageViewer = document.querySelector("[data-image-viewer]");
 const imageViewerMedia = imageViewer?.querySelector("[data-image-viewer-media]");
 const imageViewerPreview = imageViewer?.querySelector("[data-image-viewer-preview]");
@@ -193,6 +193,8 @@ let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
 let datePickerYearVisible = false;
 let pendingMovieImport = null;
+let logDatePickerTarget = null;
+let logDatePickerAction = "watch";
 let lastEpisodeDetailScrollY = 0;
 let episodeNavigationPending = false;
 let tvSearchTimer = null;
@@ -2661,6 +2663,21 @@ function openWatchDatePicker(item) {
   openSharedDialog(datePicker);
 }
 
+function openLogDatePicker(target, action = "watch") {
+  if (!datePicker) return;
+  logDatePickerTarget = target;
+  logDatePickerAction = action;
+  datePickerTarget = null;
+  pendingMovieImport = null;
+  datePickerSelectedDate = new Date();
+  datePickerMonth = new Date();
+  datePicker.querySelectorAll("[data-log-action]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.logAction === action));
+  });
+  renderDatePicker();
+  openSharedDialog(datePicker);
+}
+
 function openMovieImportDatePicker(tmdbId) {
   if (!datePicker) return;
   pendingMovieImport = String(tmdbId);
@@ -2684,6 +2701,22 @@ function shiftDatePickerMonth(offset) {
 }
 
 async function saveWatchDate() {
+  if (logDatePickerTarget) {
+    const saveButton = datePicker.querySelector("[data-date-picker-save]");
+    saveButton.disabled = true;
+    try {
+      const response = await fetch(`/api/${logDatePickerTarget.type}s/${logDatePickerTarget.id}/log`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action_kind: logDatePickerAction, log_date: toIsoDate(datePickerSelectedDate || new Date()) }),
+      });
+      if (!response.ok) throw new Error("Could not add log entry");
+      datePicker.close();
+      window.location.reload();
+    } catch (_error) {
+      showSnackbar("Couldn't add the log entry. Try again.");
+    } finally { saveButton.disabled = false; }
+    return;
+  }
   if (pendingMovieImport) {
     const tmdbId = pendingMovieImport;
     const watchDate = datePickerSelectedDate ? toIsoDate(datePickerSelectedDate) : null;
@@ -3932,10 +3965,7 @@ document.addEventListener("click", (event) => {
 
   const scheduleAction = event.target.closest("[data-schedule-action]");
   if (scheduleAction) {
-    processScheduleEpisode(
-      scheduleAction.closest("[data-schedule-card]"),
-      scheduleAction.dataset.scheduleAction,
-    );
+    openLogDatePicker({ type: "episode", id: scheduleAction.closest("[data-schedule-card]").dataset.episodeId }, scheduleAction.dataset.scheduleAction);
     return;
   }
 
@@ -4045,6 +4075,27 @@ document.addEventListener("click", (event) => {
         diaryRevision += 1;
       })
       .catch(() => showSnackbar("Couldn't update the diary setting. Try again."));
+    return;
+  }
+
+  const watchLogRemove = event.target.closest("[data-watch-log-remove]");
+  if (watchLogRemove) {
+    const item = watchLogRemove.closest("[data-watch-record-id]");
+    hideFloatingMenu(watchLogRemove.closest("[data-watch-log-menu]"));
+    if (!item) return;
+    fetch(`/api/logs/${item.dataset.watchKind}/${item.dataset.watchRecordId}`, { method: "DELETE" })
+      .then((response) => response.ok ? item.remove() : Promise.reject())
+      .then(() => syncDisplayHiddenLogItemsSetting())
+      .catch(() => showSnackbar("Couldn't remove the log entry. Try again."));
+    return;
+  }
+
+  const logAction = event.target.closest("[data-log-action]");
+  if (logAction) {
+    logDatePickerAction = logAction.dataset.logAction;
+    datePicker.querySelectorAll("[data-log-action]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button === logAction));
+    });
     return;
   }
 
@@ -4218,35 +4269,27 @@ document.addEventListener("click", (event) => {
   if (watchAction) {
     if (watchAction.closest("summary")) event.preventDefault();
     const wrapper = watchAction.closest(".watch-control-wrap");
-    const episode = wrapper.closest(".episode");
-    const season = wrapper.closest(".season");
-    const detailEpisode = wrapper.closest("[data-detail-episode]");
+    const episode = wrapper?.closest(".episode");
+    const season = wrapper?.closest(".season");
+    const detailEpisode = wrapper?.closest("[data-detail-episode]");
     closeWatchMenus();
-    if (episode) changeEpisodeWatchCount(episode, watchAction.dataset.watchAction, watchAction);
-    else if (season) changeSeasonWatchCount(season, watchAction.dataset.watchAction, watchAction);
-    else if (detailEpisode) changeEpisodeDetailWatchCount(detailEpisode, watchAction.dataset.watchAction);
+    if (episode) openLogDatePicker({ type: "episode", id: episode.dataset.episodeId });
+    else if (season) openLogDatePicker({ type: "season", id: season.dataset.seasonId });
+    else if (detailEpisode) openLogDatePicker({ type: "episode", id: detailEpisode.dataset.episodeId });
     return;
   }
 
   const episodeDetailControl = event.target.closest("[data-episode-detail-watch]");
   if (episodeDetailControl) {
     const detailEpisode = episodeDetailControl.closest("[data-detail-episode]");
-    if (Number(detailEpisode.dataset.watchCount) === 0) {
-      changeEpisodeDetailWatchCount(detailEpisode, "increment");
-    } else {
-      toggleWatchMenu(episodeDetailControl);
-    }
+    openLogDatePicker({ type: "episode", id: detailEpisode.dataset.episodeId });
     return;
   }
 
   const episodeControl = event.target.closest("[data-episode-watch]");
   if (episodeControl) {
     const episode = episodeControl.closest(".episode");
-    if (Number(episode.dataset.watchCount) === 0) {
-      changeEpisodeWatchCount(episode, "increment", episodeControl);
-    } else {
-      toggleWatchMenu(episodeControl);
-    }
+    openLogDatePicker({ type: "episode", id: episode.dataset.episodeId });
     return;
   }
 
@@ -4254,11 +4297,7 @@ document.addEventListener("click", (event) => {
   if (seasonControl) {
     event.preventDefault();
     const season = seasonControl.closest(".season");
-    if (Number(season.dataset.watchedCount) === 0) {
-      changeSeasonWatchCount(season, "increment", seasonControl);
-    } else {
-      toggleWatchMenu(seasonControl);
-    }
+    openLogDatePicker({ type: "season", id: season.dataset.seasonId });
     return;
   }
 
@@ -5261,6 +5300,8 @@ resumeShowDialog?.addEventListener("close", () => {
 datePicker?.addEventListener("close", () => {
   datePickerTarget = null;
   pendingMovieImport = null;
+  logDatePickerTarget = null;
+  logDatePickerAction = "watch";
   datePickerSelectedDate = null;
   datePickerYearVisible = false;
   datePicker.querySelector("[data-date-picker-clear]").textContent = "Clear";
