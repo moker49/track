@@ -1912,15 +1912,6 @@ html.navigation-drawer-closing .menu-scrim {
   background: var(--surface);
 }
 
-.utility-view-transition-snapshot {
-  position: fixed;
-  z-index: 20;
-  overflow: hidden;
-  pointer-events: none;
-  color: var(--on-surface);
-  background: var(--surface);
-}
-
 .utility-app-bar {
   position: sticky;
   z-index: 10;

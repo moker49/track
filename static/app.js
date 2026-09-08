@@ -511,46 +511,8 @@ function motionIsReduced() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function animateUtilityExit(view) {
-  if (!view || motionIsReduced()) return;
-  const bounds = view.getBoundingClientRect();
-  const snapshot = view.cloneNode(true);
-  snapshot.className = "utility-view-transition-snapshot";
-  snapshot.setAttribute("aria-hidden", "true");
-  snapshot.inert = true;
-  Object.assign(snapshot.style, {
-    top: `${bounds.top}px`,
-    left: `${bounds.left}px`,
-    width: `${bounds.width}px`,
-    height: `${bounds.height}px`,
-  });
-  document.body.append(snapshot);
-  snapshot.animate(
-    [
-      { opacity: 1, transform: "translateX(0)" },
-      { opacity: 0, transform: "translateX(18px)" },
-    ],
-    { duration: 180, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "both" },
-  ).finished.catch(() => undefined).finally(() => snapshot.remove());
-}
-
-function animateUtilityEntry(view) {
-  if (!view || motionIsReduced()) return;
-  view.animate(
-    [
-      { opacity: 0, transform: "translateX(18px)" },
-      { opacity: 1, transform: "translateX(0)" },
-    ],
-    { duration: 240, easing: "cubic-bezier(0.2, 0, 0, 1)" },
-  );
-}
-
-function showView(viewName, historyMode = null, { animateUtility = true } = {}) {
+function showView(viewName, historyMode = null) {
   if (!views.has(viewName) || viewName === currentView) return;
-
-  const previousView = views.get(currentView);
-  const enteringUtility = views.get(viewName)?.classList.contains("utility-view");
-  if (animateUtility && previousView?.classList.contains("utility-view")) animateUtilityExit(previousView);
 
   if (currentView === "backlog" && viewName !== "backlog") {
     clearCaughtUpScheduleItems();
@@ -635,9 +597,6 @@ function showView(viewName, historyMode = null, { animateUtility = true } = {}) 
         window.requestAnimationFrame(() => revealReactionListOnce(reaction));
       }
     }
-  }
-  if (animateUtility && enteringUtility) {
-    window.requestAnimationFrame(() => animateUtilityEntry(views.get(viewName)));
   }
   const titles = {
     backlog: "Queue · Track",
@@ -5311,7 +5270,7 @@ function restoreHistoryState(state) {
   const legacyViews = { schedule: "backlog", watching: "tv", archive: "tv", discover: "tv" };
   const restoredView = legacyViews[state.view] || state.view;
   if (restoredView !== "detail") {
-    showView(restoredView, null, { animateUtility: false });
+    showView(restoredView);
     return;
   }
 
