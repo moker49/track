@@ -1320,7 +1320,7 @@ class TrackAppTest(unittest.TestCase):
 
         home = self.client.get("/")
         self.assertIn(b"data-finished-archive-dialog", home.data)
-        self.assertIn(b"Archive finished show?", home.data)
+        self.assertIn(b"Archive <span data-finished-archive-show>this show</span>.", home.data)
         self.assertIn(b"data-confirm-finished-archive", home.data)
 
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
@@ -1659,7 +1659,7 @@ class TrackAppTest(unittest.TestCase):
     def test_date_picker_and_compact_date_formatter_are_in_the_shell(self):
         home = self.client.get("/")
         self.assertIn(b'data-date-picker', home.data)
-        self.assertIn(b"Select watch date", home.data)
+        self.assertIn(b"Set watch date.", home.data)
         self.assertIn(b'data-date-picker-year-toggle', home.data)
         self.assertIn(b'data-date-picker-years', home.data)
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(

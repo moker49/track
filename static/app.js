@@ -3549,16 +3549,16 @@ async function confirmArchiveFinishedShow() {
 function requestShowRemoval(showElement) {
   pendingRemoveShowId = showElement.dataset.showId;
   const showName = showElement.querySelector("h1, h3")?.textContent.trim() || "this show";
-  removeDialog.querySelector("h2").textContent = `Remove ${showName}?`;
-  removeDialog.querySelector("p").textContent = "This removes the show from TV. Its metadata and watch history stay saved.";
+  removeDialog.querySelector("h2").textContent = `Remove ${showName} from TV.`;
+  removeDialog.querySelector("p").textContent = "Metadata and watch history will remain saved.";
   openSharedDialog(removeDialog);
 }
 
 function requestMovieRemoval(movieElement) {
   pendingRemoveMovieId = movieElement.dataset.movieId;
   const movieName = movieElement.querySelector("h1, h3")?.textContent.trim() || "this movie";
-  removeDialog.querySelector("h2").textContent = `Remove ${movieName}?`;
-  removeDialog.querySelector("p").textContent = "This removes the movie from Movies. Its metadata and watch history stay saved.";
+  removeDialog.querySelector("h2").textContent = `Remove ${movieName} from Movies.`;
+  removeDialog.querySelector("p").textContent = "Metadata and watch history will remain saved.";
   openSharedDialog(removeDialog);
 }
 

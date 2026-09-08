@@ -93,7 +93,7 @@
   <button type="button" data-snackbar-action hidden></button>
 </div>
 
-<dialog class="image-viewer" data-image-viewer aria-label="Image preview">
+<dialog class="image-viewer" data-image-viewer aria-label="View image">
   <button class="icon-button image-viewer-close" type="button" data-image-viewer-close aria-label="Close image preview">
     <span class="material-symbols-rounded" aria-hidden="true">close</span>
   </button>
@@ -106,8 +106,8 @@
 </dialog>
 
 <dialog class="confirm-dialog" data-remove-dialog>
-  <h2>Remove show?</h2>
-  <p>This removes the show from TV. Its metadata and watch history stay saved.</p>
+  <h2>Remove show from TV.</h2>
+  <p>Metadata and watch history will remain saved.</p>
   <div class="dialog-actions">
     <button type="button" data-cancel-remove>Cancel</button>
     <button class="danger-action" type="button" data-confirm-remove>Remove</button>
@@ -116,17 +116,17 @@
 
 <dialog class="confirm-dialog finished-archive-dialog" data-finished-archive-dialog
   aria-labelledby="finished-archive-title">
-  <h2 id="finished-archive-title">Archive finished show?</h2>
-  <p><span data-finished-archive-show>This show</span> is finished. Move it to Archive?</p>
+  <h2 id="finished-archive-title">Archive <span data-finished-archive-show>this show</span>.</h2>
+  <p>Move this finished show to Archive.</p>
   <div class="dialog-actions">
-    <button type="button" data-cancel-finished-archive>Not now</button>
+    <button type="button" data-cancel-finished-archive>Cancel</button>
     <button type="button" data-confirm-finished-archive>Archive</button>
   </div>
 </dialog>
 
 <dialog class="confirm-dialog" data-resume-show-dialog aria-labelledby="resume-show-title">
-  <h2 id="resume-show-title">Resume show?</h2>
-  <p>Watching this episode will move <span data-resume-show-name>This show</span> back to TV.</p>
+  <h2 id="resume-show-title">Resume show.</h2>
+  <p>Resume <span data-resume-show-name>this show</span>.</p>
   <div class="dialog-actions">
     <button type="button" data-cancel-resume-show>Cancel</button>
     <button type="button" data-confirm-resume-show>Resume</button>
@@ -135,7 +135,7 @@
 
 <dialog class="date-picker" data-date-picker aria-labelledby="date-picker-title">
   <div class="date-picker-header">
-    <span id="date-picker-title">Select watch date</span>
+    <span id="date-picker-title">Set watch date.</span>
     <strong data-date-picker-selection>No date set</strong>
   </div>
   <div class="date-picker-calendar">
