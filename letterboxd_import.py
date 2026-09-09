@@ -18,7 +18,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from database import connect_database, initialize_database
+from database import connect_database, initialize_database, normalize_movie_added_timestamps
 from domain import TRACKING_ACTIVE, TRACKING_ARCHIVED
 from tmdb import TMDBClient, TMDBError
 from tmdb_import import import_or_refresh_show
@@ -144,6 +144,7 @@ def main(export_path: str, retry_skipped: bool = False) -> int:
                     "INSERT INTO movie_watch_history (movie_id, added_at, watch_date, show_in_diary) VALUES (?, ?, NULL, 0)",
                     (movie_id, now()),
                 )
+            normalize_movie_added_timestamps(db, movie_id)
             db.commit()
             imported += 1
             print(f"{index}/{len(entries)} imported: {title} ({year})")
@@ -219,6 +220,7 @@ def apply_letterboxd_state_dates(export_path: str) -> int:
                 (timestamp, show["id"]),
             )
             show_updates += 1
+    normalize_movie_added_timestamps(db)
     db.commit()
     db.close()
     print(f"updated {movie_updates} movies and {show_updates} shows")

@@ -906,22 +906,22 @@ def get_reaction_media(
 def get_movie_activity(db: sqlite3.Connection, movie_id: int) -> list[sqlite3.Row]:
     return db.execute(
         f"""
-        SELECT event_type, title, occurred_at, watch_record_id, watch_kind,
+        SELECT event_type, title, occurred_at, sort_at, watch_record_id, watch_kind,
                watch_added_at, watch_date, show_in_diary
         FROM (
             SELECT 'added' AS event_type, 'Added to Watchlist' AS title,
-                   m.added_at AS occurred_at, NULL AS watch_record_id,
+                   m.added_at AS occurred_at, m.added_at AS sort_at, NULL AS watch_record_id,
                    NULL AS watch_kind, NULL AS watch_added_at, NULL AS watch_date,
                    NULL AS show_in_diary
             FROM movies m
             WHERE m.id = ? AND m.is_tracked = 1
             UNION ALL
             SELECT 'watched', 'Watched', COALESCE({effective_watch_date_sql('mwh')}, substr(mwh.added_at, 1, 10)),
-                   mwh.id, 'movie', mwh.added_at, mwh.diary_date, NULL
+                   mwh.added_at, mwh.id, 'movie', mwh.added_at, mwh.diary_date, NULL
             FROM movie_watch_history mwh
             WHERE mwh.movie_id = ?
         )
-        ORDER BY occurred_at DESC, watch_added_at DESC
+        ORDER BY sort_at DESC
         """,
         (movie_id, movie_id),
     ).fetchall()

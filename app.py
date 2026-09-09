@@ -11,7 +11,7 @@ from urllib.request import urlopen
 from flask import Flask, abort, g, jsonify, redirect, render_template, request, send_file, url_for
 from dotenv import load_dotenv
 
-from database import connect_database, initialize_database
+from database import connect_database, initialize_database, normalize_movie_added_timestamps
 from domain import (
     TRACKING_ACTIVE,
     TRACKING_ARCHIVED,
@@ -66,6 +66,13 @@ def utc_now() -> str:
 
 def precise_utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
+def timestamp_after(timestamp: str) -> str:
+    """Return a UTC timestamp guaranteed to follow ``timestamp``."""
+    return (datetime.fromisoformat(timestamp) + timedelta(microseconds=1)).isoformat(
+        timespec="microseconds"
+    )
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -360,7 +367,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         try: movie = get_tmdb_client().movie(tmdb_id)
         except TMDBError as error: return jsonify(error=str(error)), 503
         if movie.get("id") != tmdb_id: return jsonify(error="TMDB returned the wrong movie"), 502
-        now = utc_now()
+        now = precise_utc_now()
         db = get_db()
         db.execute("""INSERT INTO movies (tmdb_id,title,original_title,overview,poster_path,backdrop_path,release_date,runtime_minutes,status,genres,original_language,is_tracked,added_at,updated_at,tmdb_refreshed_at,tmdb_payload)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tmdb_id) DO UPDATE SET is_tracked=1,updated_at=excluded.updated_at""",
@@ -368,10 +375,14 @@ def create_app(test_config: dict | None = None) -> Flask:
         db.commit()
         movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)).fetchone()["id"]
         if watched:
+            watch_added_at = precise_utc_now()
+            if watch_added_at <= now:
+                watch_added_at = timestamp_after(now)
             db.execute("""INSERT INTO movie_watch_history (movie_id, added_at, diary_date, show_in_diary)
                           SELECT ?, ?, ?, ?
                           WHERE NOT EXISTS (SELECT 1 FROM movie_watch_history WHERE movie_id = ?)""",
-                       (movie_id, now, watch_date, int(bool(watch_date)), movie_id))
+                       (movie_id, watch_added_at, watch_date, int(bool(watch_date)), movie_id))
+        normalize_movie_added_timestamps(db, movie_id)
         db.commit()
         return jsonify(ok=True, movie_id=movie_id)
 
@@ -568,6 +579,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                VALUES (?, ?, ?, ?)""",
             (movie_id, added_at, log_date, int(log_date is not None)),
         ).lastrowid
+        normalize_movie_added_timestamps(db, movie_id)
         db.commit()
         watch_count = db.execute("SELECT COUNT(*) FROM movie_watch_history WHERE movie_id = ?", (movie_id,)).fetchone()[0]
         return jsonify(movie_id=movie_id, watch_count=watch_count, watch_record_id=record_id,
@@ -1152,11 +1164,12 @@ def create_app(test_config: dict | None = None) -> Flask:
         if watch_kind == "movie":
             db = get_db()
             row = db.execute(
-                "SELECT id, added_at FROM movie_watch_history WHERE id = ?", (record_id,)
+                "SELECT id, movie_id, added_at FROM movie_watch_history WHERE id = ?", (record_id,)
             ).fetchone()
             if row is None:
                 return jsonify(error="Movie watch history not found"), 404
             db.execute("UPDATE movie_watch_history SET watch_date = NULL, diary_date = ?, show_in_diary = ? WHERE id = ?", (watch_date, int(watch_date is not None), record_id))
+            normalize_movie_added_timestamps(db, row["movie_id"])
             db.commit()
             return jsonify(
                 watch_kind="movie", watch_record_id=record_id, added_at=row["added_at"],
