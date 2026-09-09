@@ -1843,6 +1843,10 @@ html.app-booting .schedule-empty-reveal {
   animation: navigation-drawer-enter 240ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
+.navigation-drawer .material-symbols-rounded {
+  font-family: "Material Symbols Rounded Filled";
+}
+
 .navigation-drawer.is-closing {
   pointer-events: none;
   animation: navigation-drawer-exit 180ms cubic-bezier(0.4, 0, 1, 1) both;
