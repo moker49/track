@@ -150,7 +150,10 @@ const virtualReactionLists = new Map();
 const reactionListMarkup = new Map();
 const reactionListRequests = new Map();
 let reactionListGeneration = 0;
-const VIRTUAL_LIBRARY_OVERSCAN_ROWS = 4;
+// Keep enough cards mounted around the viewport that normal scrolling does not
+// repeatedly detach and repaint poster images at the slice boundary.
+const VIRTUAL_LIBRARY_OVERSCAN_ROWS = 8;
+const VIRTUAL_TIMELINE_OVERSCAN = 1152;
 const virtualTimelines = new Map();
 const pendingTimelineScrollRestores = new Map();
 restoreTvLayout();
@@ -168,6 +171,7 @@ let seasonEpisodeCacheGeneration = 0;
 const episodeDetailCache = new Map();
 const episodeDetailRequests = new Map();
 const mediaImagePreloads = new Map();
+const settledMediaImageSources = new Set();
 const showRefreshRequests = new Map();
 const pendingWatchChanges = new WeakSet();
 const hydratedLibraryViews = new Set();
@@ -689,7 +693,14 @@ function settleMediaImage(image, loaded, reveal = false) {
   const container = image.closest(".has-media-image");
   if (!container) return;
   if (loaded) {
-    if (reveal && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const wasLoaded = image.hasAttribute("data-media-image-loaded");
+    const source = image.currentSrc || image.src;
+    if (source) settledMediaImageSources.add(source);
+    image.dataset.mediaImageLoaded = "";
+    // A DOM node may leave and re-enter a virtualized list. Once it has
+    // painted successfully, do not replay the initial reveal animation.
+    const shouldReveal = reveal && !wasLoaded;
+    if (shouldReveal && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       image.classList.add("media-image-reveal");
       image.addEventListener("animationend", () => {
         image.classList.remove("media-image-reveal");
@@ -711,6 +722,11 @@ function settleMediaImage(image, loaded, reveal = false) {
 }
 
 function inspectCompletedMediaImage(image) {
+  const source = image.currentSrc || image.src;
+  if (image.hasAttribute("data-media-image-loaded") || (source && settledMediaImageSources.has(source))) {
+    settleMediaImage(image, true);
+    return;
+  }
   if (!image.complete) {
     image.dataset.mediaImagePending = "";
     return;
@@ -4753,7 +4769,7 @@ function renderVirtualTimeline(state, force = false) {
   if (!state || !virtualTimelineIsVisible(state)) return;
   const listTop = window.scrollY + state.container.getBoundingClientRect().top;
   const viewportTop = Math.max(0, window.scrollY - listTop);
-  const overscan = state.viewName === "diary" ? 304 : 576;
+  const overscan = state.viewName === "diary" ? 304 : VIRTUAL_TIMELINE_OVERSCAN;
   const renderTop = Math.max(0, viewportTop - overscan);
   const renderBottom = viewportTop + window.innerHeight + overscan;
   let start = state.entries.findIndex((entry) => entry.end > renderTop);
