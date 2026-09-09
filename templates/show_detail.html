@@ -7,7 +7,7 @@
   data-metadata-refresh-due="{{ 'true' if metadata_refresh_due else 'false' }}"
   data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
   data-total-watch-count="{{ show.total_watch_count }}" data-completed-watch-count="{{ show.completed_watch_count }}"
-  data-liked="{{ 'true' if show.liked else 'false' }}" data-favorite="{{ 'true' if show.is_favorite else 'false' }}"
+  data-liked="{{ 'true' if show.liked else 'false' }}"
   data-watch-again="{{ 'true' if show.watch_again else 'false' }}"
   data-progress-state="{{ progress.css_state }}">
   <header class="detail-app-bar">
@@ -15,6 +15,10 @@
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
     <span class="detail-app-bar-title">Show details</span>
+    {% if show.is_tracked %}<button class="icon-button detail-like-button" type="button" data-reaction-toggle="liked"
+      aria-pressed="{{ 'true' if show.liked else 'false' }}" aria-label="Like {{ show.name }}">
+      <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
+    </button>{% endif %}
     {% if show.is_tracked %}<div class="menu-anchor">
       <button class="icon-button" type="button" data-show-menu-button aria-label="More options for {{ show.name }}"
         aria-expanded="false">
@@ -71,11 +75,6 @@
     </div>
 
     {% if show.is_tracked %}
-    <div class="reaction-button-group" role="group" aria-label="Your reactions to {{ show.name }}">
-      <button type="button" data-reaction-toggle="liked" aria-pressed="{{ 'true' if show.liked else 'false' }}"><span class="material-symbols-rounded" aria-hidden="true">favorite</span><span>Like</span></button>
-      <button type="button" data-reaction-toggle="favorite" aria-pressed="{{ 'true' if show.is_favorite else 'false' }}"><span class="material-symbols-rounded" aria-hidden="true">star</span><span>Favorite</span></button>
-      <button type="button" data-reaction-toggle="watch-again" aria-pressed="{{ 'true' if show.watch_again else 'false' }}"><span class="material-symbols-rounded" aria-hidden="true">replay</span><span>Watch again</span></button>
-    </div>
     {% set percent = ((show.total_watch_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
     {% set fill_percent = [percent, 100]|min %}
     <div class="detail-progress" data-progress-summary>
@@ -88,6 +87,10 @@
         <span style="width: {{ fill_percent }}%"></span>
       </div>
     </div>
+    <button class="watch-again-button" type="button" data-reaction-toggle="watch-again"
+      aria-pressed="{{ 'true' if show.watch_again else 'false' }}">
+      <span class="material-symbols-rounded" aria-hidden="true">replay</span><span>Watch again</span>
+    </button>
     {% else %}
     <div class="md-button-group detail-add-group" aria-label="Add show to library">
       <button type="button" data-track-show-state="ACTIVE">

@@ -35,7 +35,7 @@ While the Flask server is running, a server-side worker checks tracked shows eve
 
 ## Data model
 
-- `shows` stores imported show metadata, TMDB/TVDB identifiers, whether the show is tracked or favorited, its `ACTIVE`/`ARCHIVED` state, lifecycle timestamps, the last TMDB refresh, and the complete source payload.
+- `shows` stores imported show metadata, TMDB/TVDB identifiers, tracking and reaction state, its `ACTIVE`/`ARCHIVED` lifecycle timestamps, the last TMDB refresh, and the complete source payload.
 - `show_state_history` retains every state entry for future transitions and reporting.
 - `seasons` and `episodes` store local TMDB-shaped metadata and IDs.
 - `episode_watch_history` stores one row per watch event with an immutable `added_at` timestamp and an optional user-selected `watch_date`.

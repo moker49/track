@@ -3,7 +3,6 @@
 <div data-detail-movie data-detail-title="{{ movie.title }}" data-movie-id="{{ movie.id if movie.id is not none else '' }}" data-tmdb-id="{{ movie.tmdb_id }}"
   data-watch-count="{{ movie.watch_count }}"
   data-liked="{{ 'true' if movie.liked else 'false' }}"
-  data-favorite="{{ 'true' if movie.is_favorite else 'false' }}"
   data-watch-again="{{ 'true' if movie.watch_again else 'false' }}"
   data-movie-upcoming="{{ 'true' if upcoming else 'false' }}"
   data-progress-state="{{ 'finished' if watched else 'not-started' }}">
@@ -12,6 +11,10 @@
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
     <span class="detail-app-bar-title">Movie details</span>
+    {% if movie.is_tracked %}<button class="icon-button detail-like-button" type="button" data-reaction-toggle="liked"
+      aria-pressed="{{ 'true' if movie.liked else 'false' }}" aria-label="Like {{ movie.title }}">
+      <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
+    </button>{% endif %}
     {% if movie.is_tracked %}<div class="menu-anchor">
       <button class="icon-button" type="button" data-movie-menu-button aria-label="More options for {{ movie.title }}"
         aria-expanded="false">
@@ -51,11 +54,10 @@
   <section class="detail-content">
     {% if movie.overview %}<p class="overview">{{ movie.overview }}</p>{% endif %}
     {% if movie.is_tracked %}
-    <div class="reaction-button-group" role="group" aria-label="Your reactions to {{ movie.title }}">
-      <button type="button" data-reaction-toggle="liked" aria-pressed="{{ 'true' if movie.liked else 'false' }}"><span class="material-symbols-rounded" aria-hidden="true">favorite</span><span>Like</span></button>
-      <button type="button" data-reaction-toggle="favorite" aria-pressed="{{ 'true' if movie.is_favorite else 'false' }}"><span class="material-symbols-rounded" aria-hidden="true">star</span><span>Favorite</span></button>
-      <button type="button" data-reaction-toggle="watch-again" aria-pressed="{{ 'true' if movie.watch_again else 'false' }}"><span class="material-symbols-rounded" aria-hidden="true">replay</span><span>Watch again</span></button>
-    </div>
+    <button class="watch-again-button" type="button" data-reaction-toggle="watch-again"
+      aria-pressed="{{ 'true' if movie.watch_again else 'false' }}">
+      <span class="material-symbols-rounded" aria-hidden="true">replay</span><span>Watch again</span>
+    </button>
     <div class="episode-watch-summary-wrap watch-control-wrap">
       <button class="episode-watch-summary" type="button" data-movie-detail-watch
         data-watch-count="{{ movie.watch_count }}" aria-label="Watch options for {{ movie.title }}">

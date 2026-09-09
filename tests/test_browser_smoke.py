@@ -66,10 +66,8 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
             page.locator('[data-utility-back]').click()
             page.locator('[data-view="tv"]').wait_for(state="visible")
             page.locator('[data-search-menu]').click()
-            page.locator('[data-drawer-view="lists"]').click()
-            page.locator('[data-view="lists"]').wait_for(state="visible")
-            page.locator('[data-list-filter="watch-again"]').click()
-            self.assertEqual(page.locator('[data-list-filter="watch-again"]').get_attribute("aria-pressed"), "true")
+            page.locator('[data-drawer-view="watch-again"]').click()
+            page.locator('[data-view="watch-again"]').wait_for(state="visible")
             page.go_back()
             page.locator('[data-view="tv"]').wait_for(state="visible")
 
@@ -78,7 +76,7 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
 
             page.locator('.show-card[data-show-id="1"] [data-show-open]').click()
             page.locator('[data-detail-show][data-show-id="1"]').wait_for()
-            page.locator('[data-reaction-toggle="watch-again"]').click()
+            page.locator('.watch-again-button[data-reaction-toggle="watch-again"]').click()
             self.assertEqual(page.locator('[data-reaction-toggle="watch-again"]').get_attribute("aria-pressed"), "true")
             first_season = page.locator('details.season[data-season-id="1"]')
             first_season.wait_for()

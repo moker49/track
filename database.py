@@ -43,7 +43,6 @@ def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None
         ("shows", "watch_again", "INTEGER NOT NULL DEFAULT 0 CHECK (watch_again IN (0, 1))"),
         ("shows", "watch_again_baseline", "INTEGER"),
         ("movies", "liked", "INTEGER NOT NULL DEFAULT 0 CHECK (liked IN (0, 1))"),
-        ("movies", "is_favorite", "INTEGER NOT NULL DEFAULT 0 CHECK (is_favorite IN (0, 1))"),
         ("movies", "watch_again", "INTEGER NOT NULL DEFAULT 0 CHECK (watch_again IN (0, 1))"),
         ("episode_watch_history", "show_in_diary", "INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))"),
         ("season_watch_history", "show_in_diary", "INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))"),
@@ -61,6 +60,12 @@ def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None
         columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
         if column not in columns:
             db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    # Favorites is no longer a library concept. Remove its retired storage from
+    # existing databases as well as new installs.
+    for table in ("shows", "movies"):
+        columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
+        if "is_favorite" in columns:
+            db.execute(f"ALTER TABLE {table} DROP COLUMN is_favorite")
     db.execute("CREATE INDEX IF NOT EXISTS idx_episode_watch_history_batch ON episode_watch_history(batch_id)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_episode_skips_batch ON episode_skips(batch_id)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_season_watch_history_batch ON season_watch_history(batch_id)")

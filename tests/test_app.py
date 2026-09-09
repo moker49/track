@@ -125,18 +125,20 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-view="tv"', home.data)
         self.assertIn(b'data-navigation-drawer', home.data)
         self.assertIn(b'data-drawer-view="diary"', home.data)
-        self.assertIn(b'data-drawer-view="lists"', home.data)
+        self.assertIn(b'data-drawer-view="liked"', home.data)
+        self.assertIn(b'data-drawer-view="watch-again"', home.data)
         self.assertIn(b'data-drawer-view="statistics"', home.data)
         self.assertIn(b'data-drawer-view="settings"', home.data)
         self.assertIn(b'data-view="diary"', home.data)
-        self.assertIn(b'data-view="lists"', home.data)
+        self.assertIn(b'data-view="liked"', home.data)
+        self.assertIn(b'data-view="watch-again"', home.data)
         self.assertIn(b'data-view="statistics"', home.data)
         self.assertIn(b'data-view="settings"', home.data)
         self.assertIn(b'data-setting-display-hidden-log-items', home.data)
         self.assertIn(b'Display hidden log items', home.data)
-        self.assertIn(b'data-list-filter="liked"', home.data)
-        self.assertIn(b'data-list-filter="favorite"', home.data)
-        self.assertIn(b'data-list-filter="watch-again"', home.data)
+        self.assertIn(b'data-reaction-list-content="liked"', home.data)
+        self.assertIn(b'data-reaction-list-content="watch-again"', home.data)
+        self.assertNotIn(b'Favorites', home.data)
         self.assertIn(b'data-image-viewer', home.data)
         self.assertIn(b'data-image-viewer-preview', home.data)
         self.assertIn(b'data-image-viewer-image', home.data)
@@ -196,8 +198,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("transition: padding-left 180ms cubic-bezier(0.2, 0, 0, 1)", css)
         self.assertIn(".navigation-drawer {", css)
         self.assertIn(".utility-app-bar {", css)
-        self.assertIn(".list-filter-chips {", css)
-        self.assertIn(".reaction-button-group {", css)
+        self.assertIn(".reaction-page-results {", css)
+        self.assertIn(".watch-again-button {", css)
         self.assertIn("min-height: calc(80px + env(safe-area-inset-top));", css)
         self.assertIn("background: var(--surface-card);", css)
         self.assertIn('.material-symbols-rounded.is-filled {', css)
@@ -707,16 +709,15 @@ class TrackAppTest(unittest.TestCase):
             home.data,
         )
 
-    def test_media_reactions_persist_and_feed_the_builtin_lists(self):
+    def test_media_reactions_persist_and_feed_the_dedicated_pages(self):
         show_response = self.client.post(
             "/api/shows/1/reactions/watch-again", json={"selected": True}
         )
         self.assertEqual(show_response.status_code, 200)
         self.assertTrue(show_response.get_json()["selected"])
-        self.assertIn(
-            b'data-reaction-toggle="watch-again" aria-pressed="true"',
-            self.client.get("/api/shows/1").data,
-        )
+        show_detail = self.client.get("/api/shows/1").data
+        self.assertIn(b'data-reaction-toggle="watch-again"', show_detail)
+        self.assertIn(b'aria-pressed="true"', show_detail)
 
         connection = sqlite3.connect(self.database)
         connection.execute(
@@ -730,11 +731,11 @@ class TrackAppTest(unittest.TestCase):
         connection.close()
 
         movie_response = self.client.post(
-            f"/api/movies/{movie_id}/reactions/favorite", json={"selected": True}
+            f"/api/movies/{movie_id}/reactions/liked", json={"selected": True}
         )
         self.assertEqual(movie_response.status_code, 200)
         self.assertTrue(movie_response.get_json()["selected"])
-        self.assertIn(b"Reaction Test Movie", self.client.get("/api/lists/favorite").data)
+        self.assertIn(b"Reaction Test Movie", self.client.get("/api/lists/liked").data)
         self.assertIn(b"Active Test Show", self.client.get("/api/lists/watch-again").data)
 
     def test_schedule_includes_archived_but_excludes_untracked_shows(self):
@@ -1804,7 +1805,7 @@ class TrackAppTest(unittest.TestCase):
             self.assertNotIn("watching_at", columns)
             self.assertIn("tmdb_refreshed_at", columns)
             self.assertIn("tvdb_id", columns)
-            self.assertIn("is_favorite", columns)
+            self.assertNotIn("is_favorite", columns)
 
     def test_dotenv_token_is_loaded_without_overriding_environment(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -64,7 +64,7 @@ const tvViewToggle = document.querySelector("[data-tv-view-toggle]");
 const displayHiddenLogItemsToggle = document.querySelector("[data-setting-display-hidden-log-items]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, diary: 0, statistics: 0, lists: 0, settings: 0 };
+const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, diary: 0, statistics: 0, liked: 0, "watch-again": 0, settings: 0 };
 const DISPLAY_HIDDEN_LOG_ITEMS_STORAGE_KEY = "track.display-hidden-log-items";
 let displayHiddenLogItems = false;
 
@@ -371,7 +371,7 @@ function syncSearchTextPosition() {
 
 function syncGlobalSearch() {
   if (!globalSearchBar || !globalSearchInput) return;
-  const hasDedicatedAppBar = ["detail", "diary", "statistics", "lists", "settings"].includes(currentView);
+  const hasDedicatedAppBar = ["detail", "diary", "statistics", "liked", "watch-again", "settings"].includes(currentView);
   globalSearchBar.hidden = hasDedicatedAppBar;
   if (hasDedicatedAppBar) return;
 
@@ -598,15 +598,11 @@ function showView(viewName, historyMode = null) {
   if (viewName === "statistics" && renderedStatisticsRevision === diaryRevision) {
     revealStatisticsOnce(views.get("statistics"));
   }
-  if (viewName === "lists") {
-    const reaction = views.get("lists")
-      ?.querySelector('[data-list-filter][aria-pressed="true"]')?.dataset.listFilter;
-    if (reaction) {
-      if (reactionListsDirty) refreshReactionList(reaction);
-      else {
-        initializeVirtualReactionList(reaction);
-        window.requestAnimationFrame(() => revealReactionListOnce(reaction));
-      }
+  if (["liked", "watch-again"].includes(viewName)) {
+    if (reactionListsDirty) refreshReactionList(viewName);
+    else {
+      initializeVirtualReactionList(viewName);
+      window.requestAnimationFrame(() => revealReactionListOnce(viewName));
     }
   }
   const titles = {
@@ -617,7 +613,8 @@ function showView(viewName, historyMode = null) {
     detail: "Track",
     diary: "Diary · Track",
     statistics: "Statistics · Track",
-    lists: "My lists · Track",
+    liked: "Likes · Track",
+    "watch-again": "Watch again · Track",
     settings: "Settings · Track",
   };
   document.title = titles[viewName] || "Track";
@@ -2033,7 +2030,7 @@ async function openShow(
   returnContext = null,
 ) {
   const cacheKey = String(showId);
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "lists", "settings"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked", "watch-again", "settings"].includes(parentView)
     ? parentView
     : "backlog";
   if (historyMode) {
@@ -2135,7 +2132,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
 }
 
 async function openMovie(movieId, parentView = "movies", historyMode = "push") {
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "lists", "settings"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked", "watch-again", "settings"].includes(parentView)
     ? parentView : "movies";
   if (historyMode) {
     writeHistory({ view: "detail", detailType: "movie", movieId: String(movieId), parentView: detailParentView }, historyMode);
@@ -3292,8 +3289,8 @@ async function fetchReactionListMarkup(reaction, { force = false } = {}) {
   return request;
 }
 
-function prefetchReactionLists({ includeLiked = false } = {}) {
-  const reactions = includeLiked ? ["liked", "favorite", "watch-again"] : ["favorite", "watch-again"];
+function prefetchReactionLists() {
+  const reactions = ["liked", "watch-again"];
   return Promise.allSettled(
     reactions.map((reaction) => fetchReactionListMarkup(reaction)),
   );
@@ -3306,28 +3303,27 @@ function invalidateReactionLists() {
   reactionListRequests.clear();
   virtualReactionLists.clear();
   reactionListsDirty = true;
-  prefetchReactionLists({ includeLiked: true });
+  prefetchReactionLists();
 }
 
 function renderReactionListMarkup(reaction, markup) {
-  const panel = views.get("lists")?.querySelector("[data-lists-content]");
+  const panel = views.get(reaction)?.querySelector("[data-reaction-list-content]");
   if (!panel) return;
   virtualReactionLists.forEach((state) => window.cancelAnimationFrame(state.frame));
   virtualReactionLists.clear();
   panel.innerHTML = markup;
   formatDisplayDates(panel);
   initializeVirtualReactionList(reaction);
-  if (currentView === "lists") revealReactionListOnce(reaction);
+  if (currentView === reaction) revealReactionListOnce(reaction);
 }
 
 async function refreshReactionList(reaction, { force = false } = {}) {
-  const panel = views.get("lists")?.querySelector("[data-lists-content]");
+  const panel = views.get(reaction)?.querySelector("[data-reaction-list-content]");
   if (!panel) return;
   panel.setAttribute("aria-busy", "true");
   try {
     const markup = await fetchReactionListMarkup(reaction, { force });
     renderReactionListMarkup(reaction, markup);
-    reactionListsDirty = false;
   } catch (error) {
     if (error.name !== "AbortError") showSnackbar(error.message || "Couldn't load this list.");
   } finally {
@@ -3335,29 +3331,23 @@ async function refreshReactionList(reaction, { force = false } = {}) {
   }
 }
 
-function showReactionList(reaction) {
-  if (!reactionListMarkup.has(reaction)) {
-    refreshReactionList(reaction);
-    return;
-  }
-  renderReactionListMarkup(reaction, reactionListMarkup.get(reaction));
-}
-
 function cacheInitialReactionList() {
-  const panel = views.get("lists")?.querySelector("[data-lists-content]");
-  if (panel) reactionListMarkup.set("liked", panel.innerHTML);
+  ["liked", "watch-again"].forEach((reaction) => {
+    const panel = views.get(reaction)?.querySelector("[data-reaction-list-content]");
+    if (panel) reactionListMarkup.set(reaction, panel.innerHTML);
+  });
 }
 
 function revealReactionListOnce(reaction) {
-  const revealKey = `lists:${reaction}`;
+  const revealKey = `reaction:${reaction}`;
   if (revealedViewAnimations.has(revealKey)) return;
-  const panel = views.get("lists")?.querySelector("[data-lists-content]");
+  const panel = views.get(reaction)?.querySelector("[data-reaction-list-content]");
   if (!panel) return;
   initializeVirtualReactionList(reaction);
   revealedViewAnimations.add(revealKey);
   staggerTvSlices([
-    ...panel.querySelectorAll(".lists-media-list > .show-card:not([hidden])"),
-    panel.querySelector(".lists-empty-state:not([hidden])"),
+    ...panel.querySelectorAll(".reaction-media-list > .show-card:not([hidden])"),
+    panel.querySelector(".reaction-empty-state:not([hidden])"),
   ]);
 }
 
@@ -3387,10 +3377,7 @@ async function toggleMediaReaction(button) {
     if (isMovie) movieDetailCache.delete(String(mediaId));
     else showDetailCache.delete(String(mediaId));
     invalidateReactionLists();
-    if (currentView === "lists") {
-      const activeReaction = document.querySelector('[data-list-filter][aria-pressed="true"]')?.dataset.listFilter;
-      if (activeReaction) refreshReactionList(activeReaction);
-    }
+    if (["liked", "watch-again"].includes(currentView)) refreshReactionList(currentView);
   } catch (error) {
     showSnackbar(error.message || "Couldn't update reaction.");
   } finally {
@@ -4454,17 +4441,6 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const listFilter = event.target.closest("[data-list-filter]");
-  if (listFilter) {
-    document.querySelectorAll("[data-list-filter]").forEach((filter) => {
-      const selected = filter === listFilter;
-      filter.classList.toggle("is-selected", selected);
-      filter.setAttribute("aria-pressed", String(selected));
-    });
-    showReactionList(listFilter.dataset.listFilter);
-    return;
-  }
-
   const reactionToggle = event.target.closest("[data-reaction-toggle]");
   if (reactionToggle) {
     toggleMediaReaction(reactionToggle);
@@ -4955,8 +4931,8 @@ function scheduleVirtualLibraryRender(state) {
 }
 
 function initializeVirtualReactionList(reaction) {
-  const view = views.get("lists");
-  const list = view?.querySelector("[data-lists-content] .lists-media-list");
+  const view = views.get(reaction);
+  const list = view?.querySelector("[data-reaction-list-content] .reaction-media-list");
   if (!view || !list) return null;
   let state = virtualReactionLists.get(reaction);
   if (state?.list === list) return state;
@@ -5230,7 +5206,7 @@ window.addEventListener("scroll", () => {
   if (["tv", "movies"].includes(currentView)) {
     scheduleVirtualLibraryRender(virtualLibraries.get(currentView));
   }
-  if (currentView === "lists") scheduleVirtualReactionListRender();
+  if (["liked", "watch-again"].includes(currentView)) scheduleVirtualReactionListRender();
   if (["backlog", "upcoming"].includes(currentView)) {
     scheduleVirtualTimelineRender(virtualTimelines.get(currentView));
   } else if (currentView === "diary") {
@@ -5349,7 +5325,7 @@ function restoreHistoryState(state) {
   }
 
   const restoredParent = legacyViews[state.parentView] || state.parentView;
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "lists", "settings"].includes(restoredParent)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked", "watch-again", "settings"].includes(restoredParent)
     ? restoredParent
     : "backlog";
   if (state.detailType === "show" && state.showId) {

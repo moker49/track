@@ -1,13 +1,13 @@
 {% from "_show_card.html" import show_card %}
 {% from "_movie_card.html" import movie_card %}
 {% if shows or movies %}
-<div class="show-list lists-media-list">
+<div class="show-list reaction-media-list">
   {% for show in shows %}{{ show_card(show) }}{% endfor %}
   {% for movie in movies %}{{ movie_card(movie) }}{% endfor %}
 </div>
 {% else %}
-<div class="lists-empty-state">
-  <span class="material-symbols-rounded" aria-hidden="true">bookmark</span>
-  <p>No media marked {{ {"liked": "Liked", "favorite": "Favorite", "watch-again": "Watch again"}[reaction] }} yet.</p>
+<div class="reaction-empty-state">
+  <span class="material-symbols-rounded" aria-hidden="true">{{ "favorite" if reaction == "liked" else "replay" }}</span>
+  <p>No media marked {{ {"liked": "Liked", "watch-again": "Watch again"}[reaction] }} yet.</p>
 </div>
 {% endif %}

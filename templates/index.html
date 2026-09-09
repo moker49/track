@@ -58,20 +58,24 @@
   <section data-statistics-content>{% include "_statistics_content.html" %}</section>
 </section>
 
-<section class="app-view utility-view lists-view" data-view="lists" aria-label="My lists" hidden>
-  <div class="lists-top-chrome">
-    <header class="utility-app-bar">
-      <button class="icon-button" type="button" data-utility-back aria-label="Back"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button>
-      <h1>My lists</h1>
-    </header>
-    <div class="list-filter-chips" role="group" aria-label="List filters">
-      <button type="button" class="is-selected" data-list-filter="liked" aria-pressed="true">Liked</button>
-      <button type="button" data-list-filter="favorite" aria-pressed="false">Favorites</button>
-      <button type="button" data-list-filter="watch-again" aria-pressed="false">Watch again</button>
-    </div>
-  </div>
-  <section class="lists-results" data-lists-content>
-    {% set reaction = "liked" %}{% set shows = reaction_shows %}{% set movies = reaction_movies %}
+<section class="app-view utility-view reaction-page" data-view="liked" aria-label="Likes" hidden>
+  <header class="utility-app-bar">
+    <button class="icon-button" type="button" data-utility-back aria-label="Back"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button>
+    <h1>Likes</h1>
+  </header>
+  <section class="reaction-page-results" data-reaction-list-content="liked">
+    {% set reaction = "liked" %}{% set shows = liked_shows %}{% set movies = liked_movies %}
+    {% include "_reaction_list.html" %}
+  </section>
+</section>
+
+<section class="app-view utility-view reaction-page" data-view="watch-again" aria-label="Watch again" hidden>
+  <header class="utility-app-bar">
+    <button class="icon-button" type="button" data-utility-back aria-label="Back"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button>
+    <h1>Watch again</h1>
+  </header>
+  <section class="reaction-page-results" data-reaction-list-content="watch-again">
+    {% set reaction = "watch-again" %}{% set shows = watch_again_shows %}{% set movies = watch_again_movies %}
     {% include "_reaction_list.html" %}
   </section>
 </section>
