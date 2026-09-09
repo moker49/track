@@ -67,6 +67,9 @@ else 0 %}
     </button>
     {% if is_backlog %}
     <div class="schedule-timeline-actions">
+      {% if not is_movie %}<span class="schedule-action-slot schedule-skip-slot">
+        <button class="schedule-skip-button" type="button" data-schedule-action="skip">Skip</button>
+      </span>{% endif %}
       <span class="schedule-action-slot schedule-watch-slot">
         <button class="schedule-watch-button" type="button" {% if is_movie %}data-schedule-movie-action{% else
           %}data-schedule-action="watch" {% endif %}>Watch</button>

@@ -1296,9 +1296,7 @@ function clearCaughtUpScheduleItems() {
 }
 
 function showCaughtUpScheduleState(card, data, action) {
-  card.classList.remove("is-watch-confirming", "is-revealing-actions");
-  delete card.dataset.scheduleConfirmation;
-  card.classList.add("is-caught-up");
+  card.classList.remove("is-revealing-actions");
   card.dataset.progress = data.percent;
   card.dataset.lastWatched = data.last_watched_at || "";
   card.dataset.progressState = progressPresentation(
@@ -1316,14 +1314,19 @@ function showCaughtUpScheduleState(card, data, action) {
     if (count) count.textContent = `${data.watched_count}/${data.episode_count}`;
     if (progress) progress.style.width = `${data.percent}%`;
   }
-
-  const actions = card.querySelector(".schedule-timeline-actions");
-  if (actions) {
-    actions.innerHTML = `
-      <span class="schedule-caught-up-icon material-symbols-rounded"
-        role="img" aria-label="Caught up">done_all</span>`;
-  }
   playScheduleAdvanceTransition(card);
+  window.setTimeout(() => {
+    card.classList.remove("is-watch-confirming");
+    delete card.dataset.scheduleConfirmation;
+    card.classList.add("is-caught-up");
+    const actions = card.querySelector(".schedule-timeline-actions");
+    if (actions) {
+      actions.innerHTML = `
+        <span class="schedule-caught-up-icon material-symbols-rounded"
+          role="img" aria-label="Caught up">done_all</span>`;
+    }
+    delete card.dataset.scheduleProcessing;
+  }, 320);
 }
 
 function playScheduleAdvanceTransition(card) {
@@ -1333,16 +1336,16 @@ function playScheduleAdvanceTransition(card) {
   window.setTimeout(() => card.classList.remove("is-advancing"), 320);
 }
 
-function showScheduleActionConfirmation(card) {
+function showScheduleActionConfirmation(card, action) {
+  const marker = card.querySelector(".schedule-timeline-marker");
+  const progress = card.querySelector(".schedule-timeline-progress");
+  const progressFill = progress?.querySelector(".progress-track span");
   const watchedCount = Number(card.dataset.watchedCount);
   const episodeCount = Number(card.dataset.episodeCount);
   const nextWatchedCount = Math.min(watchedCount + 1, episodeCount);
   const nextPercent = episodeCount
     ? Math.round((nextWatchedCount / episodeCount) * 100)
     : 0;
-  const marker = card.querySelector(".schedule-timeline-marker");
-  const progress = card.querySelector(".schedule-timeline-progress");
-  const progressFill = progress?.querySelector(".progress-track span");
   const snapshot = {
     watchedCount,
     percent: marker?.querySelector("strong")?.textContent,
@@ -1351,20 +1354,13 @@ function showScheduleActionConfirmation(card) {
     progressWidth: progressFill?.style.width,
   };
 
-  card.classList.add("is-watch-confirming");
-  card.dataset.scheduleConfirmation = "watch";
+  if (action === "watch") card.classList.add("is-watch-confirming");
+  card.dataset.scheduleConfirmation = action;
   card.dataset.watchedCount = nextWatchedCount;
   card.dataset.progress = nextPercent;
-  if (marker?.querySelector("strong")) {
-    marker.querySelector("strong").textContent = `${nextPercent}%`;
-  }
-  if (marker?.querySelector("span")) {
-    marker.querySelector("span").textContent = `${nextWatchedCount}/${episodeCount}`;
-  }
-  progress?.setAttribute(
-    "aria-label",
-    `${nextWatchedCount} of ${episodeCount} episodes watched`,
-  );
+  if (marker?.querySelector("strong")) marker.querySelector("strong").textContent = `${nextPercent}%`;
+  if (marker?.querySelector("span")) marker.querySelector("span").textContent = `${nextWatchedCount}/${episodeCount}`;
+  progress?.setAttribute("aria-label", `${nextWatchedCount} of ${episodeCount} episodes watched`);
   if (progressFill) progressFill.style.width = `${nextPercent}%`;
   return snapshot;
 }
@@ -1414,9 +1410,7 @@ function advanceScheduleCard(card, nextCard, { revealActions = false } = {}) {
 
   const currentLines = card.querySelectorAll("[data-schedule-advance-line]");
   const nextLines = nextCard.querySelectorAll("[data-schedule-advance-line]");
-  currentLines.forEach((line, index) => {
-    if (nextLines[index]) line.textContent = nextLines[index].textContent;
-  });
+  const nextLineText = [...nextLines].map((line) => line.textContent);
 
   const currentMarker = card.querySelector(".schedule-timeline-marker");
   const nextMarker = nextCard.querySelector(".schedule-timeline-marker");
@@ -1424,17 +1418,23 @@ function advanceScheduleCard(card, nextCard, { revealActions = false } = {}) {
 
   const currentProgress = card.querySelector(".schedule-timeline-progress");
   const nextProgress = nextCard.querySelector(".schedule-timeline-progress");
+  let nextProgressLabel = null;
+  let nextProgressWidth = null;
   if (currentProgress && nextProgress) {
-    currentProgress.setAttribute("aria-label", nextProgress.getAttribute("aria-label"));
     const currentFill = currentProgress.querySelector(".progress-track span");
     const nextFill = nextProgress.querySelector(".progress-track span");
-    if (currentFill && nextFill) currentFill.style.width = nextFill.style.width;
+    nextProgressLabel = nextProgress.getAttribute("aria-label");
+    nextProgressWidth = nextFill?.style.width;
   }
 
+  if (nextProgressLabel) currentProgress?.setAttribute("aria-label", nextProgressLabel);
+  const fill = currentProgress?.querySelector(".progress-track span");
+  if (fill && nextProgressWidth !== null) fill.style.width = nextProgressWidth;
+  currentLines.forEach((line, index) => {
+    if (nextLineText[index] !== undefined) line.textContent = nextLineText[index];
+  });
   playScheduleAdvanceTransition(card);
-  if (revealActions) {
-    window.setTimeout(() => revealScheduleActions(card), 90);
-  }
+  if (revealActions) window.setTimeout(() => revealScheduleActions(card), 320);
 }
 
 async function refreshScheduleContent({ preserveView = null, background = false } = {}) {
@@ -1527,23 +1527,16 @@ async function processScheduleEpisode(card, action) {
   const showId = card.dataset.showId;
   const buttons = card.querySelectorAll("[data-schedule-action]");
   let processed = false;
-  const actionConfirmation = action === "watch"
-    ? showScheduleActionConfirmation(card)
-    : null;
+  const actionConfirmation = showScheduleActionConfirmation(card, action);
   const progressStartedAt = performance.now();
   buttons.forEach((button) => { button.disabled = true; });
 
   try {
-    const response = action === "watch"
-      ? await fetch(`/api/episodes/${episodeId}/watch-count`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "increment" }),
-      })
-      : await fetch(`/api/episodes/${episodeId}/skip`, {
-        method: "POST",
-        headers: scheduleRequestHeaders(),
-      });
+    const response = await fetch(`/api/episodes/${episodeId}/log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action_kind: action, log_date: toIsoDate(new Date()) }),
+    });
     const data = await response.json();
     if (response.status === 409 && data.requires_resume) {
       restoreScheduleActionConfirmation(card, actionConfirmation);
@@ -1568,32 +1561,24 @@ async function processScheduleEpisode(card, action) {
       throw new Error("Could not load the next episode");
     }
     const nextHtml = nextResponse.status === 204 ? "" : await nextResponse.text();
-    if (action === "watch") {
-      const revealDelay = Math.max(120, 260 - (performance.now() - progressStartedAt));
-      await new Promise((resolve) => window.setTimeout(resolve, revealDelay));
-    }
+    const revealDelay = Math.max(0, 260 - (performance.now() - progressStartedAt));
+    if (revealDelay) await new Promise((resolve) => window.setTimeout(resolve, revealDelay));
+    const reachedFinishedState = action === "watch"
+      && data.episode_count > 0
+      && data.watched_count === data.episode_count;
     if (nextHtml.trim()) {
       const template = document.createElement("template");
       template.innerHTML = nextHtml.trim();
       const nextCard = template.content.firstElementChild;
-      advanceScheduleCard(card, nextCard, { revealActions: action === "watch" });
+      advanceScheduleCard(card, nextCard, { revealActions: true });
       filterSchedule();
-    } else if (
-      action === "watch"
-      && data.episode_count > 0
-      && data.watched_count === data.episode_count
-    ) {
+    } else if (reachedFinishedState) {
       showCaughtUpScheduleState(card, data, action);
     } else {
       await refreshScheduleContent();
     }
 
-    if (action === "skip") {
-      window.setTimeout(() => {
-        delete card.dataset.scheduleProcessing;
-        buttons.forEach((button) => { button.disabled = false; });
-      }, 250);
-    } else if (!nextHtml.trim()) {
+    if (!nextHtml.trim() && !reachedFinishedState) {
       delete card.dataset.scheduleProcessing;
       buttons.forEach((button) => { button.disabled = false; });
     }
@@ -1616,10 +1601,10 @@ async function processScheduleMovie(card) {
   const button = card.querySelector("[data-schedule-movie-action]");
   button.disabled = true;
   try {
-    const response = await fetch(`/api/movies/${card.dataset.movieId}/watch-count`, {
+    const response = await fetch(`/api/movies/${card.dataset.movieId}/log`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "increment" }),
+      body: JSON.stringify({ action_kind: "watch", log_date: toIsoDate(new Date()) }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not mark movie watched");
@@ -4014,13 +3999,16 @@ document.addEventListener("click", (event) => {
 
   const scheduleMovieAction = event.target.closest("[data-schedule-movie-action]");
   if (scheduleMovieAction) {
-    openLogDatePicker({ type: "movie", id: scheduleMovieAction.closest("[data-schedule-card]").dataset.movieId }, "watch", true);
+    processScheduleMovie(scheduleMovieAction.closest("[data-schedule-card]"));
     return;
   }
 
   const scheduleAction = event.target.closest("[data-schedule-action]");
   if (scheduleAction) {
-    openLogDatePicker({ type: "episode", id: scheduleAction.closest("[data-schedule-card]").dataset.episodeId }, scheduleAction.dataset.scheduleAction);
+    processScheduleEpisode(
+      scheduleAction.closest("[data-schedule-card]"),
+      scheduleAction.dataset.scheduleAction,
+    );
     return;
   }
 
