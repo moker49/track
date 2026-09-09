@@ -2155,31 +2155,46 @@ html.navigation-drawer-closing .menu-scrim {
 }
 
 .detail-like-button[aria-pressed="true"] .material-symbols-rounded,
-.watch-again-button[aria-pressed="true"] .material-symbols-rounded {
+.watch-again-toggle[aria-pressed="true"] .material-symbols-rounded {
   font-family: "Material Symbols Rounded Filled";
 }
 
-.watch-again-button {
+.watch-again-control-row {
   width: 100%;
-  min-height: 52px;
-  padding: 0 16px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.watch-again-control-row .episode-watch-summary-wrap,
+.watch-again-control-row .detail-progress {
+  min-width: 0;
+  flex: 1;
+}
+
+.watch-again-toggle {
+  width: 56px;
+  min-height: 56px;
+  padding: 0;
   border: 1px solid var(--outline-soft);
   border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  display: grid;
+  flex: 0 0 56px;
+  place-items: center;
   color: var(--primary-dark);
   background: var(--surface-card);
-  font: inherit;
-  font-weight: 500;
   cursor: pointer;
 }
 
-.watch-again-button[aria-pressed="true"] {
+.watch-again-toggle[aria-pressed="true"] {
   border-color: var(--primary);
   color: var(--on-primary);
   background: var(--primary);
+}
+
+.watch-again-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .hero-progress-tags {

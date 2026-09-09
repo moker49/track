@@ -77,20 +77,22 @@
     {% if show.is_tracked %}
     {% set percent = ((show.total_watch_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
     {% set fill_percent = [percent, 100]|min %}
-    <div class="detail-progress" data-progress-summary>
-      <div class="progress-copy">
-        <span data-progress-copy>{{ show.total_watch_count }}/{{ show.episode_count }}</span>
-        <strong data-progress-percent>{{ percent }}%</strong>
+    <div class="watch-again-control-row">
+      <div class="detail-progress" data-progress-summary>
+        <div class="progress-copy">
+          <span data-progress-copy>{{ show.total_watch_count }}/{{ show.episode_count }}</span>
+          <strong data-progress-percent>{{ percent }}%</strong>
+        </div>
+        <div class="progress-track" role="progressbar" aria-label="Show progress" aria-valuemin="0" aria-valuemax="100"
+          aria-valuenow="{{ percent }}">
+          <span style="width: {{ fill_percent }}%"></span>
+        </div>
       </div>
-      <div class="progress-track" role="progressbar" aria-label="Show progress" aria-valuemin="0" aria-valuemax="100"
-        aria-valuenow="{{ percent }}">
-        <span style="width: {{ fill_percent }}%"></span>
-      </div>
+      <button class="watch-again-toggle" type="button" data-reaction-toggle="watch-again"
+        aria-pressed="{{ 'true' if show.watch_again else 'false' }}" aria-label="Add {{ show.name }} to Watch again" title="Toggle Watch again">
+        <span class="material-symbols-rounded" aria-hidden="true">replay</span>
+      </button>
     </div>
-    <button class="watch-again-button" type="button" data-reaction-toggle="watch-again"
-      aria-pressed="{{ 'true' if show.watch_again else 'false' }}">
-      <span class="material-symbols-rounded" aria-hidden="true">replay</span><span>Watch again</span>
-    </button>
     {% else %}
     <div class="md-button-group detail-add-group" aria-label="Add show to library">
       <button type="button" data-track-show-state="ACTIVE">

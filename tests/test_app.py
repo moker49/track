@@ -199,7 +199,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".navigation-drawer {", css)
         self.assertIn(".utility-app-bar {", css)
         self.assertIn(".reaction-page-results {", css)
-        self.assertIn(".watch-again-button {", css)
+        self.assertIn(".watch-again-toggle {", css)
         self.assertIn("min-height: calc(80px + env(safe-area-inset-top));", css)
         self.assertIn("background: var(--surface-card);", css)
         self.assertIn('.material-symbols-rounded.is-filled {', css)

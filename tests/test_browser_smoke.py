@@ -76,7 +76,7 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
 
             page.locator('.show-card[data-show-id="1"] [data-show-open]').click()
             page.locator('[data-detail-show][data-show-id="1"]').wait_for()
-            page.locator('.watch-again-button[data-reaction-toggle="watch-again"]').click()
+            page.locator('.watch-again-toggle[data-reaction-toggle="watch-again"]').click()
             self.assertEqual(page.locator('[data-reaction-toggle="watch-again"]').get_attribute("aria-pressed"), "true")
             first_season = page.locator('details.season[data-season-id="1"]')
             first_season.wait_for()
