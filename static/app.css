@@ -2154,7 +2154,10 @@ html.navigation-drawer-closing .menu-scrim {
   color: var(--error);
 }
 
-.detail-like-button[aria-pressed="true"] .material-symbols-rounded,
+.detail-like-button[aria-pressed="true"] .material-symbols-rounded {
+  font-family: "Material Symbols Rounded Filled";
+}
+
 .watch-again-toggle[aria-pressed="true"] .material-symbols-rounded {
   font-family: "Material Symbols Rounded Filled";
 }

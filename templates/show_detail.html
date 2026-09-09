@@ -89,8 +89,8 @@
         </div>
       </div>
       <button class="watch-again-toggle" type="button" data-reaction-toggle="watch-again"
-        aria-pressed="{{ 'true' if show.watch_again else 'false' }}" aria-label="Add {{ show.name }} to Watch again" title="Toggle Watch again">
-        <span class="material-symbols-rounded" aria-hidden="true">replay</span>
+        aria-pressed="{{ 'true' if show.watch_again else 'false' }}" aria-label="Bookmark {{ show.name }}" title="Toggle bookmark">
+        <span class="material-symbols-rounded" aria-hidden="true">{{ "bookmark_added" if show.watch_again else "bookmark" }}</span>
       </button>
     </div>
     {% else %}

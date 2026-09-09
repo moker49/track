@@ -33,7 +33,7 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list expand_more check_box arrow_upward arrow_downward more_vert resume event tv movie video_library done_all arrow_forward menu account_circle arrow_back close",
+        "filter_list expand_more check_box arrow_upward arrow_downward more_vert resume event tv movie video_library done_all arrow_forward menu account_circle arrow_back close bookmark bookmark_added",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
@@ -614,7 +614,7 @@ function showView(viewName, historyMode = null) {
     diary: "Diary · Track",
     statistics: "Statistics · Track",
     liked: "Likes · Track",
-    "watch-again": "Watch again · Track",
+    "watch-again": "Bookmarks · Track",
     settings: "Settings · Track",
   };
   document.title = titles[viewName] || "Track";
@@ -3374,6 +3374,10 @@ async function toggleMediaReaction(button) {
     detail.dataset[reactionDatasetKey(reaction)] = String(data.selected);
     button.setAttribute("aria-pressed", String(data.selected));
     button.classList.toggle("is-selected", data.selected);
+    if (reaction === "watch-again") {
+      const icon = button.querySelector(".material-symbols-rounded");
+      if (icon) icon.textContent = data.selected ? "bookmark_added" : "bookmark";
+    }
     if (isMovie) movieDetailCache.delete(String(mediaId));
     else showDetailCache.delete(String(mediaId));
     invalidateReactionLists();

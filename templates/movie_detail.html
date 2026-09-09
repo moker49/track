@@ -70,8 +70,8 @@
       </div>
       </div>
       <button class="watch-again-toggle" type="button" data-reaction-toggle="watch-again"
-        aria-pressed="{{ 'true' if movie.watch_again else 'false' }}" aria-label="Add {{ movie.title }} to Watch again" title="Toggle Watch again">
-        <span class="material-symbols-rounded" aria-hidden="true">replay</span>
+        aria-pressed="{{ 'true' if movie.watch_again else 'false' }}" aria-label="Bookmark {{ movie.title }}" title="Toggle bookmark">
+        <span class="material-symbols-rounded" aria-hidden="true">{{ "bookmark_added" if movie.watch_again else "bookmark" }}</span>
       </button>
     </div>
     {% set activity_title = 'Activity' %}
