@@ -159,6 +159,9 @@ const pendingTimelineScrollRestores = new Map();
 restoreTvLayout();
 const showDetailCache = new Map();
 const movieDetailCache = new Map();
+const showDetailRefreshRequests = new Map();
+const movieDetailRefreshRequests = new Map();
+const episodeDetailRefreshRequests = new Map();
 const showSeasonsCache = new Map();
 const seasonEpisodesCache = new Map();
 const seasonEpisodeRequests = new Map();
@@ -187,6 +190,9 @@ let renderedDiaryRevision = 0;
 let diaryRequest = null;
 let renderedStatisticsRevision = 0;
 let statisticsRequest = null;
+let scheduleRefreshRequest = null;
+let tvRefreshRequest = null;
+let moviesRefreshRequest = null;
 let detailRequest = null;
 let pendingRemoveShowId = null;
 let pendingRemoveMovieId = null;
@@ -955,12 +961,18 @@ async function searchMovieCatalog(query) {
 }
 
 async function refreshMoviesContent() {
-  const response = await fetch("/api/movies", { headers: { "X-Requested-With": "Track" } });
-  if (!response.ok) throw new Error("Could not refresh movies");
-  const template = document.createElement("template");
-  template.innerHTML = (await response.text()).trim();
-  views.get("movies")?.replaceChildren(template.content);
-  filterShowView(views.get("movies"));
+  if (moviesRefreshRequest) return moviesRefreshRequest;
+  moviesRefreshRequest = (async () => {
+    const response = await fetch("/api/movies", { headers: { "X-Requested-With": "Track" } });
+    if (!response.ok) throw new Error("Could not refresh movies");
+    const template = document.createElement("template");
+    template.innerHTML = (await response.text()).trim();
+    views.get("movies")?.replaceChildren(template.content);
+    filterShowView(views.get("movies"));
+  })().finally(() => {
+    moviesRefreshRequest = null;
+  });
+  return moviesRefreshRequest;
 }
 
 function refreshUpcomingForMovieChange() {
@@ -1472,26 +1484,32 @@ function advanceScheduleCard(card, nextCard, { revealActions = false } = {}) {
 }
 
 async function refreshScheduleContent({ preserveView = null, background = false } = {}) {
-  scheduleCalendarDate = toIsoDate(new Date());
-  const response = await fetch("/api/schedule", {
-    headers: scheduleRequestHeaders({ "X-Requested-With": "Track" }),
+  if (scheduleRefreshRequest) return scheduleRefreshRequest;
+  scheduleRefreshRequest = (async () => {
+    scheduleCalendarDate = toIsoDate(new Date());
+    const response = await fetch("/api/schedule", {
+      headers: scheduleRequestHeaders({ "X-Requested-With": "Track" }),
+    });
+    if (!response.ok) throw new Error("Could not refresh Schedule");
+    const template = document.createElement("template");
+    template.innerHTML = (await response.text()).trim();
+    ["backlog", "upcoming"].forEach((viewName) => {
+      if (viewName === preserveView || (background && viewName === currentView)) return;
+      const incoming = template.content.querySelector(`[data-schedule-content="${viewName}"]`);
+      const current = views.get(viewName)?.querySelector(`[data-schedule-content="${viewName}"]`);
+      if (incoming && current) current.replaceWith(incoming);
+      formatDisplayDates(views.get(viewName));
+      filterSchedule(viewName);
+      if (viewName === currentView) {
+        const pendingRestore = pendingTimelineScrollRestores.get(viewName);
+        restoreTimelineScroll(viewName, viewName, pendingRestore?.savedScrollY);
+      }
+    });
+    scheduleViewsHydrated = true;
+  })().finally(() => {
+    scheduleRefreshRequest = null;
   });
-  if (!response.ok) throw new Error("Could not refresh Schedule");
-  const template = document.createElement("template");
-  template.innerHTML = (await response.text()).trim();
-  ["backlog", "upcoming"].forEach((viewName) => {
-    if (viewName === preserveView || (background && viewName === currentView)) return;
-    const incoming = template.content.querySelector(`[data-schedule-content="${viewName}"]`);
-    const current = views.get(viewName)?.querySelector(`[data-schedule-content="${viewName}"]`);
-    if (incoming && current) current.replaceWith(incoming);
-    formatDisplayDates(views.get(viewName));
-    filterSchedule(viewName);
-    if (viewName === currentView) {
-      const pendingRestore = pendingTimelineScrollRestores.get(viewName);
-      restoreTimelineScroll(viewName, viewName, pendingRestore?.savedScrollY);
-    }
-  });
-  scheduleViewsHydrated = true;
+  return scheduleRefreshRequest;
 }
 
 function refreshScheduleForLocalDayChange() {
@@ -1503,17 +1521,23 @@ function refreshScheduleForLocalDayChange() {
 }
 
 async function refreshTvContent({ background = false } = {}) {
-  const response = await fetch("/api/tv", {
-    headers: { "X-Requested-With": "Track" },
+  if (tvRefreshRequest) return tvRefreshRequest;
+  tvRefreshRequest = (async () => {
+    const response = await fetch("/api/tv", {
+      headers: { "X-Requested-With": "Track" },
+    });
+    if (!response.ok) throw new Error("Could not refresh TV");
+    if (background && currentView === "tv") return;
+    const view = views.get("tv");
+    if (!view) return;
+    const template = document.createElement("template");
+    template.innerHTML = (await response.text()).trim();
+    view.replaceChildren(template.content);
+    filterShowView(view);
+  })().finally(() => {
+    tvRefreshRequest = null;
   });
-  if (!response.ok) throw new Error("Could not refresh TV");
-  if (background && currentView === "tv") return;
-  const view = views.get("tv");
-  if (!view) return;
-  const template = document.createElement("template");
-  template.innerHTML = (await response.text()).trim();
-  view.replaceChildren(template.content);
-  filterShowView(view);
+  return tvRefreshRequest;
 }
 
 async function flushSearchLibraryUpdates(viewName) {
@@ -1582,7 +1606,7 @@ async function processScheduleEpisode(card, action) {
     if (!response.ok) throw new Error(data.error || `Could not ${action} episode`);
     processed = true;
     if (action === "watch" || action === "skip") {
-      invalidateWatchCaches({ showId, episodeId });
+      refreshLogRelatedCaches({ showId, episodeIds: [episodeId] });
       syncCompletedForcedQueue(data);
       applyShowProgress(data);
       maybeOpenFinishedArchiveDialog(data);
@@ -1642,10 +1666,8 @@ async function processScheduleMovie(card) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not mark movie watched");
-    movieDetailCache.delete(String(data.movie_id));
     syncCompletedForcedQueue(data);
-    diaryRevision += 1;
-    await Promise.all([refreshScheduleContent(), refreshMoviesContent()]);
+    refreshLogRelatedCaches({ movieId: data.movie_id });
   } catch (error) {
     showSnackbar(error.message || "Couldn't update this movie.");
     delete card.dataset.scheduleProcessing;
@@ -1678,6 +1700,77 @@ function invalidateWatchCaches({ showId, episodeId = null, allEpisodes = false }
   if (allEpisodes) episodeDetailCache.clear();
   else if (episodeId !== null) invalidateEpisodeCache(episodeId);
   invalidateShowCache(showId, true);
+}
+
+function refreshShowDetailCache(showId) {
+  const cacheKey = String(showId);
+  if (showDetailRefreshRequests.has(cacheKey)) return showDetailRefreshRequests.get(cacheKey);
+  const request = Promise.all([
+    fetch(`/api/shows/${showId}`, { headers: { "X-Requested-With": "Track" } }),
+    fetch(`/api/shows/${showId}/seasons`, { headers: { "X-Requested-With": "Track" } }),
+  ]).then(async ([overviewResponse, seasonsResponse]) => {
+    if (!overviewResponse.ok || !seasonsResponse.ok) throw new Error("Could not refresh show");
+    const [overviewHtml, seasonsHtml] = await Promise.all([overviewResponse.text(), seasonsResponse.text()]);
+    showDetailCache.set(cacheKey, overviewHtml);
+    showSeasonsCache.set(cacheKey, seasonsHtml);
+    return { overviewHtml, seasonsHtml };
+  }).finally(() => {
+    showDetailRefreshRequests.delete(cacheKey);
+  });
+  showDetailRefreshRequests.set(cacheKey, request);
+  return request;
+}
+
+function refreshMovieDetailCache(movieId) {
+  const cacheKey = String(movieId);
+  if (movieDetailRefreshRequests.has(cacheKey)) return movieDetailRefreshRequests.get(cacheKey);
+  const request = fetch(`/api/movies/${movieId}`, {
+    headers: { "X-Requested-With": "Track" },
+  }).then(async (response) => {
+    if (!response.ok) throw new Error("Could not refresh movie");
+    const movieHtml = await response.text();
+    movieDetailCache.set(cacheKey, movieHtml);
+    return movieHtml;
+  }).finally(() => {
+    movieDetailRefreshRequests.delete(cacheKey);
+  });
+  movieDetailRefreshRequests.set(cacheKey, request);
+  return request;
+}
+
+function refreshEpisodeDetailCache(episodeId) {
+  const cacheKey = String(episodeId);
+  if (episodeDetailRefreshRequests.has(cacheKey)) return episodeDetailRefreshRequests.get(cacheKey);
+  const request = fetch(`/api/episodes/${episodeId}`, {
+    headers: { "X-Requested-With": "Track" },
+  }).then(async (response) => {
+    if (!response.ok) throw new Error("Could not refresh episode");
+    const episodeHtml = await response.text();
+    episodeDetailCache.set(cacheKey, episodeHtml);
+    return episodeHtml;
+  }).finally(() => {
+    episodeDetailRefreshRequests.delete(cacheKey);
+  });
+  episodeDetailRefreshRequests.set(cacheKey, request);
+  return request;
+}
+
+function refreshLogRelatedCaches({ showId = null, movieId = null, episodeIds = [] } = {}) {
+  diaryRevision += 1;
+  const refreshes = [
+    refreshDiaryContent(),
+    refreshStatisticsContent(),
+    refreshScheduleContent(),
+  ];
+  if (showId !== null) {
+    refreshes.push(refreshShowDetailCache(showId), refreshTvContent());
+  }
+  if (movieId !== null) {
+    refreshes.push(refreshMovieDetailCache(movieId), refreshMoviesContent());
+  }
+  episodeIds.filter((episodeId) => episodeId !== null && episodeId !== undefined)
+    .forEach((episodeId) => refreshes.push(refreshEpisodeDetailCache(episodeId)));
+  Promise.allSettled(refreshes);
 }
 
 function setSeasonEpisodesCache(seasonId, html) {
@@ -2076,7 +2169,15 @@ async function openShow(
       detailType: "show",
       showId: String(showId),
       parentView: detailParentView,
-    }, historyMode);
+      }, historyMode);
+  }
+  const pendingRefresh = showDetailRefreshRequests.get(cacheKey);
+  if (pendingRefresh) {
+    try {
+      await pendingRefresh;
+    } catch (_error) {
+      // A failed background refresh leaves the last known cache available.
+    }
   }
   const cachedOverview = showDetailCache.get(cacheKey);
   const cachedSeasons = showSeasonsCache.get(cacheKey);
@@ -2175,6 +2276,14 @@ async function openMovie(movieId, parentView = "movies", historyMode = "push") {
     writeHistory({ view: "detail", detailType: "movie", movieId: String(movieId), parentView: detailParentView }, historyMode);
   }
   const cacheKey = String(movieId);
+  const pendingRefresh = movieDetailRefreshRequests.get(cacheKey);
+  if (pendingRefresh) {
+    try {
+      await pendingRefresh;
+    } catch (_error) {
+      // A failed background refresh leaves the last known cache available.
+    }
+  }
   const cached = movieDetailCache.get(cacheKey);
   if (cached) {
     if (detailRequest) detailRequest.abort();
@@ -2288,6 +2397,14 @@ async function openEpisode(episodeId, historyMode = "push") {
     }, historyMode);
   }
 
+  const pendingRefresh = episodeDetailRefreshRequests.get(cacheKey);
+  if (pendingRefresh) {
+    try {
+      await pendingRefresh;
+    } catch (_error) {
+      // A failed background refresh leaves the last known cache available.
+    }
+  }
   if (detailRequest) detailRequest.abort();
   const cachedEpisode = episodeDetailCache.get(cacheKey);
   if (cachedEpisode) {
@@ -2687,9 +2804,7 @@ function applyCreatedLog(data) {
         recordId: data.watch_record_id, watchKind: "movie", addedAt: data.added_at,
         diaryDate: data.diary_date });
     }
-    movieDetailCache.delete(String(data.movie_id));
-    diaryRevision += 1;
-    refreshScheduleContent({ background: true }).catch(() => undefined);
+    refreshLogRelatedCaches({ movieId: data.movie_id });
     return;
   }
   applyShowProgress(data);
@@ -2708,12 +2823,10 @@ function applyCreatedLog(data) {
       season, counts.length, counts.filter((count) => count > 0).length, Math.min(...counts),
     );
   }
-  invalidateWatchCaches({
+  refreshLogRelatedCaches({
     showId: data.show_id,
-    episodeId: data.episode_id || null,
-    allEpisodes: Boolean(data.season_id),
+    episodeIds: episodeUpdates.map((episode) => episode.episode_id),
   });
-  refreshScheduleContent({ background: true }).catch(() => undefined);
   const detail = views.get("detail");
   if (currentView !== "detail" || !detail) return;
   const isSeason = Boolean(data.season_id);
@@ -2831,12 +2944,15 @@ async function saveDiaryDate() {
     syncActivityCount(datePickerTarget.closest("[data-activity-log]"));
     sortActivityItems(datePickerTarget.closest("[data-activity-log]"));
     const detailShow = datePickerTarget.closest("[data-detail-show]");
-    if (detailShow) invalidateShowCache(detailShow.dataset.showId);
-    const detailEpisode = datePickerTarget.closest("[data-detail-episode]");
-    if (detailEpisode) invalidateEpisodeCache(detailEpisode.dataset.episodeId);
     const detailMovie = datePickerTarget.closest("[data-detail-movie]");
-    if (detailMovie) movieDetailCache.delete(detailMovie.dataset.movieId);
-    if (["episode", "season", "movie"].includes(data.watch_kind)) diaryRevision += 1;
+    if (["episode", "season"].includes(data.watch_kind)) {
+      refreshLogRelatedCaches({
+        showId: detailShow?.dataset.showId || data.show_id || null,
+        episodeIds: data.episode_id ? [data.episode_id] : [],
+      });
+    } else if (data.watch_kind === "movie") {
+      refreshLogRelatedCaches({ movieId: detailMovie?.dataset.movieId || data.movie_id || null });
+    }
     datePicker.close();
   } catch (_error) {
     showSnackbar("Couldn't update the watch date. Try again.");
@@ -3350,6 +3466,13 @@ function invalidateReactionLists() {
   prefetchReactionLists();
 }
 
+function refreshReactionLists() {
+  reactionListsDirty = false;
+  fetchReactionListMarkup("liked", { force: true }).then((markup) => {
+    if (currentView === "liked") renderReactionListMarkup("liked", markup);
+  }).catch(() => undefined);
+}
+
 function renderReactionListMarkup(reaction, markup) {
   const panel = views.get(reaction)?.querySelector("[data-reaction-list-content]");
   if (!panel) return;
@@ -3418,12 +3541,11 @@ async function toggleMediaReaction(button) {
     detail.dataset[reactionDatasetKey(reaction)] = String(data.selected);
     button.setAttribute("aria-pressed", String(data.selected));
     button.classList.toggle("is-selected", data.selected);
-    if (isMovie) movieDetailCache.delete(String(mediaId));
-    else showDetailCache.delete(String(mediaId));
+    if (isMovie) refreshMovieDetailCache(mediaId).catch(() => undefined);
+    else refreshShowDetailCache(mediaId).catch(() => undefined);
     if (reaction === "queue") await refreshScheduleContent();
     if (reaction === "liked") {
-      invalidateReactionLists();
-      if (currentView === "liked") refreshReactionList(currentView);
+      refreshReactionLists();
     }
   } catch (error) {
     showSnackbar(error.message || "Couldn't update reaction.");
@@ -3960,8 +4082,6 @@ document.addEventListener("click", (event) => {
         if (data.movie_id) {
           document.querySelectorAll(`[data-detail-movie][data-movie-id="${data.movie_id}"]`)
             .forEach((detailMovie) => updateMovieWatchUi(detailMovie, data.movie_watch_count));
-          movieDetailCache.delete(String(data.movie_id));
-          diaryRevision += 1;
         }
         if (data.season_id && data.episodes?.length) {
           const season = document.querySelector(`.season[data-season-id="${data.season_id}"]`);
@@ -3973,15 +4093,12 @@ document.addEventListener("click", (event) => {
             Math.min(...counts),
           );
         }
-        if (data.show_id) {
-          invalidateWatchCaches({
-            showId: data.show_id,
-            episodeId: data.episode_id || null,
-            allEpisodes: Boolean(data.season_id),
-          });
-        }
         if (data.show_id || data.movie_id) {
-          refreshScheduleContent({ background: true }).catch(() => undefined);
+          refreshLogRelatedCaches({
+            showId: data.show_id || null,
+            movieId: data.movie_id || null,
+            episodeIds: (data.episodes || []).map((episode) => episode.episode_id),
+          });
         }
         syncDisplayHiddenLogItemsSetting();
       })

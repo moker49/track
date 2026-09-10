@@ -506,7 +506,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn('card.classList.add("is-leaving")', javascript)
         self.assertIn('aria-label="Caught up">done_all', javascript)
         self.assertIn("function invalidateWatchCaches({", javascript)
-        self.assertIn("invalidateWatchCaches({ showId, episodeId });", javascript)
+        self.assertIn("function refreshLogRelatedCaches({", javascript)
+        self.assertIn("refreshLogRelatedCaches({ showId, episodeIds: [episodeId] });", javascript)
         self.assertIn("invalidateWatchCaches({ showId, allEpisodes: true });", javascript)
         self.assertNotIn('Caught up with this show', javascript)
 
