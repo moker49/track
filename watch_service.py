@@ -231,7 +231,6 @@ def remove_log(db: sqlite3.Connection, watch_kind: str, record_id: int) -> dict:
             (record_id,),
         ).fetchone()
         if row is None: raise WatchNotFoundError("Log entry not found")
-        if not row["batch_id"]: raise WatchNotFoundError("Legacy season entry cannot be removed as a batch")
         season_id = row["season_id"]
         show_id = row["show_id"]
         if watch_kind == "season": db.execute("DELETE FROM episode_watch_history WHERE batch_id = ?", (row["batch_id"],))

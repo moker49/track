@@ -105,12 +105,47 @@ class WorkflowSmokeTest(unittest.TestCase):
         self.assertEqual(created.status_code, 200)
         payload = created.get_json()
         self.assertEqual(len(payload["episodes"]), 6)
+        batch_id = payload["batch_id"]
+        self.assertTrue(batch_id)
+        batch = self.rows(
+            "SELECT season_id, action_kind FROM season_log_batches WHERE id = ?",
+            (batch_id,),
+        )[0]
+        self.assertEqual((batch["season_id"], batch["action_kind"]), (2, "watch"))
+        self.assertEqual(
+            self.rows(
+                "SELECT COUNT(*) AS count FROM season_watch_history WHERE batch_id = ?",
+                (batch_id,),
+            )[0]["count"],
+            1,
+        )
+        self.assertEqual(
+            self.rows(
+                "SELECT COUNT(*) AS count FROM episode_watch_history WHERE batch_id = ?",
+                (batch_id,),
+            )[0]["count"],
+            len(payload["episodes"]),
+        )
         self.assertEqual(
             self.client.delete(f"/api/logs/season/{payload['watch_record_id']}").status_code,
             200,
         )
         self.assertEqual(
             self.rows("SELECT COUNT(*) AS count FROM season_watch_history WHERE id = ?", (payload["watch_record_id"],))[0]["count"],
+            0,
+        )
+        self.assertEqual(
+            self.rows(
+                "SELECT COUNT(*) AS count FROM episode_watch_history WHERE batch_id = ?",
+                (batch_id,),
+            )[0]["count"],
+            0,
+        )
+        self.assertEqual(
+            self.rows(
+                "SELECT COUNT(*) AS count FROM season_log_batches WHERE id = ?",
+                (batch_id,),
+            )[0]["count"],
             0,
         )
 

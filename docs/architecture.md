@@ -36,6 +36,14 @@ The canonical schema is applied idempotently at startup, followed by `PRAGMA opt
 
 Startup is safe to repeat. Tests open the same database more than once and verify that tables and indexes remain intact.
 
+## Season log batches
+
+A season watch or skip is one atomic action. It creates a `season_log_batches` row,
+one season-level activity row, and one episode-level resolution row for every
+episode in that season. Each record shares the batch ID, action kind, creation
+timestamp, and Diary date. Editing or removing the season-level log applies to
+the complete batch only; individually created episode logs are never affected.
+
 ## Test layers
 
 - `tests/test_domain.py` covers vocabulary and effective-date rules.

@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS season_watch_history (
     season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
     added_at TEXT NOT NULL,
     diary_date TEXT,
-    batch_id TEXT
+    batch_id TEXT NOT NULL REFERENCES season_log_batches(id)
 );
 
 CREATE TABLE IF NOT EXISTS episode_skips (
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS season_skip_history (
     season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
     added_at TEXT NOT NULL,
     diary_date TEXT,
-    batch_id TEXT NOT NULL
+    batch_id TEXT NOT NULL REFERENCES season_log_batches(id)
 );
 
 CREATE TABLE IF NOT EXISTS season_log_batches (
