@@ -974,6 +974,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('item.dataset.scheduleRevealed = "true"', javascript)
         self.assertIn("const revealItems = items.slice(0, scheduleItemLimit);", javascript)
         self.assertIn("function settleScheduleCardReveal(item)", javascript)
+        self.assertIn("function settleActiveVirtualReveals()", javascript)
+        self.assertIn('["backlog", "upcoming", "diary"].includes(currentView)', javascript)
         self.assertIn("clearScheduleFirstReveal(views.get(currentView));", javascript)
         self.assertIn('item.classList.add("schedule-item-reveal")', javascript)
         self.assertIn('view.classList.add("schedule-rail-reveal")', javascript)

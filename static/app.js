@@ -5224,8 +5224,18 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function releaseTimelineScrollRestore() {
+  settleActiveVirtualReveals();
   if (["backlog", "upcoming"].includes(currentView)) {
     pendingTimelineScrollRestores.delete(currentView);
+  }
+}
+
+function settleActiveVirtualReveals() {
+  if (["backlog", "upcoming", "diary"].includes(currentView)) {
+    clearScheduleFirstReveal(views.get(currentView));
+  }
+  if (["tv", "movies", "liked"].includes(currentView)) {
+    clearTvFirstReveal(views.get(currentView));
   }
 }
 
@@ -5239,8 +5249,8 @@ window.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("scroll", () => {
+  settleActiveVirtualReveals();
   if (["backlog", "upcoming"].includes(currentView)) {
-    clearScheduleFirstReveal(views.get(currentView));
     const pendingRestore = pendingTimelineScrollRestores.get(currentView);
     if (pendingRestore && Math.abs(window.scrollY - pendingRestore.savedScrollY) > 1) {
       restoreTimelineScroll(currentView, currentView, pendingRestore.savedScrollY);
