@@ -14,18 +14,22 @@ else 0 %}
 <article class="schedule-timeline-item{% if not is_backlog and episode.is_grouped %} is-multi-episode{% endif %}"
   data-schedule-card data-schedule-mode="{{ mode }}" {% if is_movie %} data-movie-id="{{ episode.movie_id }}" {% else %}
   data-show-id="{{ episode.show_id }}" {% endif %} data-media-type="{{ episode.media_type or 'tv' }}"
-  data-queued="{{ 'true' if episode.watch_again else 'false' }}" data-tracking-state="{{ episode.tracking_state }}"
-  data-progress-state="{{ progress_state }}" data-show-status="{{ episode.show_status or '' }}"
-  data-name="{{ episode.show_name|lower }}" data-date-added="{{ episode.show_added_at }}"
-  data-release-date="{{ episode.air_date }}" data-last-watched="{{ episode.last_watched_at or '' }}"
-  data-progress="{{ progress_percent }}" {% if is_backlog %}data-watched-count="{{ display_watched_count }}"
-  data-episode-count="{{ episode.episode_count }}" {% endif %} {% if not is_movie and not is_backlog and
-  episode.is_grouped %}data-season-ids="{{ episode.season_ids }}" {% elif not is_movie
-  %}data-episode-id="{{ episode.episode_id }}" {% endif %}
+  data-queued="{{ 'true' if episode.watch_again else 'false' }}"
+  data-forced-queue="{{ 'true' if episode.is_forced_queue|default(false) else 'false' }}"
+  data-tracking-state="{{ episode.tracking_state }}" data-progress-state="{{ progress_state }}"
+  data-show-status="{{ episode.show_status or '' }}" data-name="{{ episode.show_name|lower }}"
+  data-date-added="{{ episode.show_added_at }}" data-release-date="{{ episode.air_date }}"
+  data-last-watched="{{ episode.last_watched_at or '' }}" data-progress="{{ progress_percent }}" {% if is_backlog
+  %}data-watched-count="{{ display_watched_count }}" data-episode-count="{{ episode.episode_count }}" {% endif %} {% if
+  not is_movie and not is_backlog and episode.is_grouped %}data-season-ids="{{ episode.season_ids }}" {% elif not
+  is_movie %}data-episode-id="{{ episode.episode_id }}" {% endif %}
   data-schedule-search-text="{{ episode.search_text if not is_backlog else (episode.show_name|lower ~ ' ' ~ episode.episode_name|lower) }}">
   <div class="schedule-timeline-marker" aria-hidden="true">
     {% if is_backlog %}
-    {% if is_movie %}<strong>0%</strong><span>0/1</span>{% else %}
+    {% if episode.is_forced_queue|default(false) %}<strong><span class="material-symbols-rounded schedule-return-marker"
+        aria-label="Returned to queue">autorenew</span></strong><span>{% if is_movie %}0/1{% else %}{{
+      display_watched_count }}/{{ episode.episode_count }}{% endif %}</span>{% elif is_movie
+    %}<strong>0%</strong><span>0/1</span>{% else %}
     <strong>{{ progress_percent }}%</strong>
     <span>{{ display_watched_count }}/{{ episode.episode_count }}</span>{% endif %}
     {% else %}

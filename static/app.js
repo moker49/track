@@ -117,7 +117,7 @@ const libraryViewPreferences = {
     progress: [PROGRESS_STATE.STARTED],
     sortField: "lastWatched",
     sortDirection: "desc",
-    mediaTypes: ["tv"],
+    mediaTypes: ["tv", "movies"],
   },
   upcoming: {
     state: TRACKING_STATE.ACTIVE,
@@ -2833,7 +2833,7 @@ const sortFieldLabels = {
 };
 
 const libraryViewDefaults = {
-  backlog: { progress: [PROGRESS_STATE.STARTED], sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv"] },
+  backlog: { progress: [PROGRESS_STATE.STARTED], sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv", "movies"] },
   upcoming: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "movies"] },
   tv: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP], sortField: "name", sortDirection: "asc", mediaTypes: ["tv"] },
   movies: { progress: [PROGRESS_STATE.NEW], sortField: "dateAdded", sortDirection: "desc", mediaTypes: ["movies"] },
@@ -4725,6 +4725,9 @@ function buildVirtualTimelineEntries(state, visibleCards) {
     if (state.viewName === "backlog") {
       const preferences = libraryViewPreferences.backlog;
       cards = [...cards].sort((first, second) => {
+        const forcedComparison = Number(first.dataset.forcedQueue === "true")
+          - Number(second.dataset.forcedQueue === "true");
+        if (forcedComparison !== 0) return forcedComparison;
         const firstValue = first.dataset[preferences.sortField] || "";
         const secondValue = second.dataset[preferences.sortField] || "";
         const comparison = firstValue.localeCompare(secondValue, undefined, {
@@ -4814,14 +4817,13 @@ function applyVirtualTimelineFilters(state) {
   const preferences = libraryViewPreferences[viewName];
   const visibleCards = state.allCards.filter((card) => {
     if (viewName === "diary") return true;
-    if (viewName === "backlog" && card.dataset.queued === "true"
-      && preferences.mediaTypes.length > 0 && preferences.progress.length > 0) return true;
     const matchesSearch = !query || card.dataset.scheduleSearchText?.includes(query);
     const mediaType = card.dataset.mediaType || "tv";
     const matchesState = searching || (card.dataset.trackingState === TRACKING_STATE.ACTIVE
       ? preferences.mediaTypes.includes(mediaType)
       : preferences.mediaTypes.includes(`${mediaType}-archive`));
-    const matchesProgress = searching || preferences.progress.includes(card.dataset.progressState)
+    const matchesProgress = searching || (viewName === "backlog" && card.dataset.queued === "true")
+      || preferences.progress.includes(card.dataset.progressState)
       || (card.dataset.progressState === PROGRESS_STATE.FINISHED
         && preferences.progress.includes(PROGRESS_STATE.CAUGHT_UP));
     return matchesSearch && matchesState && matchesProgress;

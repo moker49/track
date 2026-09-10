@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 from app import create_app, start_background_refresh
+from queries import get_catch_up_episodes
 
 
 def seed_test_library(database: Path) -> None:
@@ -739,6 +740,30 @@ class TrackAppTest(unittest.TestCase):
         self.assertTrue(movie_response.get_json()["selected"])
         self.assertIn(b"Reaction Test Movie", self.client.get("/api/lists/liked").data)
         self.assertEqual(self.client.get("/api/lists/watch-again").status_code, 404)
+
+    def test_returned_queue_items_follow_natural_items_and_use_the_return_marker(self):
+        response = self.client.post(
+            "/api/shows/2/reactions/queue", json={"selected": True}
+        )
+        self.assertEqual(response.status_code, 200)
+
+        connection = sqlite3.connect(self.database)
+        connection.row_factory = sqlite3.Row
+        queue_items = get_catch_up_episodes(connection)
+        connection.close()
+
+        show_items = [item for item in queue_items if item["show_id"] is not None]
+        self.assertEqual(show_items[0]["show_id"], 1)
+        self.assertFalse(show_items[0]["is_forced_queue"])
+        self.assertEqual(show_items[-1]["show_id"], 2)
+        self.assertTrue(show_items[-1]["is_forced_queue"])
+
+        schedule = self.client.get("/api/schedule")
+        schedule_text = schedule.data.decode("utf-8")
+        self.assertRegex(
+            schedule_text,
+            r'data-show-id="2"[^>]*data-forced-queue="true"[^>]*>\s*<div class="schedule-timeline-marker"[^>]*>\s*<strong><span class="material-symbols-rounded schedule-return-marker"[^>]*>autorenew</span></strong>',
+        )
 
     def test_schedule_includes_archived_but_excludes_untracked_shows(self):
         connection = sqlite3.connect(self.database)

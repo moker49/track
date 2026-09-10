@@ -597,6 +597,17 @@ dialog:not(.image-viewer)::backdrop {
   line-height: 1;
 }
 
+.schedule-timeline-marker strong .material-symbols-rounded {
+  display: block;
+  font-size: 1.25rem;
+  line-height: inherit;
+  color: var(--primary);
+}
+
+.schedule-timeline-marker .schedule-return-marker {
+  transform: translateX(3px);
+}
+
 .schedule-timeline-marker span {
   color: var(--on-surface-muted);
   font-size: 0.62rem;
@@ -2028,10 +2039,18 @@ html.navigation-drawer-closing .menu-scrim {
   cursor: pointer;
 }
 
-.log-date-picker-actions button + button { border-left: 1px solid var(--outline-soft); }
-.log-date-picker-actions button[aria-pressed="true"] { color: var(--on-primary); background: var(--primary); }
+.log-date-picker-actions button+button {
+  border-left: 1px solid var(--outline-soft);
+}
 
-.log-date-picker.is-editing-log .log-date-picker-actions { display: none; }
+.log-date-picker-actions button[aria-pressed="true"] {
+  color: var(--on-primary);
+  background: var(--primary);
+}
+
+.log-date-picker.is-editing-log .log-date-picker-actions {
+  display: none;
+}
 
 .utility-view .utility-app-bar {
   border-bottom: 1px solid var(--outline-soft);
@@ -4152,11 +4171,21 @@ html.app-booting .tv-slice-reveal {
 }
 
 @keyframes navigation-drawer-scrim-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes navigation-drawer-scrim-exit {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }

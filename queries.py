@@ -254,19 +254,19 @@ def get_catch_up_episodes(
         unresolved AS (
             SELECT show_id, show_name, poster_path, tracking_state, show_added_at, show_status, watch_again,
                    season_number, season_name, episode_id, episode_number, episode_name,
-                   air_date, runtime_minutes, 0 AS is_rewatch
+                   air_date, runtime_minutes, 0 AS is_rewatch, 0 AS is_forced_queue
             FROM normal_unresolved
             WHERE episode_rank = 1
             UNION ALL
             SELECT show_id, show_name, poster_path, tracking_state, show_added_at, show_status, watch_again,
                    season_number, season_name, episode_id, episode_number, episode_name,
-                   air_date, runtime_minutes, 1 AS is_rewatch
+                   air_date, runtime_minutes, 1 AS is_rewatch, 0 AS is_forced_queue
             FROM rewatch_candidates
             WHERE episode_rank = 1
             UNION ALL
             SELECT show_id, show_name, poster_path, tracking_state, show_added_at, show_status, watch_again,
                    season_number, season_name, episode_id, episode_number, episode_name,
-                   air_date, runtime_minutes, 1 AS is_rewatch
+                   air_date, runtime_minutes, 1 AS is_rewatch, 1 AS is_forced_queue
             FROM watch_again_candidates
         )
         SELECT unresolved.*, show_progress.episode_count, show_progress.watched_count,
@@ -289,7 +289,7 @@ def get_catch_up_episodes(
                'ACTIVE' AS tracking_state, m.added_at AS show_added_at, m.status AS show_status,
                m.watch_again, NULL AS season_number, 'Movie' AS season_name,
                NULL AS episode_id, NULL AS episode_number, m.title AS episode_name,
-               m.release_date AS air_date, m.runtime_minutes, 1 AS is_rewatch,
+               m.release_date AS air_date, m.runtime_minutes, 1 AS is_rewatch, 1 AS is_forced_queue,
                1 AS episode_count, 0 AS watched_count, 0 AS total_watch_count,
                0 AS completed_watch_count, 0 AS rewatch_watched_count,
                MAX(mwh.added_at) AS last_watched_at, 1 AS is_movie, 'movies' AS media_type
@@ -303,6 +303,7 @@ def get_catch_up_episodes(
     queue_items.extend(dict(movie) for movie in watch_again_movies)
     queue_items.sort(key=lambda item: item["show_name"].casefold())
     queue_items.sort(key=lambda item: item["last_watched_at"] or "", reverse=True)
+    queue_items.sort(key=lambda item: item["is_forced_queue"])
     return queue_items
 
 
