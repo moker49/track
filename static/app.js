@@ -2519,7 +2519,7 @@ function addActivityItem({
   recordId = null,
   watchKind = null,
   addedAt = null,
-  showInDiary = 1,
+  diaryDate = null,
 }) {
   const log = views.get("detail").querySelector("[data-activity-log]");
   const list = log?.querySelector("[data-activity-list]");
@@ -2535,8 +2535,7 @@ function addActivityItem({
     item.dataset.watchRecordId = recordId;
     item.dataset.watchKind = watchKind;
     item.dataset.addedAt = addedAt;
-    item.dataset.watchDate = "";
-    item.dataset.diaryDate = showInDiary ? occurredAt : "";
+    item.dataset.diaryDate = diaryDate || "";
   }
 
   const icon = document.createElement("span");
@@ -2667,11 +2666,11 @@ function renderDatePicker() {
   }
 }
 
-function openWatchDatePicker(item) {
+function openDiaryDatePicker(item) {
   if (!datePicker) return;
   datePicker.classList.add("is-editing-log");
   datePickerTarget = item;
-  datePickerSelectedDate = parseIsoDate(item.dataset.watchDate);
+  datePickerSelectedDate = parseIsoDate(item.dataset.diaryDate);
   const visibleDate = datePickerSelectedDate || parseIsoDate(item.dataset.sortDate) || new Date();
   datePickerMonth = new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1);
   datePickerYearVisible = false;
@@ -2686,7 +2685,7 @@ function applyCreatedLog(data) {
       updateMovieWatchUi(detailMovie, data.watch_count);
       addActivityItem({ type: "watched", title: "Watched", occurredAt: data.display_date,
         recordId: data.watch_record_id, watchKind: "movie", addedAt: data.added_at,
-        showInDiary: Boolean(data.watch_date) });
+        diaryDate: data.diary_date });
     }
     movieDetailCache.delete(String(data.movie_id));
     diaryRevision += 1;
@@ -2725,7 +2724,7 @@ function applyCreatedLog(data) {
     recordId: data.watch_record_id,
     watchKind: data.watch_kind,
     addedAt: data.added_at,
-    showInDiary: data.action_kind === "watch" && Boolean(data.watch_date),
+    diaryDate: data.action_kind === "watch" ? data.diary_date : null,
   });
 }
 
@@ -2768,7 +2767,7 @@ function shiftDatePickerMonth(offset) {
   renderDatePicker();
 }
 
-async function saveWatchDate() {
+async function saveDiaryDate() {
   if (logDatePickerTarget) {
     const saveButton = datePicker.querySelector("[data-date-picker-save]");
     saveButton.disabled = true;
@@ -2788,10 +2787,10 @@ async function saveWatchDate() {
   }
   if (pendingMovieImport) {
     const tmdbId = pendingMovieImport;
-    const watchDate = datePickerSelectedDate ? toIsoDate(datePickerSelectedDate) : null;
+    const diaryDate = datePickerSelectedDate ? toIsoDate(datePickerSelectedDate) : null;
     const response = await fetch(`/api/movies/${tmdbId}/import`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ watched: true, watch_date: watchDate }),
+      body: JSON.stringify({ watched: true, diary_date: diaryDate }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add movie");
@@ -2803,20 +2802,19 @@ async function saveWatchDate() {
   if (!datePickerTarget) return;
   const saveButton = datePicker.querySelector("[data-date-picker-save]");
   saveButton.disabled = true;
-  const watchDate = datePickerSelectedDate ? toIsoDate(datePickerSelectedDate) : null;
+  const diaryDate = datePickerSelectedDate ? toIsoDate(datePickerSelectedDate) : null;
   try {
     const response = await fetch(
       `/api/watch-history/${datePickerTarget.dataset.watchKind}/${datePickerTarget.dataset.watchRecordId}/date`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ watch_date: watchDate }),
+        body: JSON.stringify({ diary_date: diaryDate }),
       },
     );
-    if (!response.ok) throw new Error("Could not update watch date");
+    if (!response.ok) throw new Error("Could not update Diary date");
     const data = await response.json();
-    datePickerTarget.dataset.watchDate = data.watch_date || "";
-    datePickerTarget.dataset.diaryDate = data.watch_date || "";
+    datePickerTarget.dataset.diaryDate = data.diary_date || "";
     datePickerTarget.dataset.addedAt = data.added_at;
     datePickerTarget.dataset.sortDate = data.display_date;
     const time = datePickerTarget.querySelector("[data-display-date]");
@@ -4122,7 +4120,7 @@ document.addEventListener("click", (event) => {
     const item = watchLogSetDate.closest("[data-watch-record-id]");
     hideFloatingMenu(watchLogSetDate.closest("[data-watch-log-menu]"));
     syncMenuScrim();
-    if (item) openWatchDatePicker(item);
+    if (item) openDiaryDatePicker(item);
     return;
   }
 
@@ -4212,7 +4210,7 @@ document.addEventListener("click", (event) => {
 
   if (event.target.closest("[data-date-picker-clear]")) {
     datePickerSelectedDate = null;
-    saveWatchDate().catch((error) => showSnackbar(error.message));
+    saveDiaryDate().catch((error) => showSnackbar(error.message));
     return;
   }
 
@@ -4222,7 +4220,7 @@ document.addEventListener("click", (event) => {
   }
 
   if (event.target.closest("[data-date-picker-save]")) {
-    saveWatchDate();
+    saveDiaryDate();
     return;
   }
 

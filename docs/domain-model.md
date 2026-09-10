@@ -45,19 +45,19 @@ affect these calculations, Queue, or Upcoming.
 Every watch is an append-only row in `episode_watch_history` with:
 
 - `added_at`: immutable UTC timestamp recording when Track created the event.
-- `watch_date`: optional date-only override chosen by the user.
+- `diary_date`: optional date-only value chosen by the user. It is the explicit
+  decision to include the event in Diary and statistics.
 
-The canonical effective watch date is:
+The canonical Diary date is:
 
 ```sql
-COALESCE(watch_date, substr(added_at, 1, 10))
+diary_date
 ```
 
-Therefore, an event without an override belongs to the UTC calendar date of
-`added_at`. Diary and statistics code must use the shared
-`effective_watch_date_sql()` helper rather than reproducing this expression.
-If local-time attribution is added later, it must be introduced as an explicit
-migration and domain change rather than silently changing historical results.
+An event without a Diary date remains in watch history and contributes to
+progress, but is intentionally excluded from Diary and date-based statistics.
+Diary and statistics code must use the shared `effective_diary_date_sql()`
+helper rather than reproducing this expression.
 
 Unwatching removes the latest event ordered by effective date, then
 `added_at`, then row ID. Rewatches are separate events and must remain separate

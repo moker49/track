@@ -64,7 +64,7 @@ class WorkflowSmokeTest(unittest.TestCase):
         history = self.rows("SELECT state FROM show_state_history WHERE show_id = 1 ORDER BY id")
         self.assertEqual([row["state"] for row in history][-2:], ["ARCHIVED", "ACTIVE"])
 
-    def test_episode_rewatch_override_and_unwatch_remove_latest_effective_date(self):
+    def test_episode_rewatch_diary_date_controls_unwatch_order(self):
         first = self.client.post("/api/episodes/6/watch-count", json={"action": "increment"})
         second = self.client.post("/api/episodes/6/watch-count", json={"action": "increment"})
         self.assertEqual(first.status_code, 200)
@@ -74,7 +74,7 @@ class WorkflowSmokeTest(unittest.TestCase):
         self.assertEqual(
             self.client.patch(
                 f"/api/watch-history/episode/{first_id}/date",
-                json={"watch_date": "2099-12-31"},
+                json={"diary_date": "2099-12-31"},
             ).status_code,
             200,
         )
@@ -160,7 +160,7 @@ class WorkflowSmokeTest(unittest.TestCase):
             self.client.post("/api/episodes/1/watch-count", json={"action": "erase"}),
             self.client.post("/api/seasons/1/watch-count", json={"action": "erase"}),
             self.client.post("/api/shows/1/state", json={"state": "WATCHING"}),
-            self.client.patch("/api/watch-history/episode/1/date", json={"watch_date": "not-a-date"}),
+            self.client.patch("/api/watch-history/episode/1/date", json={"diary_date": "not-a-date"}),
         )
         self.assertTrue(all(response.status_code == 400 for response in cases))
         self.assertEqual(
@@ -189,57 +189,6 @@ class DatabaseBootstrapSmokeTest(unittest.TestCase):
             self.assertIn("episode_external_ids", tables)
             self.assertNotIn("schema_migrations", tables)
             self.assertTrue(any(name.startswith("idx_") for name in indexes))
-
-    def test_legacy_hidden_watch_markers_become_history_events(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            database = Path(temp_dir) / "legacy-markers.db"
-            schema = Path(__file__).parents[1] / "schema.sql"
-            db = connect_database(database)
-            initialize_database(db, schema)
-            db.executescript(
-                """
-                ALTER TABLE episodes ADD COLUMN is_watched_without_diary INTEGER NOT NULL DEFAULT 0;
-                ALTER TABLE movies ADD COLUMN is_watched_without_diary INTEGER NOT NULL DEFAULT 0;
-                INSERT INTO shows (id, tmdb_id, name, state, added_at)
-                VALUES (1, 1001, 'Legacy show', 'ACTIVE', '2026-01-02T00:00:00+00:00');
-                INSERT INTO seasons (id, show_id, tmdb_id, season_number, name)
-                VALUES (1, 1, 2001, 1, 'Season 1');
-                INSERT INTO episodes (id, season_id, tmdb_id, episode_number, name, is_watched_without_diary)
-                VALUES (1, 1, 3001, 1, 'Episode 1', 1);
-                INSERT INTO movies (id, tmdb_id, title, added_at, is_watched_without_diary)
-                VALUES (1, 4001, 'Legacy movie', '2026-01-03T00:00:00+00:00', 1);
-                """
-            )
-            db.commit()
-            db.close()
-
-            db = connect_database(database)
-            initialize_database(db, schema)
-            episode_history = db.execute(
-                "SELECT episode_id, added_at, watch_date, show_in_diary FROM episode_watch_history"
-            ).fetchall()
-            movie_history = db.execute(
-                "SELECT movie_id, added_at, watch_date, show_in_diary FROM movie_watch_history"
-            ).fetchall()
-            episode_columns = {
-                row["name"] for row in db.execute("PRAGMA table_info(episodes)")
-            }
-            movie_columns = {
-                row["name"] for row in db.execute("PRAGMA table_info(movies)")
-            }
-            db.close()
-
-            self.assertEqual(
-                [tuple(row) for row in episode_history],
-                [(1, "2026-01-02T00:00:00+00:00", None, 0)],
-            )
-            self.assertEqual(
-                [tuple(row) for row in movie_history],
-                [(1, "2026-01-03T00:00:00+00:00", None, 0)],
-            )
-            self.assertNotIn("is_watched_without_diary", episode_columns)
-            self.assertNotIn("is_watched_without_diary", movie_columns)
-
 
 if __name__ == "__main__":
     unittest.main()

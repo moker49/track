@@ -9,7 +9,7 @@ from domain import (
     PROGRESS_FINISHED,
     TRACKING_ACTIVE,
     TRACKING_ARCHIVED,
-    effective_watch_date_sql,
+    effective_diary_date_sql,
     progress_presentation,
 )
 
@@ -458,7 +458,7 @@ def get_diary_page(
         if page_size is not None
         else ()
     )
-    effective_date = effective_watch_date_sql("wh")
+    effective_date = effective_diary_date_sql("wh")
     rows = db.execute(
         f"""
         WITH diary_watches AS (
@@ -497,7 +497,7 @@ def get_diary_page(
         ),
         movie_entries AS (
             SELECT 'movie' AS entry_type,
-                   {effective_watch_date_sql('mwh')} AS watched_date,
+                   {effective_diary_date_sql('mwh')} AS watched_date,
                    m.id AS show_id, m.title AS show_name, m.poster_path,
                    NULL AS season_id, NULL AS season_number, NULL AS watch_iteration,
                    NULL AS episode_id, NULL AS first_episode_number,
@@ -570,7 +570,7 @@ def _format_stat_date(value: date, today: date) -> str:
 
 def get_statistics(db: sqlite3.Connection, local_date: date | None = None) -> dict:
     today = local_date or date.today()
-    effective_date = effective_watch_date_sql("wh")
+    effective_date = effective_diary_date_sql("wh")
     rows = [
         dict(row)
         for row in db.execute(
@@ -593,7 +593,7 @@ def get_statistics(db: sqlite3.Connection, local_date: date | None = None) -> di
         dict(row)
         for row in db.execute(
             f"""
-            SELECT mwh.id AS watch_record_id, {effective_watch_date_sql('mwh')} AS watched_date,
+            SELECT mwh.id AS watch_record_id, {effective_diary_date_sql('mwh')} AS watched_date,
                    m.id AS movie_id, m.title AS movie_title,
                    COALESCE(m.runtime_minutes, 0) AS runtime_minutes
             FROM movie_watch_history mwh
@@ -770,7 +770,7 @@ def get_statistics(db: sqlite3.Connection, local_date: date | None = None) -> di
 
 
 def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]:
-    effective_date = effective_watch_date_sql("swh")
+    effective_date = effective_diary_date_sql("swh")
     return db.execute(
         f"""
         WITH ordered_states AS (
@@ -793,15 +793,15 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
                    END AS title,
                    added_at AS occurred_at, NULL AS season_id,
                    NULL AS watch_record_id, NULL AS watch_kind,
-                   NULL AS watch_added_at, NULL AS watch_date,
-                   NULL AS show_in_diary, NULL AS season_diary_state
+                   NULL AS watch_added_at, NULL AS diary_date,
+                   NULL AS season_diary_state
             FROM shows WHERE id = ? AND is_tracked = 1
 
             UNION ALL
 
             SELECT CASE state WHEN 'ARCHIVED' THEN 'archived' ELSE 'activated' END,
                    CASE state WHEN 'ARCHIVED' THEN 'Archived' ELSE 'Made active' END,
-                   entered_at, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+                    entered_at, NULL, NULL, NULL, NULL, NULL, NULL
             FROM ordered_states
             WHERE previous_state IS NOT NULL
               AND (state = 'ARCHIVED'
@@ -811,8 +811,7 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
 
             SELECT 'season_watched', sn.name || ' watched',
                    COALESCE({effective_date}, substr(swh.added_at, 1, 10)), sn.id, swh.id, 'season',
-                   swh.added_at, swh.diary_date,
-                   NULL, NULL
+                    swh.added_at, swh.diary_date, NULL
             FROM season_watch_history swh
             JOIN seasons sn ON sn.id = swh.season_id
             WHERE sn.show_id = ?
@@ -821,14 +820,14 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
 
             SELECT 'season_skipped', sn.name || ' skipped',
                    COALESCE(ssh.diary_date, substr(ssh.added_at, 1, 10)), sn.id, ssh.id, 'season-skip',
-                   ssh.added_at, ssh.diary_date, NULL, NULL
+                    ssh.added_at, ssh.diary_date, NULL
             FROM season_skip_history ssh
             JOIN seasons sn ON sn.id = ssh.season_id
             WHERE sn.show_id = ?
         )
         SELECT event_type, title, occurred_at, season_id,
-               watch_record_id, watch_kind, watch_added_at, watch_date,
-               show_in_diary, season_diary_state
+                watch_record_id, watch_kind, watch_added_at, diary_date,
+                season_diary_state
         FROM activity
         ORDER BY occurred_at DESC, watch_added_at DESC
         """,
@@ -908,17 +907,16 @@ def get_movie_activity(db: sqlite3.Connection, movie_id: int) -> list[sqlite3.Ro
     return db.execute(
         f"""
         SELECT event_type, title, occurred_at, sort_at, watch_record_id, watch_kind,
-               watch_added_at, watch_date, show_in_diary
+               watch_added_at, diary_date
         FROM (
             SELECT 'added' AS event_type, 'Added to Watchlist' AS title,
                    m.added_at AS occurred_at, m.added_at AS sort_at, NULL AS watch_record_id,
-                   NULL AS watch_kind, NULL AS watch_added_at, NULL AS watch_date,
-                   NULL AS show_in_diary
+                    NULL AS watch_kind, NULL AS watch_added_at, NULL AS diary_date
             FROM movies m
             WHERE m.id = ? AND m.is_tracked = 1
             UNION ALL
-            SELECT 'watched', 'Watched', COALESCE({effective_watch_date_sql('mwh')}, substr(mwh.added_at, 1, 10)),
-                   mwh.added_at, mwh.id, 'movie', mwh.added_at, mwh.diary_date, NULL
+            SELECT 'watched', 'Watched', COALESCE({effective_diary_date_sql('mwh')}, substr(mwh.added_at, 1, 10)),
+                    mwh.added_at, mwh.id, 'movie', mwh.added_at, mwh.diary_date
             FROM movie_watch_history mwh
             WHERE mwh.movie_id = ?
         )

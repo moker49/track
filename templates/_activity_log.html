@@ -21,11 +21,11 @@
       {% set record_id = item.watch_record_id %}
       {% set watch_kind = item.watch_kind if activity_mode in ['show', 'movie'] or item.watch_kind is defined else 'episode' %}
       {% set added_at = item.watch_added_at if activity_mode in ['show', 'movie'] else item.added_at %}
-      {% set watch_date = item.watch_date %}
+      {% set diary_date = item.diary_date %}
       <li class="activity-item" data-activity-type="{{ event_type }}" data-sort-date="{{ sort_time }}" {% if
         activity_mode=='show' and item.season_id %} data-season-id="{{ item.season_id }}" {% endif %}{% if record_id %}
         data-watch-record-id="{{ record_id }}" data-watch-kind="{{ watch_kind }}" data-added-at="{{ added_at }}"
-        data-watch-date="{{ watch_date or '' }}" data-diary-date="{{ watch_date or '' }}" {% endif %}>
+        data-diary-date="{{ diary_date or '' }}" {% endif %}>
         {% if record_id %}<button class="activity-item-button" type="button" data-watch-log-menu-button
           aria-label="Edit {{ event_title }}">{% endif %}
           <span class="material-symbols-rounded activity-icon" aria-hidden="true">
@@ -40,7 +40,7 @@
           </span>
           <span class="activity-copy">
             <strong>{{ event_title }}</strong>
-            <span class="activity-date-row"><time datetime="{{ event_time }}" data-display-date>{{ event_time[:10] }}</time>{% if record_id and event_type in ['watched', 'season_watched'] and not watch_date %}<span class="material-symbols-rounded activity-diary-hidden-icon" role="img" aria-label="Hidden from diary" title="Hidden from diary">visibility_off</span>{% endif %}</span>
+            <span class="activity-date-row"><time datetime="{{ event_time }}" data-display-date>{{ event_time[:10] }}</time>{% if record_id and event_type in ['watched', 'season_watched'] and not diary_date %}<span class="material-symbols-rounded activity-diary-hidden-icon" role="img" aria-label="Hidden from diary" title="Hidden from diary">visibility_off</span>{% endif %}</span>
           </span>
           {% if record_id %}<span class="material-symbols-rounded activity-edit-icon" aria-hidden="true">more_vert</span></button>{% endif %}
           {% if record_id %}<div class="show-menu" data-watch-log-menu popover="manual" hidden>

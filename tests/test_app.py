@@ -77,8 +77,8 @@ def seed_test_library(database: Path) -> None:
             episode_id += 1
     watched_episode_ids = episode_ids_by_show[1][:5] + episode_ids_by_show[2]
     connection.executemany(
-        "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
-        [(episode_id, f"2026-05-{index + 4:02d}T01:20:00+00:00")
+        "INSERT INTO episode_watch_history (episode_id, added_at, diary_date) VALUES (?, ?, ?)",
+        [(episode_id, f"2026-05-{index + 4:02d}T01:20:00+00:00", f"2026-05-{index + 4:02d}")
          for index, episode_id in enumerate(watched_episode_ids)],
     )
     connection.commit()
@@ -289,7 +289,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"schedule-timeline-episode-title", diary.data)
 
         grouped_date = self.client.patch(
-            "/api/watch-history/episode/2/date", json={"watch_date": "2026-05-04"}
+            "/api/watch-history/episode/2/date", json={"diary_date": "2026-05-04"}
         )
         self.assertEqual(grouped_date.status_code, 200)
         grouped_diary = self.client.get("/api/profile/diary")
@@ -303,10 +303,12 @@ class TrackAppTest(unittest.TestCase):
         )
         self.assertEqual(rewatch.status_code, 200)
         rewatched_diary = self.client.get("/api/profile/diary")
-        self.assertEqual(rewatched_diary.data.count(b'data-episode-id="1"'), 1)
+        # Quick watch-count changes are intentionally undated, so they do not
+        # create a Diary entry.
+        self.assertEqual(rewatched_diary.data.count(b'data-episode-id="1"'), 0)
 
         dated = self.client.patch(
-            "/api/watch-history/episode/1/date", json={"watch_date": "2008-01-20"}
+            "/api/watch-history/episode/1/date", json={"diary_date": "2008-01-20"}
         )
         self.assertEqual(dated.status_code, 200)
         dated_diary = self.client.get("/api/profile/diary")
@@ -332,7 +334,7 @@ class TrackAppTest(unittest.TestCase):
         connection = sqlite3.connect(self.database)
         connection.executemany(
             """
-            INSERT INTO episode_watch_history (episode_id, added_at, watch_date)
+            INSERT INTO episode_watch_history (episode_id, added_at, diary_date)
             VALUES (1, ?, '2024-01-01')
             """,
             [
@@ -394,7 +396,8 @@ class TrackAppTest(unittest.TestCase):
 
         for _index in range(2):
             response = self.client.post(
-                "/api/episodes/1/watch-count", json={"action": "increment"}
+                "/api/episodes/1/log",
+                json={"action_kind": "watch", "log_date": "2026-05-20"},
             )
             self.assertEqual(response.status_code, 200)
         rewatched = self.client.get("/api/profile/statistics", headers=headers)
@@ -466,7 +469,7 @@ class TrackAppTest(unittest.TestCase):
         )
         self.assertIn(b'class="schedule-timeline"', home.data)
         self.assertIn(b"Season 2 \xc2\xb7 Episode 7", home.data)
-        self.assertIn(b'class="schedule-timeline-episode-title">Future Episode</span>', home.data)
+        self.assertIn(b">Future Episode</span>", home.data)
         self.assertRegex(
             home.data.decode("utf-8"),
             r'class="schedule-timeline-countdown">\s+\d+ days\s+</span>',
@@ -495,7 +498,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('function showCaughtUpScheduleState(card, data, action)', javascript)
         self.assertIn('function clearCaughtUpScheduleItems()', javascript)
         self.assertIn('function advanceScheduleCard(card, nextCard, {', javascript)
-        self.assertIn('function showScheduleActionConfirmation(card)', javascript)
+        self.assertIn('function showScheduleActionConfirmation(card, action)', javascript)
         self.assertIn('if (card.dataset.scheduleProcessing === "true") return;', javascript)
         self.assertNotIn("step_over", javascript)
         self.assertIn('function revealScheduleActions(card)', javascript)
@@ -905,7 +908,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-tv-dropdown-menu="sort"', home.data)
         self.assertEqual(home.data.count(b"data-tv-media-option="), 3)
         self.assertIn(b'data-tv-media-option="tv-archive"', home.data)
-        self.assertIn(b"data-tv-progress-label>Filter</span>", home.data)
+        self.assertIn(b"data-tv-progress-label>Progress</span>", home.data)
         self.assertIn(b"data-tv-sort-label>Sort</span>", home.data)
         self.assertNotIn(b"data-tv-combined-divider", home.data)
         self.assertEqual(home.data.count(b'class="tv-dropdown-menu-section"'), 0)
@@ -934,7 +937,7 @@ class TrackAppTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("state: TRACKING_STATE.ACTIVE", javascript)
-        self.assertIn('progress: []', javascript)
+        self.assertIn('progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP]', javascript)
         self.assertIn("globalSearchInput?.blur();", javascript)
         self.assertIn("function syncTvControlBar", javascript)
         self.assertIn('preferences.progress.includes(PROGRESS_STATE.CAUGHT_UP)', javascript)
@@ -1277,7 +1280,7 @@ class TrackAppTest(unittest.TestCase):
 
         db = sqlite3.connect(self.database)
         rows = db.execute(
-            "SELECT added_at, watch_date FROM episode_watch_history WHERE episode_id = 1 ORDER BY id"
+            "SELECT added_at, diary_date FROM episode_watch_history WHERE episode_id = 1 ORDER BY id"
         ).fetchall()
         db.close()
         self.assertEqual(len(rows), 1)
@@ -1307,7 +1310,7 @@ class TrackAppTest(unittest.TestCase):
 
         db = sqlite3.connect(self.database)
         history = db.execute(
-            "SELECT added_at, watch_date FROM episode_watch_history WHERE episode_id = 1 ORDER BY id"
+            "SELECT added_at, diary_date FROM episode_watch_history WHERE episode_id = 1 ORDER BY id"
         ).fetchall()
         db.close()
         self.assertEqual(history, [])
@@ -1422,14 +1425,14 @@ class TrackAppTest(unittest.TestCase):
         season_record_id = watched.get_json()["season_watch_record_id"]
         dated = self.client.patch(
             f"/api/watch-history/season/{season_record_id}/date",
-            json={"watch_date": "2025-05-15"},
+            json={"diary_date": "2025-05-15"},
         )
         self.assertEqual(dated.status_code, 200)
 
         detail = self.client.get("/api/shows/1")
         self.assertIn(b"Season 2 watched", detail.data)
         self.assertIn(b'data-season-id="2"', detail.data)
-        self.assertIn(b'data-watch-date="2025-05-15"', detail.data)
+        self.assertIn(b'data-diary-date="2025-05-15"', detail.data)
 
         unwatched = self.client.post(
             "/api/seasons/2/watch-count", json={"action": "decrement"}
@@ -1443,7 +1446,7 @@ class TrackAppTest(unittest.TestCase):
 
         db = sqlite3.connect(self.database)
         rows = db.execute(
-            "SELECT added_at, watch_date FROM season_watch_history WHERE season_id = 2"
+            "SELECT added_at, diary_date FROM season_watch_history WHERE season_id = 2"
         ).fetchall()
         db.close()
         self.assertEqual(rows, [])
@@ -1642,13 +1645,13 @@ class TrackAppTest(unittest.TestCase):
         ]
         db.close()
         self.assertEqual(
-            episode_columns, ["id", "episode_id", "added_at", "watch_date", "show_in_diary", "batch_id"]
+            episode_columns, ["id", "episode_id", "added_at", "diary_date", "batch_id"]
         )
         self.assertEqual(
-            season_columns, ["id", "season_id", "added_at", "watch_date", "show_in_diary", "batch_id"]
+            season_columns, ["id", "season_id", "added_at", "diary_date", "batch_id"]
         )
 
-    def test_watch_date_can_be_set_cleared_sorted_and_controls_unwatch_order(self):
+    def test_diary_date_can_be_set_cleared_sorted_and_controls_unwatch_order(self):
         self.client.post(
             "/api/episodes/1/watch-count", json={"action": "increment"}
         )
@@ -1664,7 +1667,7 @@ class TrackAppTest(unittest.TestCase):
 
         chosen = self.client.patch(
             f"/api/watch-history/episode/{record_ids[0]}/date",
-            json={"watch_date": "2030-05-15"},
+            json={"diary_date": "2030-05-15"},
         )
         self.assertEqual(chosen.status_code, 200)
         self.assertEqual(chosen.get_json()["display_date"], "2030-05-15")
@@ -1694,10 +1697,10 @@ class TrackAppTest(unittest.TestCase):
 
         cleared = self.client.patch(
             f"/api/watch-history/episode/{record_ids[1]}/date",
-            json={"watch_date": None},
+            json={"diary_date": None},
         )
         self.assertEqual(cleared.status_code, 200)
-        self.assertIsNone(cleared.get_json()["watch_date"])
+        self.assertIsNone(cleared.get_json()["diary_date"])
 
     def test_date_picker_and_compact_date_formatter_are_in_the_shell(self):
         home = self.client.get("/")
@@ -1809,11 +1812,11 @@ class TrackAppTest(unittest.TestCase):
         )
         self.assertEqual(season_action.status_code, 400)
         invalid_date = self.client.patch(
-            "/api/watch-history/episode/1/date", json={"watch_date": "May 15"}
+            "/api/watch-history/episode/1/date", json={"diary_date": "May 15"}
         )
         self.assertEqual(invalid_date.status_code, 400)
         invalid_kind = self.client.patch(
-            "/api/watch-history/show/1/date", json={"watch_date": None}
+            "/api/watch-history/show/1/date", json={"diary_date": None}
         )
         self.assertEqual(invalid_kind.status_code, 404)
 
@@ -2301,7 +2304,7 @@ class TrackAppTest(unittest.TestCase):
         detail_swap = javascript.index('views.get("detail").replaceChildren(template.content)')
         self.assertLess(seasons_ready, detail_swap)
         self.assertIn('const list = view.querySelector("[data-library-results-list]")', javascript)
-        self.assertIn("const matchesProgress = searching || preferences.progress.length === 0", javascript)
+        self.assertIn("const matchesProgress = searching || preferences.progress.includes(card.dataset.progressState)", javascript)
         self.assertIn('card.dataset.showState === TRACKING_STATE.ARCHIVED', javascript)
         self.assertIn("localCount + addCount > 0", javascript)
         self.assertIn("const available = results.filter((show) => !show.is_tracked)", javascript)

@@ -66,9 +66,7 @@ CREATE TABLE IF NOT EXISTS episode_watch_history (
     id INTEGER PRIMARY KEY,
     episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
     added_at TEXT NOT NULL,
-    watch_date TEXT,
     diary_date TEXT,
-    show_in_diary INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1)),
     batch_id TEXT
 );
 
@@ -76,9 +74,7 @@ CREATE TABLE IF NOT EXISTS season_watch_history (
     id INTEGER PRIMARY KEY,
     season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
     added_at TEXT NOT NULL,
-    watch_date TEXT,
     diary_date TEXT,
-    show_in_diary INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1)),
     batch_id TEXT
 );
 
@@ -86,7 +82,6 @@ CREATE TABLE IF NOT EXISTS episode_skips (
     id INTEGER PRIMARY KEY,
     episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
     skipped_at TEXT NOT NULL,
-    skip_date TEXT,
     diary_date TEXT,
     batch_id TEXT
 );
@@ -95,7 +90,6 @@ CREATE TABLE IF NOT EXISTS season_skip_history (
     id INTEGER PRIMARY KEY,
     season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
     added_at TEXT NOT NULL,
-    skip_date TEXT,
     diary_date TEXT,
     batch_id TEXT NOT NULL
 );
@@ -165,9 +159,7 @@ CREATE TABLE IF NOT EXISTS movie_watch_history (
     id INTEGER PRIMARY KEY,
     movie_id INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
     added_at TEXT NOT NULL,
-    watch_date TEXT,
-    diary_date TEXT,
-    show_in_diary INTEGER NOT NULL DEFAULT 1 CHECK (show_in_diary IN (0, 1))
+    diary_date TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_movie_watch_history_movie ON movie_watch_history(movie_id);

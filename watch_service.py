@@ -4,7 +4,7 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 
-from domain import effective_watch_date_sql
+from domain import effective_diary_date_sql
 from queries import get_episode_watch_count, get_show_progress, watch_payload
 
 
@@ -91,7 +91,7 @@ def set_episode_watched(
             WHERE id = (
                 SELECT id FROM episode_watch_history
                 WHERE episode_id = ?
-                ORDER BY {effective_watch_date_sql()} DESC, added_at DESC, id DESC
+                ORDER BY {effective_diary_date_sql()} DESC, added_at DESC, id DESC
                 LIMIT 1
             )
             """,
@@ -160,12 +160,12 @@ def change_season_watch_count(
     season_watch_record_id = None
     if action == "increment":
         db.executemany(
-            "INSERT INTO episode_watch_history (episode_id, added_at, show_in_diary) VALUES (?, ?, 0)",
+            "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
             [(episode_id, changed_at) for episode_id in episode_ids],
         )
         if episode_ids:
             season_watch_record_id = db.execute(
-                "INSERT INTO season_watch_history (season_id, added_at, show_in_diary) VALUES (?, ?, 0)",
+                "INSERT INTO season_watch_history (season_id, added_at) VALUES (?, ?)",
                 (season_id, changed_at),
             ).lastrowid
     else:
@@ -175,7 +175,7 @@ def change_season_watch_count(
                 SELECT wh.id,
                        ROW_NUMBER() OVER (
                            PARTITION BY wh.episode_id
-                           ORDER BY {effective_watch_date_sql('wh')} DESC,
+                           ORDER BY {effective_diary_date_sql('wh')} DESC,
                                     wh.added_at DESC, wh.id DESC
                        ) AS row_number
                 FROM episode_watch_history wh
@@ -194,7 +194,7 @@ def change_season_watch_count(
             f"""
             SELECT id FROM season_watch_history
             WHERE season_id = ?
-            ORDER BY {effective_watch_date_sql()} DESC, added_at DESC, id DESC
+            ORDER BY {effective_diary_date_sql()} DESC, added_at DESC, id DESC
             LIMIT 1
             """,
             (season_id,),
@@ -234,7 +234,7 @@ def change_season_watch_count(
 
 
 def set_watch_history_date(
-    db: sqlite3.Connection, watch_kind: str, record_id: int, watch_date: str | None
+    db: sqlite3.Connection, watch_kind: str, record_id: int, diary_date: str | None
 ) -> dict:
     table = {
         "episode": "episode_watch_history",
@@ -250,20 +250,20 @@ def set_watch_history_date(
         raise WatchNotFoundError("Watch entry not found")
 
     cursor = db.execute(
-        f"UPDATE {table} SET watch_date = NULL, diary_date = ?, show_in_diary = ? WHERE id = ?",
-        (watch_date, int(watch_date is not None), record_id),
+        f"UPDATE {table} SET diary_date = ? WHERE id = ?",
+        (diary_date, record_id),
     )
     if watch_kind == "season" and history["batch_id"]:
         db.execute(
             """UPDATE episode_watch_history
-               SET watch_date = NULL, diary_date = ?, show_in_diary = ?
+               SET diary_date = ?
                WHERE batch_id = ?""",
-            (watch_date, int(watch_date is not None), history["batch_id"]),
+            (diary_date, history["batch_id"]),
         )
     row = db.execute(
         f"""
-        SELECT added_at, diary_date AS watch_date,
-               COALESCE({effective_watch_date_sql()}, substr(added_at, 1, 10)) AS display_date
+        SELECT added_at, diary_date,
+               COALESCE({effective_diary_date_sql()}, substr(added_at, 1, 10)) AS display_date
         FROM {table}
         WHERE id = ?
         """,
@@ -274,7 +274,7 @@ def set_watch_history_date(
         "watch_kind": watch_kind,
         "record_id": record_id,
         "added_at": row["added_at"],
-        "watch_date": row["watch_date"],
+        "diary_date": row["diary_date"],
         "display_date": row["display_date"],
     }
 
@@ -284,8 +284,8 @@ def create_episode_log(db: sqlite3.Connection, episode_id: int, action_kind: str
     created_at = _now()
     if action_kind == "watch":
         record_id = db.execute(
-            "INSERT INTO episode_watch_history (episode_id, added_at, diary_date, show_in_diary) VALUES (?, ?, ?, ?)",
-            (episode_id, created_at, log_date, int(log_date is not None)),
+            "INSERT INTO episode_watch_history (episode_id, added_at, diary_date) VALUES (?, ?, ?)",
+            (episode_id, created_at, log_date),
         ).lastrowid
     elif action_kind == "skip":
         record_id = db.execute(
@@ -298,7 +298,7 @@ def create_episode_log(db: sqlite3.Connection, episode_id: int, action_kind: str
     result = watch_payload(db, episode["show_id"], episode_id)
     result.update({"episode_id": episode_id, "watch_record_id": record_id,
             "watch_kind": "episode" if action_kind == "watch" else "skip", "action_kind": action_kind,
-            "added_at": created_at, "watch_date": log_date, "display_date": log_date or created_at[:10],
+            "added_at": created_at, "diary_date": log_date, "display_date": log_date or created_at[:10],
             "watch_count": get_episode_watch_count(db, episode_id)})
     return result
 
@@ -317,12 +317,12 @@ def create_season_log(db: sqlite3.Connection, season_id: int, action_kind: str, 
                (batch_id, season_id, action_kind, created_at))
     if action_kind == "watch":
         record_id = db.execute(
-            "INSERT INTO season_watch_history (season_id, added_at, diary_date, show_in_diary, batch_id) VALUES (?, ?, ?, ?, ?)",
-            (season_id, created_at, log_date, int(log_date is not None), batch_id),
+            "INSERT INTO season_watch_history (season_id, added_at, diary_date, batch_id) VALUES (?, ?, ?, ?)",
+            (season_id, created_at, log_date, batch_id),
         ).lastrowid
         db.executemany(
-            "INSERT INTO episode_watch_history (episode_id, added_at, diary_date, show_in_diary, batch_id) VALUES (?, ?, ?, ?, ?)",
-            [(episode_id, created_at, log_date, int(log_date is not None), batch_id) for episode_id in episode_ids],
+            "INSERT INTO episode_watch_history (episode_id, added_at, diary_date, batch_id) VALUES (?, ?, ?, ?)",
+            [(episode_id, created_at, log_date, batch_id) for episode_id in episode_ids],
         )
         watch_kind = "season"
     elif action_kind == "skip":
@@ -345,7 +345,7 @@ def create_season_log(db: sqlite3.Connection, season_id: int, action_kind: str, 
     result = watch_payload(db, season["show_id"])
     result.update({"season_id": season_id, "season_name": season["name"],
             "watch_record_id": record_id, "watch_kind": watch_kind, "action_kind": action_kind,
-            "batch_id": batch_id, "added_at": created_at, "watch_date": log_date, "display_date": log_date or created_at[:10],
+            "batch_id": batch_id, "added_at": created_at, "diary_date": log_date, "display_date": log_date or created_at[:10],
             "episodes": episodes})
     return result
 

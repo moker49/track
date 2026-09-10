@@ -53,7 +53,7 @@ def move_presentation(tracking_state: str) -> MovePresentation:
     return MovePresentation(TRACKING_ARCHIVED, "Archive", "archive")
 
 
-def effective_watch_date_sql(alias: str = "") -> str:
+def effective_diary_date_sql(alias: str = "") -> str:
     """Return the canonical effective-date SQL for a watch-history row.
 
     ``diary_date`` is the user's explicit Diary date and is never inferred from
