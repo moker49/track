@@ -40,13 +40,10 @@ from queries import (
 from refresh_service import refresh_stale_tracked_shows as refresh_stale_records
 from watch_service import (
     WatchNotFoundError,
-    change_episode_watch_count as change_episode_watch_count_record,
-    change_season_watch_count as change_season_watch_count_records,
-    set_episode_watched as set_episode_watched_record,
-    set_watch_history_date as set_watch_history_date_record,
     create_episode_log,
     create_season_log,
     remove_log,
+    set_log_diary_date,
 )
 
 
@@ -520,40 +517,6 @@ def create_app(test_config: dict | None = None) -> Flask:
         get_db().commit()
         return "", 204
 
-    @app.post("/api/movies/<int:movie_id>/watch-count")
-    def change_movie_watch_count(movie_id: int):
-        action = (request.get_json(silent=True) or {}).get("action")
-        if action not in {"increment", "decrement"}:
-            return jsonify(error="action must be increment or decrement"), 400
-        db = get_db()
-        movie = db.execute("SELECT id FROM movies WHERE id = ? AND is_tracked = 1", (movie_id,)).fetchone()
-        if movie is None:
-            return jsonify(error="Movie not found"), 404
-        if action == "increment":
-            changed_at = precise_utc_now()
-            cursor = db.execute(
-                "INSERT INTO movie_watch_history (movie_id, added_at) VALUES (?, ?)",
-                (movie_id, changed_at),
-            )
-            watch_record_id = cursor.lastrowid
-            watch_again_cleared = db.execute(
-                "UPDATE movies SET watch_again = 0 WHERE id = ? AND watch_again = 1", (movie_id,)
-            ).rowcount > 0
-            db.execute("UPDATE movies SET watch_again = 0 WHERE id = ?", (movie_id,))
-        else:
-            watch = db.execute("SELECT id FROM movie_watch_history WHERE movie_id = ? ORDER BY added_at DESC, id DESC LIMIT 1", (movie_id,)).fetchone()
-            if watch is None:
-                return jsonify(error="Movie has not been watched"), 409
-            db.execute("DELETE FROM movie_watch_history WHERE id = ?", (watch["id"],))
-            watch_record_id = watch["id"]
-            changed_at = None
-            watch_again_cleared = False
-        db.commit()
-        watch_count = db.execute("SELECT COUNT(*) AS count FROM movie_watch_history WHERE movie_id = ?", (movie_id,)).fetchone()["count"]
-        return jsonify(movie_id=movie_id, watch_count=watch_count, action=action,
-                       watch_record_id=watch_record_id, changed_at=changed_at,
-                       watch_again_cleared=watch_again_cleared)
-
     @app.post("/api/movies/<int:movie_id>/log")
     def log_movie(movie_id: int):
         payload = request.get_json(silent=True) or {}
@@ -576,12 +539,17 @@ def create_app(test_config: dict | None = None) -> Flask:
                VALUES (?, ?, ?)""",
             (movie_id, added_at, log_date),
         ).lastrowid
+        watch_again_cleared = db.execute(
+            "UPDATE movies SET watch_again = 0 WHERE id = ? AND watch_again = 1",
+            (movie_id,),
+        ).rowcount > 0
         normalize_movie_added_timestamps(db, movie_id)
         db.commit()
         watch_count = db.execute("SELECT COUNT(*) FROM movie_watch_history WHERE movie_id = ?", (movie_id,)).fetchone()[0]
         return jsonify(movie_id=movie_id, watch_count=watch_count, watch_record_id=record_id,
                        watch_kind="movie", action_kind="watch", added_at=added_at,
-                       diary_date=log_date, display_date=log_date or added_at[:10])
+                       diary_date=log_date, display_date=log_date or added_at[:10],
+                       watch_again_cleared=watch_again_cleared)
 
     @app.post("/api/tv/shows/<int:tmdb_id>/import")
     def import_tv_show(tmdb_id: int):
@@ -956,66 +924,6 @@ def create_app(test_config: dict | None = None) -> Flask:
         db.commit()
         return "", 204
 
-    @app.post("/api/episodes/<int:episode_id>/watched")
-    def set_episode_watched(episode_id: int):
-        payload = request.get_json(silent=True) or {}
-        if type(payload.get("watched")) is not bool:
-            return jsonify(error="watched must be a boolean"), 400
-        if payload["watched"]:
-            archived_show = get_db().execute(
-                """
-                SELECT s.id, s.name
-                FROM episodes e
-                JOIN seasons sn ON sn.id = e.season_id
-                JOIN shows s ON s.id = sn.show_id
-                WHERE e.id = ? AND s.is_tracked = 1 AND s.state = ?
-                """,
-                (episode_id, TRACKING_ARCHIVED),
-            ).fetchone()
-            if archived_show is not None:
-                return jsonify(
-                    requires_resume=True,
-                    show_id=archived_show["id"],
-                    show_name=archived_show["name"],
-                ), 409
-        try:
-            return jsonify(
-                set_episode_watched_record(get_db(), episode_id, payload["watched"])
-            )
-        except WatchNotFoundError as error:
-            return jsonify(error=str(error)), 404
-
-
-    @app.post("/api/episodes/<int:episode_id>/watch-count")
-    def change_episode_watch_count(episode_id: int):
-        payload = request.get_json(silent=True) or {}
-        action = payload.get("action")
-        if action not in {"increment", "decrement"}:
-            return jsonify(error="action must be increment or decrement"), 400
-        if action == "increment":
-            archived_show = get_db().execute(
-                """
-                SELECT s.id, s.name
-                FROM episodes e
-                JOIN seasons sn ON sn.id = e.season_id
-                JOIN shows s ON s.id = sn.show_id
-                WHERE e.id = ? AND s.is_tracked = 1 AND s.state = ?
-                """,
-                (episode_id, TRACKING_ARCHIVED),
-            ).fetchone()
-            if archived_show is not None:
-                return jsonify(
-                    requires_resume=True,
-                    show_id=archived_show["id"],
-                    show_name=archived_show["name"],
-                ), 409
-        try:
-            return jsonify(
-                change_episode_watch_count_record(get_db(), episode_id, action)
-            )
-        except WatchNotFoundError as error:
-            return jsonify(error=str(error)), 404
-
     @app.post("/api/episodes/<int:episode_id>/log")
     def log_episode(episode_id: int):
         payload = request.get_json(silent=True) or {}
@@ -1028,80 +936,6 @@ def create_app(test_config: dict | None = None) -> Flask:
         try: return jsonify(create_episode_log(get_db(), episode_id, action_kind, log_date))
         except WatchNotFoundError as error: return jsonify(error=str(error)), 404
 
-
-    @app.post("/api/episodes/<int:episode_id>/skip")
-    def skip_episode(episode_id: int):
-        db = get_db()
-        episode = db.execute(
-            """
-            SELECT e.id, sn.show_id
-            FROM episodes e
-            JOIN seasons sn ON sn.id = e.season_id
-            JOIN shows s ON s.id = sn.show_id
-            WHERE e.id = ?
-              AND e.air_date IS NOT NULL
-              AND e.air_date <= ?
-              AND sn.is_progress_counted = 1
-              AND s.is_tracked = 1
-            """,
-            (episode_id, request_local_date().isoformat()),
-        ).fetchone()
-        if episode is None:
-            return jsonify(error="Episode cannot be skipped"), 409
-        previous_watched_count = get_show_progress(db, episode["show_id"])["watched_count"]
-        if previous_watched_count < get_show_progress(db, episode["show_id"])["episode_count"]:
-            return jsonify(error="Finish the show before skipping episodes"), 409
-        changed_at = precise_utc_now()
-        skip_record_id = db.execute(
-            "INSERT INTO episode_skips (episode_id, skipped_at) VALUES (?, ?)",
-            (episode_id, changed_at),
-        ).lastrowid
-        db.commit()
-        payload = watch_payload(
-            db, episode["show_id"], episode_id, previous_watched_count
-        )
-        payload.update(
-            action="skip",
-            changed_at=changed_at,
-            watch_record_id=skip_record_id,
-            resolution_kind="skip",
-        )
-        return jsonify(payload)
-
-    @app.delete("/api/episodes/<int:episode_id>/skip")
-    def undo_skip_episode(episode_id: int):
-        db = get_db()
-        row = db.execute(
-            """
-            SELECT sn.show_id
-            FROM episodes e
-            JOIN seasons sn ON sn.id = e.season_id
-            WHERE e.id = ?
-            """,
-            (episode_id,),
-        ).fetchone()
-        if row is None:
-            return jsonify(error="Episode not found"), 404
-        cursor = db.execute(
-            "DELETE FROM episode_skips WHERE episode_id = ?", (episode_id,)
-        )
-        db.commit()
-        if cursor.rowcount == 0:
-            return jsonify(error="Episode is not skipped"), 404
-        return jsonify(show_id=row["show_id"], episode_id=episode_id)
-
-    @app.post("/api/seasons/<int:season_id>/watch-count")
-    def change_season_watch_count(season_id: int):
-        payload = request.get_json(silent=True) or {}
-        action = payload.get("action")
-        if action not in {"increment", "decrement"}:
-            return jsonify(error="action must be increment or decrement"), 400
-        try:
-            return jsonify(
-                change_season_watch_count_records(get_db(), season_id, action)
-            )
-        except WatchNotFoundError as error:
-            return jsonify(error=str(error)), 404
 
     @app.post("/api/seasons/<int:season_id>/log")
     def log_season(season_id: int):
@@ -1124,8 +958,8 @@ def create_app(test_config: dict | None = None) -> Flask:
             return jsonify(error=str(error)), 404
 
 
-    @app.patch("/api/watch-history/<string:watch_kind>/<int:record_id>/date")
-    def set_watch_history_date(watch_kind: str, record_id: int):
+    @app.patch("/api/logs/<string:watch_kind>/<int:record_id>")
+    def set_log_diary_date_route(watch_kind: str, record_id: int):
         if watch_kind not in {"episode", "season", "movie", "skip", "season-skip"}:
             return jsonify(error="Unknown watch history type"), 404
         payload = request.get_json(silent=True) or {}
@@ -1174,7 +1008,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
         try:
             return jsonify(
-                set_watch_history_date_record(
+                set_log_diary_date(
                     get_db(), watch_kind, record_id, diary_date
                 )
             )

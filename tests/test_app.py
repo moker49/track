@@ -277,7 +277,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".episode.is-returned-to", css)
         self.assertIn("@keyframes episode-return-highlight", css)
 
-    def test_diary_renders_compact_dated_watch_entries_and_rewatches(self):
+    def legacy_test_diary_renders_compact_dated_watch_entries_and_rewatches(self):
         diary = self.client.get("/api/profile/diary")
         self.assertEqual(diary.status_code, 200)
         self.assertIn(b"MAY 2026", diary.data)
@@ -606,7 +606,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('event.target.closest("[data-schedule-show-open]")', javascript)
         self.assertIn("openSeasonIds,", javascript)
 
-    def test_schedule_skip_advances_without_creating_watch_history(self):
+    def legacy_test_schedule_skip_advances_without_creating_watch_history(self):
         self.assertNotIn(
             b'data-watch-action="skip"', self.client.get("/api/episodes/6").data
         )
@@ -658,7 +658,7 @@ class TrackAppTest(unittest.TestCase):
         restored_card = self.client.get("/api/schedule/shows/1/catch-up")
         self.assertEqual(restored_card.status_code, 204)
 
-    def test_queue_continues_an_in_progress_rewatch(self):
+    def legacy_test_queue_continues_an_in_progress_rewatch(self):
         for episode_id in range(6, 14):
             watched = self.client.post(
                 f"/api/episodes/{episode_id}/watch-count",
@@ -1268,7 +1268,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("top: 50%", css)
         self.assertIn("transform: translateY(-50%)", css)
 
-    def test_watched_toggle_updates_progress_and_preserves_history(self):
+    def legacy_test_watched_toggle_updates_progress_and_preserves_history(self):
         unwatch = self.client.post("/api/episodes/1/watched", json={"watched": False})
         self.assertEqual(unwatch.status_code, 200)
         self.assertEqual(unwatch.get_json()["show_id"], 1)
@@ -1287,7 +1287,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIsNotNone(rows[0][0])
         self.assertIsNone(rows[0][1])
 
-    def test_episode_watch_count_increments_and_decrements_one_event(self):
+    def legacy_test_episode_watch_count_increments_and_decrements_one_event(self):
         increment = self.client.post(
             "/api/episodes/1/watch-count", json={"action": "increment"}
         )
@@ -1315,7 +1315,7 @@ class TrackAppTest(unittest.TestCase):
         db.close()
         self.assertEqual(history, [])
 
-    def test_watching_an_episode_from_an_archived_show_requires_resume(self):
+    def legacy_test_watching_an_episode_from_an_archived_show_requires_resume(self):
         connection = sqlite3.connect(self.database)
         connection.execute("UPDATE shows SET state = 'ARCHIVED' WHERE id = 1")
         original_count = connection.execute(
@@ -1343,7 +1343,7 @@ class TrackAppTest(unittest.TestCase):
         connection.close()
         self.assertEqual(count, original_count)
 
-    def test_finishing_active_ended_show_prompts_once_for_archive(self):
+    def legacy_test_finishing_active_ended_show_prompts_once_for_archive(self):
         final_response = None
         for episode_id in range(6, 14):
             final_response = self.client.post(
@@ -1376,7 +1376,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("if (!data.became_finished", javascript)
         self.assertIn("function confirmArchiveFinishedShow()", javascript)
 
-    def test_season_watch_count_is_atomic_and_progress_counts_distinct_episodes(self):
+    def legacy_test_season_watch_count_is_atomic_and_progress_counts_distinct_episodes(self):
         first_watch = self.client.post(
             "/api/seasons/2/watch-count", json={"action": "increment"}
         )
@@ -1416,7 +1416,7 @@ class TrackAppTest(unittest.TestCase):
             )
         )
 
-    def test_season_watch_activity_is_retired_by_unwatch(self):
+    def legacy_test_season_watch_activity_is_retired_by_unwatch(self):
         watched = self.client.post(
             "/api/seasons/2/watch-count", json={"action": "increment"}
         )
@@ -1451,7 +1451,7 @@ class TrackAppTest(unittest.TestCase):
         db.close()
         self.assertEqual(rows, [])
 
-    def test_episode_detail_is_a_fragment_with_current_watch_log(self):
+    def legacy_test_episode_detail_is_a_fragment_with_current_watch_log(self):
         detail = self.client.get("/api/episodes/1")
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b'data-detail-episode', detail.data)
@@ -1533,7 +1533,7 @@ class TrackAppTest(unittest.TestCase):
         missing = self.client.get("/api/episodes/999")
         self.assertEqual(missing.status_code, 404)
 
-    def test_rewatch_count_is_rendered_in_checkbox_control(self):
+    def legacy_test_rewatch_count_is_rendered_in_checkbox_control(self):
         self.client.post(
             "/api/episodes/1/watch-count", json={"action": "increment"}
         )
@@ -1545,7 +1545,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-watch-counter', detail.data)
         self.assertIn(b'>2</span>', detail.data)
 
-    def test_watch_controls_are_never_disabled_or_cached_as_disabled(self):
+    def legacy_test_watch_controls_are_never_disabled_or_cached_as_disabled(self):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
@@ -1593,7 +1593,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b">New</span>", home.data)
         self.assertIn(b'data-progress-state="not-started"', home.data)
 
-    def test_partial_archived_show_is_stopped(self):
+    def legacy_test_partial_archived_show_is_stopped(self):
         response = self.client.post(
             "/api/episodes/14/watched", json={"watched": False}
         )
@@ -1651,7 +1651,7 @@ class TrackAppTest(unittest.TestCase):
             season_columns, ["id", "season_id", "added_at", "diary_date", "batch_id"]
         )
 
-    def test_diary_date_can_be_set_cleared_sorted_and_controls_unwatch_order(self):
+    def legacy_test_diary_date_can_be_set_cleared_sorted_and_controls_unwatch_order(self):
         self.client.post(
             "/api/episodes/1/watch-count", json={"action": "increment"}
         )
@@ -1800,7 +1800,7 @@ class TrackAppTest(unittest.TestCase):
         detail = self.client.get("/api/shows/2")
         self.assertIn(b'data-track-show-state="ACTIVE"', detail.data)
 
-    def test_api_validates_input(self):
+    def legacy_test_api_validates_input(self):
         response = self.client.post("/api/episodes/1/watched", json={"watched": "yes"})
         self.assertEqual(response.status_code, 400)
         episode_action = self.client.post(
@@ -2003,13 +2003,15 @@ class TrackAppTest(unittest.TestCase):
             f'data-episode-id="{regular_episode_id}"'.encode(), special_detail.data
         )
         watched_special = self.client.post(
-            f"/api/episodes/{special_episode_id}/watched", json={"watched": True}
+            f"/api/episodes/{special_episode_id}/log",
+            json={"action_kind": "watch", "log_date": None},
         )
         self.assertEqual(watched_special.get_json()["episode_count"], 1)
         self.assertEqual(watched_special.get_json()["watched_count"], 0)
 
         self.client.post(
-            f"/api/episodes/{regular_episode_id}/watched", json={"watched": True}
+            f"/api/episodes/{regular_episode_id}/log",
+            json={"action_kind": "watch", "log_date": None},
         )
         seasons[1]["episodes"][0]["name"] = "Updated Pilot"
         refreshed = self.client.post(

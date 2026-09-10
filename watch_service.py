@@ -31,27 +31,6 @@ def _episode_context(db: sqlite3.Connection, episode_id: int) -> sqlite3.Row:
     return episode
 
 
-def _latest_episode_resolution(db: sqlite3.Connection, episode_id: int) -> sqlite3.Row | None:
-    return db.execute(
-        """
-        SELECT resolution_kind, resolution_id
-        FROM (
-            SELECT 'watch' AS resolution_kind, id AS resolution_id,
-                   COALESCE(diary_date, substr(added_at, 1, 10)) AS resolved_at,
-                   added_at AS added_at
-            FROM episode_watch_history WHERE episode_id = ?
-            UNION ALL
-            SELECT 'skip' AS resolution_kind, id AS resolution_id,
-                   COALESCE(diary_date, substr(skipped_at, 1, 10)) AS resolved_at, skipped_at AS added_at
-            FROM episode_skips WHERE episode_id = ?
-        )
-        ORDER BY resolved_at DESC, added_at DESC, resolution_id DESC
-        LIMIT 1
-        """,
-        (episode_id, episode_id),
-    ).fetchone()
-
-
 def _clear_completed_watch_again(db: sqlite3.Connection, show_id: int) -> bool:
     show = db.execute(
         "SELECT watch_again, watch_again_baseline FROM shows WHERE id = ?", (show_id,)
@@ -69,171 +48,7 @@ def _clear_completed_watch_again(db: sqlite3.Connection, show_id: int) -> bool:
     return False
 
 
-def set_episode_watched(
-    db: sqlite3.Connection, episode_id: int, watched: bool
-) -> dict:
-    episode = _episode_context(db, episode_id)
-    previous_watched_count = get_show_progress(db, episode["show_id"])["watched_count"]
-    if watched:
-        exists = db.execute(
-            "SELECT 1 FROM episode_watch_history WHERE episode_id = ? LIMIT 1",
-            (episode_id,),
-        ).fetchone()
-        if exists is None:
-            db.execute(
-                "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
-                (episode_id, _now()),
-            )
-    else:
-        db.execute(
-            f"""
-            DELETE FROM episode_watch_history
-            WHERE id = (
-                SELECT id FROM episode_watch_history
-                WHERE episode_id = ?
-                ORDER BY {effective_diary_date_sql()} DESC, added_at DESC, id DESC
-                LIMIT 1
-            )
-            """,
-            (episode_id,),
-        )
-    watch_again_cleared = _clear_completed_watch_again(db, episode["show_id"]) if watched else False
-    db.commit()
-    result = watch_payload(
-        db, episode["show_id"], episode_id, previous_watched_count
-    )
-    result["watch_again_cleared"] = watch_again_cleared
-    return result
-
-
-def change_episode_watch_count(
-    db: sqlite3.Connection, episode_id: int, action: str
-) -> dict:
-    episode = _episode_context(db, episode_id)
-    previous_watched_count = get_show_progress(db, episode["show_id"])["watched_count"]
-    changed_at = _now()
-    watch_record_id = None
-    if action == "increment":
-        watch_record_id = db.execute(
-            "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
-            (episode_id, changed_at),
-        ).lastrowid
-    else:
-        latest = _latest_episode_resolution(db, episode_id)
-        if latest is not None:
-            watch_record_id = latest["resolution_id"]
-            table = "episode_skips" if latest["resolution_kind"] == "skip" else "episode_watch_history"
-            db.execute(f"DELETE FROM {table} WHERE id = ?", (watch_record_id,))
-    watch_again_cleared = _clear_completed_watch_again(db, episode["show_id"]) if action == "increment" else False
-    db.commit()
-    result = watch_payload(
-        db, episode["show_id"], episode_id, previous_watched_count
-    )
-    result.update(
-        action=action,
-        changed_at=changed_at,
-        watch_record_id=watch_record_id,
-        resolution_kind=("watch" if action == "increment" else (latest["resolution_kind"] if latest else None)),
-        watch_again_cleared=watch_again_cleared,
-    )
-    return result
-
-
-def change_season_watch_count(
-    db: sqlite3.Connection, season_id: int, action: str
-) -> dict:
-    season = db.execute(
-        "SELECT id, show_id, name FROM seasons WHERE id = ?", (season_id,)
-    ).fetchone()
-    if season is None:
-        raise WatchNotFoundError("Season not found")
-    previous_watched_count = get_show_progress(db, season["show_id"])["watched_count"]
-
-    episode_ids = [
-        row["id"]
-        for row in db.execute(
-            "SELECT id FROM episodes WHERE season_id = ? ORDER BY episode_number",
-            (season_id,),
-        ).fetchall()
-    ]
-    changed_at = _now()
-    season_watch_record_id = None
-    if action == "increment":
-        db.executemany(
-            "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
-            [(episode_id, changed_at) for episode_id in episode_ids],
-        )
-        if episode_ids:
-            season_watch_record_id = db.execute(
-                "INSERT INTO season_watch_history (season_id, added_at) VALUES (?, ?)",
-                (season_id, changed_at),
-            ).lastrowid
-    else:
-        latest_watches = db.execute(
-            f"""
-            SELECT id FROM (
-                SELECT wh.id,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY wh.episode_id
-                           ORDER BY {effective_diary_date_sql('wh')} DESC,
-                                    wh.added_at DESC, wh.id DESC
-                       ) AS row_number
-                FROM episode_watch_history wh
-                JOIN episodes e ON e.id = wh.episode_id
-                WHERE e.season_id = ?
-            )
-            WHERE row_number = 1
-            """,
-            (season_id,),
-        ).fetchall()
-        db.executemany(
-            "DELETE FROM episode_watch_history WHERE id = ?",
-            [(row["id"],) for row in latest_watches],
-        )
-        latest_season_watch = db.execute(
-            f"""
-            SELECT id FROM season_watch_history
-            WHERE season_id = ?
-            ORDER BY {effective_diary_date_sql()} DESC, added_at DESC, id DESC
-            LIMIT 1
-            """,
-            (season_id,),
-        ).fetchone()
-        if latest_season_watch is not None:
-            season_watch_record_id = latest_season_watch["id"]
-            db.execute(
-                "DELETE FROM season_watch_history WHERE id = ?",
-                (season_watch_record_id,),
-            )
-    watch_again_cleared = _clear_completed_watch_again(db, season["show_id"]) if action == "increment" else False
-    db.commit()
-
-    episode_counts = [
-        {"episode_id": episode_id, "watch_count": get_episode_watch_count(db, episode_id)}
-        for episode_id in episode_ids
-    ]
-    result = watch_payload(
-        db, season["show_id"], previous_watched_count=previous_watched_count
-    )
-    result.update(
-        season_id=season_id,
-        season_name=season["name"],
-        episodes=episode_counts,
-        season_episode_count=len(episode_counts),
-        season_watched_count=sum(item["watch_count"] > 0 for item in episode_counts),
-        season_min_watch_count=(
-            min(item["watch_count"] for item in episode_counts)
-            if episode_counts and all(item["watch_count"] > 0 for item in episode_counts)
-            else 0
-        ),
-        season_watched_at=(changed_at if action == "increment" and episode_ids else None),
-        season_watch_record_id=season_watch_record_id,
-        watch_again_cleared=watch_again_cleared,
-    )
-    return result
-
-
-def set_watch_history_date(
+def set_log_diary_date(
     db: sqlite3.Connection, watch_kind: str, record_id: int, diary_date: str | None
 ) -> dict:
     table = {
@@ -281,6 +96,7 @@ def set_watch_history_date(
 
 def create_episode_log(db: sqlite3.Connection, episode_id: int, action_kind: str, log_date: str | None) -> dict:
     episode = _episode_context(db, episode_id)
+    previous_watched_count = get_show_progress(db, episode["show_id"])["watched_count"]
     created_at = _now()
     if action_kind == "watch":
         record_id = db.execute(
@@ -294,12 +110,23 @@ def create_episode_log(db: sqlite3.Connection, episode_id: int, action_kind: str
         ).lastrowid
     else:
         raise WatchNotFoundError("Unknown log action")
+    watch_again_cleared = (
+        _clear_completed_watch_again(db, episode["show_id"])
+        if action_kind == "watch"
+        else False
+    )
     db.commit()
-    result = watch_payload(db, episode["show_id"], episode_id)
+    result = watch_payload(
+        db,
+        episode["show_id"],
+        episode_id,
+        previous_watched_count=previous_watched_count,
+    )
     result.update({"episode_id": episode_id, "watch_record_id": record_id,
             "watch_kind": "episode" if action_kind == "watch" else "skip", "action_kind": action_kind,
             "added_at": created_at, "diary_date": log_date, "display_date": log_date or created_at[:10],
-            "watch_count": get_episode_watch_count(db, episode_id)})
+            "watch_count": get_episode_watch_count(db, episode_id),
+            "watch_again_cleared": watch_again_cleared})
     return result
 
 
@@ -307,6 +134,7 @@ def create_season_log(db: sqlite3.Connection, season_id: int, action_kind: str, 
     season = db.execute("SELECT id, show_id, name FROM seasons WHERE id = ?", (season_id,)).fetchone()
     if season is None:
         raise WatchNotFoundError("Season not found")
+    previous_watched_count = get_show_progress(db, season["show_id"])["watched_count"]
     episode_ids = [row["id"] for row in db.execute(
         "SELECT id FROM episodes WHERE season_id = ? ORDER BY episode_number", (season_id,)
     )]
@@ -337,16 +165,23 @@ def create_season_log(db: sqlite3.Connection, season_id: int, action_kind: str, 
         watch_kind = "season-skip"
     else:
         raise WatchNotFoundError("Unknown log action")
-    db.commit()
     episodes = [
         {"episode_id": episode_id, "watch_count": get_episode_watch_count(db, episode_id)}
         for episode_id in episode_ids
     ]
-    result = watch_payload(db, season["show_id"])
+    watch_again_cleared = (
+        _clear_completed_watch_again(db, season["show_id"])
+        if action_kind == "watch"
+        else False
+    )
+    db.commit()
+    result = watch_payload(
+        db, season["show_id"], previous_watched_count=previous_watched_count
+    )
     result.update({"season_id": season_id, "season_name": season["name"],
             "watch_record_id": record_id, "watch_kind": watch_kind, "action_kind": action_kind,
             "batch_id": batch_id, "added_at": created_at, "diary_date": log_date, "display_date": log_date or created_at[:10],
-            "episodes": episodes})
+            "episodes": episodes, "watch_again_cleared": watch_again_cleared})
     return result
 
 

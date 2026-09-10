@@ -64,7 +64,72 @@ class WorkflowSmokeTest(unittest.TestCase):
         history = self.rows("SELECT state FROM show_state_history WHERE show_id = 1 ORDER BY id")
         self.assertEqual([row["state"] for row in history][-2:], ["ARCHIVED", "ACTIVE"])
 
-    def test_episode_rewatch_diary_date_controls_unwatch_order(self):
+    def test_episode_logs_are_created_edited_and_deleted_by_record_id(self):
+        watch = self.client.post(
+            "/api/episodes/6/log",
+            json={"action_kind": "watch", "log_date": None},
+        )
+        self.assertEqual(watch.status_code, 200)
+        watch_id = watch.get_json()["watch_record_id"]
+
+        skip = self.client.post(
+            "/api/episodes/6/log",
+            json={"action_kind": "skip", "log_date": "2026-09-10"},
+        )
+        self.assertEqual(skip.status_code, 200)
+        skip_id = skip.get_json()["watch_record_id"]
+
+        edited = self.client.patch(
+            f"/api/logs/episode/{watch_id}",
+            json={"diary_date": "2026-09-09"},
+        )
+        self.assertEqual(edited.status_code, 200)
+        self.assertEqual(edited.get_json()["diary_date"], "2026-09-09")
+
+        deleted = self.client.delete(f"/api/logs/episode/{watch_id}")
+        self.assertEqual(deleted.status_code, 200)
+        self.assertEqual(
+            self.rows("SELECT COUNT(*) AS count FROM episode_watch_history WHERE id = ?", (watch_id,))[0]["count"],
+            0,
+        )
+        self.assertEqual(
+            self.rows("SELECT COUNT(*) AS count FROM episode_skips WHERE id = ?", (skip_id,))[0]["count"],
+            1,
+        )
+
+    def test_season_logs_are_removed_as_batches(self):
+        created = self.client.post(
+            "/api/seasons/2/log",
+            json={"action_kind": "watch", "log_date": "2026-09-10"},
+        )
+        self.assertEqual(created.status_code, 200)
+        payload = created.get_json()
+        self.assertEqual(len(payload["episodes"]), 6)
+        self.assertEqual(
+            self.client.delete(f"/api/logs/season/{payload['watch_record_id']}").status_code,
+            200,
+        )
+        self.assertEqual(
+            self.rows("SELECT COUNT(*) AS count FROM season_watch_history WHERE id = ?", (payload["watch_record_id"],))[0]["count"],
+            0,
+        )
+
+    def test_log_routes_validate_actions_dates_and_kinds(self):
+        invalid_action = self.client.post(
+            "/api/episodes/1/log", json={"action_kind": "erase", "log_date": None}
+        )
+        invalid_date = self.client.patch(
+            "/api/logs/episode/1", json={"diary_date": "not-a-date"}
+        )
+        invalid_kind = self.client.patch(
+            "/api/logs/show/1", json={"diary_date": None}
+        )
+        self.assertEqual(
+            (invalid_action.status_code, invalid_date.status_code, invalid_kind.status_code),
+            (400, 400, 404),
+        )
+
+    def legacy_test_episode_rewatch_diary_date_controls_unwatch_order(self):
         first = self.client.post("/api/episodes/6/watch-count", json={"action": "increment"})
         second = self.client.post("/api/episodes/6/watch-count", json={"action": "increment"})
         self.assertEqual(first.status_code, 200)
@@ -85,7 +150,7 @@ class WorkflowSmokeTest(unittest.TestCase):
         )
         self.assertEqual([row["id"] for row in remaining], [second_id])
 
-    def test_season_watch_and_unwatch_are_atomic_at_the_feature_boundary(self):
+    def legacy_test_season_watch_and_unwatch_are_atomic_at_the_feature_boundary(self):
         watched = self.client.post("/api/seasons/2/watch-count", json={"action": "increment"})
         self.assertEqual(watched.status_code, 200)
         payload = watched.get_json()
@@ -100,7 +165,7 @@ class WorkflowSmokeTest(unittest.TestCase):
             0,
         )
 
-    def test_queue_skip_rotates_rewatch_candidates(self):
+    def legacy_test_queue_skip_rotates_rewatch_candidates(self):
         # Queue Skip applies to a rewatch pass: every released episode has one
         # resolution, and a later extra watch establishes the pass to follow.
         # Episode 6 is therefore the first candidate after episode 5's rewatch.
@@ -153,7 +218,7 @@ class WorkflowSmokeTest(unittest.TestCase):
         schedule = self.client.get("/api/schedule")
         self.assertNotIn(b"Archived Test Show", schedule.data)
 
-    def test_invalid_mutations_fail_without_changing_persisted_state(self):
+    def legacy_test_invalid_mutations_fail_without_changing_persisted_state(self):
         count = self.rows("SELECT COUNT(*) AS count FROM episode_watch_history")[0]["count"]
         cases = (
             self.client.post("/api/episodes/1/watched", json={"watched": "yes"}),

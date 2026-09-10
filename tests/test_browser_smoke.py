@@ -82,8 +82,7 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
             episode.wait_for()
             count_before = int(episode.get_attribute("data-watch-count"))
             episode.locator('[data-episode-detail-watch]').click()
-            if count_before:
-                page.locator('[data-watch-action="increment"]:visible').click()
+            page.locator('[data-date-picker-save]').click()
             page.wait_for_function(
                 "expected => Number(document.querySelector('[data-detail-episode]').dataset.watchCount) === expected",
                 count_before + 1,
