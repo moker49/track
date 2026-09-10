@@ -189,15 +189,32 @@ def remove_log(db: sqlite3.Connection, watch_kind: str, record_id: int) -> dict:
     season_id = None
     episode_id = None
     movie_id = None
+    show_id = None
     if watch_kind == "episode":
-        row = db.execute("SELECT episode_id FROM episode_watch_history WHERE id = ?", (record_id,)).fetchone()
+        row = db.execute(
+            """SELECT h.episode_id, sn.show_id
+               FROM episode_watch_history h
+               JOIN episodes e ON e.id = h.episode_id
+               JOIN seasons sn ON sn.id = e.season_id
+               WHERE h.id = ?""",
+            (record_id,),
+        ).fetchone()
         if row is None: raise WatchNotFoundError("Log entry not found")
         episode_id = row["episode_id"]
+        show_id = row["show_id"]
         cursor = db.execute("DELETE FROM episode_watch_history WHERE id = ?", (record_id,))
     elif watch_kind == "skip":
-        row = db.execute("SELECT episode_id FROM episode_skips WHERE id = ?", (record_id,)).fetchone()
+        row = db.execute(
+            """SELECT sk.episode_id, sn.show_id
+               FROM episode_skips sk
+               JOIN episodes e ON e.id = sk.episode_id
+               JOIN seasons sn ON sn.id = e.season_id
+               WHERE sk.id = ?""",
+            (record_id,),
+        ).fetchone()
         if row is None: raise WatchNotFoundError("Log entry not found")
         episode_id = row["episode_id"]
+        show_id = row["show_id"]
         cursor = db.execute("DELETE FROM episode_skips WHERE id = ?", (record_id,))
     elif watch_kind == "movie":
         row = db.execute("SELECT movie_id FROM movie_watch_history WHERE id = ?", (record_id,)).fetchone()
@@ -206,10 +223,17 @@ def remove_log(db: sqlite3.Connection, watch_kind: str, record_id: int) -> dict:
         cursor = db.execute("DELETE FROM movie_watch_history WHERE id = ?", (record_id,))
     elif watch_kind in {"season", "season-skip"}:
         table = "season_watch_history" if watch_kind == "season" else "season_skip_history"
-        row = db.execute(f"SELECT batch_id, season_id FROM {table} WHERE id = ?", (record_id,)).fetchone()
+        row = db.execute(
+            f"""SELECT h.batch_id, h.season_id, sn.show_id
+                FROM {table} h
+                JOIN seasons sn ON sn.id = h.season_id
+                WHERE h.id = ?""",
+            (record_id,),
+        ).fetchone()
         if row is None: raise WatchNotFoundError("Log entry not found")
         if not row["batch_id"]: raise WatchNotFoundError("Legacy season entry cannot be removed as a batch")
         season_id = row["season_id"]
+        show_id = row["show_id"]
         if watch_kind == "season": db.execute("DELETE FROM episode_watch_history WHERE batch_id = ?", (row["batch_id"],))
         else: db.execute("DELETE FROM episode_skips WHERE batch_id = ?", (row["batch_id"],))
         cursor = db.execute(f"DELETE FROM {table} WHERE id = ?", (record_id,))
@@ -223,7 +247,7 @@ def remove_log(db: sqlite3.Connection, watch_kind: str, record_id: int) -> dict:
             {"episode_id": row["id"], "watch_count": get_episode_watch_count(db, row["id"])}
             for row in db.execute("SELECT id FROM episodes WHERE season_id = ?", (season_id,))
         ]
-    return {"season_id": season_id, "episode_id": episode_id,
+    return {"show_id": show_id, "season_id": season_id, "episode_id": episode_id,
             "watch_count": get_episode_watch_count(db, episode_id) if episode_id is not None else None,
             "movie_id": movie_id,
             "movie_watch_count": db.execute("SELECT COUNT(*) FROM movie_watch_history WHERE movie_id = ?", (movie_id,)).fetchone()[0] if movie_id is not None else None,

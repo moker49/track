@@ -2689,6 +2689,7 @@ function applyCreatedLog(data) {
     }
     movieDetailCache.delete(String(data.movie_id));
     diaryRevision += 1;
+    refreshScheduleContent({ background: true }).catch(() => undefined);
     return;
   }
   applyShowProgress(data);
@@ -2707,6 +2708,12 @@ function applyCreatedLog(data) {
       season, counts.length, counts.filter((count) => count > 0).length, Math.min(...counts),
     );
   }
+  invalidateWatchCaches({
+    showId: data.show_id,
+    episodeId: data.episode_id || null,
+    allEpisodes: Boolean(data.season_id),
+  });
+  refreshScheduleContent({ background: true }).catch(() => undefined);
   const detail = views.get("detail");
   if (currentView !== "detail" || !detail) return;
   const isSeason = Boolean(data.season_id);
@@ -3965,6 +3972,16 @@ document.addEventListener("click", (event) => {
             counts.filter((count) => count > 0).length,
             Math.min(...counts),
           );
+        }
+        if (data.show_id) {
+          invalidateWatchCaches({
+            showId: data.show_id,
+            episodeId: data.episode_id || null,
+            allEpisodes: Boolean(data.season_id),
+          });
+        }
+        if (data.show_id || data.movie_id) {
+          refreshScheduleContent({ background: true }).catch(() => undefined);
         }
         syncDisplayHiddenLogItemsSetting();
       })
