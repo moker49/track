@@ -32,7 +32,7 @@ The former Profile floating-chrome interaction is retained as an implementation 
 
 ## Database startup
 
-The canonical schema is applied idempotently at startup, followed by `PRAGMA optimize`. The application no longer carries one-off historical data migrations; future schema changes should be implemented deliberately when they are introduced.
+The canonical schema is applied idempotently at startup, followed by `PRAGMA optimize`. Startup creates missing canonical tables and indexes only; it does not alter existing table layouts or migrate historical data. Schema changes that require an upgrade must be delivered as an explicit, separately run migration.
 
 Startup is safe to repeat. Tests open the same database more than once and verify that tables and indexes remain intact.
 

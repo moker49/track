@@ -132,6 +132,10 @@ CREATE INDEX IF NOT EXISTS idx_show_state_history_show ON show_state_history(sho
 CREATE INDEX IF NOT EXISTS idx_show_notes_show ON show_notes(show_id);
 CREATE INDEX IF NOT EXISTS idx_episode_notes_episode ON episode_notes(episode_id);
 CREATE INDEX IF NOT EXISTS idx_episode_external_ids_episode ON episode_external_ids(episode_id);
+CREATE INDEX IF NOT EXISTS idx_episode_watch_history_batch ON episode_watch_history(batch_id);
+CREATE INDEX IF NOT EXISTS idx_episode_skips_batch ON episode_skips(batch_id);
+CREATE INDEX IF NOT EXISTS idx_season_watch_history_batch ON season_watch_history(batch_id);
+CREATE INDEX IF NOT EXISTS idx_season_skip_history_batch ON season_skip_history(batch_id);
 
 CREATE TABLE IF NOT EXISTS movies (
     id INTEGER PRIMARY KEY,

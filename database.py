@@ -41,10 +41,5 @@ def normalize_movie_added_timestamps(
 def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None:
     schema = Path(schema_path).read_text(encoding="utf-8")
     db.executescript(schema)
-    db.execute("CREATE INDEX IF NOT EXISTS idx_episode_watch_history_batch ON episode_watch_history(batch_id)")
-    db.execute("CREATE INDEX IF NOT EXISTS idx_episode_skips_batch ON episode_skips(batch_id)")
-    db.execute("CREATE INDEX IF NOT EXISTS idx_season_watch_history_batch ON season_watch_history(batch_id)")
-    db.execute("CREATE INDEX IF NOT EXISTS idx_season_skip_history_batch ON season_skip_history(batch_id)")
-    normalize_movie_added_timestamps(db)
     db.execute("PRAGMA optimize")
     db.commit()

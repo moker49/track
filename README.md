@@ -43,7 +43,7 @@ While the Flask server is running, a server-side worker checks tracked shows eve
 - `show_notes` and `episode_notes` retain private user-authored notes independently of third-party services.
 - `episode_external_ids` retains source identifiers, including aliases when another provider combines multiple source episodes into one local episode.
 
-The canonical schema is applied idempotently at startup. TMDB refreshes update shows, seasons, and episodes in place by TMDB ID, preserving local row IDs and watch history. Season zero and any season marked special are imported and remain watchable, but are excluded from show and season progress.
+The canonical schema is applied idempotently at startup for new databases and missing schema objects; startup does not alter existing table layouts or migrate historical data. TMDB refreshes update shows, seasons, and episodes in place by TMDB ID, preserving local row IDs and watch history. Season zero and any season marked special are imported and remain watchable, but are excluded from show and season progress.
 
 Removing a show demotes it to an untracked preview. It disappears from Active and Archived while its imported metadata and complete watch history remain available through TV search for later re-adding.
 
