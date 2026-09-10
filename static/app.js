@@ -1085,13 +1085,13 @@ function clearDetailSliceReveals(root) {
   });
 }
 
-function staggerTvSlices(slices, layout = libraryViewPreferences.tv.layout) {
+function staggerTvSlices(slices, layout = libraryViewPreferences.tv.layout, limit = Infinity) {
   const tvSliceStaggerMs = 55;
   const tvLayoutStaggerMs = layout === "compact"
     ? tvSliceStaggerMs / 2
     : tvSliceStaggerMs;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  slices.filter(Boolean).forEach((slice, index) => {
+  slices.filter(Boolean).slice(0, limit).forEach((slice, index) => {
     slice.classList.add("tv-slice-reveal");
     slice.style.setProperty("--detail-slice-delay", `${index * tvLayoutStaggerMs}ms`);
     const finishReveal = (event) => {
@@ -1107,15 +1107,19 @@ function staggerTvSlices(slices, layout = libraryViewPreferences.tv.layout) {
 }
 
 function staggerTvFirstReveal(view) {
-  const slices = [];
+  const headings = [];
+  const cards = [];
   view.querySelectorAll(":scope > .page-section:not([hidden])").forEach((section) => {
-    slices.push(section.querySelector(":scope > .section-heading"));
-    slices.push(...section.querySelectorAll(":scope > .show-list > .show-card:not([hidden])"));
-    slices.push(...section.querySelectorAll(":scope > .popular-grid > .popular-card:not([hidden])"));
-    slices.push(...section.querySelectorAll(":scope > .empty-state:not([hidden])"));
+    headings.push(section.querySelector(":scope > .section-heading"));
+    cards.push(...section.querySelectorAll(":scope > .show-list > .show-card:not([hidden])"));
+    cards.push(...section.querySelectorAll(":scope > .popular-grid > .popular-card:not([hidden])"));
+    cards.push(...section.querySelectorAll(":scope > .empty-state:not([hidden])"));
   });
-  slices.push(...view.querySelectorAll(":scope > .empty-state:not([hidden])"));
-  staggerTvSlices(slices, libraryViewPreferences[view.dataset.view]?.layout);
+  cards.push(...view.querySelectorAll(":scope > .empty-state:not([hidden])"));
+  const layout = libraryViewPreferences[view.dataset.view]?.layout;
+  const itemLimit = layout === "compact" ? 20 : 8;
+  staggerTvSlices(headings, layout);
+  staggerTvSlices(cards, layout, itemLimit);
   hydrateOtherPrimaryViews("tv");
 }
 
@@ -1147,6 +1151,7 @@ function clearTvFirstReveal(view) {
 
 function staggerScheduleFirstReveal(view) {
   const scheduleItemStaggerMs = 65;
+  const scheduleItemLimit = 8;
   clearScheduleFirstReveal(view);
   const items = [...view.querySelectorAll("[data-schedule-card]:not([hidden])")];
   const emptyState = view.querySelector(
@@ -1180,7 +1185,10 @@ function staggerScheduleFirstReveal(view) {
   scheduleRevealAnimationHandlers.set(view, finishRailReveal);
   view.addEventListener("animationend", finishRailReveal);
 
-  items.forEach((item, index) => {
+  items.forEach((item) => { item.dataset.scheduleRevealed = "true"; });
+  const revealItems = items.slice(0, scheduleItemLimit);
+
+  revealItems.forEach((item, index) => {
     item.classList.add("schedule-item-reveal");
     item.style.setProperty("--schedule-item-delay", `${index * scheduleItemStaggerMs}ms`);
     const content = item.querySelector(".schedule-timeline-content");
@@ -1196,18 +1204,32 @@ function staggerScheduleFirstReveal(view) {
   });
 }
 
+function settleScheduleCardReveal(item) {
+  const finishReveal = scheduleRevealAnimationHandlers.get(item);
+  if (finishReveal) item.removeEventListener("animationend", finishReveal);
+  scheduleRevealAnimationHandlers.delete(item);
+  item.dataset.scheduleRevealed = "true";
+  item.classList.remove("schedule-item-reveal");
+  item.style.removeProperty("--schedule-item-delay");
+}
+
 function clearScheduleFirstReveal(view) {
   if (!view) return;
   const finishRailReveal = scheduleRevealAnimationHandlers.get(view);
   if (finishRailReveal) view.removeEventListener("animationend", finishRailReveal);
   scheduleRevealAnimationHandlers.delete(view);
   view.classList.remove("schedule-first-reveal-pending", "schedule-rail-reveal");
-  view.querySelectorAll(".schedule-item-reveal, .schedule-empty-reveal").forEach((slice) => {
+  const timeline = virtualTimelines.get(view.dataset.view);
+  const scheduleCards = new Set([
+    ...view.querySelectorAll(".schedule-item-reveal"),
+    ...(timeline?.allCards || []).filter((card) => card.classList.contains("schedule-item-reveal")),
+  ]);
+  scheduleCards.forEach(settleScheduleCardReveal);
+  view.querySelectorAll(".schedule-empty-reveal").forEach((slice) => {
     const finishReveal = scheduleRevealAnimationHandlers.get(slice);
     if (finishReveal) slice.removeEventListener("animationend", finishReveal);
     scheduleRevealAnimationHandlers.delete(slice);
-    slice.classList.remove("schedule-item-reveal", "schedule-empty-reveal");
-    slice.style.removeProperty("--schedule-item-delay");
+    slice.classList.remove("schedule-empty-reveal");
   });
 }
 
@@ -3365,7 +3387,7 @@ function revealReactionListOnce(reaction) {
   staggerTvSlices([
     ...panel.querySelectorAll(".reaction-media-list > .show-card:not([hidden])"),
     panel.querySelector(".reaction-empty-state:not([hidden])"),
-  ]);
+  ], "compact", 20);
 }
 
 async function toggleMediaReaction(button) {
@@ -5218,6 +5240,7 @@ window.addEventListener("keydown", (event) => {
 
 window.addEventListener("scroll", () => {
   if (["backlog", "upcoming"].includes(currentView)) {
+    clearScheduleFirstReveal(views.get(currentView));
     const pendingRestore = pendingTimelineScrollRestores.get(currentView);
     if (pendingRestore && Math.abs(window.scrollY - pendingRestore.savedScrollY) > 1) {
       restoreTimelineScroll(currentView, currentView, pendingRestore.savedScrollY);
