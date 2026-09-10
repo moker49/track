@@ -164,72 +164,8 @@ class WorkflowSmokeTest(unittest.TestCase):
             (400, 400, 404),
         )
 
-    def legacy_test_episode_rewatch_diary_date_controls_unwatch_order(self):
-        first = self.client.post("/api/episodes/6/watch-count", json={"action": "increment"})
-        second = self.client.post("/api/episodes/6/watch-count", json={"action": "increment"})
-        self.assertEqual(first.status_code, 200)
-        self.assertEqual(second.get_json()["watch_count"], 2)
-        first_id = first.get_json()["watch_record_id"]
-        second_id = second.get_json()["watch_record_id"]
-        self.assertEqual(
-            self.client.patch(
-                f"/api/watch-history/episode/{first_id}/date",
-                json={"diary_date": "2099-12-31"},
-            ).status_code,
-            200,
-        )
-        decremented = self.client.post("/api/episodes/6/watch-count", json={"action": "decrement"})
-        self.assertEqual(decremented.get_json()["watch_record_id"], first_id)
-        remaining = self.rows(
-            "SELECT id FROM episode_watch_history WHERE episode_id = 6"
-        )
-        self.assertEqual([row["id"] for row in remaining], [second_id])
 
-    def legacy_test_season_watch_and_unwatch_are_atomic_at_the_feature_boundary(self):
-        watched = self.client.post("/api/seasons/2/watch-count", json={"action": "increment"})
-        self.assertEqual(watched.status_code, 200)
-        payload = watched.get_json()
-        self.assertEqual(payload["season_episode_count"], 6)
-        self.assertEqual(payload["season_watched_count"], 6)
-        self.assertGreaterEqual(payload["season_min_watch_count"], 1)
-        unwatched = self.client.post("/api/seasons/2/watch-count", json={"action": "decrement"})
-        self.assertEqual(unwatched.status_code, 200)
-        self.assertEqual(unwatched.get_json()["season_watched_count"], 0)
-        self.assertEqual(
-            self.rows("SELECT COUNT(*) AS count FROM season_watch_history WHERE season_id = 2")[0]["count"],
-            0,
-        )
 
-    def legacy_test_queue_skip_rotates_rewatch_candidates(self):
-        # Queue Skip applies to a rewatch pass: every released episode has one
-        # resolution, and a later extra watch establishes the pass to follow.
-        # Episode 6 is therefore the first candidate after episode 5's rewatch.
-        db = sqlite3.connect(self.database)
-        try:
-            db.executemany(
-                "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (?, ?)",
-                [
-                    (episode_id, f"2026-06-{episode_id:02d}T01:20:00+00:00")
-                    for episode_id in range(6, 14)
-                ]
-                + [(5, "2026-07-01T01:20:00+00:00")],
-            )
-            db.commit()
-        finally:
-            db.close()
-
-        before = self.client.get("/api/schedule/shows/1/catch-up")
-        self.assertEqual(before.status_code, 200)
-        self.assertIn(b'data-episode-id="6"', before.data)
-        skipped = self.client.post("/api/episodes/6/skip")
-        self.assertEqual(skipped.status_code, 200)
-        self.assertEqual(skipped.get_json()["resolution_kind"], "skip")
-        after = self.client.get("/api/schedule/shows/1/catch-up")
-        self.assertIn(b'data-episode-id="7"', after.data)
-        self.assertEqual(
-            self.rows("SELECT COUNT(*) AS count FROM episode_skips WHERE episode_id = 6")[0]["count"],
-            1,
-        )
 
     def test_upcoming_includes_archived_but_excludes_untracked_and_specials(self):
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
@@ -253,20 +189,6 @@ class WorkflowSmokeTest(unittest.TestCase):
         schedule = self.client.get("/api/schedule")
         self.assertNotIn(b"Archived Test Show", schedule.data)
 
-    def legacy_test_invalid_mutations_fail_without_changing_persisted_state(self):
-        count = self.rows("SELECT COUNT(*) AS count FROM episode_watch_history")[0]["count"]
-        cases = (
-            self.client.post("/api/episodes/1/watched", json={"watched": "yes"}),
-            self.client.post("/api/episodes/1/watch-count", json={"action": "erase"}),
-            self.client.post("/api/seasons/1/watch-count", json={"action": "erase"}),
-            self.client.post("/api/shows/1/state", json={"state": "WATCHING"}),
-            self.client.patch("/api/watch-history/episode/1/date", json={"diary_date": "not-a-date"}),
-        )
-        self.assertTrue(all(response.status_code == 400 for response in cases))
-        self.assertEqual(
-            self.rows("SELECT COUNT(*) AS count FROM episode_watch_history")[0]["count"],
-            count,
-        )
 
 
 class DatabaseBootstrapSmokeTest(unittest.TestCase):
