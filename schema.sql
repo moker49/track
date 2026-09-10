@@ -101,37 +101,12 @@ CREATE TABLE IF NOT EXISTS season_log_batches (
     created_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS show_notes (
-    id INTEGER PRIMARY KEY,
-    show_id INTEGER NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
-    body TEXT NOT NULL,
-    added_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS episode_notes (
-    id INTEGER PRIMARY KEY,
-    episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
-    body TEXT NOT NULL,
-    added_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS episode_external_ids (
-    id INTEGER PRIMARY KEY,
-    episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
-    source TEXT NOT NULL,
-    external_id TEXT NOT NULL,
-    UNIQUE (source, external_id)
-);
-
 CREATE INDEX IF NOT EXISTS idx_seasons_show ON seasons(show_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_season ON episodes(season_id);
 CREATE INDEX IF NOT EXISTS idx_watch_history_episode ON episode_watch_history(episode_id);
 CREATE INDEX IF NOT EXISTS idx_season_watch_history_season ON season_watch_history(season_id);
 CREATE INDEX IF NOT EXISTS idx_episode_skips_episode ON episode_skips(episode_id);
 CREATE INDEX IF NOT EXISTS idx_show_state_history_show ON show_state_history(show_id);
-CREATE INDEX IF NOT EXISTS idx_show_notes_show ON show_notes(show_id);
-CREATE INDEX IF NOT EXISTS idx_episode_notes_episode ON episode_notes(episode_id);
-CREATE INDEX IF NOT EXISTS idx_episode_external_ids_episode ON episode_external_ids(episode_id);
 CREATE INDEX IF NOT EXISTS idx_episode_watch_history_batch ON episode_watch_history(batch_id);
 CREATE INDEX IF NOT EXISTS idx_episode_skips_batch ON episode_skips(batch_id);
 CREATE INDEX IF NOT EXISTS idx_season_watch_history_batch ON season_watch_history(batch_id);

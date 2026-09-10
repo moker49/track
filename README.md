@@ -40,8 +40,6 @@ While the Flask server is running, a server-side worker checks tracked shows eve
 - `seasons` and `episodes` store local TMDB-shaped metadata and IDs.
 - `episode_watch_history` stores one row per watch event with an immutable `added_at` timestamp and an optional user-selected `diary_date`; undated events remain out of Diary and statistics.
 - `season_watch_history` uses the same two-date model for whole-season watch actions.
-- `show_notes` and `episode_notes` retain private user-authored notes independently of third-party services.
-- `episode_external_ids` retains source identifiers, including aliases when another provider combines multiple source episodes into one local episode.
 
 The canonical schema is applied idempotently at startup for new databases and missing schema objects; startup does not alter existing table layouts or migrate historical data. TMDB refreshes update shows, seasons, and episodes in place by TMDB ID, preserving local row IDs and watch history. Season zero and any season marked special are imported and remain watchable, but are excluded from show and season progress.
 

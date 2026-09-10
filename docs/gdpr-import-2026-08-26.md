@@ -9,7 +9,6 @@ Track's dummy library was replaced with the user's export from the discontinued 
 - 5,651 local watch events spanning May 2, 2014 through June 30, 2026.
 - 11 whole-season watch actions.
 - Four favorite-show markers.
-- One show note and four non-empty episode notes.
 - TVDB identifiers for shows and all 4,595 source episodes represented by watch history.
 
 The source contained 5,670 watch rows. Nineteen same-day rows represented split parts or obsolete provider duplicates that TMDB models as one episode; these were collapsed into the corresponding single local watch event. Rewatch rows remain separate watch-history entries. The source did not retain truthful individual rewatch dates, so its supplied timestamps were preserved without inventing dates.
@@ -18,7 +17,7 @@ The source contained 5,670 watch rows. Nineteen same-day rows represented split 
 
 - TVDB's anthology record `345246` (`The Haunting`) was mapped to TMDB `72844`, matching the exported Hill House season and its ten watched episodes.
 - TVDB modeled `Jury Duty Presents: Company Retreat` as season 2 of `Jury Duty`; TMDB models it as show `312697`, so it was imported as a separate Active show.
-- Provider numbering differences and combined finales were reconciled by exact episode title and air date. All source TVDB aliases are retained in `episode_external_ids`.
+- Provider numbering differences and combined finales were reconciled by exact episode title and air date. The original GDPR export remains the source of record for TVDB aliases and notes; these unused imported tables were later removed from Track.
 - Three source records without a current TMDB episode equivalent were retained as non-progress-counted specials: `A Parks and Recreation Special`, `Black Mirror: Bandersnatch`, and one unidentified deleted Grey's Anatomy source record.
 - Historical timestamps without timezone offsets were interpreted as UTC, matching the source export's server timestamps.
 
