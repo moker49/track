@@ -121,7 +121,7 @@ const libraryViewPreferences = {
   },
   upcoming: {
     state: TRACKING_STATE.ACTIVE,
-    progress: [],
+    progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP],
     sortField: "releaseDate",
     sortDirection: "asc",
     mediaTypes: ["tv", "movies"],
@@ -2819,7 +2819,6 @@ async function saveWatchDate() {
 }
 
 const progressFilterLabels = {
-  "": "All",
   [PROGRESS_STATE.NEW]: "New",
   [PROGRESS_STATE.STARTED]: "Started",
   [PROGRESS_STATE.CAUGHT_UP]: "Caught-up",
@@ -2835,25 +2834,29 @@ const sortFieldLabels = {
 
 const libraryViewDefaults = {
   backlog: { progress: [PROGRESS_STATE.STARTED], sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv"] },
-  upcoming: { progress: [], sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "movies"] },
+  upcoming: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "movies"] },
   tv: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP], sortField: "name", sortDirection: "asc", mediaTypes: ["tv"] },
   movies: { progress: [PROGRESS_STATE.NEW], sortField: "dateAdded", sortDirection: "desc", mediaTypes: ["movies"] },
 };
 
-function mediaTypeLabel(mediaTypes, defaultMediaTypes) {
-  const selected = new Set(mediaTypes);
-  if (selected.size === defaultMediaTypes.length
-    && defaultMediaTypes.every((type) => selected.has(type))) return "Library";
-  const tvArchive = selected.has("tv-archive");
-  if (selected.has("tv") && selected.has("movies")) return tvArchive ? "All+" : "All";
-  if (selected.has("tv")) return tvArchive ? "TV+" : "TV";
-  if (selected.has("movies")) return "Movies";
-  return tvArchive ? "TV archive" : "None";
+function selectionSummary(values, defaults, available, defaultLabel) {
+  if (hasSameSelections(values, defaults)) return defaultLabel;
+  if (values.length === 0) return "None";
+  if (hasSameSelections(values, available)) return "All";
+  return null;
 }
 
-function hasDefaultMediaTypes(mediaTypes, defaultMediaTypes) {
-  return mediaTypes.length === defaultMediaTypes.length
-    && defaultMediaTypes.every((type) => mediaTypes.includes(type));
+function mediaTypeLabel(mediaTypes, defaultMediaTypes) {
+  const summary = selectionSummary(
+    mediaTypes, defaultMediaTypes, ["tv", "movies", "tv-archive"], "Library",
+  );
+  if (summary) return summary;
+  const selected = new Set(mediaTypes);
+  const tvArchive = selected.has("tv-archive");
+  if (selected.has("tv") && selected.has("movies")) return tvArchive ? "All" : "TV + Movies";
+  if (selected.has("tv")) return tvArchive ? "TV+" : "TV";
+  if (selected.has("movies")) return tvArchive ? "Movies+" : "Movies";
+  return "Archive";
 }
 
 function hasSameSelections(values, defaults) {
@@ -2864,11 +2867,10 @@ function hasSameSelections(values, defaults) {
 function progressFilterLabel(progresses, viewName) {
   const available = [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP]
     .filter((value) => viewName !== "movies" || value !== PROGRESS_STATE.STARTED);
-  if (progresses.length === 0 || hasSameSelections(progresses, available)) return "All";
-  if (viewName === "tv" && hasSameSelections(
-    progresses,
-    [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP],
-  )) return "Current";
+  const summary = selectionSummary(
+    progresses, libraryViewDefaults[viewName].progress, available, "Progress",
+  );
+  if (summary) return summary;
   return progresses.map((value) => (
     viewName === "movies" && value === PROGRESS_STATE.CAUGHT_UP
       ? "Watched"
@@ -2886,7 +2888,7 @@ function syncTvControlBar(view = views.get(currentView)) {
   const mediaLabel = tvControlBar.querySelector("[data-tv-media-label]");
   const sortLabel = tvControlBar.querySelector("[data-tv-sort-label]");
   const sortIcon = tvControlBar.querySelector("[data-tv-sort-icon]");
-  const mediaIsDefault = hasDefaultMediaTypes(preferences.mediaTypes, defaults.mediaTypes);
+  const mediaIsDefault = hasSameSelections(preferences.mediaTypes, defaults.mediaTypes);
   if (mediaLabel) {
     const label = mediaTypeLabel(preferences.mediaTypes, defaults.mediaTypes);
     const hasPlus = label.endsWith("+");
@@ -4812,14 +4814,14 @@ function applyVirtualTimelineFilters(state) {
   const preferences = libraryViewPreferences[viewName];
   const visibleCards = state.allCards.filter((card) => {
     if (viewName === "diary") return true;
-    if (viewName === "backlog" && card.dataset.queued === "true") return true;
+    if (viewName === "backlog" && card.dataset.queued === "true"
+      && preferences.mediaTypes.length > 0 && preferences.progress.length > 0) return true;
     const matchesSearch = !query || card.dataset.scheduleSearchText?.includes(query);
     const mediaType = card.dataset.mediaType || "tv";
     const matchesState = searching || (card.dataset.trackingState === TRACKING_STATE.ACTIVE
       ? preferences.mediaTypes.includes(mediaType)
       : preferences.mediaTypes.includes(`${mediaType}-archive`));
-    const matchesProgress = searching || preferences.progress.length === 0
-      || preferences.progress.includes(card.dataset.progressState)
+    const matchesProgress = searching || preferences.progress.includes(card.dataset.progressState)
       || (card.dataset.progressState === PROGRESS_STATE.FINISHED
         && preferences.progress.includes(PROGRESS_STATE.CAUGHT_UP));
     return matchesSearch && matchesState && matchesProgress;
@@ -5050,8 +5052,7 @@ function filterShowView(view) {
     const stateSelected = searching || (card.dataset.showState === TRACKING_STATE.ARCHIVED
       ? preferences.mediaTypes.includes("tv-archive")
       : preferences.mediaTypes.includes(mediaType));
-    const matchesProgress = searching || preferences.progress.length === 0
-      || preferences.progress.includes(card.dataset.progressState)
+    const matchesProgress = searching || preferences.progress.includes(card.dataset.progressState)
       || (card.dataset.progressState === PROGRESS_STATE.FINISHED
         && preferences.progress.includes(PROGRESS_STATE.CAUGHT_UP));
     return stateSelected

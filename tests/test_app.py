@@ -132,6 +132,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-view="liked"', home.data)
         self.assertIn(b'data-view="statistics"', home.data)
         self.assertIn(b'data-view="settings"', home.data)
+        self.assertIn(b'data-tv-media-label>Library</span>', home.data)
+        self.assertIn(b'data-tv-progress-label>Progress</span>', home.data)
         self.assertIn(b'data-setting-display-hidden-log-items', home.data)
         self.assertIn(b'Display hidden log items', home.data)
         self.assertIn(b'data-reaction-list-content="liked"', home.data)
@@ -206,6 +208,8 @@ class TrackAppTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("function syncSearchChrome()", javascript)
+        self.assertIn('progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP]', javascript)
+        self.assertIn('if (values.length === 0) return "None";', javascript)
         self.assertIn("searchClearButton.hidden = !hasText", javascript)
         self.assertIn("searchMenuButton.hidden = hasText", javascript)
         self.assertIn("searchBackButton.hidden = !hasText", javascript)
