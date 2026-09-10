@@ -33,7 +33,7 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list expand_more check_box arrow_upward arrow_downward more_vert resume event tv movie video_library done_all arrow_forward menu account_circle arrow_back close bookmark bookmark_added",
+        "filter_list expand_more check_box arrow_upward arrow_downward more_vert resume event tv movie video_library done_all arrow_forward menu account_circle arrow_back close",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
@@ -64,7 +64,7 @@ const tvViewToggle = document.querySelector("[data-tv-view-toggle]");
 const displayHiddenLogItemsToggle = document.querySelector("[data-setting-display-hidden-log-items]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, diary: 0, statistics: 0, liked: 0, "watch-again": 0, settings: 0 };
+const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, diary: 0, statistics: 0, liked: 0, settings: 0 };
 const DISPLAY_HIDDEN_LOG_ITEMS_STORAGE_KEY = "track.display-hidden-log-items";
 let displayHiddenLogItems = false;
 
@@ -375,7 +375,7 @@ function syncSearchTextPosition() {
 
 function syncGlobalSearch() {
   if (!globalSearchBar || !globalSearchInput) return;
-  const hasDedicatedAppBar = ["detail", "diary", "statistics", "liked", "watch-again", "settings"].includes(currentView);
+  const hasDedicatedAppBar = ["detail", "diary", "statistics", "liked", "settings"].includes(currentView);
   globalSearchBar.hidden = hasDedicatedAppBar;
   if (hasDedicatedAppBar) return;
 
@@ -602,7 +602,7 @@ function showView(viewName, historyMode = null) {
   if (viewName === "statistics" && renderedStatisticsRevision === diaryRevision) {
     revealStatisticsOnce(views.get("statistics"));
   }
-  if (["liked", "watch-again"].includes(viewName)) {
+  if (viewName === "liked") {
     if (reactionListsDirty) refreshReactionList(viewName);
     else {
       initializeVirtualReactionList(viewName);
@@ -618,7 +618,6 @@ function showView(viewName, historyMode = null) {
     diary: "Diary · Track",
     statistics: "Statistics · Track",
     liked: "Likes · Track",
-    "watch-again": "Bookmarks · Track",
     settings: "Settings · Track",
   };
   document.title = titles[viewName] || "Track";
@@ -1562,7 +1561,7 @@ async function processScheduleEpisode(card, action) {
     processed = true;
     if (action === "watch" || action === "skip") {
       invalidateWatchCaches({ showId, episodeId });
-      syncCompletedWatchAgain(data);
+      syncCompletedForcedQueue(data);
       applyShowProgress(data);
       maybeOpenFinishedArchiveDialog(data);
     }
@@ -1622,7 +1621,7 @@ async function processScheduleMovie(card) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not mark movie watched");
     movieDetailCache.delete(String(data.movie_id));
-    syncCompletedWatchAgain(data);
+    syncCompletedForcedQueue(data);
     diaryRevision += 1;
     await Promise.all([refreshScheduleContent(), refreshMoviesContent()]);
   } catch (error) {
@@ -2046,7 +2045,7 @@ async function openShow(
   returnContext = null,
 ) {
   const cacheKey = String(showId);
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked", "watch-again", "settings"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked", "settings"].includes(parentView)
     ? parentView
     : "backlog";
   if (historyMode) {
@@ -2148,7 +2147,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
 }
 
 async function openMovie(movieId, parentView = "movies", historyMode = "push") {
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked", "watch-again", "settings"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked", "settings"].includes(parentView)
     ? parentView : "movies";
   if (historyMode) {
     writeHistory({ view: "detail", detailType: "movie", movieId: String(movieId), parentView: detailParentView }, historyMode);
@@ -3274,11 +3273,11 @@ function updateMovieWatchUi(detailMovie, watchCount) {
 }
 
 function reactionDatasetKey(reaction) {
-  return reaction === "watch-again" ? "watchAgain" : reaction;
+  return reaction === "queue" ? "queued" : reaction;
 }
 
-function syncCompletedWatchAgain(data) {
-  if (data.watch_again_cleared) invalidateReactionLists();
+function syncCompletedForcedQueue(data) {
+  if (data.watch_again_cleared) refreshScheduleContent().catch(() => undefined);
 }
 
 async function fetchReactionListMarkup(reaction, { force = false } = {}) {
@@ -3306,7 +3305,7 @@ async function fetchReactionListMarkup(reaction, { force = false } = {}) {
 }
 
 function prefetchReactionLists() {
-  const reactions = ["liked", "watch-again"];
+  const reactions = ["liked"];
   return Promise.allSettled(
     reactions.map((reaction) => fetchReactionListMarkup(reaction)),
   );
@@ -3348,7 +3347,7 @@ async function refreshReactionList(reaction, { force = false } = {}) {
 }
 
 function cacheInitialReactionList() {
-  ["liked", "watch-again"].forEach((reaction) => {
+  ["liked"].forEach((reaction) => {
     const panel = views.get(reaction)?.querySelector("[data-reaction-list-content]");
     if (panel) reactionListMarkup.set(reaction, panel.innerHTML);
   });
@@ -3390,14 +3389,13 @@ async function toggleMediaReaction(button) {
     detail.dataset[reactionDatasetKey(reaction)] = String(data.selected);
     button.setAttribute("aria-pressed", String(data.selected));
     button.classList.toggle("is-selected", data.selected);
-    if (reaction === "watch-again") {
-      const icon = button.querySelector(".material-symbols-rounded");
-      if (icon) icon.textContent = data.selected ? "bookmark_added" : "bookmark";
-    }
     if (isMovie) movieDetailCache.delete(String(mediaId));
     else showDetailCache.delete(String(mediaId));
-    invalidateReactionLists();
-    if (["liked", "watch-again"].includes(currentView)) refreshReactionList(currentView);
+    if (reaction === "queue") await refreshScheduleContent();
+    if (reaction === "liked") {
+      invalidateReactionLists();
+      if (currentView === "liked") refreshReactionList(currentView);
+    }
   } catch (error) {
     showSnackbar(error.message || "Couldn't update reaction.");
   } finally {
@@ -3415,7 +3413,7 @@ async function changeMovieWatchCount(detailMovie, action) {
     if (!response.ok) throw new Error("Could not update movie");
     const data = await response.json();
     movieDetailCache.delete(String(data.movie_id));
-    syncCompletedWatchAgain(data);
+    syncCompletedForcedQueue(data);
     updateMovieWatchUi(detailMovie, data.watch_count);
     if (data.action === "increment") {
       addActivityItem({
@@ -3820,7 +3818,7 @@ async function changeEpisodeWatchCount(episode, action, trigger) {
       showId: data.show_id,
       episodeId: episode.dataset.episodeId,
     });
-    syncCompletedWatchAgain(data);
+    syncCompletedForcedQueue(data);
     updateEpisodeWatchUi(episode, data.watch_count, true, data.latest_resolution_kind);
     applyShowProgress(data);
     maybeOpenFinishedArchiveDialog(data);
@@ -3883,7 +3881,7 @@ async function changeEpisodeDetailWatchCount(detailEpisode, action) {
       showId: data.show_id,
       episodeId: detailEpisode.dataset.episodeId,
     });
-    syncCompletedWatchAgain(data);
+    syncCompletedForcedQueue(data);
     updateEpisodeDetailWatchUi(detailEpisode, data.watch_count, data.latest_resolution_kind);
     applyShowProgress(data);
     maybeOpenFinishedArchiveDialog(data);
@@ -3921,7 +3919,7 @@ async function changeSeasonWatchCount(season, action, trigger) {
     if (!response.ok) throw new Error("Could not update season");
     const data = await response.json();
     invalidateWatchCaches({ showId: data.show_id, allEpisodes: true });
-    syncCompletedWatchAgain(data);
+    syncCompletedForcedQueue(data);
     if (season.dataset.episodesLoaded === "true") {
       data.episodes.forEach((episodeData) => {
         const episode = season.querySelector(`[data-episode-id="${episodeData.episode_id}"]`);
@@ -4814,7 +4812,7 @@ function applyVirtualTimelineFilters(state) {
   const preferences = libraryViewPreferences[viewName];
   const visibleCards = state.allCards.filter((card) => {
     if (viewName === "diary") return true;
-    if (viewName === "backlog" && card.dataset.watchAgain === "true") return true;
+    if (viewName === "backlog" && card.dataset.queued === "true") return true;
     const matchesSearch = !query || card.dataset.scheduleSearchText?.includes(query);
     const mediaType = card.dataset.mediaType || "tv";
     const matchesState = searching || (card.dataset.trackingState === TRACKING_STATE.ACTIVE
@@ -5226,7 +5224,7 @@ window.addEventListener("scroll", () => {
   if (["tv", "movies"].includes(currentView)) {
     scheduleVirtualLibraryRender(virtualLibraries.get(currentView));
   }
-  if (["liked", "watch-again"].includes(currentView)) scheduleVirtualReactionListRender();
+  if (currentView === "liked") scheduleVirtualReactionListRender();
   if (["backlog", "upcoming"].includes(currentView)) {
     scheduleVirtualTimelineRender(virtualTimelines.get(currentView));
   } else if (currentView === "diary") {
@@ -5337,7 +5335,9 @@ function restoreHistoryState(state) {
   closeWatchMenus();
   if (detailRequest) detailRequest.abort();
 
-  const legacyViews = { schedule: "backlog", watching: "tv", archive: "tv", discover: "tv" };
+  const legacyViews = {
+    schedule: "backlog", watching: "tv", archive: "tv", discover: "tv", "watch-again": "backlog",
+  };
   const restoredView = legacyViews[state.view] || state.view;
   if (restoredView !== "detail") {
     showView(restoredView);
@@ -5345,7 +5345,7 @@ function restoreHistoryState(state) {
   }
 
   const restoredParent = legacyViews[state.parentView] || state.parentView;
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked", "watch-again", "settings"].includes(restoredParent)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked", "settings"].includes(restoredParent)
     ? restoredParent
     : "backlog";
   if (state.detailType === "show" && state.showId) {

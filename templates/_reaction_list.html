@@ -7,7 +7,7 @@
 </div>
 {% else %}
 <div class="reaction-empty-state">
-  <span class="material-symbols-rounded" aria-hidden="true">{{ "favorite" if reaction == "liked" else "bookmark" }}</span>
-  <p>No media marked {{ {"liked": "Liked", "watch-again": "Bookmarked"}[reaction] }} yet.</p>
+  <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
+  <p>No media marked Liked yet.</p>
 </div>
 {% endif %}

@@ -3,7 +3,7 @@
 <div data-detail-movie data-detail-title="{{ movie.title }}" data-movie-id="{{ movie.id if movie.id is not none else '' }}" data-tmdb-id="{{ movie.tmdb_id }}"
   data-watch-count="{{ movie.watch_count }}"
   data-liked="{{ 'true' if movie.liked else 'false' }}"
-  data-watch-again="{{ 'true' if movie.watch_again else 'false' }}"
+  data-queued="{{ 'true' if movie.watch_again else 'false' }}"
   data-movie-upcoming="{{ 'true' if upcoming else 'false' }}"
   data-progress-state="{{ 'finished' if watched else 'not-started' }}">
   <header class="detail-app-bar">
@@ -54,7 +54,7 @@
   <section class="detail-content">
     {% if movie.overview %}<p class="overview">{{ movie.overview }}</p>{% endif %}
     {% if movie.is_tracked %}
-    <div class="watch-again-control-row">
+    <div class="queue-control-row">
       <div class="episode-watch-summary-wrap watch-control-wrap">
       <button class="episode-watch-summary" type="button" data-movie-detail-watch
         data-watch-count="{{ movie.watch_count }}" aria-label="Watch options for {{ movie.title }}">
@@ -69,9 +69,9 @@
             aria-hidden="true">remove</span><span>unwatch</span></button>
       </div>
       </div>
-      <button class="watch-again-toggle" type="button" data-reaction-toggle="watch-again"
-        aria-pressed="{{ 'true' if movie.watch_again else 'false' }}" aria-label="Bookmark {{ movie.title }}" title="Toggle bookmark">
-        <span class="material-symbols-rounded" aria-hidden="true">{{ "bookmark_added" if movie.watch_again else "bookmark" }}</span>
+      <button class="queue-toggle" type="button" data-reaction-toggle="queue"
+        aria-pressed="{{ 'true' if movie.watch_again else 'false' }}" aria-label="Add {{ movie.title }} to Queue" title="Toggle Queue">
+        <span class="material-symbols-rounded" aria-hidden="true">resume</span>
       </button>
     </div>
     {% set activity_title = 'Activity' %}

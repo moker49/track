@@ -218,7 +218,6 @@ def create_app(test_config: dict | None = None) -> Flask:
         active_shows, archived_shows = get_tv_library_shows(db)
         movies = get_movie_library(db)
         liked_shows, liked_movies = get_reaction_media(db, "liked")
-        watch_again_shows, watch_again_movies = get_reaction_media(db, "watch-again")
         diary_entries, diary_has_more = get_diary_page(db, page_size=None)
         return render_template(
             "index.html",
@@ -233,8 +232,6 @@ def create_app(test_config: dict | None = None) -> Flask:
             movies=movies,
             liked_shows=liked_shows,
             liked_movies=liked_movies,
-            watch_again_shows=watch_again_shows,
-            watch_again_movies=watch_again_movies,
         )
 
     @app.get("/api/tv")
@@ -434,12 +431,12 @@ def create_app(test_config: dict | None = None) -> Flask:
         return render_template("movie_detail.html", movie=movie, activity=get_movie_activity(get_db(), movie_id))
 
     def update_media_reaction(table: str, media_id: int, reaction: str):
-        column = {"liked": "liked", "watch-again": "watch_again"}.get(reaction)
+        column = {"liked": "liked", "queue": "watch_again"}.get(reaction)
         if column is None:
             abort(404)
         selected = bool((request.get_json(silent=True) or {}).get("selected"))
         db = get_db()
-        if table == "shows" and reaction == "watch-again":
+        if table == "shows" and reaction == "queue":
             baseline = get_show_progress(db, media_id)["completed_watch_count"] if selected else None
             cursor = db.execute(
                 "UPDATE shows SET watch_again = ?, watch_again_baseline = ?, updated_at = ? WHERE id = ? AND is_tracked = 1",

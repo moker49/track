@@ -2162,24 +2162,24 @@ html.navigation-drawer-closing .menu-scrim {
   font-family: "Material Symbols Rounded Filled";
 }
 
-.watch-again-toggle[aria-pressed="true"] .material-symbols-rounded {
+.queue-toggle[aria-pressed="true"] .material-symbols-rounded {
   font-family: "Material Symbols Rounded Filled";
 }
 
-.watch-again-control-row {
+.queue-control-row {
   width: 100%;
   display: flex;
   align-items: stretch;
   gap: 8px;
 }
 
-.watch-again-control-row .episode-watch-summary-wrap,
-.watch-again-control-row .detail-progress {
+.queue-control-row .episode-watch-summary-wrap,
+.queue-control-row .detail-progress {
   min-width: 0;
   flex: 1;
 }
 
-.watch-again-toggle {
+.queue-toggle {
   width: 56px;
   min-height: 56px;
   padding: 0;
@@ -2193,13 +2193,13 @@ html.navigation-drawer-closing .menu-scrim {
   cursor: pointer;
 }
 
-.watch-again-toggle[aria-pressed="true"] {
+.queue-toggle[aria-pressed="true"] {
   border-color: var(--primary);
   color: var(--on-primary);
   background: var(--primary);
 }
 
-.watch-again-toggle:focus-visible {
+.queue-toggle:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }

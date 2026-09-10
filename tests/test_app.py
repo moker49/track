@@ -126,18 +126,16 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-navigation-drawer', home.data)
         self.assertIn(b'data-drawer-view="diary"', home.data)
         self.assertIn(b'data-drawer-view="liked"', home.data)
-        self.assertIn(b'data-drawer-view="watch-again"', home.data)
         self.assertIn(b'data-drawer-view="statistics"', home.data)
         self.assertIn(b'data-drawer-view="settings"', home.data)
         self.assertIn(b'data-view="diary"', home.data)
         self.assertIn(b'data-view="liked"', home.data)
-        self.assertIn(b'data-view="watch-again"', home.data)
         self.assertIn(b'data-view="statistics"', home.data)
         self.assertIn(b'data-view="settings"', home.data)
         self.assertIn(b'data-setting-display-hidden-log-items', home.data)
         self.assertIn(b'Display hidden log items', home.data)
         self.assertIn(b'data-reaction-list-content="liked"', home.data)
-        self.assertIn(b'data-reaction-list-content="watch-again"', home.data)
+        self.assertNotIn(b'Bookmarks', home.data)
         self.assertNotIn(b'Favorites', home.data)
         self.assertIn(b'data-image-viewer', home.data)
         self.assertIn(b'data-image-viewer-preview', home.data)
@@ -199,7 +197,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".navigation-drawer {", css)
         self.assertIn(".utility-app-bar {", css)
         self.assertIn(".reaction-page-results {", css)
-        self.assertIn(".watch-again-toggle {", css)
+        self.assertIn(".queue-toggle {", css)
         self.assertIn("min-height: calc(80px + env(safe-area-inset-top));", css)
         self.assertIn("background: var(--surface-card);", css)
         self.assertIn('.material-symbols-rounded.is-filled {', css)
@@ -709,14 +707,14 @@ class TrackAppTest(unittest.TestCase):
             home.data,
         )
 
-    def test_media_reactions_persist_and_feed_the_dedicated_pages(self):
+    def test_likes_and_forced_queue_state_persist(self):
         show_response = self.client.post(
-            "/api/shows/1/reactions/watch-again", json={"selected": True}
+            "/api/shows/1/reactions/queue", json={"selected": True}
         )
         self.assertEqual(show_response.status_code, 200)
         self.assertTrue(show_response.get_json()["selected"])
         show_detail = self.client.get("/api/shows/1").data
-        self.assertIn(b'data-reaction-toggle="watch-again"', show_detail)
+        self.assertIn(b'data-reaction-toggle="queue"', show_detail)
         self.assertIn(b'aria-pressed="true"', show_detail)
 
         connection = sqlite3.connect(self.database)
@@ -736,7 +734,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(movie_response.status_code, 200)
         self.assertTrue(movie_response.get_json()["selected"])
         self.assertIn(b"Reaction Test Movie", self.client.get("/api/lists/liked").data)
-        self.assertIn(b"Active Test Show", self.client.get("/api/lists/watch-again").data)
+        self.assertEqual(self.client.get("/api/lists/watch-again").status_code, 404)
 
     def test_schedule_includes_archived_but_excludes_untracked_shows(self):
         connection = sqlite3.connect(self.database)
