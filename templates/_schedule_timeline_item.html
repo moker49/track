@@ -2,9 +2,12 @@
 {% set is_backlog = mode == 'catch-up' %}
 {% set is_movie = episode.is_movie|default(false) %}
 {% set is_rewatch = episode.is_rewatch|default(false) %}
+{% set is_forced_queue = episode.is_forced_queue|default(false) %}
 {% set display_watched_count = episode.rewatch_watched_count if is_rewatch else episode.watched_count %}
 {% set progress_percent = ((display_watched_count * 100) / episode.episode_count)|round|int if episode.episode_count
 else 0 %}
+{% set queue_display_watched_count = 0 if is_forced_queue else display_watched_count %}
+{% set queue_progress_percent = 0 if is_forced_queue else progress_percent %}
 {% if episode.watched_count == 0 %}{% set progress_state = 'not-started' %}
 {% elif is_rewatch %}{% set progress_state = 'started' %}
 {% elif episode.episode_count and episode.watched_count >= episode.episode_count %}
@@ -15,23 +18,19 @@ else 0 %}
   data-schedule-card data-schedule-mode="{{ mode }}" {% if is_movie %} data-movie-id="{{ episode.movie_id }}" {% else %}
   data-show-id="{{ episode.show_id }}" {% endif %} data-media-type="{{ episode.media_type or 'tv' }}"
   data-queued="{{ 'true' if episode.watch_again else 'false' }}"
-  data-forced-queue="{{ 'true' if episode.is_forced_queue|default(false) else 'false' }}"
+  data-forced-queue="{{ 'true' if is_forced_queue else 'false' }}"
   data-tracking-state="{{ episode.tracking_state }}" data-progress-state="{{ progress_state }}"
   data-show-status="{{ episode.show_status or '' }}" data-name="{{ episode.show_name|lower }}"
   data-date-added="{{ episode.show_added_at }}" data-release-date="{{ episode.air_date }}"
-  data-last-watched="{{ episode.last_watched_at or '' }}" data-progress="{{ progress_percent }}" {% if is_backlog
+  data-last-watched="{{ episode.last_watched_at or '' }}" data-progress="{{ queue_progress_percent }}" {% if is_backlog
   %}data-watched-count="{{ display_watched_count }}" data-episode-count="{{ episode.episode_count }}" {% endif %} {% if
   not is_movie and not is_backlog and episode.is_grouped %}data-season-ids="{{ episode.season_ids }}" {% elif not
   is_movie %}data-episode-id="{{ episode.episode_id }}" {% endif %}
   data-schedule-search-text="{{ episode.search_text if not is_backlog else (episode.show_name|lower ~ ' ' ~ episode.episode_name|lower) }}">
   <div class="schedule-timeline-marker" aria-hidden="true">
     {% if is_backlog %}
-    {% if episode.is_forced_queue|default(false) %}<strong><span class="material-symbols-rounded schedule-return-marker"
-        aria-label="Returned to queue">autorenew</span></strong><span>{% if is_movie %}0/1{% else %}{{
-      display_watched_count }}/{{ episode.episode_count }}{% endif %}</span>{% elif is_movie
-    %}<strong>0%</strong><span>0/1</span>{% else %}
-    <strong>{{ progress_percent }}%</strong>
-    <span>{{ display_watched_count }}/{{ episode.episode_count }}</span>{% endif %}
+    <strong>{{ queue_progress_percent }}%</strong>
+    <span>{{ queue_display_watched_count }}/{{ episode.episode_count }}</span>
     {% else %}
     <strong>{{ episode.day_label }}</strong>
     <span>{{ episode.weekday_label }}</span>
@@ -82,9 +81,9 @@ else 0 %}
       </span>
     </div>
     <div class="schedule-timeline-progress"
-      aria-label="{{ 'Movie not watched yet' if is_movie else display_watched_count ~ ' of ' ~ episode.episode_count ~ ' episodes watched' }}">
+      aria-label="{{ 'Movie not watched yet' if is_movie else queue_display_watched_count ~ ' of ' ~ episode.episode_count ~ ' episodes watched' }}">
       <div class="progress-track" aria-hidden="true">
-        <span style="width: {{ 0 if is_movie else progress_percent }}%"></span>
+        <span style="width: {{ queue_progress_percent }}%"></span>
       </div>
     </div>
     {% endif %}

@@ -33,11 +33,11 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list expand_more check_box arrow_upward arrow_downward more_vert resume event tv movie video_library done_all arrow_forward menu account_circle arrow_back close",
+        "filter_list expand_more check_box arrow_upward arrow_downward more_vert resume playlist_add playlist_add_check event tv movie video_library done_all arrow_forward menu account_circle arrow_back close",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
-        "resume event tv movie",
+        "resume playlist_add_check event tv movie",
       ),
     ]);
     await Promise.race([
@@ -3541,6 +3541,10 @@ async function toggleMediaReaction(button) {
     detail.dataset[reactionDatasetKey(reaction)] = String(data.selected);
     button.setAttribute("aria-pressed", String(data.selected));
     button.classList.toggle("is-selected", data.selected);
+    if (reaction === "queue") {
+      const icon = button.querySelector(".material-symbols-rounded");
+      if (icon) icon.textContent = data.selected ? "playlist_add_check" : "playlist_add";
+    }
     if (isMovie) refreshMovieDetailCache(mediaId).catch(() => undefined);
     else refreshShowDetailCache(mediaId).catch(() => undefined);
     if (reaction === "queue") await refreshScheduleContent();

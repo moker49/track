@@ -71,7 +71,7 @@
       </div>
       <button class="queue-toggle" type="button" data-reaction-toggle="queue"
         aria-pressed="{{ 'true' if movie.watch_again else 'false' }}" aria-label="Add {{ movie.title }} to Queue" title="Toggle Queue">
-        <span class="material-symbols-rounded" aria-hidden="true">resume</span>
+        <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if movie.watch_again else 'playlist_add' }}</span>
       </button>
     </div>
     {% set activity_title = 'Activity' %}

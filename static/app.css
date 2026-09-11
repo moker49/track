@@ -599,7 +599,7 @@ dialog:not(.image-viewer)::backdrop {
 
 .schedule-timeline-marker strong .material-symbols-rounded {
   display: block;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   line-height: inherit;
   color: var(--primary);
 }
@@ -971,6 +971,10 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .schedule-timeline-item.is-caught-up .schedule-timeline-rail>span {
+  background: var(--progress-complete);
+}
+
+.schedule-timeline-item[data-forced-queue="true"] .schedule-timeline-rail>span {
   background: var(--progress-complete);
 }
 
@@ -2199,13 +2203,13 @@ html.navigation-drawer-closing .menu-scrim {
 }
 
 .queue-toggle {
-  width: 56px;
-  min-height: 56px;
+  width: 64px;
+  min-height: 64px;
   padding: 0;
   border: 1px solid var(--outline-soft);
   border-radius: var(--radius-md);
   display: grid;
-  flex: 0 0 56px;
+  flex: 0 0 64px;
   place-items: center;
   color: var(--primary-dark);
   background: var(--surface-card);

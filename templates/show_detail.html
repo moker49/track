@@ -90,7 +90,7 @@
       </div>
       <button class="queue-toggle" type="button" data-reaction-toggle="queue"
         aria-pressed="{{ 'true' if show.watch_again else 'false' }}" aria-label="Add {{ show.name }} to Queue" title="Toggle Queue">
-        <span class="material-symbols-rounded" aria-hidden="true">resume</span>
+        <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if show.watch_again else 'playlist_add' }}</span>
       </button>
     </div>
     {% else %}

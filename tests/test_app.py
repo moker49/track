@@ -591,6 +591,7 @@ class TrackAppTest(unittest.TestCase):
         show_detail = self.client.get("/api/shows/1").data
         self.assertIn(b'data-reaction-toggle="queue"', show_detail)
         self.assertIn(b'aria-pressed="true"', show_detail)
+        self.assertIn(b">playlist_add_check</span>", show_detail)
 
         connection = sqlite3.connect(self.database)
         connection.execute(
@@ -611,7 +612,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Reaction Test Movie", self.client.get("/api/lists/liked").data)
         self.assertEqual(self.client.get("/api/lists/watch-again").status_code, 404)
 
-    def test_returned_queue_items_follow_natural_items_and_use_the_return_marker(self):
+    def test_forced_queue_items_follow_natural_items_and_display_zero_progress(self):
         response = self.client.post(
             "/api/shows/2/reactions/queue", json={"selected": True}
         )
@@ -632,7 +633,17 @@ class TrackAppTest(unittest.TestCase):
         schedule_text = schedule.data.decode("utf-8")
         self.assertRegex(
             schedule_text,
-            r'data-show-id="2"[^>]*data-forced-queue="true"[^>]*>\s*<div class="schedule-timeline-marker"[^>]*>\s*<strong><span class="material-symbols-rounded schedule-return-marker"[^>]*>autorenew</span></strong>',
+            r'data-show-id="2"[^>]*data-forced-queue="true"[^>]*>\s*<div class="schedule-timeline-marker"[^>]*>\s*<strong>0%</strong>\s*<span>0/\d+</span>',
+        )
+        self.assertNotIn('schedule-return-marker', schedule_text)
+
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '.schedule-timeline-item[data-forced-queue="true"] .schedule-timeline-rail>span {\n'
+            '  background: var(--progress-not-started);',
+            css,
         )
 
     def test_schedule_includes_archived_but_excludes_untracked_shows(self):
