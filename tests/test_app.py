@@ -871,6 +871,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("background && viewName === currentView", javascript)
         self.assertIn("const firstScheduleDataReady = firstScheduleReveal && scheduleViewsHydrated;", javascript)
         self.assertIn("if (firstScheduleDataReady) {\n      staggerScheduleFirstReveal", javascript)
+        self.assertIn('} else if (viewName === "upcoming" || !scheduleViewsHydrated) {', javascript)
         self.assertIn("const [overviewHtml, seasonsHtml] = await Promise.all", javascript)
         self.assertIn(
             "renderShowDetail(cachedOverview, cachedSeasons, false, returnContext)",

@@ -637,7 +637,7 @@ function showView(viewName, historyMode = null) {
   if (["backlog", "upcoming"].includes(viewName)) {
     if (firstScheduleDataReady) {
       staggerScheduleFirstReveal(views.get(viewName));
-    } else {
+    } else if (viewName === "upcoming" || !scheduleViewsHydrated) {
       const scheduleRefresh = refreshScheduleContent().catch(() => undefined);
       if (firstScheduleReveal) {
         scheduleRefresh.finally(() => {
