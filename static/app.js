@@ -637,7 +637,7 @@ function showView(viewName, historyMode = null) {
   if (["backlog", "upcoming"].includes(viewName)) {
     if (firstScheduleDataReady) {
       staggerScheduleFirstReveal(views.get(viewName));
-    } else if (viewName === "upcoming" || !scheduleViewsHydrated) {
+    } else if (!scheduleViewsHydrated) {
       const scheduleRefresh = refreshScheduleContent().catch(() => undefined);
       if (firstScheduleReveal) {
         scheduleRefresh.finally(() => {
@@ -783,7 +783,7 @@ function markCatalogTracked(card, state, recordId = null) {
   if (card.dataset.catalogType in librarySearchUpdates) {
     librarySearchUpdates[card.dataset.catalogType] = true;
   }
-  if (card.dataset.catalogType === "movies") refreshUpcomingForMovieChange();
+  refreshScheduleForMediaChange();
 }
 
 function syncTvSearchPresentation() {
@@ -982,7 +982,7 @@ async function refreshMoviesContent() {
   return moviesRefreshRequest;
 }
 
-function refreshUpcomingForMovieChange() {
+function refreshScheduleForMediaChange() {
   refreshScheduleContent({ background: true }).catch(() => undefined);
 }
 
@@ -1059,6 +1059,7 @@ async function trackDetailShow(showElement, state, trigger) {
     invalidateShowCache(data.show_id);
     document.querySelectorAll(`.popular-card[data-tmdb-id="${showElement.dataset.tmdbId}"]`)
       .forEach((card) => markCatalogTracked(card, state, String(data.show_id)));
+    refreshScheduleForMediaChange();
     syncTvSearchPresentation();
     openShow(data.show_id, "tv", true, "replace");
   } catch (error) {
@@ -2364,6 +2365,7 @@ async function trackDetailMovie(movieElement, action, trigger) {
     if (!response.ok) throw new Error(data.error || "Could not add movie");
     document.querySelectorAll(`.popular-card[data-tmdb-id="${movieElement.dataset.tmdbId}"]`)
       .forEach((card) => markCatalogTracked(card, action, String(data.movie_id)));
+    refreshScheduleForMediaChange();
     openMovie(data.movie_id, "movies", "replace");
   } catch (error) {
     trigger.disabled = false;
@@ -2923,6 +2925,7 @@ async function saveDiaryDate() {
     if (!response.ok) throw new Error(data.error || "Could not add movie");
     pendingMovieImport = null;
     datePicker.close();
+    refreshScheduleForMediaChange();
     openMovie(data.movie_id, "movies", "replace");
     return;
   }
@@ -3573,7 +3576,7 @@ async function removeMovie(movieElement, actionButton) {
     if (!response.ok) throw new Error("Could not remove movie");
     movieDetailCache.delete(String(movieElement.dataset.movieId));
     await refreshMoviesContent();
-    refreshUpcomingForMovieChange();
+    refreshScheduleForMediaChange();
     if (currentView === "detail") showView(detailParentView, "replace");
     if (searchQuery) searchMovieCatalog(searchQuery);
     showSnackbar("Movie removed from your library");
@@ -3675,6 +3678,7 @@ async function moveShow(showElement, targetState, actionButton) {
     filterAllShowViews();
     filterSchedule("backlog");
     filterSchedule("upcoming");
+    refreshScheduleForMediaChange();
     showSnackbar(data.state === "ARCHIVED" ? "Show archived" : "Show made active");
     return true;
   } catch (_error) {
@@ -3828,6 +3832,7 @@ async function confirmShowRemoval() {
     }
     syncStateSections();
     filterAllShowViews();
+    refreshScheduleForMediaChange();
     if (searchQueries.tv.trim()) searchTvCatalog(searchQueries.tv.trim());
     showSnackbar("Show removed from your library");
   } catch (_error) {
