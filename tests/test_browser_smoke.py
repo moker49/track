@@ -63,8 +63,11 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
             page.locator('[data-view="statistics"]').wait_for(state="visible")
             self.assertTrue(page.locator('.stats-overview-card').is_visible())
             self.assertTrue(page.locator('.stats-ranking-list').is_visible())
-            page.locator('[data-utility-back]').click()
-            page.locator('[data-view="tv"]').wait_for(state="visible")
+            page.locator('[data-utility-menu]').click()
+            page.locator('[data-navigation-drawer]').wait_for(state="visible")
+            self.assertEqual(page.locator('[data-drawer-view="statistics"]').get_attribute("aria-current"), "page")
+            page.locator('[data-drawer-view="statistics"]').click()
+            page.locator('[data-navigation-drawer]').wait_for(state="hidden")
             page.locator('[data-nav-view="tv"]').click()
             page.locator('[data-view="tv"]').wait_for(state="visible")
 

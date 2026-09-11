@@ -53,6 +53,7 @@ async function revealAppWhenIconsAreReady() {
 
 revealAppWhenIconsAreReady();
 const navButtons = [...document.querySelectorAll("[data-nav-view]")];
+const drawerButtons = [...document.querySelectorAll("[data-drawer-view]")];
 const appContent = document.querySelector(".app-content");
 const bottomChrome = document.querySelector(".bottom-chrome");
 const globalSearchBar = document.querySelector("[data-global-search-bar]");
@@ -353,6 +354,12 @@ function updateActiveNav(navView) {
   navButtons.forEach((button) => {
     const active = button.dataset.navView === navView;
     button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+  drawerButtons.forEach((button) => {
+    const active = button.dataset.drawerView === navView;
+    button.classList.toggle("is-active", active);
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
   });
@@ -4403,27 +4410,22 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  if (event.target.closest("[data-search-menu]")) {
+  if (event.target.closest("[data-search-menu], [data-utility-menu]")) {
     openNavigationDrawer();
     return;
   }
 
   const drawerView = event.target.closest("[data-drawer-view]");
   if (drawerView) {
+    if (drawerView.dataset.drawerView === currentView) {
+      closeNavigationDrawer();
+      return;
+    }
     closeNavigationDrawer({ preserveHistory: true });
     // The drawer entry becomes this destination, so it must no longer be
     // treated as an open drawer if the user subsequently goes back.
     navigationDrawerHistoryActive = false;
     showView(drawerView.dataset.drawerView, "replace");
-    return;
-  }
-
-  if (event.target.closest("[data-utility-back]")) {
-    if (window.history.state?.trackApp && window.history.state.view === currentView) {
-      window.history.back();
-    } else {
-      showView("backlog");
-    }
     return;
   }
 

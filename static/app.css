@@ -975,7 +975,7 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .schedule-timeline-item[data-forced-queue="true"] .schedule-timeline-rail>span {
-  background: var(--progress-complete);
+  background: var(--progress-not-started);
 }
 
 .schedule-caught-up-icon {
@@ -1913,6 +1913,12 @@ html.navigation-drawer-closing .menu-scrim {
 .navigation-drawer-settings:hover,
 .navigation-drawer-settings:focus-visible {
   background: var(--primary-light);
+}
+
+.navigation-drawer-links button.is-active,
+.navigation-drawer-settings.is-active {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
 .navigation-drawer-divider {

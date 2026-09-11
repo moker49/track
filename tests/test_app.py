@@ -133,6 +133,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-view="liked"', home.data)
         self.assertIn(b'data-view="statistics"', home.data)
         self.assertIn(b'data-view="settings"', home.data)
+        self.assertEqual(home.data.count(b'data-utility-menu'), 4)
+        self.assertNotIn(b'data-utility-back', home.data)
         self.assertIn(b'data-tv-media-label>Library</span>', home.data)
         self.assertIn(b'data-tv-progress-label>Progress</span>', home.data)
         self.assertIn(b'data-setting-display-hidden-log-items', home.data)
@@ -223,6 +225,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("function openNavigationDrawer()", javascript)
         self.assertIn("function closeNavigationDrawer({ preserveHistory = false } = {})", javascript)
         self.assertIn('showView(drawerView.dataset.drawerView, "replace")', javascript)
+        self.assertIn('drawerView.dataset.drawerView === currentView', javascript)
+        self.assertIn('event.target.closest("[data-search-menu], [data-utility-menu]")', javascript)
         self.assertIn("navigationDrawerHistoryActive = false;", javascript)
         self.assertIn('data-reaction-toggle', javascript)
 
