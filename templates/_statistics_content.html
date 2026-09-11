@@ -44,7 +44,7 @@
         <small>Most rewatched show</small>
         {% if statistics.most_rewatched_show %}
         <strong>{{ statistics.most_rewatched_show.show_name }}</strong>
-        <span>{{ statistics.most_rewatched_show.rewatch_count }} rewatches</span>
+        <span>{{ statistics.most_rewatched_show.watch_percent }}% watched</span>
         {% else %}<strong>None yet</strong>{% endif %}
       </article>
       <article class="stats-insight-card stats-insight-card-wide">

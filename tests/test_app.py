@@ -346,7 +346,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"30 days", statistics.data)
         self.assertIn(b"365 days", statistics.data)
 
-        for _index in range(2):
+        for _index in range(9):
             response = self.client.post(
                 "/api/episodes/1/log",
                 json={"action_kind": "watch", "log_date": "2026-05-20"},
@@ -354,7 +354,7 @@ class TrackAppTest(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
         rewatched = self.client.get("/api/profile/statistics", headers=headers)
         self.assertIn(b"Most rewatched show", rewatched.data)
-        self.assertIn(b"2 rewatches", rewatched.data)
+        self.assertIn(b"108% watched", rewatched.data)
         self.assertIn(b"Most replayed movie", rewatched.data)
         self.assertIn(b"None yet", rewatched.data)
 

@@ -577,6 +577,13 @@ def get_statistics(db: sqlite3.Connection, local_date: date | None = None) -> di
             f"""
             SELECT wh.id AS watch_record_id, {effective_date} AS watched_date,
                    s.id AS show_id, s.name AS show_name,
+                   (
+                       SELECT COUNT(*)
+                       FROM episodes counted_episode
+                       JOIN seasons counted_season ON counted_season.id = counted_episode.season_id
+                       WHERE counted_season.show_id = s.id
+                         AND counted_season.is_progress_counted = 1
+                   ) AS episode_count,
                    sn.season_number, e.id AS episode_id,
                    e.episode_number, e.name AS episode_name,
                    COALESCE(e.runtime_minutes, 0) AS runtime_minutes
@@ -644,6 +651,7 @@ def get_statistics(db: sqlite3.Connection, local_date: date | None = None) -> di
             {
                 "show_id": row["show_id"],
                 "show_name": row["show_name"],
+                "episode_count": row["episode_count"],
                 "watch_count": 0,
                 "minutes": 0,
                 "episode_ids": set(),
@@ -705,13 +713,22 @@ def get_statistics(db: sqlite3.Connection, local_date: date | None = None) -> di
         value = show["minutes"] or show["watch_count"]
         show["bar_percent"] = round(value / top_value * 100) if top_value else 0
 
-    most_rewatched_show = max(
-        ranked_shows,
-        key=lambda show: (show["rewatch_count"], show["watch_count"]),
-        default=None,
-    )
-    if most_rewatched_show and most_rewatched_show["rewatch_count"] == 0:
-        most_rewatched_show = None
+    most_rewatched_show = db.execute(
+        """
+        SELECT s.id AS show_id, s.name AS show_name,
+               CAST(ROUND(COUNT(wh.id) * 100.0 / COUNT(DISTINCT e.id)) AS INTEGER)
+                   AS watch_percent
+        FROM shows s
+        JOIN seasons sn ON sn.show_id = s.id AND sn.is_progress_counted = 1
+        JOIN episodes e ON e.season_id = sn.id
+        LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
+        GROUP BY s.id
+        HAVING COUNT(wh.id) > COUNT(DISTINCT e.id)
+        ORDER BY watch_percent DESC, COUNT(wh.id) DESC, s.name COLLATE NOCASE
+        LIMIT 1
+        """
+    ).fetchone()
+    most_rewatched_show = dict(most_rewatched_show) if most_rewatched_show else None
 
     most_rewatched_episode = max(
         episode_metrics.values(),
