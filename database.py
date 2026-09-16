@@ -60,11 +60,12 @@ def migrate_liked_at(db: sqlite3.Connection) -> None:
                 UPDATE shows
                 SET liked_at = COALESCE(
                     liked_at,
-                    (SELECT MIN(wh.added_at)
+                    (SELECT MIN(wh.diary_date) || 'T00:00:00+00:00'
                      FROM episode_watch_history wh
                      JOIN episodes e ON e.id = wh.episode_id
                      JOIN seasons sn ON sn.id = e.season_id
-                     WHERE sn.show_id = shows.id),
+                     WHERE sn.show_id = shows.id
+                       AND wh.diary_date IS NOT NULL),
                     added_at
                 )
                 WHERE liked = 1
@@ -76,12 +77,53 @@ def migrate_liked_at(db: sqlite3.Connection) -> None:
                 UPDATE movies
                 SET liked_at = COALESCE(
                     liked_at,
-                    (SELECT MIN(added_at)
+                    (SELECT MIN(diary_date) || 'T00:00:00+00:00'
                      FROM movie_watch_history
-                     WHERE movie_id = movies.id),
+                     WHERE movie_id = movies.id
+                       AND diary_date IS NOT NULL),
                     added_at
                 )
                 WHERE liked = 1
                 """
             )
         db.execute(f"ALTER TABLE {table} DROP COLUMN liked")
+
+    migration = "liked_at_diary_date_backfill_v3"
+    db.execute(
+        """CREATE TABLE IF NOT EXISTS schema_migrations (
+             name TEXT PRIMARY KEY
+           )"""
+    )
+    if db.execute(
+        "SELECT 1 FROM schema_migrations WHERE name = ?", (migration,)
+    ).fetchone() is not None:
+        return
+    db.execute(
+        """
+        UPDATE shows
+        SET liked_at = COALESCE(
+            (SELECT MIN(wh.diary_date) || 'T00:00:00+00:00'
+             FROM episode_watch_history wh
+             JOIN episodes e ON e.id = wh.episode_id
+             JOIN seasons sn ON sn.id = e.season_id
+             WHERE sn.show_id = shows.id
+               AND wh.diary_date IS NOT NULL),
+            added_at
+        )
+        WHERE liked_at IS NOT NULL
+        """
+    )
+    db.execute(
+        """
+        UPDATE movies
+        SET liked_at = COALESCE(
+            (SELECT MIN(diary_date) || 'T00:00:00+00:00'
+             FROM movie_watch_history
+             WHERE movie_id = movies.id
+               AND diary_date IS NOT NULL),
+            added_at
+        )
+        WHERE liked_at IS NOT NULL
+        """
+    )
+    db.execute("INSERT INTO schema_migrations (name) VALUES (?)", (migration,))

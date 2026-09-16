@@ -206,7 +206,7 @@ class DatabaseBootstrapSmokeTest(unittest.TestCase):
             db.close()
             self.assertIn("shows", tables)
             self.assertIn("episode_watch_history", tables)
-            self.assertNotIn("schema_migrations", tables)
+            self.assertIn("schema_migrations", tables)
             self.assertTrue(any(name.startswith("idx_") for name in indexes))
 
 if __name__ == "__main__":
