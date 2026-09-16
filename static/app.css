@@ -2286,6 +2286,7 @@ html.navigation-drawer-closing .menu-scrim {
 
 .overview {
   margin: 0 4px;
+  display: block;
   color: var(--on-surface-muted);
   font-size: 0.9rem;
   line-height: 1.55;
