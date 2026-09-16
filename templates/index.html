@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top-app-bar global-search-app-bar" data-global-search-bar>
+<header class="top-app-bar global-search-app-bar top-chrome" data-global-search-bar>
   <div class="global-search-row">
     <button class="icon-button top-bar-action" type="button" data-search-menu aria-label="Menu">
       <span class="material-symbols-rounded" aria-hidden="true">menu</span>
@@ -41,7 +41,7 @@
 <section class="app-view" data-view="detail" aria-label="Show details" aria-live="polite" hidden></section>
 
 <section class="app-view utility-view" data-view="diary" aria-label="Diary" hidden>
-  <header class="utility-app-bar">
+  <header class="utility-app-bar top-chrome">
     <button class="icon-button" type="button" data-utility-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
     <h1>Diary</h1>
   </header>
@@ -49,7 +49,7 @@
 </section>
 
 <section class="app-view utility-view" data-view="statistics" aria-label="Statistics" hidden>
-  <header class="utility-app-bar">
+  <header class="utility-app-bar top-chrome">
     <button class="icon-button" type="button" data-utility-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
     <h1>Statistics</h1>
   </header>
@@ -57,7 +57,7 @@
 </section>
 
 <section class="app-view utility-view reaction-page" data-view="liked" aria-label="Likes" hidden>
-  <header class="utility-app-bar">
+  <header class="utility-app-bar top-chrome">
     <button class="icon-button" type="button" data-utility-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
     <h1>Likes</h1>
     <div data-liked-control-bar-slot></div>
@@ -66,7 +66,7 @@
 </section>
 
 <section class="app-view utility-view settings-view" data-view="settings" aria-label="Settings" hidden>
-  <header class="utility-app-bar">
+  <header class="utility-app-bar top-chrome">
     <button class="icon-button" type="button" data-utility-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
     <h1>Settings</h1>
   </header>

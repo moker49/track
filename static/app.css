@@ -978,6 +978,10 @@ html.app-booting .schedule-empty-reveal {
   background: var(--progress-not-started);
 }
 
+.top-chrome {
+  border-bottom: 1px solid var(--outline-soft);
+}
+
 .schedule-caught-up-icon {
   padding: 6px 8px;
   font-size: 1.5rem;
@@ -2062,10 +2066,6 @@ html.navigation-drawer-closing .menu-scrim {
   display: none;
 }
 
-.utility-view .utility-app-bar {
-  border-bottom: 1px solid var(--outline-soft);
-}
-
 .reaction-empty-state {
   min-height: 220px;
   padding: 40px 24px;
@@ -2298,6 +2298,10 @@ html.navigation-drawer-closing .menu-scrim {
 
 [data-liked-control-bar-slot] {
   grid-column: 1 / -1;
+}
+
+[data-liked-control-bar-slot] .tv-inline-bar {
+  padding-bottom: 0;
 }
 
 .overview-disclosure {
@@ -3316,7 +3320,6 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  border-bottom: 1px solid var(--outline-soft);
   background: transparent;
 }
 
