@@ -36,7 +36,7 @@
             {%- elif event_type == 'archived' -%}archive
             {%- elif event_type == 'activated' -%}resume
             {%- elif event_type == 'season_watched' -%}done_all
-            {%- elif event_type == 'skipped' -%}skip_next
+            {%- elif event_type in ['skipped', 'season_skipped'] -%}skip_next
             {%- else -%}visibility
             {%- endif -%}
           </span>

@@ -2686,15 +2686,18 @@ function addActivityItem({
   }
 
   const icon = document.createElement("span");
-  icon.className = "material-symbols-rounded activity-icon";
+  icon.className = "material-symbols-rounded is-filled activity-icon";
   icon.setAttribute("aria-hidden", "true");
   icon.textContent = {
+    added: "add_circle",
+    added_archive: "archive",
     archived: "archive",
     activated: "resume",
+    watched: "visibility",
     season_watched: "done_all",
     season_skipped: "skip_next",
     skipped: "skip_next",
-  }[type] || "history";
+  }[type] || "visibility";
 
   const copy = document.createElement("span");
   copy.className = "activity-copy";
