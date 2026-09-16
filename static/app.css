@@ -2291,6 +2291,30 @@ html.navigation-drawer-closing .menu-scrim {
   line-height: 1.55;
 }
 
+.overview-disclosure:not(.is-expanded) .overview {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.overview-more {
+  margin: 4px 4px 0;
+  padding: 0;
+  border: 0;
+  color: var(--primary);
+  background: transparent;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.overview-more:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .detail-progress {
   padding: 16px;
   border-radius: var(--radius-md);

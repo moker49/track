@@ -37,7 +37,7 @@ async function revealAppWhenIconsAreReady() {
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
-        "resume playlist_add_check event tv movie",
+        "resume playlist_add_check view_list grid_view event tv movie",
       ),
     ]);
     await Promise.race([
@@ -537,6 +537,16 @@ function guardTimelineScrollRestore(viewName, savedScrollY) {
 
 function motionIsReduced() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function syncOverviewDisclosures(root = document) {
+  root.querySelectorAll("[data-overview-disclosure]").forEach((disclosure) => {
+    const overview = disclosure.querySelector("[data-overview-copy]");
+    const toggle = disclosure.querySelector("[data-overview-toggle]");
+    if (!overview || !toggle) return;
+    if (disclosure.classList.contains("is-expanded")) return;
+    toggle.hidden = overview.scrollHeight <= overview.clientHeight + 1;
+  });
 }
 
 function showView(viewName, historyMode = null) {
@@ -2269,6 +2279,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
     staggerDetailSlices(slices);
   }
   views.get("detail").replaceChildren(showTemplate.content);
+  syncOverviewDisclosures(views.get("detail"));
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   enableWatchControls(views.get("detail"));
   finishDetailLoad();
@@ -2321,6 +2332,7 @@ function renderMovieDetail(movieHtml, animate) {
   const detailMovie = template.content.querySelector("[data-detail-movie]");
   if (animate) staggerDetailSlices([detailMovie.querySelector(".hero"), ...detailMovie.querySelectorAll(".detail-content > *")]);
   views.get("detail").replaceChildren(template.content);
+  syncOverviewDisclosures(views.get("detail"));
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   finishDetailLoad();
 }
@@ -3940,6 +3952,16 @@ document.addEventListener("toggle", (event) => {
 }, true);
 
 document.addEventListener("click", (event) => {
+  const overviewToggle = event.target.closest("[data-overview-toggle]");
+  if (overviewToggle) {
+    const disclosure = overviewToggle.closest("[data-overview-disclosure]");
+    if (!disclosure) return;
+    const expanded = disclosure.classList.toggle("is-expanded");
+    overviewToggle.setAttribute("aria-expanded", String(expanded));
+    overviewToggle.textContent = expanded ? "...less" : "...more";
+    return;
+  }
+
   if (event.target.closest("[data-menu-scrim]")) {
     closeNavigationDrawer();
     closeShowMenus();
@@ -5158,6 +5180,7 @@ searchBackButton?.addEventListener("click", () => {
 
 window.addEventListener("resize", () => {
   syncSearchTextPosition();
+  syncOverviewDisclosures(views.get("detail"));
   fitEpisodeDetailTitle(views.get("detail"));
   virtualLibraries.forEach((state) => refreshVirtualLibraryLayout(state.view));
   virtualReactionLists.forEach((state) => {

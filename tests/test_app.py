@@ -119,7 +119,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'>arrow_back</span>', home.data)
         self.assertIn(b'data-clear-search aria-label="Clear search" hidden', home.data)
         self.assertIn(b'data-tv-view-toggle', home.data)
-        self.assertIn(b'>view_list</span>', home.data)
+        self.assertIn(b'class="material-symbols-rounded is-filled" aria-hidden="true">view_list</span>', home.data)
         self.assertIn(b'placeholder="Search queue"', home.data)
         self.assertIn(b'data-view="backlog"', home.data)
         self.assertIn(b'data-view="upcoming"', home.data)
@@ -481,6 +481,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn('@keyframes schedule-content-out', css)
         self.assertIn('.catalog-action.catalog-action-secondary {', css)
         self.assertIn('.schedule-skip-button {\n  width: 100%;\n  color: var(--primary);\n  background: transparent;', css)
+        schedule_item_template = (Path(__file__).parents[1] / "templates" / "_schedule_timeline_item.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('{% if not is_movie and episode.completed_watch_count > 0 %}', schedule_item_template)
         self.assertIn('.schedule-timeline-rail::before {', css)
         self.assertIn('.schedule-timeline-list>.schedule-timeline-item:first-child .schedule-timeline-rail::before {', css)
         self.assertIn('.schedule-timeline-list>.schedule-timeline-item:last-child .schedule-timeline-rail::before,', css)
@@ -716,9 +720,12 @@ class TrackAppTest(unittest.TestCase):
             """
         )
         connection.commit()
+        local_date = connection.execute("SELECT date('now')").fetchone()[0]
         connection.close()
 
-        schedule = self.client.get("/api/schedule")
+        schedule = self.client.get(
+            "/api/schedule", headers={"X-Track-Local-Date": local_date}
+        )
         self.assertIn(b"Recently Aired", schedule.data)
         self.assertIn(b"Airs Today", schedule.data)
         self.assertIn(b"Airs Tomorrow", schedule.data)
@@ -874,6 +881,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('} else if (!scheduleViewsHydrated) {', javascript)
         self.assertIn("function refreshScheduleForMediaChange()", javascript)
         self.assertNotIn("function refreshUpcomingForMovieChange()", javascript)
+        self.assertIn("function syncOverviewDisclosures(root = document)", javascript)
+        self.assertIn('event.target.closest("[data-overview-toggle]")', javascript)
         self.assertIn("const [overviewHtml, seasonsHtml] = await Promise.all", javascript)
         self.assertIn(
             "renderShowDetail(cachedOverview, cachedSeasons, false, returnContext)",
@@ -984,6 +993,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"data-episode-watch", detail.data)
         self.assertIn(b'data-detail-title="Active Test Show"', detail.data)
         self.assertIn(b'class="detail-app-bar-title">Show details</span>', detail.data)
+        self.assertIn(b'data-overview-disclosure', detail.data)
+        self.assertIn(b'data-overview-toggle aria-expanded="false" hidden>...more</button>', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
         self.assertIn(b"Added to My Shows", detail.data)
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Watching</span>', detail.data)
