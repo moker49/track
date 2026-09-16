@@ -3447,8 +3447,10 @@ function updateMovieWatchUi(detailMovie, watchCount) {
   const control = detailMovie.querySelector("[data-movie-detail-watch]");
   if (!control) return;
   control.dataset.watchCount = watchCount;
-  control.querySelector("[data-movie-detail-watch-count]").textContent = watchCount;
-  control.querySelector("[data-movie-detail-watch-label]").textContent = watchCount === 1 ? "watch" : "watches";
+  const count = detailMovie.querySelector("[data-movie-detail-watch-count]");
+  const label = detailMovie.querySelector("[data-movie-detail-watch-label]");
+  if (count) count.textContent = watchCount;
+  if (label) label.textContent = watchCount === 1 ? "watch" : "watches";
 }
 
 function reactionDatasetKey(reaction) {
@@ -3954,9 +3956,10 @@ function updateEpisodeDetailWatchUi(detailEpisode, watchCount, latestResolutionK
   const control = detailEpisode.querySelector("[data-episode-detail-watch]");
   if (!control) return;
   control.dataset.watchCount = watchCount;
-  control.querySelector("[data-episode-detail-watch-count]").textContent = watchCount;
-  control.querySelector("[data-episode-detail-watch-label]").textContent =
-    watchCount === 1 ? "watch" : "watches";
+  const count = detailEpisode.querySelector("[data-episode-detail-watch-count]");
+  const label = detailEpisode.querySelector("[data-episode-detail-watch-label]");
+  if (count) count.textContent = watchCount;
+  if (label) label.textContent = watchCount === 1 ? "watch" : "watches";
   if (latestResolutionKind !== null) syncEpisodeResolutionMenu(detailEpisode, latestResolutionKind);
 }
 
