@@ -1,8 +1,8 @@
 {% set watched = movie.watch_count > 0 %}
 {% set upcoming = not watched and movie.is_upcoming|default(false) %}
-<div data-detail-movie data-detail-title="{{ movie.title }}" data-movie-id="{{ movie.id if movie.id is not none else '' }}" data-tmdb-id="{{ movie.tmdb_id }}"
-  data-watch-count="{{ movie.watch_count }}"
-  data-liked="{{ 'true' if movie.liked_at else 'false' }}"
+<div data-detail-movie data-detail-title="{{ movie.title }}"
+  data-movie-id="{{ movie.id if movie.id is not none else '' }}" data-tmdb-id="{{ movie.tmdb_id }}"
+  data-watch-count="{{ movie.watch_count }}" data-liked="{{ 'true' if movie.liked_at else 'false' }}"
   data-queued="{{ 'true' if movie.watch_again else 'false' }}"
   data-movie-upcoming="{{ 'true' if upcoming else 'false' }}"
   data-progress-state="{{ 'finished' if watched else 'not-started' }}">
@@ -52,7 +52,8 @@
   </section>
 
   <section class="detail-content">
-    {% if movie.overview %}<button class="overview-disclosure" type="button" data-overview-disclosure aria-expanded="false">
+    {% if movie.overview %}<button class="overview-disclosure" type="button" data-overview-disclosure
+      aria-expanded="false">
       <span class="overview" data-overview-copy>{{ movie.overview }}</span>
     </button>{% endif %}
     {% if movie.is_tracked %}
@@ -60,7 +61,7 @@
       <div class="episode-watch-summary-wrap">
         <div class="episode-watch-summary">
           <span class="episode-watch-status">
-            <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
+            <span class="material-symbols-rounded is-filled" aria-hidden="true">check_circle</span>
             <span><strong data-movie-detail-watch-count>{{ movie.watch_count }}</strong> <span
                 data-movie-detail-watch-label>{{ 'watches' if movie.watch_count != 1 else 'watch' }}</span></span>
           </span>
@@ -72,8 +73,10 @@
         </div>
       </div>
       <button class="queue-toggle" type="button" data-reaction-toggle="queue"
-        aria-pressed="{{ 'true' if movie.watch_again else 'false' }}" aria-label="Add {{ movie.title }} to Queue" title="Toggle Queue">
-        <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if movie.watch_again else 'playlist_add' }}</span>
+        aria-pressed="{{ 'true' if movie.watch_again else 'false' }}" aria-label="Add {{ movie.title }} to Queue"
+        title="Toggle Queue">
+        <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if movie.watch_again else
+          'playlist_add' }}</span>
       </button>
     </div>
     {% set activity_title = 'Activity' %}
@@ -83,8 +86,10 @@
     {% include '_activity_log.html' %}
     {% else %}
     <div class="md-button-group detail-add-group" aria-label="Add movie to library">
-      <button type="button" data-track-movie-action="new"><span class="material-symbols-rounded" aria-hidden="true">add</span><span>Add</span></button>
-      <button type="button" data-track-movie-action="watched"><span class="material-symbols-rounded" aria-hidden="true">visibility</span><span>Watch</span></button>
+      <button type="button" data-track-movie-action="new"><span class="material-symbols-rounded"
+          aria-hidden="true">add</span><span>Add</span></button>
+      <button type="button" data-track-movie-action="watched"><span class="material-symbols-rounded"
+          aria-hidden="true">visibility</span><span>Watch</span></button>
     </div>
     {% endif %}
   </section>
