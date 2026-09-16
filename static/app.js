@@ -187,9 +187,9 @@ const utilityRevealAnimationHandlers = new WeakMap();
 let currentView = "backlog";
 let detailParentView = "backlog";
 let diaryRevision = 0;
-let renderedDiaryRevision = 0;
+let renderedDiaryRevision = -1;
 let diaryRequest = null;
-let renderedStatisticsRevision = 0;
+let renderedStatisticsRevision = -1;
 let statisticsRequest = null;
 let scheduleRefreshRequest = null;
 let tvRefreshRequest = null;
@@ -222,7 +222,7 @@ let tvLayoutTransitionTimer = null;
 let tvDropdownHistoryActive = false;
 let navigationDrawerHistoryActive = false;
 let navigationDrawerCloseTimer = null;
-let reactionListsDirty = false;
+let reactionListsDirty = true;
 let searchHistoryActive = false;
 let searchHistoryView = null;
 let searchHistoryClosing = false;
@@ -591,6 +591,10 @@ function showView(viewName, historyMode = null) {
   syncTvControlVisibility();
   if (["tv", "movies"].includes(viewName)) {
     filterShowView(views.get(viewName));
+    if (!views.get(viewName).children.length) {
+      const refresh = viewName === "tv" ? refreshTvContent() : refreshMoviesContent();
+      refresh.catch(() => undefined);
+    }
   }
   if (["backlog", "upcoming"].includes(viewName)) {
     filterSchedule(viewName);
@@ -1580,6 +1584,9 @@ function hydrateOtherPrimaryViews(currentPrimaryView = null) {
       if (currentPrimaryView !== "tv") {
         hydrationTasks.push(refreshTvContent({ background: true }));
       }
+      if (currentPrimaryView !== "movies") {
+        hydrationTasks.push(refreshMoviesContent());
+      }
       if (!scheduleViewsHydrated) {
         if (!["backlog", "upcoming"].includes(currentPrimaryView)) {
           hydrationTasks.push(refreshScheduleContent({ background: true }));
@@ -1590,7 +1597,11 @@ function hydrateOtherPrimaryViews(currentPrimaryView = null) {
           }));
         }
       }
-      hydrationTasks.push(prefetchReactionLists());
+      hydrationTasks.push(
+        refreshDiaryContent(),
+        refreshStatisticsContent(),
+        prefetchReactionLists(),
+      );
       Promise.allSettled(hydrationTasks);
     });
   });
@@ -3514,6 +3525,7 @@ async function refreshReactionList(reaction, { force = false } = {}) {
   try {
     const markup = await fetchReactionListMarkup(reaction, { force });
     renderReactionListMarkup(reaction, markup);
+    reactionListsDirty = false;
   } catch (error) {
     if (error.name !== "AbortError") showSnackbar(error.message || "Couldn't load this list.");
   } finally {
@@ -3524,7 +3536,7 @@ async function refreshReactionList(reaction, { force = false } = {}) {
 function cacheInitialReactionList() {
   ["liked"].forEach((reaction) => {
     const panel = views.get(reaction)?.querySelector("[data-reaction-list-content]");
-    if (panel) reactionListMarkup.set(reaction, panel.innerHTML);
+    if (panel?.innerHTML.trim()) reactionListMarkup.set(reaction, panel.innerHTML);
   });
 }
 

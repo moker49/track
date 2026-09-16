@@ -29,15 +29,13 @@
 </section>
 
 <section class="app-view" data-view="upcoming" aria-label="Upcoming" hidden>
-  {% include "_upcoming_content.html" %}
+  <div class="schedule-content" data-schedule-content="upcoming"></div>
 </section>
 
 <section class="app-view" data-view="tv" aria-label="TV" hidden>
-  {% include "tv.html" %}
 </section>
 
 <section class="app-view" data-view="movies" aria-label="Movies" hidden>
-  {% include "movies.html" %}
 </section>
 
 <section class="app-view" data-view="detail" aria-label="Show details" aria-live="polite" hidden></section>
@@ -47,7 +45,7 @@
     <button class="icon-button" type="button" data-utility-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
     <h1>Diary</h1>
   </header>
-  <section data-diary-content>{% include "_diary_content.html" %}</section>
+  <section data-diary-content></section>
 </section>
 
 <section class="app-view utility-view" data-view="statistics" aria-label="Statistics" hidden>
@@ -55,7 +53,7 @@
     <button class="icon-button" type="button" data-utility-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
     <h1>Statistics</h1>
   </header>
-  <section data-statistics-content>{% include "_statistics_content.html" %}</section>
+  <section data-statistics-content></section>
 </section>
 
 <section class="app-view utility-view reaction-page" data-view="liked" aria-label="Likes" hidden>
@@ -63,10 +61,7 @@
     <button class="icon-button" type="button" data-utility-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
     <h1>Likes</h1>
   </header>
-  <section class="reaction-page-results" data-reaction-list-content="liked">
-    {% set reaction = "liked" %}{% set shows = liked_shows %}{% set movies = liked_movies %}
-    {% include "_reaction_list.html" %}
-  </section>
+  <section class="reaction-page-results" data-reaction-list-content="liked"></section>
 </section>
 
 <section class="app-view utility-view settings-view" data-view="settings" aria-label="Settings" hidden>

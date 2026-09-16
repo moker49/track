@@ -98,19 +98,21 @@ class TrackAppTest(unittest.TestCase):
 
     def test_single_page_shell_contains_primary_views(self):
         home = self.client.get("/")
+        tv = self.client.get("/api/tv")
         self.assertEqual(home.status_code, 200)
-        self.assertIn(b"Active Test Show", home.data)
-        self.assertIn(b"Archived Test Show", home.data)
-        self.assertIn(b"Archived", home.data)
-        self.assertIn(b"Finished", home.data)
-        self.assertIn(b"more_vert", home.data)
-        self.assertIn(b"Resume", home.data)
-        self.assertIn(b"Remove", home.data)
-        self.assertNotIn(b">Add show</h2>", home.data)
-        self.assertIn(b'data-tv-add-results', home.data)
-        self.assertNotIn(b'data-tv-search-loading', home.data)
-        self.assertIn(b'data-tv-search-empty', home.data)
-        self.assertIn(b"No results found", home.data)
+        self.assertIn(b"Active Test Show", tv.data)
+        self.assertIn(b"Archived Test Show", tv.data)
+        self.assertIn(b"Archived", tv.data)
+        self.assertIn(b"Finished", tv.data)
+        self.assertIn(b"more_vert", tv.data)
+        self.assertIn(b"Resume", tv.data)
+        self.assertIn(b"Remove", tv.data)
+        self.assertNotIn(b">Add show</h2>", tv.data)
+        self.assertIn(b'data-tv-add-results', tv.data)
+        self.assertNotIn(b'data-tv-search-loading', tv.data)
+        self.assertIn(b'data-tv-search-empty', tv.data)
+        self.assertIn(b"No results found", tv.data)
+        self.assertNotIn(b"Archived Test Show", home.data)
         self.assertIn(b'data-global-search-bar', home.data)
         self.assertEqual(home.data.count(b'data-global-search>'), 1)
         self.assertIn(b'aria-label="Menu"', home.data)
@@ -169,8 +171,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(home.data.count(b"data-clear-search"), 1)
         self.assertEqual(home.data.count(b">close</span>"), 2)
         self.assertIn(b'data-progress-state="started"', home.data)
-        self.assertIn(b'data-progress-state="finished"', home.data)
-        self.assertIn(b'data-show-id="1"', home.data)
+        self.assertIn(b'data-progress-state="finished"', tv.data)
+        self.assertIn(b'data-show-id="1"', tv.data)
         self.assertNotIn(b'href="/search"', home.data)
         self.assertNotIn(b'href="/shows/1"', home.data)
         self.assertIn(b'<span class="material-symbols-rounded">tv</span>', home.data)
@@ -187,8 +189,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".show-card {\n  position: relative;\n  width: 100%;\n  height: var(--compact-card-height);", css)
         self.assertIn(".popular-card {\n  position: relative;\n  height: var(--compact-card-height);", css)
         self.assertIn("grid-template-columns: 88px 1fr", css)
-        self.assertIn('class="show-card-meta"', home.data.decode("utf-8"))
-        self.assertIn('class="show-card-year">2008</span>', home.data.decode("utf-8"))
+        self.assertIn('class="show-card-meta"', tv.data.decode("utf-8"))
+        self.assertIn('class="show-card-year">2008</span>', tv.data.decode("utf-8"))
         self.assertIn("font-size: 1.16rem", css)
         self.assertIn("grid-template-columns: repeat(4, 1fr)", css)
         self.assertIn("grid-template-columns: 48px minmax(0, 1fr) 48px", css)
@@ -247,8 +249,8 @@ class TrackAppTest(unittest.TestCase):
         connection.commit()
         connection.close()
 
-        home = self.client.get("/")
-        self.assertLess(home.data.index(b"Series 2"), home.data.index(b"Series 10"))
+        tv = self.client.get("/api/tv")
+        self.assertLess(tv.data.index(b"Series 2"), tv.data.index(b"Series 10"))
 
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
@@ -405,7 +407,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-schedule-search-text="active test show episode 6"', home.data)
         self.assertIn(b'data-schedule-content="backlog"', home.data)
         self.assertIn(b'data-schedule-content="upcoming"', home.data)
-        self.assertEqual(home.data.count(b"data-schedule-panel"), 2)
+        self.assertEqual(home.data.count(b"data-schedule-panel"), 1)
         self.assertNotIn(b'data-schedule-now', home.data)
         self.assertIn(b'data-schedule-mode="catch-up"', home.data)
         self.assertIn(b'data-episode-id="6"', home.data)
@@ -413,17 +415,18 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"5/13", home.data)
         self.assertIn(b"38%", home.data)
         self.assertNotIn(b"more available", home.data)
-        self.assertIn(b'data-schedule-mode="upcoming"', home.data)
-        self.assertIn(b"Future Episode", home.data)
+        upcoming = self.client.get("/api/schedule")
+        self.assertIn(b'data-schedule-mode="upcoming"', upcoming.data)
+        self.assertIn(b"Future Episode", upcoming.data)
         self.assertLess(
-            home.data.index(b"Future Episode"),
-            home.data.index(b"Distant Episode"),
+            upcoming.data.index(b"Future Episode"),
+            upcoming.data.index(b"Distant Episode"),
         )
-        self.assertIn(b'class="schedule-timeline"', home.data)
-        self.assertIn(b"Season 2 \xc2\xb7 Episode 7", home.data)
-        self.assertIn(b">Future Episode</span>", home.data)
+        self.assertIn(b'class="schedule-timeline"', upcoming.data)
+        self.assertIn(b"Season 2 \xc2\xb7 Episode 7", upcoming.data)
+        self.assertIn(b">Future Episode</span>", upcoming.data)
         self.assertRegex(
-            home.data.decode("utf-8"),
+            upcoming.data.decode("utf-8"),
             r'class="schedule-timeline-countdown">\s+\d+ days\s+</span>',
         )
         self.assertNotIn(b"days left", home.data)
@@ -542,7 +545,7 @@ class TrackAppTest(unittest.TestCase):
         connection.commit()
         connection.close()
 
-        home = self.client.get("/")
+        home = self.client.get("/api/schedule")
         self.assertIn("Season 3 · Episodes 3–4".encode(), home.data)
         self.assertIn(b'>2 episodes</span>', home.data)
         self.assertIn("Season 4 · Episodes 1–2".encode(), home.data)
@@ -581,7 +584,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b">138%</strong>", detail.data)
         self.assertIn(b'data-overwatch-tag>\xc3\x971</span>', detail.data)
 
-        home = self.client.get("/")
+        home = self.client.get("/api/tv")
         self.assertIn(
             b'<div class="show-card-meta" data-show-progress-tags>\n'
             b'          <span class="state-label progress-tag" data-progress-tag>Finished</span>\n'
@@ -1203,7 +1206,7 @@ class TrackAppTest(unittest.TestCase):
         db.commit()
         db.close()
 
-        home = self.client.get("/")
+        home = self.client.get("/api/tv")
         match = re.search(
             rb'<article class="show-card" data-show-id="1".*?</article>',
             home.data,
