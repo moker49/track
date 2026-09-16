@@ -2,6 +2,7 @@ const views = new Map(
   [...document.querySelectorAll("[data-view]")].map((view) => [view.dataset.view, view]),
 );
 
+const APP_TITLE = "Track";
 const TRACKING_STATE = Object.freeze({ ACTIVE: "ACTIVE", ARCHIVED: "ARCHIVED" });
 const PROGRESS_STATE = Object.freeze({
   NEW: "not-started",
@@ -646,18 +647,7 @@ function showView(viewName, historyMode = null) {
       window.requestAnimationFrame(() => revealReactionListOnce(viewName));
     }
   }
-  const titles = {
-    backlog: "Queue · Track",
-    upcoming: "Upcoming · Track",
-    tv: "TV · Track",
-    movies: "Movies · Track",
-    detail: "Track",
-    diary: "Diary · Track",
-    statistics: "Statistics · Track",
-    liked: "Likes · Track",
-    settings: "Settings · Track",
-  };
-  document.title = titles[viewName] || "Track";
+  document.title = APP_TITLE;
   if (["backlog", "upcoming"].includes(viewName)) {
     if (firstScheduleDataReady) {
       staggerScheduleFirstReveal(views.get(viewName));
@@ -1717,8 +1707,7 @@ async function processScheduleMovie(card) {
 function finishDetailLoad({ resetScroll = true } = {}) {
   const detailView = views.get("detail");
   formatDisplayDates(detailView);
-  const title = detailView.querySelector("[data-detail-title]")?.dataset.detailTitle;
-  if (title) document.title = `${title} \u00B7 Track`;
+  document.title = APP_TITLE;
   if (resetScroll) window.scrollTo({ top: 0, behavior: "auto" });
 }
 
