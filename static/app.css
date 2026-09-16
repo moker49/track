@@ -2292,6 +2292,14 @@ html.navigation-drawer-closing .menu-scrim {
   line-height: 1.55;
 }
 
+.utility-app-bar:has([data-liked-control-bar-slot]) {
+  grid-template-columns: 48px minmax(0, 1fr);
+}
+
+[data-liked-control-bar-slot] {
+  grid-column: 1 / -1;
+}
+
 .overview-disclosure {
   position: relative;
   width: 100%;

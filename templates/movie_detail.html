@@ -2,7 +2,7 @@
 {% set upcoming = not watched and movie.is_upcoming|default(false) %}
 <div data-detail-movie data-detail-title="{{ movie.title }}" data-movie-id="{{ movie.id if movie.id is not none else '' }}" data-tmdb-id="{{ movie.tmdb_id }}"
   data-watch-count="{{ movie.watch_count }}"
-  data-liked="{{ 'true' if movie.liked else 'false' }}"
+  data-liked="{{ 'true' if movie.liked_at else 'false' }}"
   data-queued="{{ 'true' if movie.watch_again else 'false' }}"
   data-movie-upcoming="{{ 'true' if upcoming else 'false' }}"
   data-progress-state="{{ 'finished' if watched else 'not-started' }}">
@@ -12,7 +12,7 @@
     </button>
     <span class="detail-app-bar-title">Movie details</span>
     {% if movie.is_tracked %}<button class="icon-button detail-like-button" type="button" data-reaction-toggle="liked"
-      aria-pressed="{{ 'true' if movie.liked else 'false' }}" aria-label="Like {{ movie.title }}">
+      aria-pressed="{{ 'true' if movie.liked_at else 'false' }}" aria-label="Like {{ movie.title }}">
       <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
     </button>{% endif %}
     {% if movie.is_tracked %}<div class="menu-anchor">

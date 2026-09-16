@@ -41,5 +41,47 @@ def normalize_movie_added_timestamps(
 def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None:
     schema = Path(schema_path).read_text(encoding="utf-8")
     db.executescript(schema)
+    migrate_liked_at(db)
     db.execute("PRAGMA optimize")
     db.commit()
+
+
+def migrate_liked_at(db: sqlite3.Connection) -> None:
+    """Replace the legacy liked boolean with the timestamp used for sorting."""
+    for table in ("shows", "movies"):
+        columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
+        if "liked_at" not in columns:
+            db.execute(f"ALTER TABLE {table} ADD COLUMN liked_at TEXT")
+        if "liked" not in columns:
+            continue
+        if table == "shows":
+            db.execute(
+                """
+                UPDATE shows
+                SET liked_at = COALESCE(
+                    liked_at,
+                    (SELECT MIN(wh.added_at)
+                     FROM episode_watch_history wh
+                     JOIN episodes e ON e.id = wh.episode_id
+                     JOIN seasons sn ON sn.id = e.season_id
+                     WHERE sn.show_id = shows.id),
+                    added_at
+                )
+                WHERE liked = 1
+                """
+            )
+        else:
+            db.execute(
+                """
+                UPDATE movies
+                SET liked_at = COALESCE(
+                    liked_at,
+                    (SELECT MIN(added_at)
+                     FROM movie_watch_history
+                     WHERE movie_id = movies.id),
+                    added_at
+                )
+                WHERE liked = 1
+                """
+            )
+        db.execute(f"ALTER TABLE {table} DROP COLUMN liked")

@@ -108,6 +108,8 @@ sharedDialogs.forEach((dialog) => {
   });
 });
 const tvControlBar = document.querySelector("[data-tv-control-bar]");
+const tvControlBarSlot = document.querySelector("[data-tv-control-bar-slot]");
+const likedControlBarSlot = document.querySelector("[data-liked-control-bar-slot]");
 const menuIsolatedElements = new Set();
 const floatingMenuAnimations = new WeakMap();
 let menuScrollLockPosition = null;
@@ -143,8 +145,14 @@ const libraryViewPreferences = {
     mediaTypes: ["movies"],
     layout: "list",
   },
+  liked: {
+    progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP],
+    sortField: "likedAt",
+    sortDirection: "desc",
+    mediaTypes: ["tv", "movies", "tv-archive"],
+  },
 };
-const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "" };
+const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "", liked: "" };
 const librarySearchUpdates = { tv: false, movies: false };
 const virtualLibraries = new Map();
 const virtualReactionLists = new Map();
@@ -634,6 +642,7 @@ function showView(viewName, historyMode = null) {
     if (reactionListsDirty) refreshReactionList(viewName);
     else {
       initializeVirtualReactionList(viewName);
+      filterReactionList();
       window.requestAnimationFrame(() => revealReactionListOnce(viewName));
     }
   }
@@ -3007,6 +3016,7 @@ const sortFieldLabels = {
   releaseDate: "Released",
   lastWatched: "Watched",
   progress: "Progress",
+  likedAt: "Liked",
 };
 
 const libraryViewDefaults = {
@@ -3014,6 +3024,7 @@ const libraryViewDefaults = {
   upcoming: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "movies"] },
   tv: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP], sortField: "name", sortDirection: "asc", mediaTypes: ["tv"] },
   movies: { progress: [PROGRESS_STATE.NEW], sortField: "dateAdded", sortDirection: "desc", mediaTypes: ["movies"] },
+  liked: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "likedAt", sortDirection: "desc", mediaTypes: ["tv", "movies", "tv-archive"] },
 };
 
 function selectionSummary(values, defaults, available, defaultLabel) {
@@ -3121,11 +3132,17 @@ function syncTvControlBar(view = views.get(currentView)) {
     }
     const selected = preferences.progress.includes(value);
     button.classList.toggle("is-unselected-default", defaults.progress.includes(value) && !selected);
+    const progressLocked = viewName === "liked";
+    button.disabled = progressLocked;
+    button.setAttribute("aria-disabled", String(progressLocked));
     button.setAttribute("aria-checked", String(selected));
     button.querySelector(".tv-dropdown-selection").classList.toggle("is-hidden", !selected);
   });
   tvControlBar.querySelectorAll("[data-tv-sort-option]").forEach((button) => {
-    button.hidden = viewName === "movies" && button.dataset.tvSortOption === "progress";
+    const option = button.dataset.tvSortOption;
+    button.hidden = viewName === "liked"
+      ? !["name", "dateAdded", "releaseDate", "likedAt"].includes(option)
+      : option === "likedAt" || (viewName === "movies" && option === "progress");
     const selected = button.dataset.tvSortOption === preferences.sortField;
     button.classList.toggle("is-unselected-default", button.dataset.tvSortOption === defaults.sortField && !selected);
     const sortLocked = viewName === "upcoming";
@@ -3142,8 +3159,10 @@ function syncTvControlBar(view = views.get(currentView)) {
 
 function syncTvControlVisibility() {
   if (!tvControlBar) return;
-  const visible = ["backlog", "upcoming", "tv", "movies"].includes(currentView)
+  const visible = ["backlog", "upcoming", "tv", "movies", "liked"].includes(currentView)
     && !searchQueries[currentView].trim();
+  const target = currentView === "liked" ? likedControlBarSlot : tvControlBarSlot;
+  if (target && tvControlBar.parentElement !== target) target.append(tvControlBar);
   tvControlBar.hidden = !visible;
   appContent?.classList.toggle("has-library-controls", visible);
   if (visible) syncTvControlBar(views.get(currentView));
@@ -3515,6 +3534,7 @@ function renderReactionListMarkup(reaction, markup) {
   panel.innerHTML = markup;
   formatDisplayDates(panel);
   initializeVirtualReactionList(reaction);
+  if (reaction === "liked") filterReactionList();
   if (currentView === reaction) revealReactionListOnce(reaction);
 }
 
@@ -4225,12 +4245,14 @@ document.addEventListener("click", (event) => {
   if (progressOption) {
     const preferences = libraryViewPreferences[currentView];
     if (!preferences) return;
+    if (currentView === "liked") return;
     const value = progressOption.dataset.tvProgressOption;
     preferences.progress = preferences.progress.includes(value)
       ? preferences.progress.filter((selected) => selected !== value)
       : [...preferences.progress, value];
     if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
     else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
+    else if (currentView === "liked") filterReactionList();
     else syncTvControlBar(views.get(currentView));
     return;
   }
@@ -4245,6 +4267,7 @@ document.addEventListener("click", (event) => {
       : [...preferences.mediaTypes, type];
     if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
     else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
+    else if (currentView === "liked") filterReactionList();
     syncTvControlBar(views.get(currentView));
     return;
   }
@@ -4269,6 +4292,7 @@ document.addEventListener("click", (event) => {
     }
     if (currentView === "backlog") filterSchedule(currentView);
     else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
+    else if (currentView === "liked") filterReactionList();
     else syncTvControlBar(views.get(currentView));
     return;
   }
@@ -4969,6 +4993,7 @@ function initializeVirtualReactionList(reaction) {
     view,
     list,
     cards,
+    filteredCards: cards,
     topSpacer: createVirtualLibrarySpacer("reaction-top"),
     bottomSpacer: createVirtualLibrarySpacer("reaction-bottom"),
     renderStart: -1,
@@ -4993,7 +5018,7 @@ function virtualReactionListMetrics(state) {
 function renderVirtualReactionList(state, force = false) {
   if (!state || state.view.hidden) return;
   const metrics = virtualReactionListMetrics(state);
-  const rowCount = Math.ceil(state.cards.length / metrics.columns);
+  const rowCount = Math.ceil(state.filteredCards.length / metrics.columns);
   const listTop = window.scrollY + state.list.getBoundingClientRect().top;
   const viewportTop = Math.max(0, window.scrollY - listTop);
   const firstVisibleRow = Math.floor(viewportTop / metrics.pitch);
@@ -5001,7 +5026,7 @@ function renderVirtualReactionList(state, force = false) {
   const startRow = Math.max(0, Math.min(rowCount, firstVisibleRow - VIRTUAL_LIBRARY_OVERSCAN_ROWS));
   const endRow = Math.max(startRow, Math.min(rowCount, lastVisibleRow + VIRTUAL_LIBRARY_OVERSCAN_ROWS));
   const start = startRow * metrics.columns;
-  const end = Math.min(state.cards.length, endRow * metrics.columns);
+  const end = Math.min(state.filteredCards.length, endRow * metrics.columns);
   const layoutKey = `${metrics.columns}:${rowCount}`;
   if (!force && state.renderStart === start && state.renderEnd === end && state.layoutKey === layoutKey) return;
   state.renderStart = start;
@@ -5010,7 +5035,7 @@ function renderVirtualReactionList(state, force = false) {
   setVirtualSpacerHeight(state.topSpacer, startRow, { pitch: metrics.pitch, gap: 16 });
   setVirtualSpacerHeight(state.bottomSpacer, Math.max(0, rowCount - endRow), { pitch: metrics.pitch, gap: 16 });
   const fragment = document.createDocumentFragment();
-  fragment.append(state.topSpacer, ...state.cards.slice(start, end), state.bottomSpacer);
+  fragment.append(state.topSpacer, ...state.filteredCards.slice(start, end), state.bottomSpacer);
   state.list.replaceChildren(fragment);
   inspectMediaImages(state.list);
 }
@@ -5213,6 +5238,35 @@ function releaseTimelineScrollRestore() {
   if (["backlog", "upcoming"].includes(currentView)) {
     pendingTimelineScrollRestores.delete(currentView);
   }
+}
+
+function filterReactionList() {
+  const state = virtualReactionLists.get("liked") || initializeVirtualReactionList("liked");
+  const preferences = libraryViewPreferences.liked;
+  if (!state || !preferences) return;
+  state.filteredCards = state.cards.filter((card) => {
+    const isMovie = card.classList.contains("movie-card");
+    const mediaType = isMovie ? "movies" : card.dataset.showState === TRACKING_STATE.ARCHIVED
+      ? "tv-archive" : "tv";
+    const progress = card.dataset.progressState;
+    return preferences.mediaTypes.includes(mediaType)
+      && (preferences.progress.includes(progress)
+        || (progress === PROGRESS_STATE.FINISHED
+          && preferences.progress.includes(PROGRESS_STATE.CAUGHT_UP)));
+  }).sort((first, second) => {
+    const firstValue = first.dataset[preferences.sortField] || "";
+    const secondValue = second.dataset[preferences.sortField] || "";
+    const comparison = firstValue.localeCompare(secondValue, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    if (comparison !== 0) return preferences.sortDirection === "asc" ? comparison : -comparison;
+    return Number(first.dataset.showId || first.dataset.movieId)
+      - Number(second.dataset.showId || second.dataset.movieId);
+  });
+  state.renderStart = -1;
+  state.renderEnd = -1;
+  renderVirtualReactionList(state, true);
 }
 
 function settleActiveVirtualReveals() {

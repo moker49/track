@@ -40,7 +40,7 @@
     </button>
     <div class="tv-dropdown-menu" data-tv-dropdown-menu="sort" role="menu" popover="manual" hidden>
       {% for value, label in [('name', 'Name'), ('dateAdded', 'Added'), ('releaseDate', 'Released'), ('lastWatched',
-      'Watched'), ('progress', 'Progress')] %}
+      'Watched'), ('progress', 'Progress'), ('likedAt', 'Liked')] %}
       <button type="button" data-tv-sort-option="{{ value }}" role="menuitemradio"
         aria-checked="{{ 'true' if value == 'name' else 'false' }}"><span
           class="material-symbols-rounded tv-dropdown-selection{% if value != 'name' %} is-hidden{% endif %}"

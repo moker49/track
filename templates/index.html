@@ -21,7 +21,7 @@
       <span class="material-symbols-rounded is-filled" aria-hidden="true">view_list</span>
     </button>
   </div>
-  {% include "_tv_controls.html" %}
+  <div data-tv-control-bar-slot>{% include "_tv_controls.html" %}</div>
 </header>
 
 <section class="app-view is-active" data-view="backlog" aria-label="Queue">
@@ -60,6 +60,7 @@
   <header class="utility-app-bar">
     <button class="icon-button" type="button" data-utility-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
     <h1>Likes</h1>
+    <div data-liked-control-bar-slot></div>
   </header>
   <section class="reaction-page-results" data-reaction-list-content="liked"></section>
 </section>

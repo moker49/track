@@ -375,7 +375,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if payload.get("id") != tmdb_id:
             return jsonify(error="TMDB returned the wrong movie"), 502
         saved_movie = get_db().execute(
-            "SELECT id, is_tracked, liked FROM movies WHERE tmdb_id = ?", (tmdb_id,)
+            "SELECT id, is_tracked, liked_at FROM movies WHERE tmdb_id = ?", (tmdb_id,)
         ).fetchone()
         movie = {
             "id": saved_movie["id"] if saved_movie else None,
@@ -391,7 +391,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "runtime_minutes": payload.get("runtime"),
             "genres": ", ".join(genre.get("name", "") for genre in payload.get("genres", [])),
             "is_tracked": bool(saved_movie["is_tracked"]) if saved_movie else False,
-            "liked": bool(saved_movie["liked"]) if saved_movie else False,
+            "liked_at": saved_movie["liked_at"] if saved_movie else None,
             "watch_count": 0,
         }
         return render_template("movie_detail.html", movie=movie, activity=[])
@@ -414,12 +414,20 @@ def create_app(test_config: dict | None = None) -> Flask:
         return render_template("movie_detail.html", movie=movie, activity=get_movie_activity(get_db(), movie_id))
 
     def update_media_reaction(table: str, media_id: int, reaction: str):
-        column = {"liked": "liked", "queue": "watch_again"}.get(reaction)
-        if column is None:
+        column = {"queue": "watch_again"}.get(reaction)
+        if reaction not in {"liked", "queue"}:
             abort(404)
         selected = bool((request.get_json(silent=True) or {}).get("selected"))
         db = get_db()
-        if table == "shows" and reaction == "queue":
+        if reaction == "liked":
+            cursor = db.execute(
+                f"""UPDATE {table}
+                    SET liked_at = CASE WHEN ? THEN ? ELSE NULL END,
+                        updated_at = ?
+                    WHERE id = ? AND is_tracked = 1""",
+                (selected, utc_now(), utc_now(), media_id),
+            )
+        elif table == "shows" and reaction == "queue":
             baseline = get_show_progress(db, media_id)["completed_watch_count"] if selected else None
             cursor = db.execute(
                 "UPDATE shows SET watch_again = ?, watch_again_baseline = ?, updated_at = ? WHERE id = ? AND is_tracked = 1",
@@ -442,55 +450,6 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.post("/api/movies/<int:movie_id>/reactions/<reaction>")
     def set_movie_reaction(movie_id: int, reaction: str):
         return update_media_reaction("movies", movie_id, reaction)
-
-    @app.post("/api/movies/<int:movie_id>/liked")
-    def set_movie_liked(movie_id: int):
-        liked = bool((request.get_json(silent=True) or {}).get("liked"))
-        cursor = get_db().execute(
-            "UPDATE movies SET liked = ?, updated_at = ? WHERE id = ?",
-            (int(liked), utc_now(), movie_id),
-        )
-        if cursor.rowcount == 0:
-            return jsonify(error="Movie not found"), 404
-        get_db().commit()
-        return jsonify(movie_id=movie_id, liked=liked)
-
-    @app.post("/api/movies/tmdb/<int:tmdb_id>/liked")
-    def set_preview_movie_liked(tmdb_id: int):
-        liked = bool((request.get_json(silent=True) or {}).get("liked"))
-        db = get_db()
-        existing = db.execute(
-            "SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)
-        ).fetchone()
-        if existing:
-            db.execute(
-                "UPDATE movies SET liked = ?, updated_at = ? WHERE id = ?",
-                (int(liked), utc_now(), existing["id"]),
-            )
-            movie_id = existing["id"]
-        else:
-            try:
-                movie = get_tmdb_client().movie(tmdb_id)
-            except TMDBError as error:
-                return jsonify(error=str(error)), 503
-            if movie.get("id") != tmdb_id:
-                return jsonify(error="TMDB returned the wrong movie"), 502
-            now = utc_now()
-            cursor = db.execute(
-                """INSERT INTO movies (tmdb_id,title,original_title,overview,poster_path,backdrop_path,
-                  release_date,runtime_minutes,status,genres,original_language,is_tracked,liked,
-                  added_at,updated_at,tmdb_refreshed_at,tmdb_payload)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"),
-                 movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"),
-                 movie.get("release_date"), movie.get("runtime"), movie.get("status"),
-                 ", ".join(genre.get("name", "") for genre in movie.get("genres", [])),
-                 movie.get("original_language"), 0, int(liked), now, now, now,
-                 json.dumps(movie)),
-            )
-            movie_id = cursor.lastrowid
-        db.commit()
-        return jsonify(movie_id=movie_id, liked=liked)
 
     @app.delete("/api/movies/<int:movie_id>")
     def remove_movie(movie_id: int):
