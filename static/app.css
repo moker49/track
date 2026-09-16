@@ -3201,9 +3201,10 @@ html.navigation-drawer-closing .menu-scrim {
 
 .app-bar-search {
   position: relative;
-  height: 56px;
+  /* A top bar has a 48px content lane inside its fixed 68px height. */
+  height: 48px;
   padding: 0;
-  border-radius: 28px;
+  border-radius: 24px;
   display: block;
   color: var(--on-surface-muted);
   background: var(--chrome-control-surface);
