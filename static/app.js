@@ -4293,7 +4293,7 @@ document.addEventListener("click", (event) => {
     if (currentView === "backlog") filterSchedule(currentView);
     else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
     else if (currentView === "liked") filterReactionList();
-    else syncTvControlBar(views.get(currentView));
+    syncTvControlBar(views.get(currentView));
     return;
   }
 
