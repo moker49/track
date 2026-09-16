@@ -542,10 +542,11 @@ function motionIsReduced() {
 function syncOverviewDisclosures(root = document) {
   root.querySelectorAll("[data-overview-disclosure]").forEach((disclosure) => {
     const overview = disclosure.querySelector("[data-overview-copy]");
-    const toggle = disclosure.querySelector("[data-overview-toggle]");
-    if (!overview || !toggle) return;
-    if (disclosure.classList.contains("is-expanded")) return;
-    toggle.hidden = overview.scrollHeight <= overview.clientHeight + 1;
+    if (!overview) return;
+    if (disclosure.classList.contains("is-expanded")) {
+      return;
+    }
+    disclosure.disabled = overview.scrollHeight <= overview.clientHeight + 1;
   });
 }
 
@@ -3952,13 +3953,11 @@ document.addEventListener("toggle", (event) => {
 }, true);
 
 document.addEventListener("click", (event) => {
-  const overviewToggle = event.target.closest("[data-overview-toggle]");
-  if (overviewToggle) {
-    const disclosure = overviewToggle.closest("[data-overview-disclosure]");
-    if (!disclosure) return;
+  const disclosure = event.target.closest("[data-overview-disclosure]");
+  if (disclosure) {
     const expanded = disclosure.classList.toggle("is-expanded");
-    overviewToggle.setAttribute("aria-expanded", String(expanded));
-    overviewToggle.textContent = expanded ? "...less" : "...more";
+    disclosure.setAttribute("aria-expanded", String(expanded));
+    syncOverviewDisclosures(disclosure.parentElement);
     return;
   }
 

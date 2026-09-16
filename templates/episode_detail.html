@@ -36,7 +36,10 @@
     </section>
 
     <section class="detail-content episode-detail-content">
-      <p class="overview episode-overview">{{ episode.overview }}</p>
+      {% if episode.overview %}<button class="overview-disclosure episode-overview" type="button"
+        data-overview-disclosure aria-expanded="false">
+        <span class="overview" data-overview-copy>{{ episode.overview }}</span>
+      </button>{% endif %}
 
       <button class="episode-show-link" type="button" data-episode-show-open data-show-id="{{ episode.show_id }}"
         aria-label="Open {{ episode.show_name }} show details">

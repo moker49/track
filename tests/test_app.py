@@ -882,7 +882,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("function refreshScheduleForMediaChange()", javascript)
         self.assertNotIn("function refreshUpcomingForMovieChange()", javascript)
         self.assertIn("function syncOverviewDisclosures(root = document)", javascript)
-        self.assertIn('event.target.closest("[data-overview-toggle]")', javascript)
+        self.assertIn('event.target.closest("[data-overview-disclosure]")', javascript)
         self.assertIn("const [overviewHtml, seasonsHtml] = await Promise.all", javascript)
         self.assertIn(
             "renderShowDetail(cachedOverview, cachedSeasons, false, returnContext)",
@@ -994,7 +994,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-detail-title="Active Test Show"', detail.data)
         self.assertIn(b'class="detail-app-bar-title">Show details</span>', detail.data)
         self.assertIn(b'data-overview-disclosure', detail.data)
-        self.assertIn(b'data-overview-toggle aria-expanded="false" hidden>...more</button>', detail.data)
+        self.assertNotIn(b'data-overview-more', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
         self.assertIn(b"Added to My Shows", detail.data)
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Watching</span>', detail.data)

@@ -52,10 +52,9 @@
   </section>
 
   <section class="detail-content">
-    {% if movie.overview %}<div class="overview-disclosure" data-overview-disclosure>
-      <p class="overview" data-overview-copy>{{ movie.overview }}</p>
-      <button class="overview-more" type="button" data-overview-toggle aria-expanded="false" hidden>...more</button>
-    </div>{% endif %}
+    {% if movie.overview %}<button class="overview-disclosure" type="button" data-overview-disclosure aria-expanded="false">
+      <span class="overview" data-overview-copy>{{ movie.overview }}</span>
+    </button>{% endif %}
     {% if movie.is_tracked %}
     <div class="queue-control-row">
       <div class="episode-watch-summary-wrap watch-control-wrap">

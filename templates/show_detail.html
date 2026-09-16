@@ -69,10 +69,11 @@
   </section>
 
   <section class="detail-content">
-    <div class="overview-disclosure" data-overview-disclosure>
+    <div>
       <p class="tagline">“{{ show.tagline }}”</p>
-      <p class="overview" data-overview-copy>{{ show.overview }}</p>
-      <button class="overview-more" type="button" data-overview-toggle aria-expanded="false" hidden>...more</button>
+      <button class="overview-disclosure" type="button" data-overview-disclosure aria-expanded="false">
+        <span class="overview" data-overview-copy>{{ show.overview }}</span>
+      </button>
     </div>
 
     {% if show.is_tracked %}
