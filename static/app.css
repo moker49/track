@@ -149,33 +149,43 @@ dialog:not(.image-viewer)::backdrop {
   min-height: calc(100dvh - 168px - var(--app-shell-vertical-inset) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 
-.top-app-bar {
+.top-chrome {
   position: sticky;
   z-index: 10;
   top: 0;
-  min-height: calc(80px + env(safe-area-inset-top));
-  padding: max(12px, env(safe-area-inset-top)) 4px 12px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  justify-content: center;
   background: var(--nav-surface);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--outline-soft);
 }
 
-.global-search-app-bar {
-  padding: max(12px, env(safe-area-inset-top)) 0 0;
-  justify-content: flex-start;
+.top-bar {
+  width: 100%;
+  height: calc(68px + env(safe-area-inset-top));
+  min-height: calc(68px + env(safe-area-inset-top));
+  box-sizing: border-box;
+  padding: max(10px, env(safe-area-inset-top)) 4px 10px;
+  display: grid;
+  align-items: center;
 }
 
 .global-search-row {
-  width: 100%;
-  padding: 0 4px 12px;
-  display: grid;
   grid-template-columns: 48px minmax(0, 1fr) 48px;
   gap: 4px;
-  align-items: center;
+}
+
+.utility-top-bar {
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 4px;
+}
+
+.utility-top-bar h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 500;
 }
 
 .statistics-content {
@@ -976,10 +986,6 @@ html.app-booting .schedule-empty-reveal {
 
 .schedule-timeline-item[data-forced-queue="true"] .schedule-timeline-rail>span {
   background: var(--progress-not-started);
-}
-
-.top-chrome {
-  border-bottom: 1px solid var(--outline-soft);
 }
 
 .schedule-caught-up-icon {
@@ -1941,27 +1947,6 @@ html.navigation-drawer-closing .menu-scrim {
   background: var(--surface);
 }
 
-.utility-app-bar {
-  position: sticky;
-  z-index: 10;
-  top: 0;
-  min-height: calc(80px + env(safe-area-inset-top));
-  padding: max(12px, env(safe-area-inset-top)) 4px 12px;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  align-items: center;
-  gap: 4px;
-  background: var(--nav-surface);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-}
-
-.utility-app-bar h1 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 500;
-}
-
 .settings-content {
   padding: 24px 16px;
 }
@@ -2290,18 +2275,6 @@ html.navigation-drawer-closing .menu-scrim {
   color: var(--on-surface-muted);
   font-size: 0.9rem;
   line-height: 1.55;
-}
-
-.utility-app-bar:has([data-liked-control-bar-slot]) {
-  grid-template-columns: 48px minmax(0, 1fr);
-}
-
-[data-liked-control-bar-slot] {
-  grid-column: 1 / -1;
-}
-
-[data-liked-control-bar-slot] .tv-inline-bar {
-  padding-bottom: 0;
 }
 
 .overview-disclosure {
