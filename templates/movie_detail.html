@@ -63,7 +63,7 @@
           <span class="episode-watch-status">
             <span class="material-symbols-rounded is-filled" aria-hidden="true">check_circle</span>
             <span><strong data-movie-detail-watch-count>{{ movie.watch_count }}</strong> <span
-                data-movie-detail-watch-label>{{ 'watches' if movie.watch_count != 1 else 'watch' }}</span></span>
+                data-movie-detail-watch-label>{{ 'records' if movie.watch_count != 1 else 'record' }}</span></span>
           </span>
           <button class="episode-watch-action" type="button" data-movie-detail-watch
             data-watch-count="{{ movie.watch_count }}" aria-label="Watch {{ movie.title }}">
