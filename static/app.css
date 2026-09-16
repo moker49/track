@@ -2019,38 +2019,6 @@ html.navigation-drawer-closing .menu-scrim {
   display: block;
 }
 
-.log-date-picker-actions {
-  margin: 0 16px 12px;
-  display: flex;
-  border: 1px solid var(--outline-soft);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.log-date-picker-actions button {
-  min-height: 40px;
-  flex: 1;
-  border: 0;
-  color: var(--on-surface-muted);
-  background: var(--surface-card);
-  font: inherit;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.log-date-picker-actions button+button {
-  border-left: 1px solid var(--outline-soft);
-}
-
-.log-date-picker-actions button[aria-pressed="true"] {
-  color: var(--on-primary);
-  background: var(--primary);
-}
-
-.log-date-picker.is-editing-log .log-date-picker-actions {
-  display: none;
-}
-
 .reaction-empty-state {
   min-height: 220px;
   padding: 40px 24px;
@@ -2651,18 +2619,15 @@ html.navigation-drawer-closing .menu-scrim {
 
 .episode-watch-summary {
   width: 100%;
-  min-height: 64px;
-  padding: 12px 16px;
+  min-height: 56px;
+  padding: 12px 12px 12px 16px;
   border: 0;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: space-between;
   color: var(--primary);
   background: var(--primary-light);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
 }
 
 .episode-watch-summary-wrap {
@@ -2670,19 +2635,49 @@ html.navigation-drawer-closing .menu-scrim {
   height: auto;
 }
 
-.episode-watch-summary:focus-visible {
-  outline: 2px solid var(--primary);
+.queue-control-row .episode-watch-summary {
+  min-height: 64px;
+}
+
+.episode-watch-status {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--primary);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.episode-watch-status>.material-symbols-rounded {
+  font-size: 22px;
+}
+
+.episode-watch-action {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  background: var(--primary-mid);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.episode-watch-action:focus-visible {
+  outline: 2px solid var(--on-primary);
   outline-offset: 2px;
 }
 
-.episode-detail-watch-menu {
-  top: calc(100% + 4px);
-  right: 8px;
-}
-
 .episode-watch-summary strong {
-  color: var(--on-surface);
-  font-size: 1.15rem;
+  color: inherit;
+  font-size: inherit;
 }
 
 .activity-log {

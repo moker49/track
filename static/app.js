@@ -214,7 +214,6 @@ let datePickerMonth = new Date();
 let datePickerYearVisible = false;
 let pendingMovieImport = null;
 let logDatePickerTarget = null;
-let logDatePickerAction = "watch";
 let lastEpisodeDetailScrollY = 0;
 let episodeNavigationPending = false;
 let tvSearchTimer = null;
@@ -2816,7 +2815,6 @@ function renderDatePicker() {
 
 function openDiaryDatePicker(item) {
   if (!datePicker) return;
-  datePicker.classList.add("is-editing-log");
   datePickerTarget = item;
   datePickerSelectedDate = parseIsoDate(item.dataset.diaryDate);
   const visibleDate = datePickerSelectedDate || parseIsoDate(item.dataset.sortDate) || new Date();
@@ -2879,25 +2877,19 @@ function applyCreatedLog(data) {
   });
 }
 
-function openLogDatePicker(target, action = "watch", hideActions = false) {
+function openLogDatePicker(target) {
   if (!datePicker) return;
-  datePicker.classList.toggle("is-editing-log", hideActions);
   logDatePickerTarget = target;
-  logDatePickerAction = action;
   datePickerTarget = null;
   pendingMovieImport = null;
   datePickerSelectedDate = new Date();
   datePickerMonth = new Date();
-  datePicker.querySelectorAll("[data-log-action]").forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.logAction === action));
-  });
   renderDatePicker();
   openSharedDialog(datePicker);
 }
 
 function openMovieImportDatePicker(tmdbId) {
   if (!datePicker) return;
-  datePicker.classList.add("is-editing-log");
   pendingMovieImport = String(tmdbId);
   datePickerTarget = null;
   datePickerSelectedDate = new Date();
@@ -2925,7 +2917,7 @@ async function saveDiaryDate() {
     try {
       const response = await fetch(`/api/${logDatePickerTarget.type}s/${logDatePickerTarget.id}/log`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action_kind: logDatePickerAction, log_date: datePickerSelectedDate ? toIsoDate(datePickerSelectedDate) : null }),
+        body: JSON.stringify({ action_kind: "watch", log_date: datePickerSelectedDate ? toIsoDate(datePickerSelectedDate) : null }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error("Could not add log entry");
@@ -3417,7 +3409,7 @@ function toggleMovieMenu(button) {
 }
 
 function closeWatchMenus(exceptMenu = null) {
-  document.querySelectorAll("[data-watch-menu], [data-movie-watch-menu]").forEach((menu) => {
+  document.querySelectorAll("[data-watch-menu]").forEach((menu) => {
     if (menu !== exceptMenu) hideFloatingMenu(menu);
   });
   syncMenuScrim();
@@ -3425,7 +3417,7 @@ function closeWatchMenus(exceptMenu = null) {
 
 function toggleWatchMenu(control) {
   const scrollPosition = { x: window.scrollX, y: window.scrollY };
-  const menu = control.parentElement.querySelector("[data-watch-menu], [data-movie-watch-menu]");
+  const menu = control.parentElement.querySelector("[data-watch-menu]");
   if (!menu) return;
   const willOpen = menu.hidden;
   clearDetailSliceReveals(views.get("detail"));
@@ -4164,15 +4156,6 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const logAction = event.target.closest("[data-log-action]");
-  if (logAction) {
-    logDatePickerAction = logAction.dataset.logAction;
-    datePicker.querySelectorAll("[data-log-action]").forEach((button) => {
-      button.setAttribute("aria-pressed", String(button === logAction));
-    });
-    return;
-  }
-
   const datePickerDay = event.target.closest("[data-date-picker-day]");
   if (datePickerDay) {
     datePickerSelectedDate = parseIsoDate(datePickerDay.dataset.datePickerDay);
@@ -4392,20 +4375,10 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const movieWatchAction = event.target.closest("[data-movie-watch-action]");
-  if (movieWatchAction) {
-    const detailMovie = movieWatchAction.closest("[data-detail-movie]");
-    closeWatchMenus();
-    if (detailMovie) {
-      openLogDatePicker({ type: "movie", id: detailMovie.dataset.movieId }, "watch", true);
-    }
-    return;
-  }
-
   const movieWatchControl = event.target.closest("[data-movie-detail-watch]");
   if (movieWatchControl) {
     const detailMovie = movieWatchControl.closest("[data-detail-movie]");
-    if (detailMovie) openLogDatePicker({ type: "movie", id: detailMovie.dataset.movieId }, "watch", true);
+    if (detailMovie) openLogDatePicker({ type: "movie", id: detailMovie.dataset.movieId });
     return;
   }
 
@@ -5354,8 +5327,6 @@ datePicker?.addEventListener("close", () => {
   datePickerTarget = null;
   pendingMovieImport = null;
   logDatePickerTarget = null;
-  logDatePickerAction = "watch";
-  datePicker.classList.remove("is-editing-log");
   datePickerSelectedDate = null;
   datePickerYearVisible = false;
   datePicker.querySelector("[data-date-picker-clear]").textContent = "Unknown";
