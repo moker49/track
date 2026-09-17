@@ -3232,7 +3232,7 @@ html.navigation-drawer-closing .menu-scrim {
 
 .search-clear-button {
   position: absolute;
-  top: 4px;
+  top: 0;
   right: 4px;
   width: 48px;
   height: 48px;

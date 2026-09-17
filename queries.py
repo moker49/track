@@ -925,7 +925,7 @@ def get_movie_activity(db: sqlite3.Connection, movie_id: int) -> list[sqlite3.Ro
         SELECT event_type, title, occurred_at, sort_at, watch_record_id, watch_kind,
                watch_added_at, diary_date
         FROM (
-            SELECT 'added' AS event_type, 'Added to Watchlist' AS title,
+            SELECT 'added' AS event_type, 'Added' AS title,
                    m.added_at AS occurred_at, m.added_at AS sort_at, NULL AS watch_record_id,
                     NULL AS watch_kind, NULL AS watch_added_at, NULL AS diary_date
             FROM movies m
