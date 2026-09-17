@@ -2722,7 +2722,8 @@ html.navigation-drawer-closing .menu-scrim {
 }
 
 .activity-heading-copy small,
-.activity-copy time {
+.activity-copy time,
+.activity-undated-label {
   color: var(--on-surface-muted);
   font-size: 0.75rem;
 }

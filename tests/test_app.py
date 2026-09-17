@@ -1000,7 +1000,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-overview-disclosure', detail.data)
         self.assertNotIn(b'data-overview-more', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
-        self.assertIn(b"Added to My Shows", detail.data)
+        self.assertIn(b"Added", detail.data)
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Watching</span>', detail.data)
         self.assertIn(b'<span data-progress-copy>5/13</span>', detail.data)
         self.assertIn(b'<strong data-progress-percent>38%</strong>', detail.data)
@@ -1065,7 +1065,7 @@ class TrackAppTest(unittest.TestCase):
         detail = self.client.get("/api/shows/2")
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b"Added to Archive", detail.data)
-        self.assertNotIn(b"Added to My Shows", detail.data)
+        self.assertNotIn(b"Added", detail.data)
         self.assertNotIn(b">Archived</strong>", detail.data)
 
     def test_legacy_page_urls_redirect_to_shell(self):

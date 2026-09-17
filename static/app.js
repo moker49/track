@@ -2658,6 +2658,23 @@ function sortActivityItems(log) {
     .forEach((item) => list.append(item));
 }
 
+function setActivityDateDisplay(dateRow, displayDate, isUndated) {
+  if (!dateRow) return;
+  dateRow.querySelector("[data-display-date], .activity-undated-label")?.remove();
+  if (isUndated) {
+    const label = document.createElement("span");
+    label.className = "activity-undated-label";
+    label.textContent = "No date";
+    dateRow.prepend(label);
+    return;
+  }
+  const time = document.createElement("time");
+  time.dateTime = displayDate;
+  time.dataset.displayDate = "";
+  time.textContent = formatDisplayDate(displayDate);
+  dateRow.prepend(time);
+}
+
 function addActivityItem({
   type,
   title,
@@ -2703,13 +2720,9 @@ function addActivityItem({
   copy.className = "activity-copy";
   const heading = document.createElement("strong");
   heading.textContent = title;
-  const time = document.createElement("time");
-  time.dateTime = occurredAt;
-  time.dataset.displayDate = "";
-  time.textContent = formatDisplayDate(occurredAt);
   const dateRow = document.createElement("span");
   dateRow.className = "activity-date-row";
-  dateRow.append(time);
+  setActivityDateDisplay(dateRow, occurredAt, Boolean(recordId && !diaryDate));
   copy.append(heading, dateRow);
 
   if (recordId) {
@@ -2964,8 +2977,11 @@ async function saveDiaryDate() {
     datePickerTarget.dataset.diaryDate = data.diary_date || "";
     datePickerTarget.dataset.addedAt = data.added_at;
     datePickerTarget.dataset.sortDate = data.display_date;
-    const time = datePickerTarget.querySelector("[data-display-date]");
-    time.dateTime = data.display_date;
+    setActivityDateDisplay(
+      datePickerTarget.querySelector(".activity-date-row"),
+      data.display_date,
+      !data.diary_date,
+    );
     formatDisplayDates(datePickerTarget);
     syncDiaryDateIcon(datePickerTarget);
     syncActivityCount(datePickerTarget.closest("[data-activity-log]"));

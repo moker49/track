@@ -70,7 +70,9 @@ class WorkflowSmokeTest(unittest.TestCase):
             json={"action_kind": "watch", "log_date": None},
         )
         self.assertEqual(watch.status_code, 200)
-        watch_id = watch.get_json()["watch_record_id"]
+        watch_payload = watch.get_json()
+        watch_id = watch_payload["watch_record_id"]
+        self.assertEqual(watch_payload["added_at"], "2026-05-02T20:15:00+00:00")
 
         skip = self.client.post(
             "/api/episodes/6/log",
@@ -96,6 +98,19 @@ class WorkflowSmokeTest(unittest.TestCase):
             self.rows("SELECT COUNT(*) AS count FROM episode_skips WHERE id = ?", (skip_id,))[0]["count"],
             1,
         )
+
+    def test_initialization_repositions_existing_unknown_logs_after_tracking(self):
+        db = connect_database(self.database)
+        db.execute(
+            "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (6, '2030-01-01T00:00:00+00:00')"
+        )
+        db.commit()
+        initialize_database(db, Path(__file__).parents[1] / "schema.sql")
+        timestamp = db.execute(
+            "SELECT added_at FROM episode_watch_history WHERE episode_id = 6"
+        ).fetchone()["added_at"]
+        db.close()
+        self.assertEqual(timestamp, "2026-05-02T20:15:00+00:00")
 
     def test_season_logs_are_removed_as_batches(self):
         created = self.client.post(

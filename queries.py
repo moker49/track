@@ -806,7 +806,7 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
             SELECT 'added' AS event_type,
                    CASE WHEN (SELECT state FROM initial_state) = 'ARCHIVED'
                         THEN 'Added to Archive'
-                        ELSE 'Added to My Shows'
+                        ELSE 'Added'
                    END AS title,
                    added_at AS occurred_at, NULL AS season_id,
                    NULL AS watch_record_id, NULL AS watch_kind,

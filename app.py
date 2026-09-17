@@ -11,7 +11,12 @@ from urllib.request import urlopen
 from flask import Flask, abort, g, jsonify, redirect, render_template, request, send_file, url_for
 from dotenv import load_dotenv
 
-from database import connect_database, initialize_database, normalize_movie_added_timestamps
+from database import (
+    connect_database,
+    initialize_database,
+    normalize_movie_added_timestamps,
+    unknown_log_timestamp,
+)
 from domain import (
     TRACKING_ACTIVE,
     TRACKING_ARCHIVED,
@@ -355,8 +360,8 @@ def create_app(test_config: dict | None = None) -> Flask:
         db.commit()
         movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)).fetchone()["id"]
         if watched:
-            watch_added_at = precise_utc_now()
-            if watch_added_at <= now:
+            watch_added_at = unknown_log_timestamp(now) if diary_date is None else precise_utc_now()
+            if diary_date is not None and watch_added_at <= now:
                 watch_added_at = timestamp_after(now)
             db.execute("""INSERT INTO movie_watch_history (movie_id, added_at, diary_date)
                           SELECT ?, ?, ?
@@ -474,10 +479,12 @@ def create_app(test_config: dict | None = None) -> Flask:
             except ValueError:
                 return jsonify(error="log_date must be an ISO date"), 400
         db = get_db()
-        movie = db.execute("SELECT id FROM movies WHERE id = ? AND is_tracked = 1", (movie_id,)).fetchone()
+        movie = db.execute(
+            "SELECT id, added_at FROM movies WHERE id = ? AND is_tracked = 1", (movie_id,)
+        ).fetchone()
         if movie is None:
             return jsonify(error="Movie not found"), 404
-        added_at = precise_utc_now()
+        added_at = precise_utc_now() if log_date is not None else unknown_log_timestamp(movie["added_at"])
         record_id = db.execute(
             """INSERT INTO movie_watch_history
                (movie_id, added_at, diary_date)

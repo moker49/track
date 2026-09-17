@@ -39,13 +39,13 @@
             {%- elif event_type in ['skipped', 'season_skipped'] -%}skip_next
             {%- else -%}visibility
             {%- endif -%}
-          </span>
-          <span class="activity-copy">
+            </span>
+            <span class="activity-copy">
             <strong>{{ event_title }}</strong>
-            <span class="activity-date-row"><time datetime="{{ event_time }}" data-display-date>{{ event_time[:10]
-                }}</time>{% if record_id and event_type in ['watched', 'season_watched'] and not diary_date %}<span
-                class="material-symbols-rounded activity-diary-hidden-icon" role="img" aria-label="Hidden from diary"
-                title="Hidden from diary">visibility_off</span>{% endif %}</span>
+            <span class="activity-date-row">
+              {% if record_id and not diary_date %}<span class="activity-undated-label">No date</span>
+              {% else %}<time datetime="{{ event_time }}" data-display-date>{{ event_time[:10] }}</time>{% endif %}
+            </span>
           </span>
           {% if record_id %}<span class="material-symbols-rounded activity-edit-icon"
             aria-hidden="true">more_vert</span></button>{% endif %}

@@ -4,6 +4,7 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 
+from database import unknown_log_timestamp
 from domain import effective_diary_date_sql
 from queries import get_episode_watch_count, get_show_progress, watch_payload
 
@@ -19,9 +20,10 @@ def _now() -> str:
 def _episode_context(db: sqlite3.Connection, episode_id: int) -> sqlite3.Row:
     episode = db.execute(
         """
-        SELECT e.id, sn.show_id
+        SELECT e.id, sn.show_id, s.added_at AS show_added_at
         FROM episodes e
         JOIN seasons sn ON sn.id = e.season_id
+        JOIN shows s ON s.id = sn.show_id
         WHERE e.id = ?
         """,
         (episode_id,),
@@ -97,7 +99,7 @@ def set_log_diary_date(
 def create_episode_log(db: sqlite3.Connection, episode_id: int, action_kind: str, log_date: str | None) -> dict:
     episode = _episode_context(db, episode_id)
     previous_watched_count = get_show_progress(db, episode["show_id"])["watched_count"]
-    created_at = _now()
+    created_at = _now() if log_date is not None else unknown_log_timestamp(episode["show_added_at"])
     if action_kind == "watch":
         record_id = db.execute(
             "INSERT INTO episode_watch_history (episode_id, added_at, diary_date) VALUES (?, ?, ?)",
@@ -131,7 +133,11 @@ def create_episode_log(db: sqlite3.Connection, episode_id: int, action_kind: str
 
 
 def create_season_log(db: sqlite3.Connection, season_id: int, action_kind: str, log_date: str | None) -> dict:
-    season = db.execute("SELECT id, show_id, name FROM seasons WHERE id = ?", (season_id,)).fetchone()
+    season = db.execute(
+        """SELECT sn.id, sn.show_id, sn.name, s.added_at AS show_added_at
+           FROM seasons sn JOIN shows s ON s.id = sn.show_id WHERE sn.id = ?""",
+        (season_id,),
+    ).fetchone()
     if season is None:
         raise WatchNotFoundError("Season not found")
     previous_watched_count = get_show_progress(db, season["show_id"])["watched_count"]
@@ -140,7 +146,8 @@ def create_season_log(db: sqlite3.Connection, season_id: int, action_kind: str, 
     )]
     if not episode_ids:
         raise WatchNotFoundError("Season has no episodes")
-    batch_id, created_at = str(uuid.uuid4()), _now()
+    batch_id = str(uuid.uuid4())
+    created_at = _now() if log_date is not None else unknown_log_timestamp(season["show_added_at"])
     db.execute("INSERT INTO season_log_batches (id, season_id, action_kind, created_at) VALUES (?, ?, ?, ?)",
                (batch_id, season_id, action_kind, created_at))
     if action_kind == "watch":
