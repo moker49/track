@@ -1065,7 +1065,7 @@ class TrackAppTest(unittest.TestCase):
         detail = self.client.get("/api/shows/2")
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b"Added to Archive", detail.data)
-        self.assertNotIn(b"Added", detail.data)
+        self.assertNotIn(b">Added</strong>", detail.data)
         self.assertNotIn(b">Archived</strong>", detail.data)
 
     def test_legacy_page_urls_redirect_to_shell(self):

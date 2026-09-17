@@ -827,7 +827,7 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
             UNION ALL
 
             SELECT 'season_watched', sn.name || ' watched',
-                   COALESCE({effective_date}, substr(swh.added_at, 1, 10)), sn.id, swh.id, 'season',
+                   COALESCE({effective_date}, swh.added_at), sn.id, swh.id, 'season',
                     swh.added_at, swh.diary_date, NULL
             FROM season_watch_history swh
             JOIN seasons sn ON sn.id = swh.season_id
@@ -836,7 +836,7 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
             UNION ALL
 
             SELECT 'season_skipped', sn.name || ' skipped',
-                   COALESCE(ssh.diary_date, substr(ssh.added_at, 1, 10)), sn.id, ssh.id, 'season-skip',
+                   COALESCE(ssh.diary_date, ssh.added_at), sn.id, ssh.id, 'season-skip',
                     ssh.added_at, ssh.diary_date, NULL
             FROM season_skip_history ssh
             JOIN seasons sn ON sn.id = ssh.season_id
