@@ -4,7 +4,7 @@
   <div class="schedule-timeline-list">
     {% for entry in month.list %}
     <article class="schedule-timeline-item diary-timeline-item diary-monthly-timeline-item" data-schedule-card data-show-id="{{ entry.show_id }}">
-      <div class="schedule-timeline-marker" aria-hidden="true"><strong>{{ entry.month_percent }}%</strong></div>
+      <div class="schedule-timeline-marker" aria-hidden="true"><span>{{ entry.month_percent }}%</span></div>
       <span class="schedule-timeline-rail" aria-hidden="true"><span></span></span>
       <div class="schedule-timeline-content">
         <button class="schedule-timeline-open" type="button" data-schedule-show-open aria-label="Open {{ entry.show_name }} details">

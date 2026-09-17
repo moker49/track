@@ -333,8 +333,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b">5 episodes</span>", monthly_summary.data)
         self.assertIn(b">12 episodes</span>", monthly_summary.data)
         self.assertIn(b">55 episodes</span>", monthly_summary.data)
-        self.assertIn(b">29%</strong>", monthly_summary.data)
-        self.assertIn(b">71%</strong>", monthly_summary.data)
+        self.assertIn(b">29%</span>", monthly_summary.data)
+        self.assertIn(b">71%</span>", monthly_summary.data)
         self.assertNotIn(b"schedule-timeline-weekday", monthly_summary.data)
         self.assertEqual(self.client.get("/api/profile/diary?layout=monthly").status_code, 400)
 

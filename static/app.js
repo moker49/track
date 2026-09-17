@@ -4376,7 +4376,7 @@ document.addEventListener("click", (event) => {
   const scheduleShowOpen = event.target.closest("[data-schedule-show-open]");
   if (scheduleShowOpen) {
     const card = scheduleShowOpen.closest("[data-schedule-card]");
-    const openSeasonIds = card.dataset.seasonIds.split(",").filter(Boolean);
+    const openSeasonIds = (card.dataset.seasonIds || "").split(",").filter(Boolean);
     const parentView = currentView === "diary" ? "diary" : "upcoming";
     detailParentView = parentView;
     openShow(card.dataset.showId, parentView, true, "push", {
