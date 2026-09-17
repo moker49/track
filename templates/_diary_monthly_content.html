@@ -1,0 +1,11 @@
+<div class="schedule-content diary-content diary-monthly-content" data-diary-content data-diary-layout="monthly">
+  <section class="schedule-panel" aria-label="Monthly diary summary">
+    <div class="schedule-timeline">
+      {% include "_diary_monthly_months.html" %}
+    </div>
+    <div class="schedule-empty" {% if diary_entries %}hidden{% endif %}>
+      <span class="material-symbols-rounded" aria-hidden="true">menu_book</span>
+      <span>No diary entries</span>
+    </div>
+  </section>
+</div>

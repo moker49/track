@@ -42,9 +42,12 @@
 
 <section class="app-view utility-view" data-view="diary" aria-label="Diary" hidden>
   <header class="top-chrome">
-    <div class="top-bar utility-top-bar">
+    <div class="top-bar utility-top-bar utility-top-bar-with-action">
       <button class="icon-button" type="button" data-utility-menu aria-label="Menu"><span class="material-symbols-rounded" aria-hidden="true">menu</span></button>
       <h1>Diary</h1>
+      <button class="icon-button" type="button" data-diary-layout-toggle aria-label="Show monthly summary" aria-pressed="false">
+        <span class="material-symbols-rounded is-filled" aria-hidden="true">calendar_view_month</span>
+      </button>
     </div>
   </header>
   <section data-diary-content></section>

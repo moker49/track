@@ -38,7 +38,7 @@ async function revealAppWhenIconsAreReady() {
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
-        "resume playlist_add_check view_list grid_view event tv movie",
+        "resume playlist_add_check view_list grid_view calendar_view_month view_agenda event tv movie",
       ),
     ]);
     await Promise.race([
@@ -197,7 +197,10 @@ let currentView = "backlog";
 let detailParentView = "backlog";
 let diaryRevision = 0;
 let renderedDiaryRevision = -1;
-let diaryRequest = null;
+let diaryLayout = "entries";
+const diaryContentCache = new Map();
+const diaryContentRevisions = new Map();
+const diaryRequests = new Map();
 let renderedStatisticsRevision = -1;
 let statisticsRequest = null;
 let scheduleRefreshRequest = null;
@@ -482,27 +485,73 @@ function toggleTvLayout() {
   tvLayoutTransitionTimer = window.setTimeout(applyLayout, 75);
 }
 
+function syncDiaryLayoutToggle() {
+  const toggle = document.querySelector("[data-diary-layout-toggle]");
+  if (!toggle) return;
+  const isMonthly = diaryLayout === "monthly";
+  toggle.setAttribute("aria-pressed", String(isMonthly));
+  toggle.setAttribute("aria-label", isMonthly ? "Show diary entries" : "Show monthly summary");
+  toggle.querySelector(".material-symbols-rounded").textContent = isMonthly
+    ? "view_agenda" : "calendar_view_month";
+}
+
+async function fetchDiaryContent(layout, revision = diaryRevision) {
+  const pending = diaryRequests.get(layout);
+  if (pending) {
+    try {
+      await pending;
+    } catch (_error) {
+      // A newer request below will replace a failed in-flight request.
+    }
+    if (diaryContentRevisions.get(layout) === revision) {
+      return diaryContentCache.get(layout);
+    }
+    return fetchDiaryContent(layout, revision);
+  }
+  const request = fetch(`/api/profile/diary?all=1${layout === "monthly" ? "&layout=monthly" : ""}`, {
+    headers: { "X-Requested-With": "Track" },
+  }).then(async (response) => {
+    if (!response.ok) throw new Error("Could not refresh diary");
+    const markup = await response.text();
+    diaryContentCache.set(layout, markup);
+    diaryContentRevisions.set(layout, revision);
+    return markup;
+  }).finally(() => diaryRequests.delete(layout));
+  diaryRequests.set(layout, request);
+  return request;
+}
+
+function renderDiaryContent(markup, layout, revision) {
+  const panel = views.get("diary")?.querySelector("[data-diary-content]");
+  if (!panel) return;
+  panel.innerHTML = markup;
+  panel.dataset.diaryLayout = layout;
+  renderedDiaryRevision = revision;
+  initializeVirtualTimeline("diary", { force: true });
+  restoreTimelineScroll("diary", "diary");
+  if (currentView === "diary") revealDiaryOnce(views.get("diary"), layout);
+}
+
 async function refreshDiaryContent() {
-  if (diaryRequest) return diaryRequest;
+  const layout = diaryLayout;
+  const revision = diaryRevision;
   const panel = views.get("diary")?.querySelector("[data-diary-content]");
   if (!panel) return undefined;
-  const requestedRevision = diaryRevision;
   panel.setAttribute("aria-busy", "true");
-  diaryRequest = (async () => {
-    const response = await fetch("/api/profile/diary?all=1", {
-      headers: { "X-Requested-With": "Track" },
-    });
-    if (!response.ok) throw new Error("Could not refresh diary");
-    panel.innerHTML = await response.text();
-    renderedDiaryRevision = requestedRevision;
-    initializeVirtualTimeline("diary", { force: true });
-    restoreTimelineScroll("diary", "diary");
-    if (currentView === "diary") revealDiaryOnce(views.get("diary"));
-  })().catch(() => undefined).finally(() => {
+  try {
+    const markup = await fetchDiaryContent(layout, revision);
+    if (diaryLayout === layout && revision === diaryRevision) {
+      renderDiaryContent(markup, layout, revision);
+    }
+    const backgroundLayout = layout === "monthly" ? "entries" : "monthly";
+    if (diaryContentRevisions.get(backgroundLayout) !== revision) {
+      fetchDiaryContent(backgroundLayout, revision).catch(() => undefined);
+    }
+  } catch (_error) {
+    // Keep the last rendered diary content available if a refresh fails.
+  } finally {
     panel.removeAttribute("aria-busy");
-    diaryRequest = null;
-  });
-  return diaryRequest;
+  }
 }
 
 async function refreshStatisticsContent() {
@@ -1283,9 +1332,10 @@ function staggerUtilityContentReveal(slices) {
   });
 }
 
-function revealDiaryOnce(view) {
-  if (!view || revealedViewAnimations.has("diary")) return;
-  revealedViewAnimations.add("diary");
+function revealDiaryOnce(view, layout = diaryLayout) {
+  const revealKey = `diary:${layout}`;
+  if (!view || revealedViewAnimations.has(revealKey)) return;
+  revealedViewAnimations.add(revealKey);
   staggerScheduleFirstReveal(view);
 }
 
@@ -2196,7 +2246,7 @@ async function openShow(
       detailType: "show",
       showId: String(showId),
       parentView: detailParentView,
-      }, historyMode);
+    }, historyMode);
   }
   const pendingRefresh = showDetailRefreshRequests.get(cacheKey);
   if (pendingRefresh) {
@@ -2845,9 +2895,11 @@ function applyCreatedLog(data) {
     const detailMovie = document.querySelector(`[data-detail-movie][data-movie-id="${data.movie_id}"]`);
     if (detailMovie) {
       updateMovieWatchUi(detailMovie, data.watch_count);
-      addActivityItem({ type: "watched", title: "Watched", occurredAt: data.display_date,
+      addActivityItem({
+        type: "watched", title: "Watched", occurredAt: data.display_date,
         recordId: data.watch_record_id, watchKind: "movie", addedAt: data.added_at,
-        diaryDate: data.diary_date });
+        diaryDate: data.diary_date
+      });
     }
     refreshLogRelatedCaches({ movieId: data.movie_id });
     return;
@@ -3726,7 +3778,7 @@ async function moveShow(showElement, targetState, actionButton) {
     filterSchedule("backlog");
     filterSchedule("upcoming");
     refreshScheduleForMediaChange();
-    showSnackbar(data.state === "ARCHIVED" ? "Show archived" : "Show made active");
+    showSnackbar(data.state === "ARCHIVED" ? "Show archived" : "Show resumed");
     return true;
   } catch (_error) {
     showSnackbar("Couldn't move this show. Try again.");
@@ -4453,6 +4505,22 @@ document.addEventListener("click", (event) => {
 
   if (event.target.closest("[data-confirm-finished-archive]")) {
     confirmArchiveFinishedShow();
+    return;
+  }
+
+  if (event.target.closest("[data-diary-layout-toggle]")) {
+    diaryLayout = diaryLayout === "entries" ? "monthly" : "entries";
+    syncDiaryLayoutToggle();
+    scrollPositions.diary = 0;
+    window.scrollTo({ top: 0, behavior: "auto" });
+
+    const revision = diaryRevision;
+    const cachedMarkup = diaryContentCache.get(diaryLayout);
+    if (cachedMarkup && diaryContentRevisions.get(diaryLayout) === revision) {
+      renderDiaryContent(cachedMarkup, diaryLayout, revision);
+    } else {
+      refreshDiaryContent();
+    }
     return;
   }
 
@@ -5315,6 +5383,7 @@ filterSchedule("upcoming");
 formatDisplayDates(document);
 syncDisplayHiddenLogItemsSetting();
 syncGlobalSearch();
+syncDiaryLayoutToggle();
 cacheInitialReactionList();
 initializeVirtualTimeline("diary");
 

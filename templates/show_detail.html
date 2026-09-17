@@ -2,13 +2,11 @@
 {% set move = move_for(show.state) %}
 <div data-detail-show data-detail-title="{{ show.name }}" data-show-id="{{ show.id }}" data-tmdb-id="{{ show.tmdb_id }}"
   data-show-state="{{ show.state }}" data-show-tracked="{{ 'true' if show.is_tracked else 'false' }}"
-  data-show-status="{{ show.status or '' }}"
-  data-tmdb-refreshed-at="{{ show.tmdb_refreshed_at or '' }}"
+  data-show-status="{{ show.status or '' }}" data-tmdb-refreshed-at="{{ show.tmdb_refreshed_at or '' }}"
   data-metadata-refresh-due="{{ 'true' if metadata_refresh_due else 'false' }}"
   data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
   data-total-watch-count="{{ show.total_watch_count }}" data-completed-watch-count="{{ show.completed_watch_count }}"
-  data-liked="{{ 'true' if show.liked_at else 'false' }}"
-  data-queued="{{ 'true' if show.watch_again else 'false' }}"
+  data-liked="{{ 'true' if show.liked_at else 'false' }}" data-queued="{{ 'true' if show.watch_again else 'false' }}"
   data-progress-state="{{ progress.css_state }}">
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back aria-label="Back">
@@ -26,15 +24,15 @@
       </button>
       <div class="show-menu detail-show-menu" data-show-menu popover="manual" hidden>
         <button type="button" data-show-action="move" data-target-state="{{ move.target_state }}">
-          <span class="material-symbols-rounded" aria-hidden="true">{{ move.icon }}</span>
+          <span class="material-symbols-rounded is-filled" aria-hidden="true">{{ move.icon }}</span>
           <span data-move-label>{{ move.label }}</span>
         </button>
         <button type="button" data-show-action="refresh">
-          <span class="material-symbols-rounded" aria-hidden="true">refresh</span>
+          <span class="material-symbols-rounded is-filled" aria-hidden="true">refresh</span>
           <span>Refresh</span>
         </button>
         <button class="danger-action" type="button" data-show-action="remove">
-          <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          <span class="material-symbols-rounded is-filled" aria-hidden="true">delete</span>
           <span>Remove</span>
         </button>
       </div>
@@ -91,8 +89,10 @@
         </div>
       </div>
       <button class="queue-toggle" type="button" data-reaction-toggle="queue"
-        aria-pressed="{{ 'true' if show.watch_again else 'false' }}" aria-label="Add {{ show.name }} to Queue" title="Toggle Queue">
-        <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if show.watch_again else 'playlist_add' }}</span>
+        aria-pressed="{{ 'true' if show.watch_again else 'false' }}" aria-label="Add {{ show.name }} to Queue"
+        title="Toggle Queue">
+        <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if show.watch_again else
+          'playlist_add' }}</span>
       </button>
     </div>
     {% else %}

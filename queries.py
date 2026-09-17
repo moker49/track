@@ -554,6 +554,46 @@ def get_diary_page(
     return entries, has_more
 
 
+def get_diary_monthly_summary(db: sqlite3.Connection) -> list[dict]:
+    """Return one TV-show entry per month, weighted by that month's episode plays."""
+    rows = db.execute(
+        """
+        WITH monthly_show_watches AS (
+            SELECT substr(wh.diary_date, 1, 7) AS month,
+                   s.id AS show_id, s.name AS show_name, s.poster_path,
+                   COUNT(*) AS episode_count
+            FROM episode_watch_history wh
+            JOIN episodes e ON e.id = wh.episode_id
+            JOIN seasons sn ON sn.id = e.season_id
+            JOIN shows s ON s.id = sn.show_id
+            WHERE wh.diary_date IS NOT NULL
+            GROUP BY month, s.id
+        ),
+        monthly_totals AS (
+            SELECT month, SUM(episode_count) AS total_episode_count
+            FROM monthly_show_watches
+            GROUP BY month
+        )
+        SELECT w.month, w.show_id, w.show_name, w.poster_path, w.episode_count,
+               t.total_episode_count
+        FROM monthly_show_watches w
+        JOIN monthly_totals t ON t.month = w.month
+        ORDER BY w.month DESC, w.episode_count DESC, w.show_name COLLATE NOCASE
+        """
+    ).fetchall()
+    entries = []
+    for row in rows:
+        entry = dict(row)
+        month = date.fromisoformat(f"{entry['month']}-01")
+        entry.update(
+            month_key=f"{9999 - month.year:04d}-{13 - month.month:02d}",
+            month_label=month.strftime("%B %Y").upper(),
+            month_percent=round(entry["episode_count"] / entry["total_episode_count"] * 100),
+        )
+        entries.append(entry)
+    return entries
+
+
 def _format_duration(total_minutes: int) -> str:
     hours, minutes = divmod(total_minutes, 60)
     if hours and minutes:
@@ -817,7 +857,7 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
             UNION ALL
 
             SELECT CASE state WHEN 'ARCHIVED' THEN 'archived' ELSE 'activated' END,
-                   CASE state WHEN 'ARCHIVED' THEN 'Archived' ELSE 'Made active' END,
+                   CASE state WHEN 'ARCHIVED' THEN 'Archived' ELSE 'Resumed' END,
                     entered_at, NULL, NULL, NULL, NULL, NULL, NULL
             FROM ordered_states
             WHERE previous_state IS NOT NULL

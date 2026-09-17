@@ -31,6 +31,7 @@ from tmdb_import import import_or_refresh_show
 from queries import (
     get_catch_up_episodes,
     get_diary_page,
+    get_diary_monthly_summary,
     get_library_show,
     get_movie_library,
     get_reaction_media,
@@ -255,6 +256,13 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.get("/api/profile/diary")
     def diary_fragment():
+        if request.args.get("layout") == "monthly":
+            if request.args.get("all") != "1":
+                abort(400)
+            return render_template(
+                "_diary_monthly_content.html",
+                diary_entries=get_diary_monthly_summary(get_db()),
+            )
         if request.args.get("all") == "1":
             diary_entries, _ = get_diary_page(get_db(), page_size=None)
             return render_template(
@@ -855,7 +863,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             ),
             move_label=move.label,
             move_icon=move.icon,
-            activity_title=("Archived" if target_state == TRACKING_ARCHIVED else "Made active"),
+            activity_title=("Archived" if target_state == TRACKING_ARCHIVED else "Resumed"),
             activity_type=("archived" if target_state == TRACKING_ARCHIVED else "activated"),
             changed_at=changed_at,
         )

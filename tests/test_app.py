@@ -136,6 +136,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-view="statistics"', home.data)
         self.assertIn(b'data-view="settings"', home.data)
         self.assertEqual(home.data.count(b'data-utility-menu'), 4)
+        self.assertIn(b'data-diary-layout-toggle', home.data)
         self.assertNotIn(b'data-utility-back', home.data)
         self.assertIn(b'data-tv-media-label>Library</span>', home.data)
         self.assertIn(b'data-tv-progress-label>Progress</span>', home.data)
@@ -204,6 +205,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".navigation-drawer {", css)
         self.assertIn(".top-chrome {", css)
         self.assertIn(".utility-top-bar {", css)
+        self.assertIn(".utility-top-bar-with-action {", css)
         self.assertIn(".reaction-page-results {", css)
         self.assertIn(".queue-toggle {", css)
         self.assertIn("min-height: calc(80px + env(safe-area-inset-top));", css)
@@ -230,6 +232,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('showView(drawerView.dataset.drawerView, "replace")', javascript)
         self.assertIn('drawerView.dataset.drawerView === currentView', javascript)
         self.assertIn('event.target.closest("[data-search-menu], [data-utility-menu]")', javascript)
+        self.assertIn('event.target.closest("[data-diary-layout-toggle]")', javascript)
+        self.assertIn("function syncDiaryLayoutToggle()", javascript)
         self.assertIn("navigationDrawerHistoryActive = false;", javascript)
         self.assertIn('data-reaction-toggle', javascript)
 
@@ -320,6 +324,19 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(full_diary.status_code, 200)
         self.assertGreater(full_diary.data.count(b"data-schedule-card"), 50)
         self.assertIn(b'data-diary-has-more="false"', full_diary.data)
+
+        monthly_summary = self.client.get("/api/profile/diary?all=1&layout=monthly")
+        self.assertEqual(monthly_summary.status_code, 200)
+        self.assertEqual(monthly_summary.data.count(b"data-schedule-card"), 3)
+        self.assertIn(b"Active Test Show", monthly_summary.data)
+        self.assertIn(b"Archived Test Show", monthly_summary.data)
+        self.assertIn(b">5 episodes</span>", monthly_summary.data)
+        self.assertIn(b">12 episodes</span>", monthly_summary.data)
+        self.assertIn(b">55 episodes</span>", monthly_summary.data)
+        self.assertIn(b">29%</strong>", monthly_summary.data)
+        self.assertIn(b">71%</strong>", monthly_summary.data)
+        self.assertNotIn(b"schedule-timeline-weekday", monthly_summary.data)
+        self.assertEqual(self.client.get("/api/profile/diary?layout=monthly").status_code, 400)
 
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
@@ -1292,7 +1309,7 @@ class TrackAppTest(unittest.TestCase):
 
         detail = self.client.get("/api/shows/1")
         self.assertIn(b">Archived</strong>", detail.data)
-        self.assertIn(b">Made active</strong>", detail.data)
+        self.assertIn(b">Resumed</strong>", detail.data)
 
         invalid = self.client.post(
             "/api/shows/1/state", json={"state": "PAUSED"}
