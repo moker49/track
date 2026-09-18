@@ -144,7 +144,18 @@ function syncCastSheet() {
 
 function setCastSheetOpen(isOpen, { preserveHistory = false } = {}) {
   if (isOpen) {
-    if (castSheetOpen || castSheetClosing) return;
+    if (castSheetOpen) return;
+    if (castSheetClosing) {
+      window.clearTimeout(castSheetCloseTimer);
+      if (!castSheetHistoryActive) {
+        window.history.pushState({ ...window.history.state, trackApp: true, castSheetOpen: true }, "");
+        castSheetHistoryActive = true;
+      }
+      castSheetClosing = false;
+      castSheetOpen = true;
+      syncCastSheet();
+      return;
+    }
     if (!preserveHistory) {
       window.history.pushState({ ...window.history.state, trackApp: true, castSheetOpen: true }, "");
       castSheetHistoryActive = true;
@@ -170,7 +181,8 @@ function setCastSheetOpen(isOpen, { preserveHistory = false } = {}) {
   castSheetEntering = false;
   castSheetClosing = true;
   syncCastSheet();
-  window.setTimeout(() => {
+  window.clearTimeout(castSheetCloseTimer);
+  castSheetCloseTimer = window.setTimeout(() => {
     castSheetClosing = false;
     syncCastSheet();
   }, 180);
@@ -341,6 +353,7 @@ let castSheetClosing = false;
 let castSheetEntering = false;
 let castSheetSnapClosing = false;
 let castSheetHistoryActive = false;
+let castSheetCloseTimer = null;
 let activeCastMediaKey = null;
 let castSheetRefreshTimer = null;
 const castSheetRequests = new Map();
@@ -1913,6 +1926,7 @@ function finishDetailLoad({ resetScroll = true } = {}) {
   castSheetEntering = false;
   castSheetSnapClosing = false;
   castSheetHistoryActive = false;
+  window.clearTimeout(castSheetCloseTimer);
   syncCastSheet();
   if (resetScroll) window.scrollTo({ top: 0, behavior: "auto" });
 }

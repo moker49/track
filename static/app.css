@@ -1315,6 +1315,7 @@ html.app-booting .schedule-empty-reveal {
 
 .detail-cast-sheet.is-closing {
   animation: detail-cast-sheet-exit 180ms ease-in forwards;
+  pointer-events: none;
 }
 
 .detail-cast-sheet.is-dragging,
