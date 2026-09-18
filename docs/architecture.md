@@ -30,6 +30,8 @@ Frontend modularization is intentionally deferred until a bundler is introduced.
 
 The former Profile floating-chrome interaction is retained as an implementation reference in [profile-floating-chrome.md](profile-floating-chrome.md). It is not active in the current navigation.
 
+The detail Cast-sheet interaction contract is documented in [detail-cast-sheet.md](detail-cast-sheet.md).
+
 ## Database startup
 
 The canonical schema is applied idempotently at startup, followed by `PRAGMA optimize`. Startup creates missing canonical tables and indexes only; it does not alter existing table layouts or migrate historical data. Schema changes that require an upgrade must be delivered as an explicit, separately run migration.
