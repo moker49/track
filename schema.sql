@@ -170,6 +170,20 @@ CREATE TABLE IF NOT EXISTS movie_cast (
 CREATE INDEX IF NOT EXISTS idx_show_cast_show_order ON show_cast(show_id, cast_order);
 CREATE INDEX IF NOT EXISTS idx_movie_cast_movie_order ON movie_cast(movie_id, cast_order);
 
+CREATE TABLE IF NOT EXISTS show_cast_sync (
+    show_id INTEGER PRIMARY KEY REFERENCES shows(id) ON DELETE CASCADE,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'ready', 'failed')),
+    updated_at TEXT NOT NULL,
+    error TEXT
+);
+
+CREATE TABLE IF NOT EXISTS movie_cast_sync (
+    movie_id INTEGER PRIMARY KEY REFERENCES movies(id) ON DELETE CASCADE,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'ready', 'failed')),
+    updated_at TEXT NOT NULL,
+    error TEXT
+);
+
 CREATE TABLE IF NOT EXISTS image_cache (
     id INTEGER PRIMARY KEY,
     tmdb_path TEXT NOT NULL,

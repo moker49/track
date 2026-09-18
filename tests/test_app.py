@@ -322,6 +322,22 @@ class TrackAppTest(unittest.TestCase):
                 time.sleep(0.02)
         self.assertEqual(portrait, ("profile", "w185"))
         time.sleep(0.1)
+        connection = sqlite3.connect(self.database)
+        for index in range(1, 25):
+            actor_id = connection.execute(
+                "INSERT INTO actors (tmdb_person_id, name) VALUES (?, ?)",
+                (200 + index, f"Actor {index}"),
+            ).lastrowid
+            connection.execute(
+                "INSERT INTO movie_cast (movie_id, actor_id, cast_order) VALUES (1, ?, ?)",
+                (actor_id, index),
+            )
+        connection.commit()
+        connection.close()
+        cast_fragment = self.client.get("/api/movies/1/cast")
+        self.assertEqual(cast_fragment.status_code, 200)
+        self.assertIn(b'data-cast-sheet-status="ready"', cast_fragment.data)
+        self.assertEqual(cast_fragment.data.count(b"cast-list-item"), 20)
         self.assertEqual(self.client.get("/api/movies/1").status_code, 200)
         self.assertEqual(client.credits_calls, 1)
 

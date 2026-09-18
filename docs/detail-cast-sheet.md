@@ -6,6 +6,8 @@ Cast data is server-hydrated only after Track has fetched and persisted that med
 
 Each actor retains TMDB's `profile_path` in `actors.profile_path`. The same background worker caches the `w185` profile image through the shared `image_cache` table; the actor row intentionally stores the TMDB path rather than a duplicate local filename.
 
+After core detail markup renders, the browser requests the local show/movie cast fragment. That query never contacts TMDB and is capped at 20 cast entries. Per-media sync rows report `pending`, `ready`, or `failed`: a pending fragment remains a local loading state and is retried locally; ready data renders in the sheet; failed and unavailable states render their own message.
+
 ## Visible layers
 
 - The Cast pill (`[data-cast-sheet-open]`) is fixed at the bottom center above the bottom navigation when a show or movie detail is visible.

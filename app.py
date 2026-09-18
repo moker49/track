@@ -133,6 +133,28 @@ def create_app(test_config: dict | None = None) -> Flask:
     cast_hydration_lock = threading.Lock()
     cast_hydration_keys: set[tuple[str, int]] = set()
 
+    def set_cast_sync_status(
+        db: sqlite3.Connection,
+        media_type: str,
+        media_id: int,
+        status: str,
+        error: str | None = None,
+    ) -> None:
+        table = "show_cast_sync" if media_type == "show" else "movie_cast_sync"
+        column = "show_id" if media_type == "show" else "movie_id"
+        db.execute(
+            f"""
+            INSERT INTO {table} ({column}, status, updated_at, error)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT({column}) DO UPDATE SET
+                status = excluded.status,
+                updated_at = excluded.updated_at,
+                error = excluded.error
+            """,
+            (media_id, status, utc_now(), error),
+        )
+        db.commit()
+
     def schedule_cast_hydration(media_type: str, media_id: int, tmdb_id: int) -> None:
         """Fetch credits after metadata is safely persisted, without delaying the response."""
         key = (media_type, media_id)
@@ -140,6 +162,12 @@ def create_app(test_config: dict | None = None) -> Flask:
             if key in cast_hydration_keys:
                 return
             cast_hydration_keys.add(key)
+
+        status_db = connect_database(app.config["DATABASE"])
+        try:
+            set_cast_sync_status(status_db, media_type, media_id, "pending")
+        finally:
+            status_db.close()
 
         def hydrate() -> None:
             db = connect_database(app.config["DATABASE"])
@@ -177,9 +205,11 @@ def create_app(test_config: dict | None = None) -> Flask:
                     except ImageCacheError:
                         # A missing portrait must not discard otherwise valid cast data.
                         app.logger.info("Could not cache cast portrait for %s", media_type)
-            except Exception:
+                set_cast_sync_status(db, media_type, media_id, "ready")
+            except Exception as error:
                 # Cast is supplemental metadata and must never affect detail loading.
                 app.logger.exception("Cast hydration failed for %s %s", media_type, media_id)
+                set_cast_sync_status(db, media_type, media_id, "failed", str(error))
             finally:
                 db.close()
                 with cast_hydration_lock:
@@ -489,6 +519,35 @@ def create_app(test_config: dict | None = None) -> Flask:
             abort(404)
         return render_template("movie_detail.html", movie=movie, activity=get_movie_activity(get_db(), movie_id))
 
+    def cast_sheet_fragment(media_type: str, media_id: int):
+        db = get_db()
+        media_table = "shows" if media_type == "show" else "movies"
+        cast_table = "show_cast" if media_type == "show" else "movie_cast"
+        sync_table = "show_cast_sync" if media_type == "show" else "movie_cast_sync"
+        media_column = "show_id" if media_type == "show" else "movie_id"
+        if db.execute(f"SELECT 1 FROM {media_table} WHERE id = ?", (media_id,)).fetchone() is None:
+            abort(404)
+        sync = db.execute(
+            f"SELECT status FROM {sync_table} WHERE {media_column} = ?", (media_id,)
+        ).fetchone()
+        status = sync["status"] if sync is not None else "unavailable"
+        cast = db.execute(
+            f"""
+            SELECT a.name, a.profile_path, c.character_name
+            FROM {cast_table} c
+            JOIN actors a ON a.id = c.actor_id
+            WHERE c.{media_column} = ?
+            ORDER BY c.cast_order, a.name COLLATE NOCASE
+            LIMIT 20
+            """,
+            (media_id,),
+        ).fetchall()
+        return render_template("_cast_sheet_content.html", cast=cast, status=status)
+
+    @app.get("/api/movies/<int:movie_id>/cast")
+    def movie_cast_fragment(movie_id: int):
+        return cast_sheet_fragment("movie", movie_id)
+
     def update_media_reaction(table: str, media_id: int, reaction: str):
         column = {"queue": "watch_again"}.get(reaction)
         if reaction not in {"liked", "queue"}:
@@ -715,6 +774,10 @@ def create_app(test_config: dict | None = None) -> Flask:
             activity=get_show_activity(db, show_id),
             metadata_refresh_due=not show_metadata_is_fresh(show["tmdb_refreshed_at"]),
         )
+
+    @app.get("/api/shows/<int:show_id>/cast")
+    def show_cast_fragment(show_id: int):
+        return cast_sheet_fragment("show", show_id)
 
     @app.get("/api/shows/<int:show_id>/seasons")
     def show_seasons_fragment(show_id: int):

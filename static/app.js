@@ -87,6 +87,7 @@ const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]")
 const castSheet = document.querySelector("[data-cast-sheet]");
 const castSheetScrim = document.querySelector("[data-cast-sheet-close]");
 const castSheetFab = document.querySelector("[data-cast-sheet-open]");
+const castSheetContent = document.querySelector("[data-cast-sheet-content]");
 const menuScrim = document.querySelector("[data-menu-scrim]");
 const navigationDrawer = document.querySelector("[data-navigation-drawer]");
 const sharedDialogs = [removeDialog, finishedArchiveDialog, resumeShowDialog, datePicker].filter(Boolean);
@@ -340,6 +341,9 @@ let castSheetClosing = false;
 let castSheetEntering = false;
 let castSheetSnapClosing = false;
 let castSheetHistoryActive = false;
+let activeCastMediaKey = null;
+let castSheetRefreshTimer = null;
+const castSheetRequests = new Map();
 let diaryRevision = 0;
 let renderedDiaryRevision = -1;
 let diaryLayout = "entries";
@@ -1913,6 +1917,45 @@ function finishDetailLoad({ resetScroll = true } = {}) {
   if (resetScroll) window.scrollTo({ top: 0, behavior: "auto" });
 }
 
+function loadDetailCast(mediaType, mediaId, attempt = 0) {
+  const numericMediaId = Number(mediaId);
+  if (!Number.isInteger(numericMediaId) || numericMediaId <= 0 || !castSheetContent) return;
+  const key = `${mediaType}:${numericMediaId}`;
+  activeCastMediaKey = key;
+  if (castSheetRefreshTimer) {
+    window.clearTimeout(castSheetRefreshTimer);
+    castSheetRefreshTimer = null;
+  }
+  if (attempt === 0) {
+    castSheetContent.innerHTML = '<div class="cast-sheet-message" role="status">Loading cast…</div>';
+  }
+  if (castSheetRequests.has(key)) return;
+  const collection = mediaType === "show" ? "shows" : "movies";
+  const request = fetch(`/api/${collection}/${numericMediaId}/cast`, {
+    headers: { "X-Requested-With": "Track" },
+  }).then(async (response) => {
+    if (!response.ok) throw new Error("Could not load cast");
+    const markup = await response.text();
+    if (activeCastMediaKey !== key) return;
+    castSheetContent.innerHTML = markup;
+    inspectMediaImages(castSheetContent);
+    const status = castSheetContent.firstElementChild?.dataset.castSheetStatus;
+    if (status === "pending" && attempt < 10) {
+      castSheetRefreshTimer = window.setTimeout(() => {
+        castSheetRefreshTimer = null;
+        loadDetailCast(mediaType, numericMediaId, attempt + 1);
+      }, 1000);
+    }
+  }).catch(() => {
+    if (activeCastMediaKey === key) {
+      castSheetContent.innerHTML = '<div class="cast-sheet-message">Cast is unavailable right now.</div>';
+    }
+  }).finally(() => {
+    castSheetRequests.delete(key);
+  });
+  castSheetRequests.set(key, request);
+}
+
 function invalidateShowCache(showId, includeSeasons = false) {
   showDetailCache.delete(String(showId));
   if (includeSeasons) {
@@ -2313,6 +2356,7 @@ async function fetchRefreshedShowFragments(showId) {
   });
   views.get("detail").replaceChildren(template.content);
   finishDetailLoad({ resetScroll: false });
+  loadDetailCast("show", showId);
   restoreShowDetailContext(showId, {
     openSeasonIds: [...openSeasonIds],
     detailScrollY,
@@ -2495,6 +2539,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   enableWatchControls(views.get("detail"));
   finishDetailLoad();
+  loadDetailCast("show", detailShow.dataset.showId);
   restoreShowDetailContext(detailShow.dataset.showId, returnContext);
   prefetchShowSeasonEpisodes(detailShow);
   if (animate) hydrateOtherPrimaryViews();
@@ -2547,6 +2592,7 @@ function renderMovieDetail(movieHtml, animate) {
   syncOverviewDisclosures(views.get("detail"));
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   finishDetailLoad();
+  loadDetailCast("movie", detailMovie.dataset.movieId);
 }
 
 async function previewCatalogMovie(card, historyMode = "push") {
