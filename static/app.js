@@ -34,7 +34,7 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list expand_more check_box arrow_upward arrow_downward more_vert resume playlist_add playlist_add_check event tv movie video_library done_all arrow_forward menu account_circle arrow_back close",
+        "filter_list expand_more expand_less check_box arrow_upward arrow_downward more_vert resume playlist_add playlist_add_check event tv movie video_library done_all arrow_forward menu account_circle arrow_back close",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
@@ -84,6 +84,9 @@ const imageViewerMedia = imageViewer?.querySelector("[data-image-viewer-media]")
 const imageViewerPreview = imageViewer?.querySelector("[data-image-viewer-preview]");
 const imageViewerImage = imageViewer?.querySelector("[data-image-viewer-image]");
 const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]");
+const castSheet = document.querySelector("[data-cast-sheet]");
+const castSheetScrim = document.querySelector("[data-cast-sheet-close]");
+const castSheetFab = document.querySelector("[data-cast-sheet-open]");
 const menuScrim = document.querySelector("[data-menu-scrim]");
 const navigationDrawer = document.querySelector("[data-navigation-drawer]");
 const sharedDialogs = [removeDialog, finishedArchiveDialog, resumeShowDialog, datePicker].filter(Boolean);
@@ -107,6 +110,64 @@ sharedDialogs.forEach((dialog) => {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
   });
+});
+
+function syncCastSheet() {
+  if (!castSheet) return;
+  const detailMedia = views.get("detail")?.querySelector("[data-detail-show], [data-detail-movie]");
+  const isAvailable = currentView === "detail" && Boolean(detailMedia);
+  if (!isAvailable) {
+    castSheetOpen = false;
+    castSheetClosing = false;
+    castSheetHistoryActive = false;
+  }
+  castSheet.hidden = !isAvailable || (!castSheetOpen && !castSheetClosing);
+  document.documentElement.classList.toggle(
+    "cast-sheet-open",
+    isAvailable && (castSheetOpen || castSheetClosing),
+  );
+  castSheet.classList.toggle("is-open", isAvailable && castSheetOpen);
+  castSheet.classList.toggle("is-closing", isAvailable && castSheetClosing);
+  castSheet.querySelector("[data-cast-sheet-toggle]")?.setAttribute("aria-expanded", String(castSheetOpen));
+  if (castSheetFab) {
+    castSheetFab.hidden = !isAvailable;
+    castSheetFab.setAttribute("aria-expanded", String(castSheetOpen));
+  }
+  if (castSheetScrim) {
+    castSheetScrim.hidden = !isAvailable || !castSheetOpen;
+    castSheetScrim.classList.toggle("is-visible", isAvailable && castSheetOpen);
+  }
+}
+
+function setCastSheetOpen(isOpen, { preserveHistory = false } = {}) {
+  if (isOpen) {
+    if (castSheetOpen || castSheetClosing) return;
+    if (!preserveHistory) {
+      window.history.pushState({ ...window.history.state, trackApp: true, castSheetOpen: true }, "");
+      castSheetHistoryActive = true;
+    }
+    castSheetClosing = false;
+    castSheetOpen = true;
+    syncCastSheet();
+    return;
+  }
+  if (!castSheetOpen && !castSheetClosing) return;
+  if (castSheetHistoryActive && !preserveHistory) {
+    window.history.back();
+    return;
+  }
+  castSheetHistoryActive = false;
+  castSheetOpen = false;
+  castSheetClosing = true;
+  syncCastSheet();
+  window.setTimeout(() => {
+    castSheetClosing = false;
+    syncCastSheet();
+  }, 180);
+}
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && castSheetOpen) setCastSheetOpen(false);
 });
 const tvControlBar = document.querySelector("[data-tv-control-bar]");
 const tvControlBarSlot = document.querySelector("[data-tv-control-bar-slot]");
@@ -195,6 +256,9 @@ const detailRevealAnimationHandlers = new WeakMap();
 const utilityRevealAnimationHandlers = new WeakMap();
 let currentView = "backlog";
 let detailParentView = "backlog";
+let castSheetOpen = false;
+let castSheetClosing = false;
+let castSheetHistoryActive = false;
 let diaryRevision = 0;
 let renderedDiaryRevision = -1;
 let diaryLayout = "entries";
@@ -643,6 +707,7 @@ function showView(viewName, historyMode = null) {
 
   updateActiveNav(viewName === "detail" ? detailParentView : viewName);
   currentView = viewName;
+  syncCastSheet();
   if (bottomChrome) bottomChrome.hidden = false;
   syncGlobalSearch();
   syncTvControlVisibility();
@@ -1139,6 +1204,7 @@ function renderDetailLoading(title) {
   const loading = detailView.querySelector(".detail-loading");
   loading.setAttribute("aria-label", loadingLabel);
   loading.querySelector("[data-detail-loading-label]").textContent = loadingLabel;
+  syncCastSheet();
 }
 
 function staggerDetailSlices(sections, startIndex = 0) {
@@ -1757,6 +1823,10 @@ function finishDetailLoad({ resetScroll = true } = {}) {
   const detailView = views.get("detail");
   formatDisplayDates(detailView);
   document.title = APP_TITLE;
+  castSheetOpen = false;
+  castSheetClosing = false;
+  castSheetHistoryActive = false;
+  syncCastSheet();
   if (resetScroll) window.scrollTo({ top: 0, behavior: "auto" });
 }
 
@@ -4040,6 +4110,16 @@ document.addEventListener("toggle", (event) => {
 }, true);
 
 document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-cast-sheet-open]")) {
+    setCastSheetOpen(true);
+    return;
+  }
+
+  if (event.target.closest("[data-cast-sheet-toggle], [data-cast-sheet-close]")) {
+    setCastSheetOpen(false);
+    return;
+  }
+
   const disclosure = event.target.closest("[data-overview-disclosure]");
   if (disclosure) {
     const expanded = disclosure.classList.toggle("is-expanded");
@@ -5494,6 +5574,11 @@ function restoreHistoryState(state) {
 }
 
 window.addEventListener("popstate", (event) => {
+  if (castSheetHistoryActive) {
+    castSheetHistoryActive = false;
+    setCastSheetOpen(false, { preserveHistory: true });
+    return;
+  }
   if (tvDropdownHistoryActive) {
     tvDropdownHistoryActive = false;
     closeTvDropdowns(null, { preserveHistory: true });

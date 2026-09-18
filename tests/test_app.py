@@ -149,6 +149,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-image-viewer-preview', home.data)
         self.assertIn(b'data-image-viewer-image', home.data)
         self.assertIn(b'data-image-viewer-media', home.data)
+        self.assertIn(b'data-cast-sheet', home.data)
+        self.assertIn(b'data-cast-sheet-toggle', home.data)
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
@@ -216,6 +218,8 @@ class TrackAppTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("function syncSearchChrome()", javascript)
+        self.assertIn("function syncCastSheet()", javascript)
+        self.assertIn("function setCastSheetOpen(isOpen, { preserveHistory = false } = {})", javascript)
         self.assertIn('progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP]', javascript)
         self.assertIn('if (values.length === 0) return "None";', javascript)
         self.assertIn("searchClearButton.hidden = !hasText", javascript)
