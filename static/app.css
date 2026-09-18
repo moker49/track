@@ -1301,7 +1301,7 @@ html.app-booting .schedule-empty-reveal {
   height: min(58dvh, 460px);
   border-radius: 24px 24px 0 0;
   display: grid;
-  grid-template-rows: 56px minmax(0, 1fr);
+  grid-template-rows: 36px minmax(0, 1fr);
   overflow: hidden;
   color: var(--on-surface);
   background: var(--surface-card);
@@ -1329,7 +1329,6 @@ html.app-booting .schedule-empty-reveal {
 .detail-cast-sheet-handle {
   position: relative;
   width: 100%;
-  padding: 14px 20px 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1412,7 +1411,7 @@ html.app-booting .schedule-empty-reveal {
   object-fit: cover;
 }
 
-.cast-list-item > span:last-child {
+.cast-list-item>span:last-child {
   min-width: 0;
   display: grid;
   gap: 3px;
