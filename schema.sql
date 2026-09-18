@@ -143,6 +143,33 @@ CREATE TABLE IF NOT EXISTS movie_watch_history (
 
 CREATE INDEX IF NOT EXISTS idx_movie_watch_history_movie ON movie_watch_history(movie_id);
 
+CREATE TABLE IF NOT EXISTS actors (
+    id INTEGER PRIMARY KEY,
+    tmdb_person_id INTEGER UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    profile_path TEXT,
+    updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS show_cast (
+    show_id INTEGER NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
+    actor_id INTEGER NOT NULL REFERENCES actors(id) ON DELETE CASCADE,
+    character_name TEXT,
+    cast_order INTEGER,
+    PRIMARY KEY (show_id, actor_id, character_name)
+);
+
+CREATE TABLE IF NOT EXISTS movie_cast (
+    movie_id INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+    actor_id INTEGER NOT NULL REFERENCES actors(id) ON DELETE CASCADE,
+    character_name TEXT,
+    cast_order INTEGER,
+    PRIMARY KEY (movie_id, actor_id, character_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_show_cast_show_order ON show_cast(show_id, cast_order);
+CREATE INDEX IF NOT EXISTS idx_movie_cast_movie_order ON movie_cast(movie_id, cast_order);
+
 CREATE TABLE IF NOT EXISTS image_cache (
     id INTEGER PRIMARY KEY,
     tmdb_path TEXT NOT NULL,

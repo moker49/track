@@ -224,5 +224,30 @@ class DatabaseBootstrapSmokeTest(unittest.TestCase):
             self.assertNotIn("schema_migrations", tables)
             self.assertTrue(any(name.startswith("idx_") for name in indexes))
 
+    def test_cast_schema_uses_normalized_people_and_media_joins(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "cast.db"
+            db = connect_database(database)
+            initialize_database(db, Path(__file__).parents[1] / "schema.sql")
+            db.execute(
+                "INSERT INTO shows (tmdb_id, name, state, added_at) VALUES (1, 'Show', 'ACTIVE', '2026-01-01')"
+            )
+            db.execute(
+                "INSERT INTO movies (tmdb_id, title, added_at) VALUES (2, 'Movie', '2026-01-01')"
+            )
+            db.execute(
+                "INSERT INTO actors (tmdb_person_id, name) VALUES (3, 'Actor')"
+            )
+            db.execute(
+                "INSERT INTO show_cast (show_id, actor_id, character_name, cast_order) VALUES (1, 1, 'Role', 0)"
+            )
+            db.execute(
+                "INSERT INTO movie_cast (movie_id, actor_id, character_name, cast_order) VALUES (1, 1, 'Role', 1)"
+            )
+            db.execute("DELETE FROM actors WHERE id = 1")
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM show_cast").fetchone()[0], 0)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM movie_cast").fetchone()[0], 0)
+            db.close()
+
 if __name__ == "__main__":
     unittest.main()
