@@ -5,6 +5,7 @@ import json
 import os
 import re
 import threading
+import time
 from email.message import Message
 from io import BytesIO
 from pathlib import Path
@@ -220,6 +221,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("function syncSearchChrome()", javascript)
         self.assertIn("function syncCastSheet()", javascript)
         self.assertIn("function setCastSheetOpen(isOpen, { preserveHistory = false } = {})", javascript)
+        self.assertNotIn("hydrateDetailCast", javascript)
+        self.assertNotIn("/cast/hydrate", javascript)
         self.assertIn('progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP]', javascript)
         self.assertIn('if (values.length === 0) return "None";', javascript)
         self.assertIn("searchClearButton.hidden = !hasText", javascript)
@@ -240,6 +243,45 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("function syncDiaryLayoutToggle()", javascript)
         self.assertIn("navigationDrawerHistoryActive = false;", javascript)
         self.assertIn('data-reaction-toggle', javascript)
+
+    def test_cast_hydration_follows_tmdb_metadata_refresh_without_detail_request(self):
+        test_case = self
+        credits_loaded = threading.Event()
+
+        class CreditsClient:
+            credits_calls = 0
+
+            def movie(self, tmdb_id):
+                test_case.assertEqual(tmdb_id, 900003)
+                return {"id": tmdb_id, "title": "Test Movie", "genres": []}
+
+            def movie_credits(self, tmdb_id):
+                test_case.assertEqual(tmdb_id, 900003)
+                self.credits_calls += 1
+                credits_loaded.set()
+                return {"cast": [{"id": 100, "name": "Actor One", "character": "Hero", "order": 0}]}
+
+        client = CreditsClient()
+        self.app.config["TMDB_CLIENT_FACTORY"] = lambda _token: client
+        movie_response = self.client.post("/api/movies/900003/import", json={})
+        self.assertEqual(movie_response.status_code, 200)
+        self.assertTrue(credits_loaded.wait(timeout=2))
+
+        movie_cast = []
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline and not movie_cast:
+            connection = sqlite3.connect(self.database)
+            movie_cast = connection.execute(
+                "SELECT a.name, mc.character_name FROM movie_cast mc "
+                "JOIN actors a ON a.id = mc.actor_id"
+            ).fetchall()
+            connection.close()
+            if not movie_cast:
+                time.sleep(0.02)
+        self.assertEqual(movie_cast, [("Actor One", "Hero")])
+        time.sleep(0.05)
+        self.assertEqual(self.client.get("/api/movies/1").status_code, 200)
+        self.assertEqual(client.credits_calls, 1)
 
     def test_initial_library_order_matches_natural_default_sort(self):
         connection = sqlite3.connect(self.database)

@@ -2,6 +2,8 @@
 
 The Cast sheet is currently an empty interaction prototype on tracked and untracked show/movie detail pages. Its purpose is to establish the exact sheet behavior before cast data is added.
 
+Cast data is server-hydrated only after Track has fetched and persisted that media's core metadata from TMDB (import, manual refresh, or stale-metadata refresh). Opening or rendering a locally cached detail page never triggers a separate TMDB credits request. The cast fetch runs in a best-effort background worker after the core metadata work has completed, so it cannot delay the app response or detail rendering.
+
 ## Visible layers
 
 - The Cast pill (`[data-cast-sheet-open]`) is fixed at the bottom center above the bottom navigation when a show or movie detail is visible.

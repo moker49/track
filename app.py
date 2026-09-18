@@ -26,6 +26,7 @@ from domain import (
     progress_presentation,
 )
 from image_cache import ImageCacheError, cached_image
+from cast_service import replace_media_cast
 from tmdb import TMDBClient, TMDBError
 from tmdb_import import import_or_refresh_show
 from queries import (
@@ -128,6 +129,43 @@ def create_app(test_config: dict | None = None) -> Flask:
         return app.config["TMDB_CLIENT_FACTORY"](
             app.config["TMDB_READ_ACCESS_TOKEN"]
         )
+
+    cast_hydration_lock = threading.Lock()
+    cast_hydration_keys: set[tuple[str, int]] = set()
+
+    def schedule_cast_hydration(media_type: str, media_id: int, tmdb_id: int) -> None:
+        """Fetch credits after metadata is safely persisted, without delaying the response."""
+        key = (media_type, media_id)
+        with cast_hydration_lock:
+            if key in cast_hydration_keys:
+                return
+            cast_hydration_keys.add(key)
+
+        def hydrate() -> None:
+            db = connect_database(app.config["DATABASE"])
+            try:
+                client = get_tmdb_client()
+                credits = (
+                    client.show_credits(tmdb_id)
+                    if media_type == "show"
+                    else client.movie_credits(tmdb_id)
+                )
+                replace_media_cast(
+                    db, media_type=media_type, media_id=media_id, credits=credits
+                )
+            except Exception:
+                # Cast is supplemental metadata and must never affect detail loading.
+                app.logger.exception("Cast hydration failed for %s %s", media_type, media_id)
+            finally:
+                db.close()
+                with cast_hydration_lock:
+                    cast_hydration_keys.discard(key)
+
+        threading.Thread(
+            target=hydrate,
+            name=f"track-{media_type}-cast-{media_id}",
+            daemon=True,
+        ).start()
 
     def request_local_date() -> date:
         value = request.headers.get("X-Track-Local-Date", "")
@@ -377,6 +415,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                        (movie_id, watch_added_at, diary_date, movie_id))
         normalize_movie_added_timestamps(db, movie_id)
         db.commit()
+        schedule_cast_hydration("movie", movie_id, tmdb_id)
         return jsonify(ok=True, movie_id=movie_id)
 
     @app.get("/api/movies/tmdb/<int:tmdb_id>/preview")
@@ -529,6 +568,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         except ValueError as error:
             return jsonify(error=str(error)), 502
         imported_show = get_library_show(get_db(), show_id)
+        schedule_cast_hydration("show", show_id, tmdb_id)
         return jsonify(
             show_id=show_id,
             created=created,
@@ -574,6 +614,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         except ValueError as error:
             return jsonify(error=str(error)), 502
         refreshed_show = get_library_show(db, refreshed_id)
+        schedule_cast_hydration("show", refreshed_id, local_show["tmdb_id"])
         return jsonify(
             show_id=refreshed_id,
             refreshed=True,
@@ -588,7 +629,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     def refresh_stale_tracked_show_records(
         include_card_html: bool = False,
     ) -> dict:
-        return refresh_stale_records(
+        result = refresh_stale_records(
             get_db(),
             client_factory=get_tmdb_client,
             metadata_is_fresh=show_metadata_is_fresh,
@@ -597,6 +638,15 @@ def create_app(test_config: dict | None = None) -> Flask:
                 lambda show: render_template("_show_card_fragment.html", show=show)
             ),
         )
+        for refreshed_show in result["refreshed"]:
+            local_show = get_db().execute(
+                "SELECT tmdb_id FROM shows WHERE id = ?", (refreshed_show["show_id"],)
+            ).fetchone()
+            if local_show is not None:
+                schedule_cast_hydration(
+                    "show", refreshed_show["show_id"], local_show["tmdb_id"]
+                )
+        return result
 
 
     app.extensions["refresh_stale_tracked_shows"] = (
