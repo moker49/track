@@ -1309,7 +1309,7 @@ html.app-booting .schedule-empty-reveal {
   transform: translate(-50%, 0);
 }
 
-.detail-cast-sheet.is-open {
+.detail-cast-sheet.is-entering {
   animation: detail-cast-sheet-enter 220ms cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -1317,19 +1317,28 @@ html.app-booting .schedule-empty-reveal {
   animation: detail-cast-sheet-exit 180ms ease-in forwards;
 }
 
+.detail-cast-sheet.is-dragging,
+.detail-cast-sheet.is-settling {
+  animation: none;
+}
+
+.detail-cast-sheet.is-settling {
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
 .detail-cast-sheet-handle {
   position: relative;
   width: 100%;
   padding: 14px 20px 8px;
-  border: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: var(--on-surface);
-  background: transparent;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
+  touch-action: none;
+  cursor: grab;
+}
+
+.detail-cast-sheet.is-dragging .detail-cast-sheet-handle {
+  cursor: grabbing;
 }
 
 .detail-cast-sheet-grip {

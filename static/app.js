@@ -119,6 +119,8 @@ function syncCastSheet() {
   if (!isAvailable) {
     castSheetOpen = false;
     castSheetClosing = false;
+    castSheetEntering = false;
+    castSheetSnapClosing = false;
     castSheetHistoryActive = false;
   }
   castSheet.hidden = !isAvailable || (!castSheetOpen && !castSheetClosing);
@@ -127,8 +129,8 @@ function syncCastSheet() {
     isAvailable && (castSheetOpen || castSheetClosing),
   );
   castSheet.classList.toggle("is-open", isAvailable && castSheetOpen);
+  castSheet.classList.toggle("is-entering", isAvailable && castSheetEntering);
   castSheet.classList.toggle("is-closing", isAvailable && castSheetClosing);
-  castSheet.querySelector("[data-cast-sheet-toggle]")?.setAttribute("aria-expanded", String(castSheetOpen));
   if (castSheetFab) {
     castSheetFab.hidden = !isAvailable;
     castSheetFab.setAttribute("aria-expanded", String(castSheetOpen));
@@ -147,8 +149,14 @@ function setCastSheetOpen(isOpen, { preserveHistory = false } = {}) {
       castSheetHistoryActive = true;
     }
     castSheetClosing = false;
+    castSheetEntering = true;
     castSheetOpen = true;
     syncCastSheet();
+    window.setTimeout(() => {
+      if (!castSheetOpen) return;
+      castSheetEntering = false;
+      syncCastSheet();
+    }, 220);
     return;
   }
   if (!castSheetOpen && !castSheetClosing) return;
@@ -158,6 +166,7 @@ function setCastSheetOpen(isOpen, { preserveHistory = false } = {}) {
   }
   castSheetHistoryActive = false;
   castSheetOpen = false;
+  castSheetEntering = false;
   castSheetClosing = true;
   syncCastSheet();
   window.setTimeout(() => {
@@ -165,6 +174,76 @@ function setCastSheetOpen(isOpen, { preserveHistory = false } = {}) {
     syncCastSheet();
   }, 180);
 }
+
+let castSheetDrag = null;
+const castSheetHandle = castSheet?.querySelector("[data-cast-sheet-toggle]");
+
+function finishCastSheetDrag(event) {
+  if (!castSheetDrag || event.pointerId !== castSheetDrag.pointerId) return;
+  const { distance, height, dragging } = castSheetDrag;
+  castSheetDrag = null;
+  castSheetHandle?.releasePointerCapture(event.pointerId);
+  if (!dragging) return;
+  castSheet.classList.remove("is-dragging");
+
+  if (distance >= Math.min(112, height * 0.28)) {
+    castSheet.classList.add("is-open", "is-settling");
+    castSheet.style.setProperty("transform", `translate(-50%, ${distance}px)`);
+    window.requestAnimationFrame(() => {
+      castSheet.style.setProperty("transform", `translate(-50%, ${height}px)`);
+    });
+    const finishSnapClose = (transitionEvent) => {
+      if (transitionEvent.target !== castSheet || transitionEvent.propertyName !== "transform") return;
+      castSheet.removeEventListener("transitionend", finishSnapClose);
+      castSheet.classList.remove("is-settling");
+      castSheetSnapClosing = true;
+      if (castSheetHistoryActive) window.history.back();
+      else {
+        castSheetOpen = false;
+        castSheetSnapClosing = false;
+        castSheet.style.removeProperty("transform");
+        syncCastSheet();
+      }
+    };
+    castSheet.addEventListener("transitionend", finishSnapClose);
+    return;
+  }
+
+  castSheet.classList.add("is-open", "is-settling");
+  castSheet.style.setProperty("transform", "translate(-50%, 0)");
+  const finishSettle = (transitionEvent) => {
+    if (transitionEvent.target !== castSheet || transitionEvent.propertyName !== "transform") return;
+    castSheet.removeEventListener("transitionend", finishSettle);
+    castSheet.classList.remove("is-settling");
+    castSheet.style.removeProperty("transform");
+  };
+  castSheet.addEventListener("transitionend", finishSettle);
+}
+
+castSheetHandle?.addEventListener("pointerdown", (event) => {
+  if (!castSheetOpen || event.button !== 0) return;
+  const height = castSheet.getBoundingClientRect().height;
+  castSheetDrag = { pointerId: event.pointerId, startY: event.clientY, distance: 0, height, dragging: false };
+  castSheetHandle.setPointerCapture(event.pointerId);
+});
+
+castSheetHandle?.addEventListener("pointermove", (event) => {
+  if (!castSheetDrag || event.pointerId !== castSheetDrag.pointerId) return;
+  const distance = Math.max(0, Math.min(castSheetDrag.height, event.clientY - castSheetDrag.startY));
+  castSheetDrag.distance = distance;
+  if (!castSheetDrag.dragging && distance <= 6) return;
+  if (!castSheetDrag.dragging) {
+    castSheetDrag.dragging = true;
+    castSheetEntering = false;
+    castSheet.classList.remove("is-open", "is-entering", "is-closing", "is-settling");
+    castSheet.classList.add("is-dragging");
+  }
+  castSheet.style.setProperty("transform", `translate(-50%, ${distance}px)`);
+  event.preventDefault();
+});
+
+castSheetHandle?.addEventListener("pointerup", finishCastSheetDrag);
+castSheetHandle?.addEventListener("pointercancel", finishCastSheetDrag);
 
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && castSheetOpen) setCastSheetOpen(false);
@@ -258,6 +337,8 @@ let currentView = "backlog";
 let detailParentView = "backlog";
 let castSheetOpen = false;
 let castSheetClosing = false;
+let castSheetEntering = false;
+let castSheetSnapClosing = false;
 let castSheetHistoryActive = false;
 let diaryRevision = 0;
 let renderedDiaryRevision = -1;
@@ -1825,6 +1906,8 @@ function finishDetailLoad({ resetScroll = true } = {}) {
   document.title = APP_TITLE;
   castSheetOpen = false;
   castSheetClosing = false;
+  castSheetEntering = false;
+  castSheetSnapClosing = false;
   castSheetHistoryActive = false;
   syncCastSheet();
   if (resetScroll) window.scrollTo({ top: 0, behavior: "auto" });
@@ -4115,7 +4198,7 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  if (event.target.closest("[data-cast-sheet-toggle], [data-cast-sheet-close]")) {
+  if (event.target.closest("[data-cast-sheet-close]")) {
     setCastSheetOpen(false);
     return;
   }
@@ -5576,6 +5659,15 @@ function restoreHistoryState(state) {
 window.addEventListener("popstate", (event) => {
   if (castSheetHistoryActive) {
     castSheetHistoryActive = false;
+    if (castSheetSnapClosing) {
+      castSheetOpen = false;
+      castSheetClosing = false;
+      castSheetEntering = false;
+      castSheetSnapClosing = false;
+      castSheet.style.removeProperty("transform");
+      syncCastSheet();
+      return;
+    }
     setCastSheetOpen(false, { preserveHistory: true });
     return;
   }
