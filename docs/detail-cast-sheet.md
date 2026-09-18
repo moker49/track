@@ -4,6 +4,8 @@ The Cast sheet is currently an empty interaction prototype on tracked and untrac
 
 Cast data is server-hydrated only after Track has fetched and persisted that media's core metadata from TMDB (import, manual refresh, or stale-metadata refresh). Opening or rendering a locally cached detail page never triggers a separate TMDB credits request. The cast fetch runs in a best-effort background worker after the core metadata work has completed, so it cannot delay the app response or detail rendering.
 
+Each actor retains TMDB's `profile_path` in `actors.profile_path`. The same background worker caches the `w185` profile image through the shared `image_cache` table; the actor row intentionally stores the TMDB path rather than a duplicate local filename.
+
 ## Visible layers
 
 - The Cast pill (`[data-cast-sheet-open]`) is fixed at the bottom center above the bottom navigation when a show or movie detail is visible.

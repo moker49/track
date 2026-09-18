@@ -153,6 +153,30 @@ def create_app(test_config: dict | None = None) -> Flask:
                 replace_media_cast(
                     db, media_type=media_type, media_id=media_id, credits=credits
                 )
+                cast_table = "show_cast" if media_type == "show" else "movie_cast"
+                media_column = "show_id" if media_type == "show" else "movie_id"
+                profile_rows = db.execute(
+                    f"""
+                    SELECT DISTINCT a.profile_path
+                    FROM {cast_table} c
+                    JOIN actors a ON a.id = c.actor_id
+                    WHERE c.{media_column} = ? AND a.profile_path IS NOT NULL
+                    """,
+                    (media_id,),
+                ).fetchall()
+                for profile in profile_rows:
+                    try:
+                        cached_image(
+                            db,
+                            Path(app.config["IMAGE_CACHE_DIR"]),
+                            "profile",
+                            "w185",
+                            profile["profile_path"],
+                            transport=app.config["IMAGE_TRANSPORT"],
+                        )
+                    except ImageCacheError:
+                        # A missing portrait must not discard otherwise valid cast data.
+                        app.logger.info("Could not cache cast portrait for %s", media_type)
             except Exception:
                 # Cast is supplemental metadata and must never affect detail loading.
                 app.logger.exception("Cast hydration failed for %s %s", media_type, media_id)

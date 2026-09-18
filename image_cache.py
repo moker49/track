@@ -15,6 +15,7 @@ IMAGE_BASE_URL = "https://image.tmdb.org/t/p"
 ALLOWED_SIZES = {
     "poster": {"w185", "w342"},
     "backdrop": {"w780"},
+    "profile": {"w185"},
     "season": {"w185", "w342"},
     "still": {"w300"},
 }

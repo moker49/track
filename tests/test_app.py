@@ -247,6 +247,26 @@ class TrackAppTest(unittest.TestCase):
     def test_cast_hydration_follows_tmdb_metadata_refresh_without_detail_request(self):
         test_case = self
         credits_loaded = threading.Event()
+        portrait_cached = threading.Event()
+
+        class ImageResponse(BytesIO):
+            def __init__(self):
+                super().__init__(b"portrait")
+                self.headers = Message()
+                self.headers["Content-Type"] = "image/jpeg"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.close()
+
+        def image_transport(request, timeout):
+            test_case.assertEqual(
+                request.full_url, "https://image.tmdb.org/t/p/w185/actor.jpg"
+            )
+            portrait_cached.set()
+            return ImageResponse()
 
         class CreditsClient:
             credits_calls = 0
@@ -259,13 +279,24 @@ class TrackAppTest(unittest.TestCase):
                 test_case.assertEqual(tmdb_id, 900003)
                 self.credits_calls += 1
                 credits_loaded.set()
-                return {"cast": [{"id": 100, "name": "Actor One", "character": "Hero", "order": 0}]}
+                return {"cast": [{
+                    "id": 100,
+                    "name": "Actor One",
+                    "character": "Hero",
+                    "order": 0,
+                    "profile_path": "/actor.jpg",
+                }]}
 
         client = CreditsClient()
-        self.app.config["TMDB_CLIENT_FACTORY"] = lambda _token: client
+        self.app.config.update(
+            TMDB_CLIENT_FACTORY=lambda _token: client,
+            IMAGE_CACHE_DIR=str(Path(self.temp_dir.name) / "images"),
+            IMAGE_TRANSPORT=image_transport,
+        )
         movie_response = self.client.post("/api/movies/900003/import", json={})
         self.assertEqual(movie_response.status_code, 200)
         self.assertTrue(credits_loaded.wait(timeout=2))
+        self.assertTrue(portrait_cached.wait(timeout=2))
 
         movie_cast = []
         deadline = time.monotonic() + 2
@@ -279,7 +310,18 @@ class TrackAppTest(unittest.TestCase):
             if not movie_cast:
                 time.sleep(0.02)
         self.assertEqual(movie_cast, [("Actor One", "Hero")])
-        time.sleep(0.05)
+        portrait = None
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline and portrait is None:
+            connection = sqlite3.connect(self.database)
+            portrait = connection.execute(
+                "SELECT image_type, size FROM image_cache WHERE tmdb_path = '/actor.jpg'"
+            ).fetchone()
+            connection.close()
+            if portrait is None:
+                time.sleep(0.02)
+        self.assertEqual(portrait, ("profile", "w185"))
+        time.sleep(0.1)
         self.assertEqual(self.client.get("/api/movies/1").status_code, 200)
         self.assertEqual(client.credits_calls, 1)
 
