@@ -339,6 +339,7 @@ const episodeDetailRequests = new Map();
 const mediaImagePreloads = new Map();
 const settledMediaImageSources = new Set();
 const showRefreshRequests = new Map();
+const movieRefreshRequests = new Map();
 const pendingWatchChanges = new WeakSet();
 const hydratedLibraryViews = new Set();
 const revealedViewAnimations = new Set();
@@ -2423,6 +2424,40 @@ async function refreshShowMetadata(showId, { force = false, trigger = null } = {
   }
 }
 
+async function refreshMovieMetadata(movieId, trigger = null) {
+  const cacheKey = String(movieId);
+  if (movieRefreshRequests.has(cacheKey)) return movieRefreshRequests.get(cacheKey);
+  if (trigger) trigger.disabled = true;
+
+  const refreshRequest = (async () => {
+    const response = await fetch(`/api/movies/${movieId}/refresh`, { method: "POST" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not refresh movie");
+
+    movieDetailCache.delete(cacheKey);
+    const [movieHtml] = await Promise.all([
+      refreshMovieDetailCache(movieId),
+      refreshMoviesContent(),
+    ]);
+    const currentMovie = views.get("detail")
+      .querySelector(`[data-detail-movie][data-movie-id="${movieId}"]`);
+    if (currentMovie) renderMovieDetail(movieHtml, false, { resetScroll: false });
+    showSnackbar("Movie refreshed");
+    return data;
+  })();
+
+  movieRefreshRequests.set(cacheKey, refreshRequest);
+  try {
+    return await refreshRequest;
+  } catch (error) {
+    showSnackbar(error.message);
+    return null;
+  } finally {
+    movieRefreshRequests.delete(cacheKey);
+    if (trigger) trigger.disabled = false;
+  }
+}
+
 function refreshShowIfDue(showId) {
   const currentShow = views.get("detail")
     .querySelector(`[data-detail-show][data-show-id="${showId}"]`);
@@ -2597,7 +2632,7 @@ async function openMovie(movieId, parentView = "movies", historyMode = "push") {
   }
 }
 
-function renderMovieDetail(movieHtml, animate) {
+function renderMovieDetail(movieHtml, animate, { resetScroll = true } = {}) {
   const template = document.createElement("template");
   template.innerHTML = movieHtml;
   const detailMovie = template.content.querySelector("[data-detail-movie]");
@@ -2605,7 +2640,7 @@ function renderMovieDetail(movieHtml, animate) {
   views.get("detail").replaceChildren(template.content);
   syncOverviewDisclosures(views.get("detail"));
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
-  finishDetailLoad();
+  finishDetailLoad({ resetScroll });
   loadDetailCast("movie", detailMovie.dataset.movieId);
 }
 
@@ -4683,7 +4718,11 @@ document.addEventListener("click", (event) => {
   if (movieAction) {
     const movieElement = movieAction.closest("[data-movie-id]");
     closeShowMenus();
-    requestMovieRemoval(movieElement);
+    if (movieAction.dataset.movieAction === "refresh") {
+      refreshMovieMetadata(movieElement.dataset.movieId, movieAction);
+    } else {
+      requestMovieRemoval(movieElement);
+    }
     return;
   }
 

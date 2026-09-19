@@ -1723,6 +1723,76 @@ class TrackAppTest(unittest.TestCase):
         )
         self.assertEqual(invalid.status_code, 400)
 
+    def test_movie_metadata_refresh_replaces_tmdb_fields_and_preserves_library_state(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            """INSERT INTO movies (
+                tmdb_id, title, overview, is_tracked, liked_at, watch_again, added_at
+            ) VALUES (?, ?, ?, 1, ?, 1, ?)""",
+            (
+                901002,
+                "Old movie title",
+                "Old overview",
+                "2026-09-04T12:00:00+00:00",
+                "2026-09-01T12:00:00+00:00",
+            ),
+        )
+        movie_id = connection.execute(
+            "SELECT id FROM movies WHERE tmdb_id = ?", (901002,)
+        ).fetchone()[0]
+        connection.execute(
+            "INSERT INTO movie_watch_history (movie_id, added_at, diary_date) VALUES (?, ?, ?)",
+            (movie_id, "2026-09-05T12:00:00+00:00", "2026-09-05"),
+        )
+        connection.commit()
+        connection.close()
+
+        class FakeClient:
+            def movie(self, tmdb_id):
+                return {
+                    "id": tmdb_id,
+                    "title": "Refreshed movie title",
+                    "original_title": "Original refreshed title",
+                    "overview": "Refreshed overview",
+                    "poster_path": "/poster.jpg",
+                    "backdrop_path": "/backdrop.jpg",
+                    "release_date": "2025-10-01",
+                    "runtime": 111,
+                    "status": "Released",
+                    "genres": [{"name": "Adventure"}],
+                    "original_language": "en",
+                }
+
+            def movie_credits(self, _tmdb_id):
+                return {"cast": []}
+
+        self.app.config.update(
+            TMDB_READ_ACCESS_TOKEN="test-token",
+            TMDB_CLIENT_FACTORY=lambda _token: FakeClient(),
+        )
+        response = self.client.post(f"/api/movies/{movie_id}/refresh")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["refreshed"])
+        connection = sqlite3.connect(self.database)
+        movie = connection.execute(
+            """SELECT title, overview, genres, is_tracked, liked_at, watch_again,
+                      added_at, tmdb_refreshed_at, tmdb_payload
+               FROM movies WHERE id = ?""",
+            (movie_id,),
+        ).fetchone()
+        watch_count = connection.execute(
+            "SELECT COUNT(*) FROM movie_watch_history WHERE movie_id = ?", (movie_id,)
+        ).fetchone()[0]
+        connection.close()
+
+        self.assertEqual(movie[0:3], ("Refreshed movie title", "Refreshed overview", "Adventure"))
+        self.assertEqual(movie[3:7], (1, "2026-09-04T12:00:00+00:00", 1, "2026-09-01T12:00:00+00:00"))
+        self.assertIsNotNone(movie[7])
+        self.assertEqual(json.loads(movie[8])["title"], "Refreshed movie title")
+        self.assertEqual(watch_count, 1)
+        self.assertIn(b'data-movie-action="refresh"', self.client.get(f"/api/movies/{movie_id}").data)
+
     def test_stale_tracked_shows_refresh_as_an_independent_batch(self):
         class FakeClient:
             def __init__(self):

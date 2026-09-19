@@ -472,6 +472,50 @@ def create_app(test_config: dict | None = None) -> Flask:
         schedule_cast_hydration("movie", movie_id, tmdb_id)
         return jsonify(ok=True, movie_id=movie_id)
 
+    @app.post("/api/movies/<int:movie_id>/refresh")
+    def refresh_movie(movie_id: int):
+        db = get_db()
+        local_movie = db.execute(
+            "SELECT tmdb_id FROM movies WHERE id = ?", (movie_id,)
+        ).fetchone()
+        if local_movie is None:
+            return jsonify(error="Movie not found"), 404
+        try:
+            movie = get_tmdb_client().movie(local_movie["tmdb_id"])
+        except TMDBError as error:
+            return jsonify(error=str(error)), 503
+        if movie.get("id") != local_movie["tmdb_id"]:
+            return jsonify(error="TMDB returned the wrong movie"), 502
+
+        now = precise_utc_now()
+        db.execute(
+            """UPDATE movies
+               SET title = ?, original_title = ?, overview = ?, poster_path = ?,
+                   backdrop_path = ?, release_date = ?, runtime_minutes = ?,
+                   status = ?, genres = ?, original_language = ?, updated_at = ?,
+                   tmdb_refreshed_at = ?, tmdb_payload = ?
+               WHERE id = ?""",
+            (
+                movie.get("title") or "Untitled movie",
+                movie.get("original_title"),
+                movie.get("overview"),
+                movie.get("poster_path"),
+                movie.get("backdrop_path"),
+                movie.get("release_date"),
+                movie.get("runtime"),
+                movie.get("status"),
+                ", ".join(genre.get("name", "") for genre in movie.get("genres", [])),
+                movie.get("original_language"),
+                now,
+                now,
+                json.dumps(movie),
+                movie_id,
+            ),
+        )
+        db.commit()
+        schedule_cast_hydration("movie", movie_id, local_movie["tmdb_id"])
+        return jsonify(movie_id=movie_id, refreshed=True, refreshed_at=now)
+
     @app.get("/api/movies/tmdb/<int:tmdb_id>/preview")
     def movie_preview_fragment(tmdb_id: int):
         try:
