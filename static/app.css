@@ -798,7 +798,6 @@ html.app-booting .schedule-empty-reveal {
   gap: 5px;
 }
 
-.schedule-timeline-copy>strong,
 .schedule-timeline-copy>span {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -808,6 +807,16 @@ html.app-booting .schedule-empty-reveal {
 .schedule-timeline-copy>strong {
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+.schedule-timeline-media-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .schedule-timeline-copy>span {
@@ -843,6 +852,11 @@ html.app-booting .schedule-empty-reveal {
 .diary-timeline-item .schedule-timeline-copy {
   padding-top: 0;
   gap: 4px;
+}
+
+.diary-timeline-item .schedule-timeline-media-title {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
 }
 
 .diary-page-trigger {
@@ -1168,12 +1182,15 @@ html.app-booting .schedule-empty-reveal {
 
 .show-card h3 {
   margin: 7px 0 0;
+  min-width: 0;
   overflow: hidden;
+  display: -webkit-box;
   font-size: 1.16rem;
   font-weight: 700;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .show-card .state-label {
@@ -3920,11 +3937,15 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
 
 .popular-card h3 {
   margin: 5px 0 4px;
+  min-width: 0;
   overflow: hidden;
+  display: -webkit-box;
   font-size: 0.95rem;
   font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .popular-card p {

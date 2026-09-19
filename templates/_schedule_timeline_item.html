@@ -50,7 +50,7 @@ else 0 %}
         endif %}
       </span>
       <span class="schedule-timeline-copy">
-        <strong>{{ episode.show_name }}{% if is_rewatch and episode.completed_watch_count %}<span
+        <strong><span class="schedule-timeline-media-title">{{ episode.show_name }}</span>{% if is_rewatch and episode.completed_watch_count %}<span
             class="state-label overwatch-tag schedule-overwatch-tag">+{{ episode.completed_watch_count }}</span>{% endif
           %}</strong>
         <span{% if is_backlog and not is_movie %} data-schedule-advance-line{% endif %}>{% if is_movie %}Movie{% elif

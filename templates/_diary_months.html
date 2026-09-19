@@ -22,7 +22,7 @@
             {% if entry.poster_path %}<img src="{{ url_for('cached_tmdb_image', image_type='poster', size='w185', tmdb_path=entry.poster_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span>{{ entry.show_name[:1]|upper }}</span></template>{% else %}<span>{{ entry.show_name[:1]|upper }}</span>{% endif %}
           </span>
           <span class="schedule-timeline-copy">
-            <strong>{{ entry.show_name }}</strong>
+            <strong><span class="schedule-timeline-media-title">{{ entry.show_name }}</span></strong>
             <span>{{ entry.release_metadata }}</span>
           </span>
         </button>
