@@ -3270,6 +3270,8 @@ html.navigation-drawer-closing .menu-scrim {
   display: grid;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   opacity: 0;
@@ -4491,4 +4493,8 @@ html.app-booting .tv-slice-reveal {
   to {
     opacity: 0;
   }
+}
+
+.date-picker-years::-webkit-scrollbar {
+  display: none;
 }

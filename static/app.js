@@ -3094,7 +3094,7 @@ function renderDatePicker() {
   if (isYearView) {
     yearGrid.replaceChildren();
     const finalYear = new Date().getFullYear();
-    for (let optionYear = finalYear - 24; optionYear <= finalYear; optionYear += 1) {
+    for (let optionYear = finalYear - 99; optionYear <= finalYear; optionYear += 1) {
       const button = document.createElement("button");
       button.className = "date-picker-year";
       button.type = "button";
