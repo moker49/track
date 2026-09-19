@@ -3240,7 +3240,8 @@ html.navigation-drawer-closing .menu-scrim {
   grid-auto-rows: 40px;
 }
 
-.date-picker-calendar.is-year-view .date-picker-month-actions {
+.date-picker-calendar.is-year-view .date-picker-month-actions,
+.date-picker-calendar.is-month-view .date-picker-month-actions {
   display: none;
 }
 
@@ -3269,7 +3270,7 @@ html.navigation-drawer-closing .menu-scrim {
   display: grid;
   overflow-y: auto;
   overscroll-behavior: contain;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   opacity: 0;
   visibility: hidden;
@@ -3282,6 +3283,26 @@ html.navigation-drawer-closing .menu-scrim {
     visibility 0s linear 220ms;
 }
 
+.date-picker-months {
+  position: absolute;
+  inset: 0;
+  height: 272px;
+  padding: 8px 4px 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 8px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(0.92);
+  transform-origin: 50% 12%;
+  transition:
+    opacity 180ms ease-in,
+    transform 220ms cubic-bezier(0.4, 0, 1, 1),
+    visibility 0s linear 220ms;
+}
+
 .date-picker-calendar.is-year-view .date-picker-days {
   opacity: 0;
   visibility: hidden;
@@ -3289,6 +3310,17 @@ html.navigation-drawer-closing .menu-scrim {
   transform: scale(0.92);
   transition:
     opacity 140ms ease-in-out,
+    transform 180ms cubic-bezier(0.4, 0, 1, 1),
+    visibility 0s linear 180ms;
+}
+
+.date-picker-calendar.is-month-view .date-picker-days {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(0.92);
+  transition:
+    opacity 140ms ease-in,
     transform 180ms cubic-bezier(0.4, 0, 1, 1),
     visibility 0s linear 180ms;
 }
@@ -3304,8 +3336,19 @@ html.navigation-drawer-closing .menu-scrim {
     visibility 0s linear;
 }
 
+.date-picker-calendar.is-month-view .date-picker-months {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: scale(1);
+  transition:
+    opacity 180ms ease-out 40ms,
+    transform 240ms cubic-bezier(0.2, 0, 0, 1),
+    visibility 0s linear;
+}
+
 .date-picker-year {
-  min-height: 40px;
+  min-height: 42px;
   padding: 0 8px;
   border: 0;
   border-radius: 20px;
@@ -3316,6 +3359,24 @@ html.navigation-drawer-closing .menu-scrim {
 }
 
 .date-picker-year.is-selected {
+  color: var(--on-primary);
+  background: var(--primary);
+}
+
+.date-picker-month {
+  min-height: 40px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 20px;
+  color: var(--on-surface);
+  background: transparent;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.date-picker-month.is-selected {
   color: var(--on-primary);
   background: var(--primary);
 }

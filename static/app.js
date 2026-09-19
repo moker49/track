@@ -377,7 +377,7 @@ let pendingResumeShow = null;
 let datePickerTarget = null;
 let datePickerSelectedDate = null;
 let datePickerMonth = new Date();
-let datePickerYearVisible = false;
+let datePickerView = "day";
 let pendingMovieImport = null;
 let logDatePickerTarget = null;
 let lastEpisodeDetailScrollY = 0;
@@ -3062,34 +3062,39 @@ function renderDatePicker() {
   if (!datePicker) return;
   datePicker.querySelector("[data-date-picker-selection]").textContent =
     datePickerSelectedDate ? formatDisplayDate(toIsoDate(datePickerSelectedDate)) : "No date set";
+  const year = datePickerMonth.getFullYear();
   datePicker.querySelector("[data-date-picker-month]").textContent =
-    new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" })
-      .format(datePickerMonth);
+    new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(datePickerMonth);
 
   const calendar = datePicker.querySelector(".date-picker-calendar");
   const yearToggle = datePicker.querySelector("[data-date-picker-year-toggle]");
   const yearGrid = datePicker.querySelector("[data-date-picker-years]");
+  const monthGrid = datePicker.querySelector("[data-date-picker-months]");
   const dayGrid = datePicker.querySelector("[data-date-picker-days]");
-  calendar.classList.toggle("is-year-view", datePickerYearVisible);
-  yearToggle.setAttribute("aria-expanded", String(datePickerYearVisible));
-  yearGrid.setAttribute("aria-hidden", String(!datePickerYearVisible));
-  yearGrid.inert = !datePickerYearVisible;
-  dayGrid.setAttribute("aria-hidden", String(datePickerYearVisible));
-  dayGrid.inert = datePickerYearVisible;
+  const isYearView = datePickerView === "year";
+  const isMonthView = datePickerView === "month";
+  calendar.classList.toggle("is-year-view", isYearView);
+  calendar.classList.toggle("is-month-view", isMonthView);
+  yearToggle.setAttribute("aria-expanded", String(datePickerView !== "day"));
+  yearGrid.setAttribute("aria-hidden", String(!isYearView));
+  yearGrid.inert = !isYearView;
+  monthGrid.setAttribute("aria-hidden", String(!isMonthView));
+  monthGrid.inert = !isMonthView;
+  dayGrid.setAttribute("aria-hidden", String(datePickerView !== "day"));
+  dayGrid.inert = datePickerView !== "day";
 
   const grid = datePicker.querySelector("[data-date-picker-grid]");
   grid.replaceChildren();
-  const year = datePickerMonth.getFullYear();
   const month = datePickerMonth.getMonth();
   const firstWeekday = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const todayIso = toIsoDate(new Date());
   const selectedIso = datePickerSelectedDate ? toIsoDate(datePickerSelectedDate) : null;
 
-  if (datePickerYearVisible) {
+  if (isYearView) {
     yearGrid.replaceChildren();
-    const finalYear = Math.max(new Date().getFullYear() + 10, year);
-    for (let optionYear = 2000; optionYear <= finalYear; optionYear += 1) {
+    const finalYear = new Date().getFullYear();
+    for (let optionYear = finalYear - 24; optionYear <= finalYear; optionYear += 1) {
       const button = document.createElement("button");
       button.className = "date-picker-year";
       button.type = "button";
@@ -3104,6 +3109,22 @@ function renderDatePicker() {
     if (selectedYear) {
       yearGrid.scrollTop = selectedYear.offsetTop
         - ((yearGrid.clientHeight - selectedYear.offsetHeight) / 2);
+    }
+  }
+
+  if (isMonthView) {
+    monthGrid.replaceChildren();
+    const formatter = new Intl.DateTimeFormat(undefined, { month: "long" });
+    for (let optionMonth = 0; optionMonth < 12; optionMonth += 1) {
+      const button = document.createElement("button");
+      button.className = "date-picker-month";
+      button.type = "button";
+      button.dataset.datePickerMonthOption = optionMonth;
+      button.textContent = formatter.format(new Date(year, optionMonth, 1));
+      button.setAttribute("role", "gridcell");
+      button.setAttribute("aria-label", `${button.textContent} ${year}`);
+      button.classList.toggle("is-selected", optionMonth === month);
+      monthGrid.append(button);
     }
   }
 
@@ -3133,7 +3154,7 @@ function openDiaryDatePicker(item) {
   datePickerSelectedDate = parseIsoDate(item.dataset.diaryDate);
   const visibleDate = datePickerSelectedDate || parseIsoDate(item.dataset.sortDate) || new Date();
   datePickerMonth = new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1);
-  datePickerYearVisible = false;
+  datePickerView = "day";
   renderDatePicker();
   openSharedDialog(datePicker);
 }
@@ -3200,6 +3221,7 @@ function openLogDatePicker(target) {
   pendingMovieImport = null;
   datePickerSelectedDate = new Date();
   datePickerMonth = new Date();
+  datePickerView = "day";
   renderDatePicker();
   openSharedDialog(datePicker);
 }
@@ -3210,6 +3232,7 @@ function openMovieImportDatePicker(tmdbId) {
   datePickerTarget = null;
   datePickerSelectedDate = new Date();
   datePickerMonth = new Date();
+  datePickerView = "day";
   datePicker.querySelector("[data-date-picker-clear]").textContent = "Unknown";
   datePicker.querySelector("[data-date-picker-save]").textContent = "Watch";
   renderDatePicker();
@@ -3217,7 +3240,7 @@ function openMovieImportDatePicker(tmdbId) {
 }
 
 function shiftDatePickerMonth(offset) {
-  datePickerYearVisible = false;
+  datePickerView = "day";
   datePickerMonth = new Date(
     datePickerMonth.getFullYear(),
     datePickerMonth.getMonth() + offset,
@@ -4502,13 +4525,25 @@ document.addEventListener("click", (event) => {
       datePickerMonth.getMonth(),
       1,
     );
-    datePickerYearVisible = false;
+    datePickerView = "month";
+    renderDatePicker();
+    return;
+  }
+
+  const datePickerMonthOption = event.target.closest("[data-date-picker-month-option]");
+  if (datePickerMonthOption) {
+    datePickerMonth = new Date(
+      datePickerMonth.getFullYear(),
+      Number(datePickerMonthOption.dataset.datePickerMonthOption),
+      1,
+    );
+    datePickerView = "day";
     renderDatePicker();
     return;
   }
 
   if (event.target.closest("[data-date-picker-year-toggle]")) {
-    datePickerYearVisible = !datePickerYearVisible;
+    datePickerView = datePickerView === "year" ? "day" : "year";
     renderDatePicker();
     return;
   }
@@ -5681,7 +5716,7 @@ datePicker?.addEventListener("close", () => {
   pendingMovieImport = null;
   logDatePickerTarget = null;
   datePickerSelectedDate = null;
-  datePickerYearVisible = false;
+  datePickerView = "day";
   datePicker.querySelector("[data-date-picker-clear]").textContent = "Unknown";
   datePicker.querySelector("[data-date-picker-save]").textContent = "OK";
 });

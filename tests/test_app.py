@@ -1372,6 +1372,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Set watch date.", home.data)
         self.assertIn(b'data-date-picker-year-toggle', home.data)
         self.assertIn(b'data-date-picker-years', home.data)
+        self.assertIn(b'data-date-picker-months', home.data)
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
@@ -1381,6 +1382,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn("timeStyle", javascript)
         self.assertIn("dataset.datePickerYear", javascript)
         self.assertIn("optionYear = 2000", javascript)
+        self.assertIn('const finalYear = new Date().getFullYear();', javascript)
+        self.assertIn('let datePickerView = "day"', javascript)
+        self.assertIn("dataset.datePickerMonthOption", javascript)
+        self.assertIn('datePickerView = "month"', javascript)
         click_handler = javascript.index('document.addEventListener("click"')
         year_toggle_handler = javascript.index(
             'if (event.target.closest("[data-date-picker-year-toggle]"))'
