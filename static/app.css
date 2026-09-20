@@ -2076,6 +2076,9 @@ html.app-booting .schedule-empty-reveal {
   padding: max(12px, env(safe-area-inset-top)) 12px 20px;
   border: 0;
   border-radius: 0 28px 28px 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
   color: var(--on-surface);
   background: var(--surface-high);
   box-shadow: 8px 0 24px var(--shadow);
@@ -2111,14 +2114,17 @@ html.navigation-drawer-closing .menu-scrim {
   font-weight: 700;
 }
 
-.navigation-drawer-links,
-.navigation-drawer-settings {
+.navigation-drawer-links {
   display: grid;
   gap: 4px;
+  min-height: 0;
+  align-content: start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .navigation-drawer-links button,
-.navigation-drawer-settings {
+.navigation-drawer-setting {
   min-height: 52px;
   padding: 0 16px;
   border: 0;
@@ -2135,76 +2141,28 @@ html.navigation-drawer-closing .menu-scrim {
 }
 
 .navigation-drawer-links button:hover,
-.navigation-drawer-links button:focus-visible,
-.navigation-drawer-settings:hover,
-.navigation-drawer-settings:focus-visible {
+.navigation-drawer-links button:focus-visible {
   background: var(--primary-light);
 }
 
-.navigation-drawer-links button.is-active,
-.navigation-drawer-settings.is-active {
+.navigation-drawer-links button.is-active {
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
-.navigation-drawer-divider {
-  height: 1px;
-  margin: 18px 12px;
-  background: var(--outline-soft);
-}
-
 .navigation-drawer-settings {
-  width: 100%;
-}
-
-.utility-view {
-  min-height: 100dvh;
-  padding-bottom: calc(88px + env(safe-area-inset-bottom));
-  background: var(--surface);
-}
-
-.settings-content {
-  padding: 24px 16px;
-}
-
-.settings-content h2 {
-  margin: 0 0 12px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--on-surface-muted);
-}
-
-.settings-toggle {
-  min-height: 72px;
-  padding: 12px 16px;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  margin: 0 -12px -20px;
+  padding: 8px 12px 28px;
   background: var(--surface-card);
-  box-shadow: 0 1px 4px var(--shadow);
+}
+
+.navigation-drawer-setting {
+  width: 100%;
+  justify-content: space-between;
   cursor: pointer;
 }
 
-.settings-toggle-copy {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.settings-toggle-copy strong {
-  font-size: 0.94rem;
-  font-weight: 500;
-}
-
-.settings-toggle-copy small {
-  color: var(--on-surface-muted);
-  font-size: 0.8rem;
-  line-height: 1.35;
-}
-
-.settings-toggle-input {
+.navigation-drawer-setting-input {
   position: absolute;
   inline-size: 1px;
   block-size: 1px;
@@ -2217,22 +2175,28 @@ html.navigation-drawer-closing .menu-scrim {
   white-space: nowrap;
 }
 
-.settings-toggle-icon {
+.navigation-drawer-setting-icon {
   font-size: 28px;
   color: var(--on-surface-muted);
 }
 
-.settings-toggle-icon-on {
+.navigation-drawer-setting-icon-on {
   display: none;
   color: var(--primary);
 }
 
-.settings-toggle-input:checked~.settings-toggle-icon-off {
+.navigation-drawer-setting-input:checked~.navigation-drawer-setting-icon-off {
   display: none;
 }
 
-.settings-toggle-input:checked~.settings-toggle-icon-on {
+.navigation-drawer-setting-input:checked~.navigation-drawer-setting-icon-on {
   display: block;
+}
+
+.utility-view {
+  min-height: 100dvh;
+  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  background: var(--surface);
 }
 
 .reaction-empty-state {

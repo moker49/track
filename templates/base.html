@@ -39,9 +39,16 @@
       <button type="button" data-drawer-view="statistics"><span class="material-symbols-rounded"
           aria-hidden="true">bar_chart</span><span>Statistics</span></button>
     </nav>
-    <div class="navigation-drawer-divider" aria-hidden="true"></div>
-    <button class="navigation-drawer-settings" type="button" data-drawer-view="settings"><span
-        class="material-symbols-rounded" aria-hidden="true">settings</span><span>Settings</span></button>
+    <section class="navigation-drawer-settings" aria-label="Settings">
+      <label class="navigation-drawer-setting">
+        <span>Display hidden log items</span>
+        <input class="navigation-drawer-setting-input" type="checkbox" data-setting-display-hidden-log-items>
+        <span class="material-symbols-rounded is-filled navigation-drawer-setting-icon navigation-drawer-setting-icon-off"
+          aria-hidden="true">check_box_outline_blank</span>
+        <span class="material-symbols-rounded is-filled navigation-drawer-setting-icon navigation-drawer-setting-icon-on"
+          aria-hidden="true">check_box</span>
+      </label>
+    </section>
   </aside>
   <div class="app-shell">
     <main class="app-content">{% block content %}{% endblock %}</main>
@@ -73,7 +80,8 @@
         </button>
       </nav>
     </div>
-    <button class="detail-cast-sheet-scrim" type="button" data-cast-sheet-close hidden aria-label="Close cast sheet"></button>
+    <button class="detail-cast-sheet-scrim" type="button" data-cast-sheet-close hidden
+      aria-label="Close cast sheet"></button>
     <section class="detail-cast-sheet" data-cast-sheet hidden aria-label="Cast">
       <div class="detail-cast-sheet-handle" data-cast-sheet-toggle aria-hidden="true">
         <span class="detail-cast-sheet-grip" aria-hidden="true"></span>

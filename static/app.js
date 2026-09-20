@@ -66,7 +66,7 @@ const tvViewToggle = document.querySelector("[data-tv-view-toggle]");
 const displayHiddenLogItemsToggle = document.querySelector("[data-setting-display-hidden-log-items]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, diary: 0, statistics: 0, liked: 0, settings: 0 };
+const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, diary: 0, statistics: 0, liked: 0 };
 const DISPLAY_HIDDEN_LOG_ITEMS_STORAGE_KEY = "track.display-hidden-log-items";
 let displayHiddenLogItems = false;
 
@@ -562,19 +562,19 @@ function syncSearchTextPosition() {
 
 function syncGlobalSearch() {
   if (!globalSearchBar || !globalSearchInput) return;
-  const hasDedicatedAppBar = ["detail", "diary", "statistics", "liked", "settings"].includes(currentView);
+  const hasDedicatedAppBar = ["detail", "diary", "statistics", "liked"].includes(currentView);
   globalSearchBar.hidden = hasDedicatedAppBar;
   if (hasDedicatedAppBar) return;
 
-  const settings = {
+  const searchConfig = {
     backlog: { placeholder: "Search queue", label: "Search queue episodes" },
     upcoming: { placeholder: "Search upcoming", label: "Search upcoming episodes" },
     tv: { placeholder: "Search TV", label: "Search TV shows" },
     movies: { placeholder: "Search movies", label: "Search movies" },
   }[currentView];
-  if (!settings) return;
-  globalSearchInput.placeholder = settings.placeholder;
-  globalSearchInput.setAttribute("aria-label", settings.label);
+  if (!searchConfig) return;
+  globalSearchInput.placeholder = searchConfig.placeholder;
+  globalSearchInput.setAttribute("aria-label", searchConfig.label);
   globalSearchInput.value = searchQueries[currentView];
   syncTvLayout();
   syncSearchChrome();
@@ -2483,7 +2483,7 @@ async function openShow(
   returnContext = null,
 ) {
   const cacheKey = String(showId);
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked", "settings"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked"].includes(parentView)
     ? parentView
     : "backlog";
   if (historyMode) {
@@ -2595,7 +2595,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
 }
 
 async function openMovie(movieId, parentView = "movies", historyMode = "push") {
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked", "settings"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked"].includes(parentView)
     ? parentView : "movies";
   if (historyMode) {
     writeHistory({ view: "detail", detailType: "movie", movieId: String(movieId), parentView: detailParentView }, historyMode);
@@ -5768,7 +5768,7 @@ function restoreHistoryState(state) {
   }
 
   const restoredParent = legacyViews[state.parentView] || state.parentView;
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked", "settings"].includes(restoredParent)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked"].includes(restoredParent)
     ? restoredParent
     : "backlog";
   if (state.detailType === "show" && state.showId) {
