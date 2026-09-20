@@ -4681,6 +4681,10 @@ document.addEventListener("click", (event) => {
 
   const navButton = event.target.closest("[data-nav-view]");
   if (navButton) {
+    if (navButton.dataset.navView === currentView) {
+      globalSearchInput?.focus();
+      return;
+    }
     closeShowMenus();
     closeWatchMenus();
     if (detailRequest) detailRequest.abort();

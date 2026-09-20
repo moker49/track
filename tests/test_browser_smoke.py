@@ -51,6 +51,8 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
             page.wait_for_function("!document.documentElement.classList.contains('app-booting')")
             self.assertTrue(page.locator('[data-view="backlog"]').is_visible())
             self.assertTrue(page.locator('[data-nav-view="backlog"]').get_attribute("aria-current"))
+            page.locator('[data-nav-view="backlog"]').click()
+            self.assertTrue(page.locator('[data-global-search]').evaluate("element => element === document.activeElement"))
 
             page.locator('[data-nav-view="upcoming"]').click()
             self.assertTrue(page.locator('[data-view="upcoming"]').is_visible())
