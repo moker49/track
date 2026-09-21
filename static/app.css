@@ -1395,24 +1395,33 @@ html.app-booting .schedule-empty-reveal {
   min-height: 0;
   overflow-y: auto;
   padding: 4px 20px 24px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.detail-cast-sheet-content::-webkit-scrollbar {
+  display: none;
 }
 
 .cast-list {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px 12px;
 }
 
 .cast-list-item {
-  min-height: 56px;
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
+  grid-template-rows: auto auto;
+  justify-items: center;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  text-align: center;
 }
 
 .cast-portrait {
-  width: 48px;
-  height: 48px;
+  width: min(100%, 84px);
+  aspect-ratio: 1;
   overflow: hidden;
   border-radius: 50%;
   display: grid;
@@ -1430,6 +1439,7 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .cast-list-item>span:last-child {
+  width: 100%;
   min-width: 0;
   display: grid;
   gap: 3px;
@@ -1443,7 +1453,7 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .cast-list-item strong {
-  font-size: 0.92rem;
+  font-size: 0.85rem;
 }
 
 .cast-list-item small {
