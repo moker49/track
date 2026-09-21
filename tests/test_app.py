@@ -1806,6 +1806,9 @@ class TrackAppTest(unittest.TestCase):
             def __init__(self):
                 self.calls = []
 
+            def show_credits(self, _tmdb_id):
+                return {"cast": []}
+
             def show_bundle(self, tmdb_id):
                 self.calls.append(tmdb_id)
                 return (
@@ -1823,6 +1826,10 @@ class TrackAppTest(unittest.TestCase):
             TMDB_READ_ACCESS_TOKEN="test-token",
             TMDB_CLIENT_FACTORY=lambda _token: fake,
         )
+        connection = sqlite3.connect(self.database)
+        connection.execute("UPDATE shows SET status = 'Returning Series'")
+        connection.commit()
+        connection.close()
 
         first = self.client.post("/api/shows/refresh-stale")
         second = self.client.post("/api/shows/refresh-stale")
@@ -1853,6 +1860,76 @@ class TrackAppTest(unittest.TestCase):
         self.assertTrue(
             all("card_html" not in item for item in background_result["refreshed"])
         )
+        time.sleep(0.1)
+
+    def test_background_refresh_prioritizes_oldest_skips_ended_and_backs_off_failures(self):
+        class FakeClient:
+            def __init__(self):
+                self.calls = []
+
+            def show_credits(self, _tmdb_id):
+                return {"cast": []}
+
+            def show_bundle(self, tmdb_id):
+                self.calls.append(tmdb_id)
+                if tmdb_id == 900001:
+                    raise ValueError("TMDB test failure")
+                return (
+                    {
+                        "id": tmdb_id,
+                        "name": f"Refreshed {tmdb_id}",
+                        "status": "Returning Series",
+                        "first_air_date": "2020-01-01",
+                        "genres": [],
+                    },
+                    [],
+                )
+
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            "UPDATE shows SET status = 'Returning Series', tmdb_refreshed_at = ? WHERE id = 1",
+            ("2026-01-02T00:00:00+00:00",),
+        )
+        connection.execute(
+            "UPDATE shows SET status = 'Returning Series', tmdb_refreshed_at = ? WHERE id = 2",
+            ("2026-01-01T00:00:00+00:00",),
+        )
+        connection.execute(
+            """INSERT INTO shows (tmdb_id, name, status, state, is_tracked, added_at)
+               VALUES (?, ?, 'Ended', 'ACTIVE', 1, ?)""",
+            (900003, "Ended Test Show", "2026-01-01T00:00:00+00:00"),
+        )
+        connection.commit()
+        connection.close()
+
+        fake = FakeClient()
+        self.app.config.update(
+            TMDB_READ_ACCESS_TOKEN="test-token",
+            TMDB_CLIENT_FACTORY=lambda _token: fake,
+        )
+
+        first_response = self.client.post("/api/shows/refresh-stale")
+        second_response = self.client.post("/api/shows/refresh-stale")
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        first = first_response.get_json()
+        second = second_response.get_json()
+
+        self.assertEqual(fake.calls, [900002, 900001])
+        self.assertEqual([item["show_id"] for item in first["refreshed"]], [2])
+        self.assertEqual(first["failures"][0]["show_id"], 1)
+        self.assertTrue(first["failures"][0]["retry_after"])
+        self.assertEqual(second["refreshed"], [])
+        self.assertEqual(second["failures"], [])
+
+        connection = sqlite3.connect(self.database)
+        failure = connection.execute(
+            "SELECT failure_count, retry_after FROM show_metadata_refresh_failures WHERE show_id = 1"
+        ).fetchone()
+        connection.close()
+        self.assertEqual(failure[0], 1)
+        self.assertTrue(failure[1])
+        time.sleep(0.1)
 
     def test_background_refresh_worker_runs_without_a_browser(self):
         completed = threading.Event()

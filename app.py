@@ -44,7 +44,12 @@ from queries import (
     get_tv_library_shows,
     get_upcoming_episodes,
 )
-from refresh_service import refresh_stale_tracked_shows as refresh_stale_records
+from refresh_service import (
+    clear_refresh_failure,
+    record_refresh_failure,
+    refresh_retry_after,
+    refresh_stale_tracked_shows as refresh_stale_records,
+)
 from watch_service import (
     WatchNotFoundError,
     create_episode_log,
@@ -87,6 +92,11 @@ def create_app(test_config: dict | None = None) -> Flask:
         DATABASE=str(DATABASE),
         TMDB_READ_ACCESS_TOKEN=os.environ.get("TMDB_READ_ACCESS_TOKEN", ""),
         SHOW_METADATA_TTL=timedelta(days=1),
+        SHOW_METADATA_FAILURE_BACKOFFS=(
+            timedelta(hours=1),
+            timedelta(hours=6),
+            timedelta(hours=24),
+        ),
         TMDB_CLIENT_FACTORY=TMDBClient,
         IMAGE_CACHE_DIR=None,
         IMAGE_TRANSPORT=urlopen,
@@ -722,11 +732,17 @@ def create_app(test_config: dict | None = None) -> Flask:
         ).fetchone()
         if local_show is None:
             return jsonify(error="Show not found"), 404
-        if not force and show_metadata_is_fresh(local_show["tmdb_refreshed_at"]):
+        retry_after = refresh_retry_after(db, show_id)
+        now = utc_now()
+        if not force and (
+            show_metadata_is_fresh(local_show["tmdb_refreshed_at"])
+            or (retry_after is not None and retry_after > now)
+        ):
             return jsonify(
                 show_id=show_id,
                 refreshed=False,
                 refreshed_at=local_show["tmdb_refreshed_at"],
+                retry_after=retry_after,
             )
         try:
             show, seasons = get_tmdb_client().show_bundle(local_show["tmdb_id"])
@@ -737,9 +753,24 @@ def create_app(test_config: dict | None = None) -> Flask:
                 local_show["state"] if local_show["is_tracked"] else None,
             )
         except TMDBError as error:
+            record_refresh_failure(
+                db,
+                show_id,
+                str(error),
+                attempted_at=now,
+                retry_delays=app.config["SHOW_METADATA_FAILURE_BACKOFFS"],
+            )
             return jsonify(error=str(error)), 503
         except ValueError as error:
+            record_refresh_failure(
+                db,
+                show_id,
+                str(error),
+                attempted_at=now,
+                retry_delays=app.config["SHOW_METADATA_FAILURE_BACKOFFS"],
+            )
             return jsonify(error=str(error)), 502
+        clear_refresh_failure(db, refreshed_id)
         refreshed_show = get_library_show(db, refreshed_id)
         schedule_cast_hydration("show", refreshed_id, local_show["tmdb_id"])
         return jsonify(
@@ -760,6 +791,8 @@ def create_app(test_config: dict | None = None) -> Flask:
             get_db(),
             client_factory=get_tmdb_client,
             metadata_is_fresh=show_metadata_is_fresh,
+            attempted_at=utc_now(),
+            retry_delays=app.config["SHOW_METADATA_FAILURE_BACKOFFS"],
             include_card_html=include_card_html,
             render_card=(
                 lambda show: render_template("_show_card_fragment.html", show=show)

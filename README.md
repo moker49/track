@@ -31,12 +31,13 @@ The browser loads one persistent application shell at `/`. Queue is the first an
 
 Queue displays the oldest unresolved released episode for each Active show. Watch records a normal watch event; Skip advances the queue without changing watch history and offers a temporary Undo action in the snackbar. Skipped episodes cycle back after the other unresolved episodes. Upcoming presents future-dated episodes for Active and Archived shows as a month-grouped timeline with release-day markers and live day countdowns. Specials are excluded from both views.
 
-While the Flask server is running, a server-side worker checks tracked shows every hour. Any show whose TMDB metadata is at least 24 hours old is refreshed in its own transaction, so this continues even when no browser has the app open. Fresh shows are skipped and a failure for one show does not prevent the remaining stale shows from refreshing. All TMDB requests share a process-wide token bucket capped at four requests per second, with a burst capacity of eight requests.
+While the Flask server is running, a server-side worker checks tracked shows every hour. It refreshes stale, non-ended shows oldest-first, so an overdue library is drained fairly. Fresh shows and ended shows are skipped. Failures retry after 1 hour, then 6 hours, then every 24 hours; a failure for one show does not prevent the remaining stale shows from refreshing. All TMDB requests share a process-wide token bucket capped at four requests per second, with a burst capacity of eight requests.
 
 ## Data model
 
 - `shows` stores imported show metadata, TMDB/TVDB identifiers, tracking and reaction state, its `ACTIVE`/`ARCHIVED` lifecycle timestamps, the last TMDB refresh, and the complete source payload.
 - `show_state_history` retains every state entry for future transitions and reporting.
+- `show_metadata_refresh_failures` persists automatic-refresh failures and their next eligible retry time.
 - `seasons` and `episodes` store local TMDB-shaped metadata and IDs.
 - `episode_watch_history` stores one row per watch event with an immutable `added_at` timestamp and an optional user-selected `diary_date`; undated events remain out of Diary and statistics.
 - `season_watch_history` uses the same two-date model for whole-season watch actions.

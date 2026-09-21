@@ -32,6 +32,17 @@ CREATE TABLE IF NOT EXISTS show_state_history (
     entered_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS show_metadata_refresh_failures (
+    show_id INTEGER PRIMARY KEY REFERENCES shows(id) ON DELETE CASCADE,
+    failure_count INTEGER NOT NULL CHECK (failure_count > 0),
+    last_attempt_at TEXT NOT NULL,
+    retry_after TEXT NOT NULL,
+    error TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_show_metadata_refresh_failures_retry_after
+    ON show_metadata_refresh_failures(retry_after);
+
 CREATE TABLE IF NOT EXISTS seasons (
     id INTEGER PRIMARY KEY,
     show_id INTEGER NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
