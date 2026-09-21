@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
@@ -10,12 +12,57 @@ class TMDBError(RuntimeError):
     pass
 
 
+class TokenBucketRateLimiter:
+    """Thread-safe limiter shared by all TMDB clients in this process."""
+
+    def __init__(
+        self,
+        requests_per_second: float = 4,
+        burst_size: int = 8,
+        *,
+        clock=time.monotonic,
+        sleep=time.sleep,
+    ):
+        if requests_per_second <= 0:
+            raise ValueError("requests_per_second must be positive")
+        if burst_size < 1:
+            raise ValueError("burst_size must be at least one")
+        self.requests_per_second = requests_per_second
+        self.burst_size = burst_size
+        self._clock = clock
+        self._sleep = sleep
+        self._tokens = float(burst_size)
+        self._updated_at = clock()
+        self._lock = threading.Lock()
+
+    def acquire(self) -> None:
+        """Wait until one request token is available."""
+        while True:
+            with self._lock:
+                now = self._clock()
+                elapsed = max(0.0, now - self._updated_at)
+                self._tokens = min(
+                    float(self.burst_size),
+                    self._tokens + elapsed * self.requests_per_second,
+                )
+                self._updated_at = now
+                if self._tokens >= 1:
+                    self._tokens -= 1
+                    return
+                wait_seconds = (1 - self._tokens) / self.requests_per_second
+            self._sleep(wait_seconds)
+
+
+TMDB_REQUEST_LIMITER = TokenBucketRateLimiter()
+
+
 class TMDBClient:
     BASE_URL = "https://api.themoviedb.org/3"
 
-    def __init__(self, access_token: str, transport=None):
+    def __init__(self, access_token: str, transport=None, rate_limiter=None):
         self.access_token = access_token.strip()
         self.transport = transport or urlopen
+        self.rate_limiter = rate_limiter or TMDB_REQUEST_LIMITER
 
     @property
     def configured(self) -> bool:
@@ -35,6 +82,7 @@ class TMDBClient:
             },
         )
         try:
+            self.rate_limiter.acquire()
             with self.transport(request, timeout=15) as response:
                 return json.load(response)
         except HTTPError as error:
