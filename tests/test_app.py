@@ -6,6 +6,7 @@ import os
 import re
 import threading
 import time
+from datetime import date, timedelta
 from email.message import Message
 from io import BytesIO
 from pathlib import Path
@@ -1929,6 +1930,66 @@ class TrackAppTest(unittest.TestCase):
         connection.close()
         self.assertEqual(failure[0], 1)
         self.assertTrue(failure[1])
+        time.sleep(0.1)
+
+    def test_movie_background_refresh_prioritizes_oldest_and_skips_old_releases(self):
+        class FakeClient:
+            def __init__(self):
+                self.calls = []
+
+            def movie(self, tmdb_id):
+                self.calls.append(tmdb_id)
+                if tmdb_id == 910001:
+                    raise ValueError("TMDB test failure")
+                return {
+                    "id": tmdb_id,
+                    "title": f"Refreshed {tmdb_id}",
+                    "release_date": (date.today() - timedelta(days=20)).isoformat(),
+                    "genres": [],
+                }
+
+            def movie_credits(self, _tmdb_id):
+                return {"cast": []}
+
+        today = date.today()
+        connection = sqlite3.connect(self.database)
+        connection.executemany(
+            """INSERT INTO movies (
+                tmdb_id, title, release_date, is_tracked, added_at, tmdb_refreshed_at
+            ) VALUES (?, ?, ?, 1, ?, ?)""",
+            [
+                (910001, "Oldest recent movie", (today - timedelta(days=20)).isoformat(),
+                 "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00"),
+                (910002, "Second recent movie", (today - timedelta(days=20)).isoformat(),
+                 "2026-01-01T00:00:00+00:00", "2026-01-02T00:00:00+00:00"),
+                (910003, "Old release", (today - timedelta(days=100)).isoformat(),
+                 "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00"),
+            ],
+        )
+        connection.commit()
+        connection.close()
+
+        fake = FakeClient()
+        self.app.config.update(
+            TMDB_READ_ACCESS_TOKEN="test-token",
+            TMDB_CLIENT_FACTORY=lambda _token: fake,
+        )
+        with self.app.app_context():
+            first = self.app.extensions["refresh_stale_tracked_movies"]()
+            second = self.app.extensions["refresh_stale_tracked_movies"]()
+
+        self.assertEqual(fake.calls, [910001, 910002])
+        self.assertEqual([item["movie_id"] for item in first["refreshed"]], [2])
+        self.assertEqual(first["failures"][0]["movie_id"], 1)
+        self.assertEqual(second["refreshed"], [])
+        self.assertEqual(second["failures"], [])
+
+        connection = sqlite3.connect(self.database)
+        failure = connection.execute(
+            "SELECT failure_count FROM movie_metadata_refresh_failures WHERE movie_id = 1"
+        ).fetchone()
+        connection.close()
+        self.assertEqual(failure[0], 1)
         time.sleep(0.1)
 
     def test_background_refresh_worker_runs_without_a_browser(self):

@@ -4,6 +4,7 @@ import os
 import json
 import sqlite3
 import threading
+from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.request import urlopen
@@ -28,7 +29,7 @@ from domain import (
 from image_cache import ImageCacheError, cached_image
 from cast_service import replace_media_cast
 from tmdb import TMDBClient, TMDBError
-from tmdb_import import import_or_refresh_show
+from tmdb_import import import_or_refresh_show, refresh_movie_metadata
 from queries import (
     get_catch_up_episodes,
     get_diary_page,
@@ -48,6 +49,7 @@ from refresh_service import (
     clear_refresh_failure,
     record_refresh_failure,
     refresh_retry_after,
+    refresh_stale_tracked_movies as refresh_stale_movie_records,
     refresh_stale_tracked_shows as refresh_stale_records,
 )
 from watch_service import (
@@ -92,6 +94,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         DATABASE=str(DATABASE),
         TMDB_READ_ACCESS_TOKEN=os.environ.get("TMDB_READ_ACCESS_TOKEN", ""),
         SHOW_METADATA_TTL=timedelta(days=1),
+        MOVIE_METADATA_TTL=timedelta(days=1),
         SHOW_METADATA_FAILURE_BACKOFFS=(
             timedelta(hours=1),
             timedelta(hours=6),
@@ -248,6 +251,33 @@ def create_app(test_config: dict | None = None) -> Flask:
         if refreshed.tzinfo is None:
             refreshed = refreshed.replace(tzinfo=timezone.utc)
         return datetime.now(timezone.utc) - refreshed < app.config["SHOW_METADATA_TTL"]
+
+    def movie_metadata_is_fresh(refreshed_at: str | None) -> bool:
+        if not refreshed_at:
+            return False
+        try:
+            refreshed = datetime.fromisoformat(refreshed_at.replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        if refreshed.tzinfo is None:
+            refreshed = refreshed.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) - refreshed < app.config["MOVIE_METADATA_TTL"]
+
+    def movie_is_background_refreshable(release_date: str | None) -> bool:
+        if not release_date:
+            return True
+        try:
+            released = date.fromisoformat(release_date)
+        except ValueError:
+            return True
+        today = datetime.now(timezone.utc).date()
+        cutoff_month = today.month - 3
+        cutoff_year = today.year
+        if cutoff_month <= 0:
+            cutoff_month += 12
+            cutoff_year -= 1
+        cutoff_day = min(today.day, monthrange(cutoff_year, cutoff_month)[1])
+        return released >= date(cutoff_year, cutoff_month, cutoff_day)
 
     def catalog_results(payload: dict) -> list[dict]:
         results = []
@@ -469,6 +499,7 @@ def create_app(test_config: dict | None = None) -> Flask:
           (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), 1, now, now, now, json.dumps(movie)))
         db.commit()
         movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)).fetchone()["id"]
+        clear_refresh_failure(db, "movie", movie_id)
         if watched:
             watch_added_at = unknown_log_timestamp(now) if diary_date is None else precise_utc_now()
             if diary_date is not None and watch_added_at <= now:
@@ -490,39 +521,33 @@ def create_app(test_config: dict | None = None) -> Flask:
         ).fetchone()
         if local_movie is None:
             return jsonify(error="Movie not found"), 404
+        attempted_at = utc_now()
         try:
             movie = get_tmdb_client().movie(local_movie["tmdb_id"])
         except TMDBError as error:
+            record_refresh_failure(
+                db,
+                "movie",
+                movie_id,
+                str(error),
+                attempted_at=attempted_at,
+                retry_delays=app.config["SHOW_METADATA_FAILURE_BACKOFFS"],
+            )
             return jsonify(error=str(error)), 503
         if movie.get("id") != local_movie["tmdb_id"]:
-            return jsonify(error="TMDB returned the wrong movie"), 502
-
-        now = precise_utc_now()
-        db.execute(
-            """UPDATE movies
-               SET title = ?, original_title = ?, overview = ?, poster_path = ?,
-                   backdrop_path = ?, release_date = ?, runtime_minutes = ?,
-                   status = ?, genres = ?, original_language = ?, updated_at = ?,
-                   tmdb_refreshed_at = ?, tmdb_payload = ?
-               WHERE id = ?""",
-            (
-                movie.get("title") or "Untitled movie",
-                movie.get("original_title"),
-                movie.get("overview"),
-                movie.get("poster_path"),
-                movie.get("backdrop_path"),
-                movie.get("release_date"),
-                movie.get("runtime"),
-                movie.get("status"),
-                ", ".join(genre.get("name", "") for genre in movie.get("genres", [])),
-                movie.get("original_language"),
-                now,
-                now,
-                json.dumps(movie),
+            error = "TMDB returned the wrong movie"
+            record_refresh_failure(
+                db,
+                "movie",
                 movie_id,
-            ),
-        )
-        db.commit()
+                error,
+                attempted_at=attempted_at,
+                retry_delays=app.config["SHOW_METADATA_FAILURE_BACKOFFS"],
+            )
+            return jsonify(error=error), 502
+
+        now = refresh_movie_metadata(db, movie_id, movie, precise_utc_now())
+        clear_refresh_failure(db, "movie", movie_id)
         schedule_cast_hydration("movie", movie_id, local_movie["tmdb_id"])
         return jsonify(movie_id=movie_id, refreshed=True, refreshed_at=now)
 
@@ -732,7 +757,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         ).fetchone()
         if local_show is None:
             return jsonify(error="Show not found"), 404
-        retry_after = refresh_retry_after(db, show_id)
+        retry_after = refresh_retry_after(db, "show", show_id)
         now = utc_now()
         if not force and (
             show_metadata_is_fresh(local_show["tmdb_refreshed_at"])
@@ -755,6 +780,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         except TMDBError as error:
             record_refresh_failure(
                 db,
+                "show",
                 show_id,
                 str(error),
                 attempted_at=now,
@@ -764,13 +790,14 @@ def create_app(test_config: dict | None = None) -> Flask:
         except ValueError as error:
             record_refresh_failure(
                 db,
+                "show",
                 show_id,
                 str(error),
                 attempted_at=now,
                 retry_delays=app.config["SHOW_METADATA_FAILURE_BACKOFFS"],
             )
             return jsonify(error=str(error)), 502
-        clear_refresh_failure(db, refreshed_id)
+        clear_refresh_failure(db, "show", refreshed_id)
         refreshed_show = get_library_show(db, refreshed_id)
         schedule_cast_hydration("show", refreshed_id, local_show["tmdb_id"])
         return jsonify(
@@ -811,6 +838,29 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     app.extensions["refresh_stale_tracked_shows"] = (
         refresh_stale_tracked_show_records
+    )
+
+    def refresh_stale_tracked_movie_records() -> dict:
+        result = refresh_stale_movie_records(
+            get_db(),
+            client_factory=get_tmdb_client,
+            metadata_is_fresh=movie_metadata_is_fresh,
+            movie_is_refreshable=movie_is_background_refreshable,
+            attempted_at=utc_now(),
+            retry_delays=app.config["SHOW_METADATA_FAILURE_BACKOFFS"],
+        )
+        for refreshed_movie in result["refreshed"]:
+            local_movie = get_db().execute(
+                "SELECT tmdb_id FROM movies WHERE id = ?", (refreshed_movie["movie_id"],)
+            ).fetchone()
+            if local_movie is not None:
+                schedule_cast_hydration(
+                    "movie", refreshed_movie["movie_id"], local_movie["tmdb_id"]
+                )
+        return result
+
+    app.extensions["refresh_stale_tracked_movies"] = (
+        refresh_stale_tracked_movie_records
     )
 
     @app.post("/api/shows/refresh-stale")
@@ -1206,18 +1256,23 @@ def start_background_refresh(app: Flask) -> tuple[threading.Thread, threading.Ev
 
     def refresh_worker() -> None:
         while not stop_event.is_set():
-            try:
-                with app.app_context():
-                    result = app.extensions["refresh_stale_tracked_shows"]()
-                if result["refreshed"] or result["failures"]:
-                    app.logger.info(
-                        "Tracked-show refresh completed: %s refreshed, %s failed, %s fresh",
-                        len(result["refreshed"]),
-                        len(result["failures"]),
-                        result["skipped"],
-                    )
-            except Exception:
-                app.logger.exception("Tracked-show background refresh failed")
+            for media_type, extension_name in (
+                ("show", "refresh_stale_tracked_shows"),
+                ("movie", "refresh_stale_tracked_movies"),
+            ):
+                try:
+                    with app.app_context():
+                        result = app.extensions[extension_name]()
+                    if result["refreshed"] or result["failures"]:
+                        app.logger.info(
+                            "Tracked-%s refresh completed: %s refreshed, %s failed, %s fresh",
+                            media_type,
+                            len(result["refreshed"]),
+                            len(result["failures"]),
+                            result["skipped"],
+                        )
+                except Exception:
+                    app.logger.exception("Tracked-%s background refresh failed", media_type)
             stop_event.wait(interval)
 
     thread = threading.Thread(

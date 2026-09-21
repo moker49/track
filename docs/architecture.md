@@ -9,7 +9,7 @@ Track is a server-rendered Flask application with a persistent, single-page brow
 - `domain.py` owns tracking/progress vocabulary, presentation rules, and the canonical effective-watch-date expression.
 - `queries.py` owns read models used by the TV, Queue, Upcoming, show, and watch-progress views.
 - `watch_service.py` owns transactional episode/season watch mutations.
-- `refresh_service.py` owns oldest-first batch refresh orchestration, persisted retry backoff, and failure isolation.
+- `refresh_service.py` owns oldest-first TV-show and recent-movie refresh orchestration, persisted retry backoff, and failure isolation.
 - `tmdb.py` and `image_cache.py` own external TMDB metadata and image concerns.
 
 Routes should validate HTTP input, call one of these boundaries, and serialize the result. New business rules should not be embedded in route functions or duplicated in templates.

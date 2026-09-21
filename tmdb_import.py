@@ -25,6 +25,41 @@ def _genres(payload: dict) -> str:
     )
 
 
+def refresh_movie_metadata(
+    db: sqlite3.Connection,
+    movie_id: int,
+    movie: dict,
+    refreshed_at: str | None = None,
+) -> str:
+    refreshed_at = refreshed_at or _now()
+    db.execute(
+        """UPDATE movies
+           SET title = ?, original_title = ?, overview = ?, poster_path = ?,
+               backdrop_path = ?, release_date = ?, runtime_minutes = ?,
+               status = ?, genres = ?, original_language = ?, updated_at = ?,
+               tmdb_refreshed_at = ?, tmdb_payload = ?
+           WHERE id = ?""",
+        (
+            movie.get("title") or movie.get("original_title") or "Untitled movie",
+            movie.get("original_title"),
+            movie.get("overview"),
+            movie.get("poster_path"),
+            movie.get("backdrop_path"),
+            movie.get("release_date"),
+            movie.get("runtime"),
+            movie.get("status"),
+            _genres(movie),
+            movie.get("original_language"),
+            refreshed_at,
+            refreshed_at,
+            json.dumps(movie, separators=(",", ":")),
+            movie_id,
+        ),
+    )
+    db.commit()
+    return refreshed_at
+
+
 def import_or_refresh_show(
     db: sqlite3.Connection,
     show: dict,
