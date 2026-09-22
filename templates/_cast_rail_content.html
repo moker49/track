@@ -1,8 +1,8 @@
-<div class="cast-sheet-content" data-cast-sheet-status="{{ status }}">
+<div class="cast-rail-content" data-cast-rail-status="{{ status }}">
   {% if status == 'ready' and cast %}
-  <div class="cast-list" role="list">
+  <div class="cast-rail" role="list">
     {% for actor in cast %}
-    <div class="cast-list-item" role="listitem">
+    <div class="cast-rail-item" role="listitem">
       <span class="cast-portrait{% if actor.profile_path %} has-media-image{% endif %}" aria-hidden="true">
         {% if actor.profile_path %}<img src="{{ url_for('cached_tmdb_image', image_type='profile', size='w185', tmdb_path=actor.profile_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span>{{ actor.name[:1]|upper }}</span></template>{% else %}<span>{{ actor.name[:1]|upper }}</span>{% endif %}
       </span>
@@ -11,12 +11,8 @@
     {% endfor %}
   </div>
   {% elif status == 'pending' %}
-  <div class="cast-sheet-message" role="status">Loading cast…</div>
+  <div class="cast-rail-message" role="status">Loading cast…</div>
   {% elif status == 'failed' %}
-  <div class="cast-sheet-message">Cast is unavailable right now.</div>
-  {% elif status == 'ready' %}
-  <div class="cast-sheet-message">No cast listed.</div>
-  {% else %}
-  <div class="cast-sheet-message">No cast listed.</div>
+  <div class="cast-rail-message">Cast is unavailable right now.</div>
   {% endif %}
 </div>

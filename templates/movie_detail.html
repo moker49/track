@@ -56,10 +56,8 @@
   </section>
 
   <section class="detail-content">
-    {% if movie.overview %}<button class="overview-disclosure" type="button" data-overview-disclosure
-      aria-expanded="false">
-      <span class="overview" data-overview-copy>{{ movie.overview }}</span>
-    </button>{% endif %}
+    {% if movie.id is not none %}<section class="detail-cast-rail" data-cast-rail data-cast-media-type="movie"
+      data-cast-media-id="{{ movie.id }}" aria-label="Cast"></section>{% endif %}
     {% if movie.is_tracked %}
     <div class="queue-control-row">
       <div class="episode-watch-summary-wrap">

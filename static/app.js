@@ -84,10 +84,6 @@ const imageViewerMedia = imageViewer?.querySelector("[data-image-viewer-media]")
 const imageViewerPreview = imageViewer?.querySelector("[data-image-viewer-preview]");
 const imageViewerImage = imageViewer?.querySelector("[data-image-viewer-image]");
 const imageViewerStage = imageViewer?.querySelector("[data-image-viewer-stage]");
-const castSheet = document.querySelector("[data-cast-sheet]");
-const castSheetScrim = document.querySelector("[data-cast-sheet-close]");
-const castSheetFab = document.querySelector("[data-cast-sheet-open]");
-const castSheetContent = document.querySelector("[data-cast-sheet-content]");
 const menuScrim = document.querySelector("[data-menu-scrim]");
 const navigationDrawer = document.querySelector("[data-navigation-drawer]");
 const sharedDialogs = [removeDialog, finishedArchiveDialog, resumeShowDialog, datePicker].filter(Boolean);
@@ -113,154 +109,6 @@ sharedDialogs.forEach((dialog) => {
   });
 });
 
-function syncCastSheet() {
-  if (!castSheet) return;
-  const detailMedia = views.get("detail")?.querySelector("[data-detail-show], [data-detail-movie]");
-  const isAvailable = currentView === "detail" && Boolean(detailMedia);
-  if (!isAvailable) {
-    castSheetOpen = false;
-    castSheetClosing = false;
-    castSheetEntering = false;
-    castSheetSnapClosing = false;
-    castSheetHistoryActive = false;
-  }
-  castSheet.hidden = !isAvailable || (!castSheetOpen && !castSheetClosing);
-  document.documentElement.classList.toggle(
-    "cast-sheet-open",
-    isAvailable && (castSheetOpen || castSheetClosing),
-  );
-  castSheet.classList.toggle("is-open", isAvailable && castSheetOpen);
-  castSheet.classList.toggle("is-entering", isAvailable && castSheetEntering);
-  castSheet.classList.toggle("is-closing", isAvailable && castSheetClosing);
-  if (castSheetFab) {
-    castSheetFab.hidden = !isAvailable;
-    castSheetFab.setAttribute("aria-expanded", String(castSheetOpen));
-  }
-  if (castSheetScrim) {
-    castSheetScrim.hidden = !isAvailable || !castSheetOpen;
-    castSheetScrim.classList.toggle("is-visible", isAvailable && castSheetOpen);
-  }
-}
-
-function setCastSheetOpen(isOpen, { preserveHistory = false } = {}) {
-  if (isOpen) {
-    if (castSheetOpen) return;
-    if (castSheetClosing) {
-      window.clearTimeout(castSheetCloseTimer);
-      if (!castSheetHistoryActive) {
-        window.history.pushState({ ...window.history.state, trackApp: true, castSheetOpen: true }, "");
-        castSheetHistoryActive = true;
-      }
-      castSheetClosing = false;
-      castSheetOpen = true;
-      syncCastSheet();
-      return;
-    }
-    if (!preserveHistory) {
-      window.history.pushState({ ...window.history.state, trackApp: true, castSheetOpen: true }, "");
-      castSheetHistoryActive = true;
-    }
-    castSheetClosing = false;
-    castSheetEntering = true;
-    castSheetOpen = true;
-    syncCastSheet();
-    window.setTimeout(() => {
-      if (!castSheetOpen) return;
-      castSheetEntering = false;
-      syncCastSheet();
-    }, 220);
-    return;
-  }
-  if (!castSheetOpen && !castSheetClosing) return;
-  if (castSheetHistoryActive && !preserveHistory) {
-    window.history.back();
-    return;
-  }
-  castSheetHistoryActive = false;
-  castSheetOpen = false;
-  castSheetEntering = false;
-  castSheetClosing = true;
-  syncCastSheet();
-  window.clearTimeout(castSheetCloseTimer);
-  castSheetCloseTimer = window.setTimeout(() => {
-    castSheetClosing = false;
-    syncCastSheet();
-  }, 180);
-}
-
-let castSheetDrag = null;
-const castSheetHandle = castSheet?.querySelector("[data-cast-sheet-toggle]");
-
-function finishCastSheetDrag(event) {
-  if (!castSheetDrag || event.pointerId !== castSheetDrag.pointerId) return;
-  const { distance, height, dragging } = castSheetDrag;
-  castSheetDrag = null;
-  castSheetHandle?.releasePointerCapture(event.pointerId);
-  if (!dragging) return;
-  castSheet.classList.remove("is-dragging");
-
-  if (distance >= Math.min(112, height * 0.28)) {
-    castSheet.classList.add("is-open", "is-settling");
-    castSheet.style.setProperty("transform", `translate(-50%, ${distance}px)`);
-    window.requestAnimationFrame(() => {
-      castSheet.style.setProperty("transform", `translate(-50%, ${height}px)`);
-    });
-    const finishSnapClose = (transitionEvent) => {
-      if (transitionEvent.target !== castSheet || transitionEvent.propertyName !== "transform") return;
-      castSheet.removeEventListener("transitionend", finishSnapClose);
-      castSheet.classList.remove("is-settling");
-      castSheetSnapClosing = true;
-      if (castSheetHistoryActive) window.history.back();
-      else {
-        castSheetOpen = false;
-        castSheetSnapClosing = false;
-        castSheet.style.removeProperty("transform");
-        syncCastSheet();
-      }
-    };
-    castSheet.addEventListener("transitionend", finishSnapClose);
-    return;
-  }
-
-  castSheet.classList.add("is-open", "is-settling");
-  castSheet.style.setProperty("transform", "translate(-50%, 0)");
-  const finishSettle = (transitionEvent) => {
-    if (transitionEvent.target !== castSheet || transitionEvent.propertyName !== "transform") return;
-    castSheet.removeEventListener("transitionend", finishSettle);
-    castSheet.classList.remove("is-settling");
-    castSheet.style.removeProperty("transform");
-  };
-  castSheet.addEventListener("transitionend", finishSettle);
-}
-
-castSheetHandle?.addEventListener("pointerdown", (event) => {
-  if (!castSheetOpen || event.button !== 0) return;
-  const height = castSheet.getBoundingClientRect().height;
-  castSheetDrag = { pointerId: event.pointerId, startY: event.clientY, distance: 0, height, dragging: false };
-  castSheetHandle.setPointerCapture(event.pointerId);
-});
-
-castSheetHandle?.addEventListener("pointermove", (event) => {
-  if (!castSheetDrag || event.pointerId !== castSheetDrag.pointerId) return;
-  const distance = Math.max(0, Math.min(castSheetDrag.height, event.clientY - castSheetDrag.startY));
-  castSheetDrag.distance = distance;
-  if (!castSheetDrag.dragging && distance <= 6) return;
-  if (!castSheetDrag.dragging) {
-    castSheetDrag.dragging = true;
-    castSheetEntering = false;
-    castSheet.classList.remove("is-open", "is-entering", "is-closing", "is-settling");
-    castSheet.classList.add("is-dragging");
-  }
-  castSheet.style.setProperty("transform", `translate(-50%, ${distance}px)`);
-  event.preventDefault();
-});
-
-castSheetHandle?.addEventListener("pointerup", finishCastSheetDrag);
-castSheetHandle?.addEventListener("pointercancel", finishCastSheetDrag);
-
-window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && castSheetOpen) setCastSheetOpen(false);
-});
 const tvControlBar = document.querySelector("[data-tv-control-bar]");
 const tvControlBarSlot = document.querySelector("[data-tv-control-bar-slot]");
 const likedControlBarSlot = document.querySelector("[data-liked-control-bar-slot]");
@@ -349,15 +197,9 @@ const detailRevealAnimationHandlers = new WeakMap();
 const utilityRevealAnimationHandlers = new WeakMap();
 let currentView = "backlog";
 let detailParentView = "backlog";
-let castSheetOpen = false;
-let castSheetClosing = false;
-let castSheetEntering = false;
-let castSheetSnapClosing = false;
-let castSheetHistoryActive = false;
-let castSheetCloseTimer = null;
 let activeCastMediaKey = null;
-let castSheetRefreshTimer = null;
-const castSheetRequests = new Map();
+let castRailRefreshTimer = null;
+const castRailRequests = new Map();
 let diaryRevision = 0;
 let renderedDiaryRevision = -1;
 let diaryLayout = "entries";
@@ -806,7 +648,6 @@ function showView(viewName, historyMode = null) {
 
   updateActiveNav(viewName === "detail" ? detailParentView : viewName);
   currentView = viewName;
-  syncCastSheet();
   if (bottomChrome) bottomChrome.hidden = false;
   syncGlobalSearch();
   syncTvControlVisibility();
@@ -1303,7 +1144,6 @@ function renderDetailLoading(title) {
   const loading = detailView.querySelector(".detail-loading");
   loading.setAttribute("aria-label", loadingLabel);
   loading.querySelector("[data-detail-loading-label]").textContent = loadingLabel;
-  syncCastSheet();
 }
 
 function staggerDetailSlices(sections, startIndex = 0) {
@@ -1922,29 +1762,23 @@ function finishDetailLoad({ resetScroll = true } = {}) {
   const detailView = views.get("detail");
   formatDisplayDates(detailView);
   document.title = APP_TITLE;
-  castSheetOpen = false;
-  castSheetClosing = false;
-  castSheetEntering = false;
-  castSheetSnapClosing = false;
-  castSheetHistoryActive = false;
-  window.clearTimeout(castSheetCloseTimer);
-  syncCastSheet();
   if (resetScroll) window.scrollTo({ top: 0, behavior: "auto" });
 }
 
 function loadDetailCast(mediaType, mediaId, attempt = 0) {
   const numericMediaId = Number(mediaId);
-  if (!Number.isInteger(numericMediaId) || numericMediaId <= 0 || !castSheetContent) return;
+  const castRail = views.get("detail")?.querySelector("[data-cast-rail]");
+  if (!Number.isInteger(numericMediaId) || numericMediaId <= 0 || !castRail) return;
   const key = `${mediaType}:${numericMediaId}`;
   activeCastMediaKey = key;
-  if (castSheetRefreshTimer) {
-    window.clearTimeout(castSheetRefreshTimer);
-    castSheetRefreshTimer = null;
+  if (castRailRefreshTimer) {
+    window.clearTimeout(castRailRefreshTimer);
+    castRailRefreshTimer = null;
   }
   if (attempt === 0) {
-    castSheetContent.innerHTML = '<div class="cast-sheet-message" role="status">Loading cast…</div>';
+    castRail.innerHTML = '<div class="cast-rail-message" role="status">Loading cast…</div>';
   }
-  if (castSheetRequests.has(key)) return;
+  if (castRailRequests.has(key)) return;
   const collection = mediaType === "show" ? "shows" : "movies";
   const request = fetch(`/api/${collection}/${numericMediaId}/cast`, {
     headers: { "X-Requested-With": "Track" },
@@ -1952,23 +1786,23 @@ function loadDetailCast(mediaType, mediaId, attempt = 0) {
     if (!response.ok) throw new Error("Could not load cast");
     const markup = await response.text();
     if (activeCastMediaKey !== key) return;
-    castSheetContent.innerHTML = markup;
-    inspectMediaImages(castSheetContent);
-    const status = castSheetContent.firstElementChild?.dataset.castSheetStatus;
+    castRail.innerHTML = markup;
+    inspectMediaImages(castRail);
+    const status = castRail.firstElementChild?.dataset.castRailStatus;
     if (status === "pending" && attempt < 10) {
-      castSheetRefreshTimer = window.setTimeout(() => {
-        castSheetRefreshTimer = null;
+      castRailRefreshTimer = window.setTimeout(() => {
+        castRailRefreshTimer = null;
         loadDetailCast(mediaType, numericMediaId, attempt + 1);
       }, 1000);
     }
   }).catch(() => {
     if (activeCastMediaKey === key) {
-      castSheetContent.innerHTML = '<div class="cast-sheet-message">Cast is unavailable right now.</div>';
+      castRail.innerHTML = '<div class="cast-rail-message">Cast is unavailable right now.</div>';
     }
   }).finally(() => {
-    castSheetRequests.delete(key);
+    castRailRequests.delete(key);
   });
-  castSheetRequests.set(key, request);
+  castRailRequests.set(key, request);
 }
 
 function invalidateShowCache(showId, includeSeasons = false) {
@@ -4311,16 +4145,6 @@ document.addEventListener("toggle", (event) => {
 }, true);
 
 document.addEventListener("click", (event) => {
-  if (event.target.closest("[data-cast-sheet-open]")) {
-    setCastSheetOpen(true);
-    return;
-  }
-
-  if (event.target.closest("[data-cast-sheet-close]")) {
-    setCastSheetOpen(false);
-    return;
-  }
-
   const disclosure = event.target.closest("[data-overview-disclosure]");
   if (disclosure) {
     const expanded = disclosure.classList.toggle("is-expanded");
@@ -5795,20 +5619,6 @@ function restoreHistoryState(state) {
 }
 
 window.addEventListener("popstate", (event) => {
-  if (castSheetHistoryActive) {
-    castSheetHistoryActive = false;
-    if (castSheetSnapClosing) {
-      castSheetOpen = false;
-      castSheetClosing = false;
-      castSheetEntering = false;
-      castSheetSnapClosing = false;
-      castSheet.style.removeProperty("transform");
-      syncCastSheet();
-      return;
-    }
-    setCastSheetOpen(false, { preserveHistory: true });
-    return;
-  }
   if (tvDropdownHistoryActive) {
     tvDropdownHistoryActive = false;
     closeTvDropdowns(null, { preserveHistory: true });

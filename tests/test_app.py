@@ -151,8 +151,6 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-image-viewer-preview', home.data)
         self.assertIn(b'data-image-viewer-image', home.data)
         self.assertIn(b'data-image-viewer-media', home.data)
-        self.assertIn(b'data-cast-sheet', home.data)
-        self.assertIn(b'data-cast-sheet-toggle', home.data)
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
@@ -223,8 +221,7 @@ class TrackAppTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("function syncSearchChrome()", javascript)
-        self.assertIn("function syncCastSheet()", javascript)
-        self.assertIn("function setCastSheetOpen(isOpen, { preserveHistory = false } = {})", javascript)
+        self.assertIn("function loadDetailCast(mediaType, mediaId, attempt = 0)", javascript)
         self.assertNotIn("hydrateDetailCast", javascript)
         self.assertNotIn("/cast/hydrate", javascript)
         self.assertIn('progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP]', javascript)
@@ -340,8 +337,8 @@ class TrackAppTest(unittest.TestCase):
         connection.close()
         cast_fragment = self.client.get("/api/movies/1/cast")
         self.assertEqual(cast_fragment.status_code, 200)
-        self.assertIn(b'data-cast-sheet-status="ready"', cast_fragment.data)
-        self.assertEqual(cast_fragment.data.count(b"cast-list-item"), 20)
+        self.assertIn(b'data-cast-rail-status="ready"', cast_fragment.data)
+        self.assertEqual(cast_fragment.data.count(b"cast-rail-item"), 20)
         self.assertEqual(self.client.get("/api/movies/1").status_code, 200)
         self.assertEqual(client.credits_calls, 1)
 
@@ -1122,7 +1119,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"data-episode-watch", detail.data)
         self.assertIn(b'data-detail-title="Active Test Show"', detail.data)
         self.assertIn(b'class="detail-app-bar-title">Show details</span>', detail.data)
-        self.assertIn(b'data-overview-disclosure', detail.data)
+        self.assertNotIn(b'data-overview-disclosure', detail.data)
+        self.assertIn(b'data-cast-rail', detail.data)
         self.assertNotIn(b'data-overview-more', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
         self.assertIn(b"Added", detail.data)

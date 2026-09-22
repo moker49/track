@@ -598,7 +598,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             abort(404)
         return render_template("movie_detail.html", movie=movie, activity=get_movie_activity(get_db(), movie_id))
 
-    def cast_sheet_fragment(media_type: str, media_id: int):
+    def cast_rail_fragment(media_type: str, media_id: int):
         db = get_db()
         media_table = "shows" if media_type == "show" else "movies"
         cast_table = "show_cast" if media_type == "show" else "movie_cast"
@@ -621,11 +621,11 @@ def create_app(test_config: dict | None = None) -> Flask:
             """,
             (media_id,),
         ).fetchall()
-        return render_template("_cast_sheet_content.html", cast=cast, status=status)
+        return render_template("_cast_rail_content.html", cast=cast, status=status)
 
     @app.get("/api/movies/<int:movie_id>/cast")
     def movie_cast_fragment(movie_id: int):
-        return cast_sheet_fragment("movie", movie_id)
+        return cast_rail_fragment("movie", movie_id)
 
     def update_media_reaction(table: str, media_id: int, reaction: str):
         column = {"queue": "watch_again"}.get(reaction)
@@ -904,7 +904,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.get("/api/shows/<int:show_id>/cast")
     def show_cast_fragment(show_id: int):
-        return cast_sheet_fragment("show", show_id)
+        return cast_rail_fragment("show", show_id)
 
     @app.get("/api/shows/<int:show_id>/seasons")
     def show_seasons_fragment(show_id: int):
