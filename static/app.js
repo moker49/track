@@ -197,9 +197,6 @@ const detailRevealAnimationHandlers = new WeakMap();
 const utilityRevealAnimationHandlers = new WeakMap();
 let currentView = "backlog";
 let detailParentView = "backlog";
-let activeCastMediaKey = null;
-let castRailRefreshTimer = null;
-const castRailRequests = new Map();
 let diaryRevision = 0;
 let renderedDiaryRevision = -1;
 let diaryLayout = "entries";
@@ -1765,46 +1762,6 @@ function finishDetailLoad({ resetScroll = true } = {}) {
   if (resetScroll) window.scrollTo({ top: 0, behavior: "auto" });
 }
 
-function loadDetailCast(mediaType, mediaId, attempt = 0) {
-  const numericMediaId = Number(mediaId);
-  const castRail = views.get("detail")?.querySelector("[data-cast-rail]");
-  if (!Number.isInteger(numericMediaId) || numericMediaId <= 0 || !castRail) return;
-  const key = `${mediaType}:${numericMediaId}`;
-  activeCastMediaKey = key;
-  if (castRailRefreshTimer) {
-    window.clearTimeout(castRailRefreshTimer);
-    castRailRefreshTimer = null;
-  }
-  if (attempt === 0) {
-    castRail.innerHTML = '<div class="cast-rail-message" role="status">Loading cast…</div>';
-  }
-  if (castRailRequests.has(key)) return;
-  const collection = mediaType === "show" ? "shows" : "movies";
-  const request = fetch(`/api/${collection}/${numericMediaId}/cast`, {
-    headers: { "X-Requested-With": "Track" },
-  }).then(async (response) => {
-    if (!response.ok) throw new Error("Could not load cast");
-    const markup = await response.text();
-    if (activeCastMediaKey !== key) return;
-    castRail.innerHTML = markup;
-    inspectMediaImages(castRail);
-    const status = castRail.firstElementChild?.dataset.castRailStatus;
-    if (status === "pending" && attempt < 10) {
-      castRailRefreshTimer = window.setTimeout(() => {
-        castRailRefreshTimer = null;
-        loadDetailCast(mediaType, numericMediaId, attempt + 1);
-      }, 1000);
-    }
-  }).catch(() => {
-    if (activeCastMediaKey === key) {
-      castRail.innerHTML = '<div class="cast-rail-message">Cast is unavailable right now.</div>';
-    }
-  }).finally(() => {
-    castRailRequests.delete(key);
-  });
-  castRailRequests.set(key, request);
-}
-
 function invalidateShowCache(showId, includeSeasons = false) {
   showDetailCache.delete(String(showId));
   if (includeSeasons) {
@@ -2205,7 +2162,6 @@ async function fetchRefreshedShowFragments(showId) {
   });
   views.get("detail").replaceChildren(template.content);
   finishDetailLoad({ resetScroll: false });
-  loadDetailCast("show", showId);
   restoreShowDetailContext(showId, {
     openSeasonIds: [...openSeasonIds],
     detailScrollY,
@@ -2422,7 +2378,6 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   enableWatchControls(views.get("detail"));
   finishDetailLoad();
-  loadDetailCast("show", detailShow.dataset.showId);
   restoreShowDetailContext(detailShow.dataset.showId, returnContext);
   prefetchShowSeasonEpisodes(detailShow);
   if (animate) hydrateOtherPrimaryViews();
@@ -2475,7 +2430,6 @@ function renderMovieDetail(movieHtml, animate, { resetScroll = true } = {}) {
   syncOverviewDisclosures(views.get("detail"));
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   finishDetailLoad({ resetScroll });
-  loadDetailCast("movie", detailMovie.dataset.movieId);
 }
 
 async function previewCatalogMovie(card, historyMode = "push") {

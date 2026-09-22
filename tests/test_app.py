@@ -221,7 +221,8 @@ class TrackAppTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("function syncSearchChrome()", javascript)
-        self.assertIn("function loadDetailCast(mediaType, mediaId, attempt = 0)", javascript)
+        self.assertNotIn("loadDetailCast", javascript)
+        self.assertNotIn("/cast", javascript)
         self.assertNotIn("hydrateDetailCast", javascript)
         self.assertNotIn("/cast/hydrate", javascript)
         self.assertIn('progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP]', javascript)
@@ -335,12 +336,26 @@ class TrackAppTest(unittest.TestCase):
             )
         connection.commit()
         connection.close()
-        cast_fragment = self.client.get("/api/movies/1/cast")
-        self.assertEqual(cast_fragment.status_code, 200)
-        self.assertIn(b'data-cast-rail-status="ready"', cast_fragment.data)
-        self.assertEqual(cast_fragment.data.count(b"cast-rail-item"), 20)
-        self.assertEqual(self.client.get("/api/movies/1").status_code, 200)
+        detail = self.client.get("/api/movies/1")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.data.count(b"cast-rail-item"), 20)
+        self.assertIn(b"Actor One", detail.data)
         self.assertEqual(client.credits_calls, 1)
+
+    def test_catalog_movie_preview_renders_cast_in_initial_fragment(self):
+        class PreviewClient:
+            def movie(self, tmdb_id):
+                return {"id": tmdb_id, "title": "Preview Movie", "genres": []}
+
+            def movie_credits(self, _tmdb_id):
+                return {"cast": [{"name": "Preview Actor", "character": "Full Role Name"}]}
+
+        self.app.config["TMDB_CLIENT_FACTORY"] = lambda _token: PreviewClient()
+        detail = self.client.get("/api/movies/tmdb/123456/preview")
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn(b'detail-cast-rail', detail.data)
+        self.assertIn(b'Preview Actor', detail.data)
+        self.assertIn(b'Full Role Name', detail.data)
 
     def test_initial_library_order_matches_natural_default_sort(self):
         connection = sqlite3.connect(self.database)
@@ -1120,7 +1135,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-detail-title="Active Test Show"', detail.data)
         self.assertIn(b'class="detail-app-bar-title">Show details</span>', detail.data)
         self.assertNotIn(b'data-overview-disclosure', detail.data)
-        self.assertIn(b'data-cast-rail', detail.data)
+        self.assertNotIn(b'detail-cast-rail', detail.data)
         self.assertNotIn(b'data-overview-more', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
         self.assertIn(b"Added", detail.data)
@@ -1133,6 +1148,25 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"<!doctype html>", detail.data.lower())
         self.assertNotIn(b"bottom-nav", detail.data)
         self.assertLess(len(detail.data), 50_000)
+
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            "INSERT INTO actors (tmdb_person_id, name) VALUES (12345, 'Show Actor')"
+        )
+        actor_id = connection.execute(
+            "SELECT id FROM actors WHERE tmdb_person_id = 12345"
+        ).fetchone()[0]
+        connection.execute(
+            "INSERT INTO show_cast (show_id, actor_id, character_name, cast_order) "
+            "VALUES (1, ?, 'The Main Character', 0)",
+            (actor_id,),
+        )
+        connection.commit()
+        connection.close()
+        with_cast = self.client.get("/api/shows/1")
+        self.assertIn(b'detail-cast-rail', with_cast.data)
+        self.assertIn(b'Show Actor', with_cast.data)
+        self.assertIn(b'The Main Character', with_cast.data)
 
         seasons = self.client.get("/api/shows/1/seasons")
         self.assertEqual(seasons.status_code, 200)

@@ -553,8 +553,9 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.get("/api/movies/tmdb/<int:tmdb_id>/preview")
     def movie_preview_fragment(tmdb_id: int):
+        client = get_tmdb_client()
         try:
-            payload = get_tmdb_client().movie(tmdb_id)
+            payload = client.movie(tmdb_id)
         except TMDBError as error:
             return jsonify(error=str(error)), 503
         if payload.get("id") != tmdb_id:
@@ -579,11 +580,25 @@ def create_app(test_config: dict | None = None) -> Flask:
             "liked_at": saved_movie["liked_at"] if saved_movie else None,
             "watch_count": 0,
         }
-        return render_template("movie_detail.html", movie=movie, activity=[])
+        try:
+            credits = client.movie_credits(tmdb_id)
+            cast = [
+                {
+                    "name": credit["name"],
+                    "profile_path": credit.get("profile_path"),
+                    "character_name": credit.get("character"),
+                }
+                for credit in credits.get("cast", [])
+                if isinstance(credit.get("name"), str) and credit["name"].strip()
+            ][:20]
+        except TMDBError:
+            cast = []
+        return render_template("movie_detail.html", movie=movie, activity=[], cast=cast)
 
     @app.get("/api/movies/<int:movie_id>")
     def movie_detail_fragment(movie_id: int):
-        movie = get_db().execute(
+        db = get_db()
+        movie = db.execute(
             """
             SELECT m.*, COUNT(mwh.id) AS watch_count,
                    CASE WHEN m.release_date > date('now', 'localtime') THEN 1 ELSE 0 END AS is_upcoming
@@ -596,21 +611,17 @@ def create_app(test_config: dict | None = None) -> Flask:
         ).fetchone()
         if movie is None:
             abort(404)
-        return render_template("movie_detail.html", movie=movie, activity=get_movie_activity(get_db(), movie_id))
+        return render_template(
+            "movie_detail.html",
+            movie=movie,
+            activity=get_movie_activity(db, movie_id),
+            cast=get_media_cast(db, "movie", movie_id),
+        )
 
-    def cast_rail_fragment(media_type: str, media_id: int):
-        db = get_db()
-        media_table = "shows" if media_type == "show" else "movies"
+    def get_media_cast(db: sqlite3.Connection, media_type: str, media_id: int):
         cast_table = "show_cast" if media_type == "show" else "movie_cast"
-        sync_table = "show_cast_sync" if media_type == "show" else "movie_cast_sync"
         media_column = "show_id" if media_type == "show" else "movie_id"
-        if db.execute(f"SELECT 1 FROM {media_table} WHERE id = ?", (media_id,)).fetchone() is None:
-            abort(404)
-        sync = db.execute(
-            f"SELECT status FROM {sync_table} WHERE {media_column} = ?", (media_id,)
-        ).fetchone()
-        status = sync["status"] if sync is not None else "unavailable"
-        cast = db.execute(
+        return db.execute(
             f"""
             SELECT a.name, a.profile_path, c.character_name
             FROM {cast_table} c
@@ -621,11 +632,6 @@ def create_app(test_config: dict | None = None) -> Flask:
             """,
             (media_id,),
         ).fetchall()
-        return render_template("_cast_rail_content.html", cast=cast, status=status)
-
-    @app.get("/api/movies/<int:movie_id>/cast")
-    def movie_cast_fragment(movie_id: int):
-        return cast_rail_fragment("movie", movie_id)
 
     def update_media_reaction(table: str, media_id: int, reaction: str):
         column = {"queue": "watch_again"}.get(reaction)
@@ -899,12 +905,9 @@ def create_app(test_config: dict | None = None) -> Flask:
             "show_detail.html",
             show=show,
             activity=get_show_activity(db, show_id),
+            cast=get_media_cast(db, "show", show_id),
             metadata_refresh_due=not show_metadata_is_fresh(show["tmdb_refreshed_at"]),
         )
-
-    @app.get("/api/shows/<int:show_id>/cast")
-    def show_cast_fragment(show_id: int):
-        return cast_rail_fragment("show", show_id)
 
     @app.get("/api/shows/<int:show_id>/seasons")
     def show_seasons_fragment(show_id: int):

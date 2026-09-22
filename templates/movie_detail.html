@@ -56,8 +56,9 @@
   </section>
 
   <section class="detail-content">
-    {% if movie.id is not none %}<section class="detail-cast-rail" data-cast-rail data-cast-media-type="movie"
-      data-cast-media-id="{{ movie.id }}" aria-label="Cast"></section>{% endif %}
+    {% if cast %}<section class="detail-cast-rail" aria-label="Cast">
+      {% include '_cast_rail_content.html' %}
+    </section>{% endif %}
     {% if movie.is_tracked %}
     <div class="queue-control-row">
       <div class="episode-watch-summary-wrap">

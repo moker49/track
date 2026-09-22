@@ -1377,15 +1377,6 @@ html.app-booting .schedule-empty-reveal {
   line-height: 1.2;
 }
 
-.cast-rail-message {
-  min-height: 84px;
-  display: grid;
-  place-items: center;
-  color: var(--on-surface-muted);
-  font-size: 0.9rem;
-  text-align: center;
-}
-
 
 .bottom-nav {
   position: relative;

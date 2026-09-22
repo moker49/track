@@ -1,6 +1,4 @@
-<div class="cast-rail-content" data-cast-rail-status="{{ status }}">
-  {% if status == 'ready' and cast %}
-  <div class="cast-rail" role="list">
+<div class="cast-rail" role="list">
     {% for actor in cast %}
     <div class="cast-rail-item" role="listitem">
       <span class="cast-portrait{% if actor.profile_path %} has-media-image{% endif %}" aria-hidden="true">
@@ -9,10 +7,4 @@
       <span class="cast-identity"><strong>{{ actor.name }}</strong>{% if actor.character_name %}<small>{{ actor.character_name }}</small>{% endif %}</span>
     </div>
     {% endfor %}
-  </div>
-  {% elif status == 'pending' %}
-  <div class="cast-rail-message" role="status">Loading cast…</div>
-  {% elif status == 'failed' %}
-  <div class="cast-rail-message">Cast is unavailable right now.</div>
-  {% endif %}
 </div>

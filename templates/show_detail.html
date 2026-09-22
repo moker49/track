@@ -67,8 +67,9 @@
   </section>
 
   <section class="detail-content">
-    <section class="detail-cast-rail" data-cast-rail data-cast-media-type="show"
-      data-cast-media-id="{{ show.id }}" aria-label="Cast"></section>
+    {% if cast %}<section class="detail-cast-rail" aria-label="Cast">
+      {% include '_cast_rail_content.html' %}
+    </section>{% endif %}
 
     {% if show.is_tracked %}
     {% set percent = ((show.total_watch_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
