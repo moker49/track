@@ -1,17 +1,8 @@
-{% if activity_mode == 'show' %}
-<details class="activity-log" data-activity-log>
+<details class="detail-activity-disclosure detail-section-disclosure" data-activity-log>
   <summary>
-    <span class="material-symbols-rounded activity-heading-icon" aria-hidden="true">history</span>
-    <span class="activity-heading-copy">
-      <strong>{{ activity_title }}</strong>
-      <small><span data-activity-count>{{ activity_items|length }}</span> <span data-activity-count-label>{{ 'entries'
-          if activity_items|length != 1 else 'entry' }}</span></small>
-    </span>
-    <span class="material-symbols-rounded activity-chevron" aria-hidden="true">expand_more</span>
+    <span class="detail-section-label">{{ activity_title }} <span>· <span data-activity-count>{{ activity_items|length }}</span></span></span>
+    <span class="material-symbols-rounded detail-section-chevron" aria-hidden="true">expand_more</span>
   </summary>
-  {% else %}
-  <section class="activity-log watch-log" data-activity-log aria-label="Watch log">
-    {% endif %}
     <ol class="activity-list" data-activity-list>
       {% for item in activity_items %}
       {% set event_type = item.event_type if activity_mode in ['show', 'movie'] or item.event_type is defined else
@@ -60,8 +51,4 @@
       <li class="activity-empty" data-activity-empty>{{ activity_empty }}</li>
       {% endfor %}
     </ol>
-    {% if activity_mode == 'show' %}
 </details>
-{% else %}
-</section>
-{% endif %}

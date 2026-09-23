@@ -887,7 +887,8 @@ def create_app(test_config: dict | None = None) -> Flask:
                   AND sn.is_progress_counted = 1
                   AND e.air_date <= ?
             )
-            SELECT s.*, COUNT(ec.episode_id) AS episode_count,
+            SELECT s.*, (SELECT COUNT(*) FROM seasons WHERE show_id = s.id) AS season_count,
+                   COUNT(ec.episode_id) AS episode_count,
                    COALESCE(SUM(CASE WHEN ec.watch_count > 0 THEN 1 ELSE 0 END), 0) AS watched_count,
                    COALESCE(SUM(ec.watch_count), 0) AS total_watch_count,
                    COALESCE(MIN(ec.watch_count), 0) AS completed_watch_count
@@ -987,6 +988,8 @@ def create_app(test_config: dict | None = None) -> Flask:
                    sn.is_progress_counted,
                    s.id AS show_id,
                    s.name AS show_name,
+                   s.is_tracked AS show_is_tracked,
+                   s.watch_again AS show_watch_again,
                    s.status AS show_status,
                    s.genres AS show_genres,
                    (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)

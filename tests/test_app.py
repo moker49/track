@@ -339,12 +339,15 @@ class TrackAppTest(unittest.TestCase):
         detail = self.client.get("/api/movies/1")
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.data.count(b"cast-rail-item"), 20)
-        self.assertIn(b'<details class="detail-cast-disclosure" data-cast-disclosure>', detail.data)
+        self.assertIn(b'<details class="detail-cast-disclosure detail-section-disclosure" data-cast-disclosure>', detail.data)
         self.assertIn(b'Cast <span>\xc2\xb7 20</span>', detail.data)
         self.assertEqual(detail.data.count(b'class="cast-avatar'), 4)
-        self.assertLess(detail.data.index(b'queue-control-row'), detail.data.index(b'data-cast-disclosure'))
+        self.assertLess(detail.data.index(b'detail-action-row'), detail.data.index(b'data-cast-disclosure'))
+        self.assertNotIn(b'episode-watch-summary', detail.data)
         self.assertLess(detail.data.index(b'data-cast-disclosure'), detail.data.index(b'data-activity-log'))
+        self.assertIn(b'<details class="detail-activity-disclosure detail-section-disclosure" data-activity-log>', detail.data)
         self.assertIn(b"Actor One", detail.data)
+        self.assertEqual(detail.data.count(b'class="detail-region-divider"'), 2)
         self.assertEqual(client.credits_calls, 1)
 
     def test_catalog_movie_preview_renders_cast_in_initial_fragment(self):
@@ -359,9 +362,43 @@ class TrackAppTest(unittest.TestCase):
         detail = self.client.get("/api/movies/tmdb/123456/preview")
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b'detail-cast-rail', detail.data)
-        self.assertNotIn(b'detail-cast-disclosure', detail.data)
+        self.assertIn(b'detail-cast-disclosure', detail.data)
+        self.assertIn(b'detail-activity-disclosure', detail.data)
+        self.assertIn(b'data-track-movie-action="new"', detail.data)
+        self.assertNotIn(b'data-track-movie-action="watched"', detail.data)
+        self.assertNotIn(b'data-track-movie-action="archive"', detail.data)
         self.assertIn(b'Preview Actor', detail.data)
         self.assertIn(b'Full Role Name', detail.data)
+
+    def test_episode_watch_bar_has_no_queue_action(self):
+        episode_detail = self.client.get("/api/episodes/1")
+        self.assertEqual(episode_detail.status_code, 200)
+        self.assertLess(
+            episode_detail.data.index(b'detail-action-row'),
+            episode_detail.data.index(b'data-activity-log'),
+        )
+        self.assertEqual(episode_detail.data.count(b'<button class="episode-watch-action"'), 1)
+        self.assertIn(b'data-show-id="1"', episode_detail.data)
+        self.assertNotIn(b'data-reaction-toggle="queue"', episode_detail.data)
+        self.assertIn(b'<details class="detail-activity-disclosure detail-section-disclosure" data-activity-log>', episode_detail.data)
+        self.assertNotIn(b'episode-watch-summary', episode_detail.data)
+        self.assertNotIn(b'data-overview-disclosure', episode_detail.data)
+        self.assertNotIn(b'data-queued=', episode_detail.data)
+        self.assertNotIn(b'Test episode overview.', episode_detail.data)
+
+    def test_episode_activity_count_includes_undated_records(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            "INSERT INTO episode_watch_history (episode_id, added_at, diary_date) VALUES (1, ?, NULL)",
+            ("2026-06-01T12:00:00+00:00",),
+        )
+        connection.commit()
+        connection.close()
+
+        detail = self.client.get("/api/episodes/1").data
+        self.assertIn(b'data-activity-count>2</span>', detail)
+        self.assertEqual(detail.count(b'class="activity-item"'), 2)
+        self.assertIn(b'No date', detail)
 
     def test_initial_library_order_matches_natural_default_sort(self):
         connection = sqlite3.connect(self.database)
@@ -1028,8 +1065,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('} else if (!scheduleViewsHydrated) {', javascript)
         self.assertIn("function refreshScheduleForMediaChange()", javascript)
         self.assertNotIn("function refreshUpcomingForMovieChange()", javascript)
-        self.assertIn("function syncOverviewDisclosures(root = document)", javascript)
-        self.assertIn('event.target.closest("[data-overview-disclosure]")', javascript)
+        self.assertNotIn("function syncOverviewDisclosures(root = document)", javascript)
+        self.assertNotIn('event.target.closest("[data-overview-disclosure]")', javascript)
         self.assertIn("const [overviewHtml, seasonsHtml] = await Promise.all", javascript)
         self.assertIn(
             "renderShowDetail(cachedOverview, cachedSeasons, false, returnContext)",
@@ -1131,6 +1168,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b"arrow_back", detail.data)
         self.assertIn(b"data-season-list", detail.data)
+        self.assertIn(b'<details class="detail-seasons-disclosure detail-section-disclosure" data-seasons-disclosure>', detail.data)
+        self.assertIn(b'Seasons <span>\xc2\xb7 2</span>', detail.data)
         self.assertNotIn(b"data-season-loading", detail.data)
         self.assertIn(b'data-tmdb-refreshed-at=""', detail.data)
         self.assertIn(b'data-metadata-refresh-due="true"', detail.data)
@@ -1142,15 +1181,18 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'class="detail-app-bar-title">Show details</span>', detail.data)
         self.assertNotIn(b'data-overview-disclosure', detail.data)
         self.assertNotIn(b'detail-cast-rail', detail.data)
+        self.assertEqual(detail.data.count(b'class="detail-region-divider"'), 3)
         self.assertNotIn(b'data-overview-more', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
+        self.assertIn(b'<details class="detail-activity-disclosure detail-section-disclosure" data-activity-log>', detail.data)
         self.assertIn(b"Added", detail.data)
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Watching</span>', detail.data)
         self.assertIn(b'<span data-progress-copy>5/13</span>', detail.data)
-        self.assertIn(b'<strong data-progress-percent>38%</strong>', detail.data)
+        self.assertIn(b'data-show-detail-watch', detail.data)
+        self.assertNotIn(b'data-progress-percent', detail.data)
         self.assertNotIn(b"Your progress", detail.data)
         self.assertNotIn(b"data-show-state-label", detail.data)
-        self.assertNotIn(b'<details class="activity-log" open', detail.data)
+        self.assertIn(b'data-activity-count', detail.data)
         self.assertNotIn(b"<!doctype html>", detail.data.lower())
         self.assertNotIn(b"bottom-nav", detail.data)
         self.assertLess(len(detail.data), 50_000)
@@ -1171,10 +1213,12 @@ class TrackAppTest(unittest.TestCase):
         connection.close()
         with_cast = self.client.get("/api/shows/1")
         self.assertIn(b'detail-cast-rail', with_cast.data)
-        self.assertIn(b'<details class="detail-cast-disclosure" data-cast-disclosure>', with_cast.data)
+        self.assertIn(b'<details class="detail-cast-disclosure detail-section-disclosure" data-cast-disclosure>', with_cast.data)
         self.assertIn(b'Cast <span>\xc2\xb7 1</span>', with_cast.data)
-        self.assertLess(with_cast.data.index(b'queue-control-row'), with_cast.data.index(b'data-cast-disclosure'))
+        self.assertEqual(with_cast.data.count(b'class="detail-region-divider"'), 4)
+        self.assertLess(with_cast.data.index(b'detail-action-row'), with_cast.data.index(b'data-cast-disclosure'))
         self.assertLess(with_cast.data.index(b'data-cast-disclosure'), with_cast.data.index(b'data-season-list'))
+        self.assertLess(with_cast.data.index(b'data-season-list'), with_cast.data.index(b'data-activity-log'))
         self.assertIn(b'Show Actor', with_cast.data)
         self.assertIn(b'The Main Character', with_cast.data)
 
@@ -2106,6 +2150,9 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-track-show-state="ACTIVE"', detail.data)
         self.assertIn(b'data-track-show-state="ARCHIVED"', detail.data)
         self.assertIn(b'data-show-tracked="false"', detail.data)
+        self.assertIn(b'<details class="detail-activity-disclosure detail-section-disclosure" data-activity-log>', detail.data)
+        self.assertIn(b'<details class="detail-seasons-disclosure detail-section-disclosure" data-seasons-disclosure>', detail.data)
+        self.assertLess(detail.data.index(b'data-track-show-state="ACTIVE"'), detail.data.index(b'data-season-list'))
         self.assertNotIn(b"data-progress-summary", detail.data)
         self.assertNotIn(b"data-show-menu-button", detail.data)
         self.assertIn(b"/media/poster/w342/preview.jpg", detail.data)
@@ -2129,6 +2176,13 @@ class TrackAppTest(unittest.TestCase):
         ).fetchone()[0]
         connection.close()
         episode_detail = self.client.get(f"/api/episodes/{preview_episode_id}")
+        self.assertIn(b'<details class="detail-activity-disclosure detail-section-disclosure" data-activity-log>', episode_detail.data)
+        self.assertNotIn(b'data-episode-detail-watch', episode_detail.data)
+        self.assertNotIn(b'detail-action-row', episode_detail.data)
+        self.assertNotIn(b'data-add-episode-show', episode_detail.data)
+        self.assertNotIn(b'data-reaction-toggle="queue"', episode_detail.data)
+        self.assertNotIn(b'episode-watch-summary', episode_detail.data)
+        self.assertNotIn(b'data-overview-disclosure', episode_detail.data)
         self.assertIn(b"/media/still/w300/preview-still.jpg", episode_detail.data)
         self.assertIn(
             b'data-full-image-src="https://image.tmdb.org/t/p/w780/preview-still.jpg"',
@@ -2167,7 +2221,12 @@ class TrackAppTest(unittest.TestCase):
 
         tracked_detail = self.client.get(f"/api/shows/{preview_data['show_id']}")
         self.assertIn(b"data-progress-summary", tracked_detail.data)
+        self.assertIn(b'data-show-detail-watch', tracked_detail.data)
         self.assertNotIn(b"data-track-show-state", tracked_detail.data)
+        tracked_episode = self.client.get(f"/api/episodes/{preview_episode_id}").data
+        self.assertIn(b'data-episode-detail-watch', tracked_episode)
+        self.assertNotIn(b'data-reaction-toggle="queue"', tracked_episode)
+        self.assertNotIn(b'data-add-episode-show', tracked_episode)
         archived_home = self.client.get("/")
         self.assertIn(b"Preview Show", archived_home.data)
 

@@ -75,8 +75,14 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
 
             page.locator('.show-card[data-show-id="1"] [data-show-open]').click()
             page.locator('[data-detail-show][data-show-id="1"]').wait_for()
+            self.assertGreater(int(page.locator('[data-activity-log] [data-activity-count]').inner_text()), 0)
             page.locator('.queue-toggle[data-reaction-toggle="queue"]').click()
             self.assertEqual(page.locator('[data-reaction-toggle="queue"]').get_attribute("aria-pressed"), "true")
+            seasons_disclosure = page.locator('[data-seasons-disclosure]')
+            self.assertIsNone(seasons_disclosure.get_attribute("open"))
+            seasons_disclosure.locator('summary').click()
+            self.assertIsNotNone(seasons_disclosure.get_attribute("open"))
+            self.assertTrue(seasons_disclosure.locator('summary').is_visible())
             first_season = page.locator('details.season[data-season-id="1"]')
             first_season.wait_for()
             self.assertFalse(first_season.get_attribute("open"))
@@ -85,6 +91,10 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
             page.locator('[data-episode-id="1"] [data-open-episode]').click()
             episode = page.locator('[data-detail-episode][data-episode-id="1"]')
             episode.wait_for()
+            self.assertTrue(episode.locator('[data-activity-log] summary').is_visible())
+            self.assertEqual(episode.locator('.episode-watch-summary').count(), 0)
+            self.assertEqual(episode.locator('[data-overview-disclosure]').count(), 0)
+            self.assertEqual(episode.locator('[data-reaction-toggle="queue"]').count(), 0)
             count_before = int(episode.get_attribute("data-watch-count"))
             episode.locator('[data-episode-detail-watch]').click()
             page.locator('[data-date-picker-save]').click()
@@ -95,6 +105,9 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
 
             page.locator('[data-detail-back]').click()
             page.locator('[data-detail-show][data-show-id="1"]').wait_for()
+            page.wait_for_function(
+                "document.querySelector('[data-detail-show] [data-reaction-toggle=queue]').getAttribute('aria-pressed') === 'true'"
+            )
             self.assertIsNotNone(first_season.get_attribute("open"))
             page.locator('[data-detail-back]').click()
             page.locator('[data-view="tv"]').wait_for(state="visible")

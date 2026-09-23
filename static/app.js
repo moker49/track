@@ -598,17 +598,6 @@ function motionIsReduced() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function syncOverviewDisclosures(root = document) {
-  root.querySelectorAll("[data-overview-disclosure]").forEach((disclosure) => {
-    const overview = disclosure.querySelector("[data-overview-copy]");
-    if (!overview) return;
-    if (disclosure.classList.contains("is-expanded")) {
-      return;
-    }
-    disclosure.disabled = overview.scrollHeight <= overview.clientHeight + 1;
-  });
-}
-
 function showView(viewName, historyMode = null) {
   if (!views.has(viewName) || viewName === currentView) return;
 
@@ -755,10 +744,7 @@ function catalogCard(show) {
   title.textContent = show.name;
   const meta = document.createElement("p");
   meta.textContent = show.first_air_date?.slice(0, 4) || "Release date unknown";
-  const overview = document.createElement("p");
-  overview.className = "catalog-overview";
-  overview.textContent = show.overview;
-  copy.append(title, meta, overview);
+  copy.append(title, meta);
   article.append(poster, copy);
   if (show.show_id || show.is_removed) article.classList.add("is-cached");
   copy.append(catalogActions());
@@ -1773,6 +1759,29 @@ function preserveCastDisclosure(nextDetail) {
   }
 }
 
+function preserveActivityDisclosure(nextDetail) {
+  const mediaType = nextDetail.matches("[data-detail-show]") ? "show"
+    : nextDetail.matches("[data-detail-movie]") ? "movie" : "episode";
+  const mediaId = nextDetail.dataset[`${mediaType}Id`];
+  const selector = `[data-detail-${mediaType}][data-${mediaType}-id="${mediaId}"]`;
+  if (views.get("detail").querySelector(`${selector} [data-activity-log][open]`)) {
+    const nextDisclosure = nextDetail.querySelector("[data-activity-log]");
+    if (nextDisclosure) nextDisclosure.open = true;
+  }
+}
+
+function preserveSeasonsDisclosure(nextDetail, context = null) {
+  const nextDisclosure = nextDetail.querySelector("[data-seasons-disclosure]");
+  if (!nextDisclosure) return;
+  const currentDisclosure = views.get("detail").querySelector(
+    `[data-detail-show][data-show-id="${nextDetail.dataset.showId}"] [data-seasons-disclosure]`,
+  );
+  if (currentDisclosure?.open
+    || (!currentDisclosure && (context?.seasonsExpanded ?? Boolean(context?.openSeasonIds?.length)))) {
+    nextDisclosure.open = true;
+  }
+}
+
 function invalidateShowCache(showId, includeSeasons = false) {
   showDetailCache.delete(String(showId));
   if (includeSeasons) {
@@ -2164,7 +2173,10 @@ async function fetchRefreshedShowFragments(showId) {
 
   const template = document.createElement("template");
   template.innerHTML = overviewHtml.trim();
-  preserveCastDisclosure(template.content.querySelector("[data-detail-show]"));
+  const nextShow = template.content.querySelector("[data-detail-show]");
+  preserveCastDisclosure(nextShow);
+  preserveActivityDisclosure(nextShow);
+  preserveSeasonsDisclosure(nextShow);
   const nextSeasonList = template.content.querySelector("[data-season-list]");
   nextSeasonList.innerHTML = seasonsHtml;
   nextSeasonList.removeAttribute("aria-busy");
@@ -2176,6 +2188,7 @@ async function fetchRefreshedShowFragments(showId) {
   finishDetailLoad({ resetScroll: false });
   restoreShowDetailContext(showId, {
     openSeasonIds: [...openSeasonIds],
+    seasonsExpanded: currentShow.querySelector("[data-seasons-disclosure]")?.open,
     detailScrollY,
   });
 }
@@ -2366,6 +2379,8 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
   showTemplate.innerHTML = showHtml;
   const detailShow = showTemplate.content.querySelector("[data-detail-show]");
   preserveCastDisclosure(detailShow);
+  preserveActivityDisclosure(detailShow);
+  preserveSeasonsDisclosure(detailShow, returnContext);
   const hero = detailShow.querySelector(".hero");
   const detailContent = detailShow.querySelector(".detail-content");
   const seasonList = detailContent.querySelector("[data-season-list]");
@@ -2380,14 +2395,12 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
     const slices = [
       hero,
       ...[...detailContent.children]
-        .filter((section) => section !== seasonList && section !== activity),
-      ...seasonList.querySelectorAll(":scope > .season"),
+        .filter((section) => section !== activity && !section.matches(".detail-region-divider")),
       activity,
     ];
     staggerDetailSlices(slices);
   }
   views.get("detail").replaceChildren(showTemplate.content);
-  syncOverviewDisclosures(views.get("detail"));
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   enableWatchControls(views.get("detail"));
   finishDetailLoad();
@@ -2439,9 +2452,9 @@ function renderMovieDetail(movieHtml, animate, { resetScroll = true } = {}) {
   template.innerHTML = movieHtml;
   const detailMovie = template.content.querySelector("[data-detail-movie]");
   preserveCastDisclosure(detailMovie);
-  if (animate) staggerDetailSlices([detailMovie.querySelector(".hero"), ...detailMovie.querySelectorAll(".detail-content > *")]);
+  preserveActivityDisclosure(detailMovie);
+  if (animate) staggerDetailSlices([detailMovie.querySelector(".hero"), ...detailMovie.querySelectorAll(".detail-content > :not(.detail-region-divider)")]);
   views.get("detail").replaceChildren(template.content);
-  syncOverviewDisclosures(views.get("detail"));
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   finishDetailLoad({ resetScroll });
 }
@@ -2476,16 +2489,16 @@ async function previewCatalogMovie(card, historyMode = "push") {
   }
 }
 
-async function trackDetailMovie(movieElement, action, trigger) {
+async function trackDetailMovie(movieElement, trigger) {
   trigger.disabled = true;
   try {
     const response = await fetch(`/api/movies/${movieElement.dataset.tmdbId}/import`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched: action === "watched" }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched: false }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add movie");
     document.querySelectorAll(`.popular-card[data-tmdb-id="${movieElement.dataset.tmdbId}"]`)
-      .forEach((card) => markCatalogTracked(card, action, String(data.movie_id)));
+      .forEach((card) => markCatalogTracked(card, "new", String(data.movie_id)));
     refreshScheduleForMediaChange();
     openMovie(data.movie_id, "movies", "replace");
   } catch (error) {
@@ -2512,6 +2525,7 @@ async function openEpisode(episodeId, historyMode = "push") {
     window.history.replaceState({
       ...activeHistoryState,
       openSeasonIds,
+      seasonsExpanded: Boolean(currentShow.querySelector("[data-seasons-disclosure]")?.open),
       returnEpisodeId: String(episodeId),
       detailScrollY: window.scrollY,
     }, "");
@@ -2717,20 +2731,23 @@ function fitEpisodeDetailTitle(detailView) {
 function renderEpisodeDetail(episodeHtml, previousWasShow, animate, entryDirection = null) {
   const episodeTemplate = document.createElement("template");
   episodeTemplate.innerHTML = episodeHtml;
+  const detailEpisode = episodeTemplate.content.querySelector("[data-detail-episode]");
+  preserveActivityDisclosure(detailEpisode);
   if (previousWasShow) {
     episodeTemplate.content.querySelector("[data-episode-show-open]")?.remove();
+    episodeTemplate.content.querySelector("[data-episode-show-divider]")?.remove();
   }
   if (animate) {
     const episodeHero = episodeTemplate.content.querySelector(".episode-hero");
     const episodeContent = episodeTemplate.content.querySelector(".episode-detail-content");
-    staggerDetailSlices([episodeHero, ...episodeContent.children]);
+    staggerDetailSlices([episodeHero, ...[...episodeContent.children].filter((section) => !section.matches(".detail-region-divider"))]);
   }
   views.get("detail").replaceChildren(episodeTemplate.content);
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   fitEpisodeDetailTitle(views.get("detail"));
-  const detailEpisode = views.get("detail").querySelector("[data-detail-episode]");
+  const mountedEpisode = views.get("detail").querySelector("[data-detail-episode]");
   lastEpisodeDetailScrollY = window.scrollY;
-  preloadAdjacentEpisodeDetails(detailEpisode);
+  preloadAdjacentEpisodeDetails(mountedEpisode);
   animateEpisodePageEntry(views.get("detail"), entryDirection);
   finishDetailLoad();
   if (animate) hydrateOtherPrimaryViews();
@@ -2738,12 +2755,18 @@ function renderEpisodeDetail(episodeHtml, previousWasShow, animate, entryDirecti
 
 function syncActivityCount(log) {
   if (!log) return;
-  const count = [...log.querySelectorAll(".activity-item")]
-    .filter((item) => displayHiddenLogItems || !isDiaryHiddenLogItem(item)).length;
+  const items = [...log.querySelectorAll(".activity-item")];
+  let visibleCount = 0;
+  items.forEach((item) => {
+    const visible = displayHiddenLogItems || !isDiaryHiddenLogItem(item);
+    item.classList.toggle("is-visible-activity-item", visible);
+    if (visible) visibleCount += 1;
+  });
+  const count = log.closest("[data-detail-episode]")
+    ? items.length
+    : visibleCount;
   const countElement = log.querySelector("[data-activity-count]");
-  const labelElement = log.querySelector("[data-activity-count-label]");
   if (countElement) countElement.textContent = count;
-  if (labelElement) labelElement.textContent = count === 1 ? "entry" : "entries";
 }
 
 function sortActivityItems(log) {
@@ -3591,10 +3614,6 @@ function updateMovieWatchUi(detailMovie, watchCount) {
   const control = detailMovie.querySelector("[data-movie-detail-watch]");
   if (!control) return;
   control.dataset.watchCount = watchCount;
-  const count = detailMovie.querySelector("[data-movie-detail-watch-count]");
-  const label = detailMovie.querySelector("[data-movie-detail-watch-label]");
-  if (count) count.textContent = watchCount;
-  if (label) label.textContent = watchCount === 1 ? "watch" : "watches";
 }
 
 function reactionDatasetKey(reaction) {
@@ -3701,7 +3720,7 @@ function revealReactionListOnce(reaction) {
 }
 
 async function toggleMediaReaction(button) {
-  const detail = button.closest("[data-detail-show], [data-detail-movie]");
+  const detail = button.closest("[data-detail-show], [data-detail-movie], [data-detail-episode]");
   if (!detail) return;
   const reaction = button.dataset.reactionToggle;
   const selected = button.getAttribute("aria-pressed") !== "true";
@@ -3726,6 +3745,7 @@ async function toggleMediaReaction(button) {
     if (reaction === "queue") {
       const icon = button.querySelector(".material-symbols-rounded");
       if (icon) icon.textContent = data.selected ? "playlist_add_check" : "playlist_add";
+      if (!isMovie) episodeDetailCache.clear();
     }
     if (isMovie) refreshMovieDetailCache(mediaId).catch(() => undefined);
     else refreshShowDetailCache(mediaId).catch(() => undefined);
@@ -3947,7 +3967,7 @@ function requestShowRemoval(showElement) {
 }
 
 function isDiaryHiddenLogItem(item) {
-  return !["skip", "season-skip"].includes(item.dataset.watchKind) && !item.dataset.diaryDate;
+  return ["episode", "season", "movie"].includes(item.dataset.watchKind) && !item.dataset.diaryDate;
 }
 
 function syncDisplayHiddenLogItemsSetting(root = document) {
@@ -4098,12 +4118,7 @@ function applyShowProgress(data) {
 function updateEpisodeDetailWatchUi(detailEpisode, watchCount, latestResolutionKind = null) {
   detailEpisode.dataset.watchCount = watchCount;
   const control = detailEpisode.querySelector("[data-episode-detail-watch]");
-  if (!control) return;
-  control.dataset.watchCount = watchCount;
-  const count = detailEpisode.querySelector("[data-episode-detail-watch-count]");
-  const label = detailEpisode.querySelector("[data-episode-detail-watch-label]");
-  if (count) count.textContent = watchCount;
-  if (label) label.textContent = watchCount === 1 ? "watch" : "watches";
+  if (control) control.dataset.watchCount = watchCount;
   if (latestResolutionKind !== null) syncEpisodeResolutionMenu(detailEpisode, latestResolutionKind);
 }
 
@@ -4113,14 +4128,6 @@ document.addEventListener("toggle", (event) => {
 }, true);
 
 document.addEventListener("click", (event) => {
-  const disclosure = event.target.closest("[data-overview-disclosure]");
-  if (disclosure) {
-    const expanded = disclosure.classList.toggle("is-expanded");
-    disclosure.setAttribute("aria-expanded", String(expanded));
-    syncOverviewDisclosures(disclosure.parentElement);
-    return;
-  }
-
   if (event.target.closest("[data-menu-scrim]")) {
     closeNavigationDrawer();
     closeShowMenus();
@@ -4208,13 +4215,8 @@ document.addEventListener("click", (event) => {
 
   const trackMovieButton = event.target.closest("[data-track-movie-action]");
   if (trackMovieButton) {
-    if (trackMovieButton.dataset.trackMovieAction === "watched") {
-      openMovieImportDatePicker(trackMovieButton.closest("[data-detail-movie]").dataset.tmdbId);
-      return;
-    }
     trackDetailMovie(
       trackMovieButton.closest("[data-detail-movie]"),
-      trackMovieButton.dataset.trackMovieAction,
       trackMovieButton,
     );
     return;
@@ -4789,7 +4791,6 @@ function updateProgress(progress, data) {
     : 0;
   progress.querySelector("[data-progress-copy]").textContent =
     `${totalWatchCount}/${data.episode_count}`;
-  progress.querySelector("[data-progress-percent]").textContent = `${percent}%`;
   const bar = progress.querySelector(".progress-track");
   bar.setAttribute("aria-valuenow", percent);
   bar.querySelector("span").style.width = `${Math.min(percent, 100)}%`;
@@ -5361,7 +5362,6 @@ searchBackButton?.addEventListener("click", () => {
 
 window.addEventListener("resize", () => {
   syncSearchTextPosition();
-  syncOverviewDisclosures(views.get("detail"));
   fitEpisodeDetailTitle(views.get("detail"));
   virtualLibraries.forEach((state) => refreshVirtualLibraryLayout(state.view));
   virtualReactionLists.forEach((state) => {
