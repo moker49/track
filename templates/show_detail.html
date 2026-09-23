@@ -13,30 +13,10 @@
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
     <span class="detail-app-bar-title">Show details</span>
-    {% if show.is_tracked %}<button class="icon-button detail-like-button" type="button" data-reaction-toggle="liked"
-      aria-pressed="{{ 'true' if show.liked_at else 'false' }}" aria-label="Like {{ show.name }}">
-      <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
+    {% if show.is_tracked %}<button class="icon-button detail-delete-action" type="button"
+      data-show-action="remove" aria-label="Remove {{ show.name }}" title="Remove show">
+      <span class="material-symbols-rounded" aria-hidden="true">delete</span>
     </button>{% endif %}
-    {% if show.is_tracked %}<div class="menu-anchor">
-      <button class="icon-button" type="button" data-show-menu-button aria-label="More options for {{ show.name }}"
-        aria-expanded="false">
-        <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
-      </button>
-      <div class="show-menu detail-show-menu" data-show-menu popover="manual" hidden>
-        <button type="button" data-show-action="move" data-target-state="{{ move.target_state }}">
-          <span class="material-symbols-rounded is-filled" aria-hidden="true">{{ move.icon }}</span>
-          <span data-move-label>{{ move.label }}</span>
-        </button>
-        <button type="button" data-show-action="refresh">
-          <span class="material-symbols-rounded is-filled" aria-hidden="true">refresh</span>
-          <span>Refresh</span>
-        </button>
-        <button class="danger-action" type="button" data-show-action="remove">
-          <span class="material-symbols-rounded is-filled" aria-hidden="true">delete</span>
-          <span>Remove</span>
-        </button>
-      </div>
-    </div>{% endif %}
   </header>
 
   <section class="hero">
@@ -68,20 +48,6 @@
 
   <section class="detail-content">
     {% if show.is_tracked %}
-    <div class="detail-action-row" role="group" aria-label="Actions">
-      <button class="detail-main-action" type="button" data-show-detail-watch
-        aria-label="Watch {{ show.name }} (coming soon)" title="Watch action coming soon" disabled>
-        <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
-        <span>WATCH</span>
-      </button>
-      <button class="queue-toggle" type="button" data-reaction-toggle="queue"
-        aria-pressed="{{ 'true' if show.watch_again else 'false' }}" aria-label="Add {{ show.name }} to Queue"
-        title="Toggle Queue">
-        <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if show.watch_again else
-          'playlist_add' }}</span>
-      </button>
-    </div>
-    <hr class="detail-region-divider" aria-hidden="true">
     {% set percent = ((show.total_watch_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
     {% set fill_percent = [percent, 100]|min %}
     <section class="detail-progress" data-progress-summary aria-label="Progress">
@@ -94,17 +60,6 @@
         <span style="width: {{ fill_percent }}%"></span>
       </div>
     </section>
-    <hr class="detail-region-divider" aria-hidden="true">
-    {% else %}
-    <div class="detail-action-row" role="group" aria-label="Actions">
-      <button class="detail-main-action" type="button" data-track-show-state="ACTIVE">
-        <span class="material-symbols-rounded" aria-hidden="true">add</span><span>ADD</span>
-      </button>
-      <button class="detail-secondary-action" type="button" data-track-show-state="ARCHIVED"
-        aria-label="Archive {{ show.name }}" title="Archive">
-        <span class="material-symbols-rounded" aria-hidden="true">archive</span>
-      </button>
-    </div>
     <hr class="detail-region-divider" aria-hidden="true">
     {% endif %}
 
@@ -128,4 +83,41 @@
     {% include '_activity_log.html' %}
 
   </section>
+  <div class="detail-bottom-actions" role="group" aria-label="Show actions">
+    <div class="detail-toolbar" style="--toolbar-items: {{ 3 if show.is_tracked else 1 }}">
+      {% if show.is_tracked %}
+      <button class="detail-toolbar-button" type="button" data-reaction-toggle="liked"
+        aria-pressed="{{ 'true' if show.liked_at else 'false' }}" aria-label="Like {{ show.name }}" title="Like">
+        <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
+      </button>
+      <button class="detail-toolbar-button" type="button" data-show-action="refresh"
+        aria-label="Refresh {{ show.name }}" title="Refresh">
+        <span class="material-symbols-rounded" aria-hidden="true">refresh</span>
+      </button>
+      <button class="detail-toolbar-button" type="button" data-show-action="move"
+        data-target-state="{{ move.target_state }}" aria-label="{{ move.label }} {{ show.name }}" title="{{ move.label }}">
+        <span class="material-symbols-rounded is-filled" aria-hidden="true">{{ move.icon }}</span>
+        <span class="sr-only" data-move-label>{{ move.label }}</span>
+      </button>
+      {% else %}
+      <button class="detail-toolbar-button" type="button" data-track-show-state="ARCHIVED"
+        aria-label="Archive {{ show.name }}" title="Archive">
+        <span class="material-symbols-rounded" aria-hidden="true">archive</span>
+      </button>
+      {% endif %}
+    </div>
+    {% if show.is_tracked %}
+    <button class="detail-fab" type="button" data-reaction-toggle="queue"
+      aria-pressed="{{ 'true' if show.watch_again else 'false' }}"
+      aria-label="{{ 'Remove ' ~ show.name ~ ' from Queue' if show.watch_again else 'Add ' ~ show.name ~ ' to Queue' }}"
+      title="Toggle Queue">
+      <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if show.watch_again else 'playlist_add' }}</span>
+    </button>
+    {% else %}
+    <button class="detail-fab" type="button" data-track-show-state="ACTIVE"
+      aria-label="Add {{ show.name }}" title="Add show">
+      <span class="material-symbols-rounded" aria-hidden="true">add</span>
+    </button>
+    {% endif %}
+  </div>
 </div>

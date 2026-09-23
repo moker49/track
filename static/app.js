@@ -220,7 +220,6 @@ let datePickerMonth = new Date();
 let datePickerView = "day";
 let pendingMovieImport = null;
 let logDatePickerTarget = null;
-let lastEpisodeDetailScrollY = 0;
 let episodeNavigationPending = false;
 let tvSearchTimer = null;
 let tvSearchRequest = null;
@@ -635,7 +634,7 @@ function showView(viewName, historyMode = null) {
 
   updateActiveNav(viewName === "detail" ? detailParentView : viewName);
   currentView = viewName;
-  if (bottomChrome) bottomChrome.hidden = false;
+  if (bottomChrome) bottomChrome.hidden = viewName === "detail";
   syncGlobalSearch();
   syncTvControlVisibility();
   if (["tv", "movies"].includes(viewName)) {
@@ -2707,7 +2706,6 @@ async function navigateAdjacentEpisode(button) {
     }, "replace");
     scrollPositions.detail = 0;
     window.scrollTo({ top: 0, behavior: "auto" });
-    lastEpisodeDetailScrollY = 0;
     renderEpisodeDetail(episodeHtml, previousWasShow, true, direction);
   } catch (_error) {
     exitAnimation?.cancel();
@@ -2748,7 +2746,6 @@ function renderEpisodeDetail(episodeHtml, previousWasShow, animate, entryDirecti
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   fitEpisodeDetailTitle(views.get("detail"));
   const mountedEpisode = views.get("detail").querySelector("[data-detail-episode]");
-  lastEpisodeDetailScrollY = window.scrollY;
   preloadAdjacentEpisodeDetails(mountedEpisode);
   animateEpisodePageEntry(views.get("detail"), entryDirection);
   finishDetailLoad();
@@ -3747,6 +3744,8 @@ async function toggleMediaReaction(button) {
     if (reaction === "queue") {
       const icon = button.querySelector(".material-symbols-rounded");
       if (icon) icon.textContent = data.selected ? "playlist_add_check" : "playlist_add";
+      const title = detail.dataset.detailTitle;
+      if (title) button.setAttribute("aria-label", `${data.selected ? "Remove" : "Add"} ${title} ${data.selected ? "from" : "to"} Queue`);
       if (!isMovie) episodeDetailCache.clear();
     }
     if (isMovie) refreshMovieDetailCache(mediaId).catch(() => undefined);
@@ -3829,6 +3828,8 @@ function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
         : TRACKING_STATE.ARCHIVED;
       moveButton.querySelector("[data-move-label]").textContent = moveLabel;
       moveButton.querySelector(".material-symbols-rounded").textContent = moveIcon;
+      moveButton.setAttribute("aria-label", `${moveLabel} ${showElement.dataset.detailTitle || showElement.querySelector("h1, h3")?.textContent || "show"}`);
+      moveButton.title = moveLabel;
     });
     syncProgressState(showElement);
   });
@@ -5453,15 +5454,6 @@ window.addEventListener("scroll", () => {
   } else if (currentView === "diary") {
     scrollPositions.diary = window.scrollY;
     scheduleVirtualTimelineRender(virtualTimelines.get("diary"));
-  }
-  const currentScrollY = window.scrollY;
-  if (currentView === "detail") {
-    const switcher = views.get("detail")?.querySelector("[data-episode-navigation]");
-    if (!switcher) return;
-    if (currentScrollY > lastEpisodeDetailScrollY) switcher.classList.add("is-scroll-hidden");
-    else if (currentScrollY < lastEpisodeDetailScrollY) switcher.classList.remove("is-scroll-hidden");
-    lastEpisodeDetailScrollY = currentScrollY;
-    return;
   }
 }, { passive: true });
 const finishInitialSearchTextPosition = () => {

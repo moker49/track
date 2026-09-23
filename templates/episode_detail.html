@@ -36,17 +36,6 @@
     </section>
 
     <section class="detail-content episode-detail-content">
-      {% if episode.show_is_tracked %}
-      <div class="detail-action-row" role="group" aria-label="Actions">
-        <button class="detail-main-action" type="button" data-episode-detail-watch
-          data-watch-count="{{ episode.watch_count }}" aria-label="Watch {{ episode.name }}">
-          <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
-          <span>WATCH</span>
-        </button>
-      </div>
-      <hr class="detail-region-divider" aria-hidden="true">
-      {% endif %}
-
       <button class="episode-show-link" type="button" data-episode-show-open data-show-id="{{ episode.show_id }}"
         aria-label="Open {{ episode.show_name }} show details">
         <span class="material-symbols-rounded" aria-hidden="true">tv</span>
@@ -62,17 +51,24 @@
     </section>
   </div>
 
-  <div class="bottom-context-switcher episode-navigation-switcher" data-episode-navigation role="group"
-    aria-label="Episode navigation">
-    <button type="button" data-adjacent-episode="previous" {% if episode.previous_episode_id
-      %}data-episode-id="{{ episode.previous_episode_id }}" {% else %}disabled{% endif %}>
-      <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
-      <span>Previous</span>
+  <div class="detail-bottom-actions" role="group" aria-label="Episode actions">
+    <div class="detail-toolbar" style="--toolbar-items: 2">
+      <button class="detail-toolbar-button" type="button" data-adjacent-episode="previous"
+        aria-label="Previous episode" title="Previous episode" {% if episode.previous_episode_id
+        %}data-episode-id="{{ episode.previous_episode_id }}" {% else %}disabled{% endif %}>
+        <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
+      </button>
+      <button class="detail-toolbar-button" type="button" data-adjacent-episode="next"
+        aria-label="Next episode" title="Next episode" {% if episode.next_episode_id
+        %}data-episode-id="{{ episode.next_episode_id }}" {% else %}disabled{% endif %}>
+        <span class="material-symbols-rounded" aria-hidden="true">chevron_right</span>
+      </button>
+    </div>
+    {% if episode.show_is_tracked %}
+    <button class="detail-fab" type="button" data-episode-detail-watch
+      data-watch-count="{{ episode.watch_count }}" aria-label="Watch {{ episode.name }}" title="Watch">
+      <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
     </button>
-    <button type="button" data-adjacent-episode="next" {% if episode.next_episode_id
-      %}data-episode-id="{{ episode.next_episode_id }}" {% else %}disabled{% endif %}>
-      <span>Next</span>
-      <span class="material-symbols-rounded" aria-hidden="true">chevron_right</span>
-    </button>
+    {% endif %}
   </div>
 </div>
