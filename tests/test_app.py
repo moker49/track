@@ -369,6 +369,24 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'Preview Actor', detail.data)
         self.assertIn(b'Full Role Name', detail.data)
 
+    def test_detail_reveals_include_dividers_and_movie_previews_use_session_cache(self):
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('staggerDetailSlices([hero, ...detailContent.children])', javascript)
+        self.assertIn('detailMovie.querySelectorAll(".detail-content > *")', javascript)
+        self.assertIn('staggerDetailSlices([episodeHero, ...episodeContent.children])', javascript)
+        self.assertIn('const previewRevealKey = `movie-preview:${card.dataset.tmdbId}`', javascript)
+        self.assertIn('const cachedPreview = moviePreviewCache.get(cacheKey)', javascript)
+        self.assertIn('renderMovieDetail(cachedPreview, false)', javascript)
+        self.assertIn(
+            'renderMovieDetail(movieHtml, !revealedViewAnimations.has(previewRevealKey))',
+            javascript,
+        )
+        self.assertIn('moviePreviewCache.set(cacheKey, movieHtml)', javascript)
+        self.assertIn('moviePreviewCache.delete(String(movieElement.dataset.tmdbId))', javascript)
+        self.assertIn('revealedViewAnimations.add(previewRevealKey)', javascript)
+
     def test_episode_watch_bar_has_no_queue_action(self):
         episode_detail = self.client.get("/api/episodes/1")
         self.assertEqual(episode_detail.status_code, 200)

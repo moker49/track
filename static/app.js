@@ -170,6 +170,7 @@ const pendingTimelineScrollRestores = new Map();
 restoreTvLayout();
 const showDetailCache = new Map();
 const movieDetailCache = new Map();
+const moviePreviewCache = new Map();
 const showDetailRefreshRequests = new Map();
 const movieDetailRefreshRequests = new Map();
 const episodeDetailRefreshRequests = new Map();
@@ -821,6 +822,7 @@ function catalogActions() {
 
 function markCatalogTracked(card, state, recordId = null) {
   card.classList.add("is-cached");
+  if (card.dataset.catalogType === "movies") moviePreviewCache.delete(String(card.dataset.tmdbId));
   if (recordId) {
     if (card.dataset.catalogType === "movies") card.dataset.movieId = recordId;
     else card.dataset.showId = recordId;
@@ -2376,7 +2378,6 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
   const hero = detailShow.querySelector(".hero");
   const detailContent = detailShow.querySelector(".detail-content");
   const seasonList = detailContent.querySelector("[data-season-list]");
-  const activity = detailContent.querySelector("[data-activity-log]");
   seasonList.innerHTML = seasonsHtml;
   seasonList.removeAttribute("aria-busy");
   (returnContext?.openSeasonIds || []).forEach((seasonId) => {
@@ -2384,13 +2385,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
     if (season) season.open = true;
   });
   if (animate) {
-    const slices = [
-      hero,
-      ...[...detailContent.children]
-        .filter((section) => section !== activity && !section.matches(".detail-region-divider")),
-      activity,
-    ];
-    staggerDetailSlices(slices);
+    staggerDetailSlices([hero, ...detailContent.children]);
   }
   views.get("detail").replaceChildren(showTemplate.content);
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
@@ -2445,7 +2440,7 @@ function renderMovieDetail(movieHtml, animate, { resetScroll = true } = {}) {
   const detailMovie = template.content.querySelector("[data-detail-movie]");
   preserveDetailDisclosure(detailMovie, "[data-cast-disclosure]");
   preserveDetailDisclosure(detailMovie, "[data-activity-log]");
-  if (animate) staggerDetailSlices([detailMovie.querySelector(".hero"), ...detailMovie.querySelectorAll(".detail-content > :not(.detail-region-divider)")]);
+  if (animate) staggerDetailSlices([detailMovie.querySelector(".hero"), ...detailMovie.querySelectorAll(".detail-content > *")]);
   views.get("detail").replaceChildren(template.content);
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   finishDetailLoad({ resetScroll });
@@ -2458,19 +2453,33 @@ async function previewCatalogMovie(card, historyMode = "push") {
     openMovie(movieId, "movies", historyMode);
     return;
   }
-  card.classList.add("is-loading");
-  card.setAttribute("aria-busy", "true");
-  card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = true; });
+  const cacheKey = String(card.dataset.tmdbId);
+  detailParentView = "movies";
   if (historyMode) {
     writeHistory({ view: "detail", detailType: "movieCatalog", tmdbId: card.dataset.tmdbId, parentView: "movies" }, historyMode);
   }
+  const cachedPreview = moviePreviewCache.get(cacheKey);
+  if (cachedPreview) {
+    if (detailRequest) detailRequest.abort();
+    detailRequest = null;
+    if (currentView !== "detail") showView("detail");
+    renderMovieDetail(cachedPreview, false);
+    return;
+  }
+  card.classList.add("is-loading");
+  card.setAttribute("aria-busy", "true");
+  card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = true; });
   prepareDetailLoad("Movie details");
   try {
     const response = await fetch(`/api/movies/tmdb/${card.dataset.tmdbId}/preview`, {
       headers: { "X-Requested-With": "Track" }, signal: detailRequest.signal,
     });
     if (!response.ok) throw new Error("Could not load movie");
-    renderMovieDetail(await response.text(), true);
+    const previewRevealKey = `movie-preview:${card.dataset.tmdbId}`;
+    const movieHtml = await response.text();
+    renderMovieDetail(movieHtml, !revealedViewAnimations.has(previewRevealKey));
+    moviePreviewCache.set(cacheKey, movieHtml);
+    revealedViewAnimations.add(previewRevealKey);
   } catch (error) {
     if (error.name !== "AbortError") showSnackbar(error.message);
     if (currentView === "detail") showView("movies", "replace");
@@ -2489,6 +2498,7 @@ async function trackDetailMovie(movieElement, trigger) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add movie");
+    moviePreviewCache.delete(String(movieElement.dataset.tmdbId));
     document.querySelectorAll(`.popular-card[data-tmdb-id="${movieElement.dataset.tmdbId}"]`)
       .forEach((card) => markCatalogTracked(card, "new", String(data.movie_id)));
     refreshScheduleForMediaChange();
@@ -2732,7 +2742,7 @@ function renderEpisodeDetail(episodeHtml, previousWasShow, animate, entryDirecti
   if (animate) {
     const episodeHero = episodeTemplate.content.querySelector(".episode-hero");
     const episodeContent = episodeTemplate.content.querySelector(".episode-detail-content");
-    staggerDetailSlices([episodeHero, ...[...episodeContent.children].filter((section) => !section.matches(".detail-region-divider"))]);
+    staggerDetailSlices([episodeHero, ...episodeContent.children]);
   }
   views.get("detail").replaceChildren(episodeTemplate.content);
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
@@ -3759,6 +3769,7 @@ async function removeMovie(movieElement, actionButton) {
     const response = await fetch(`/api/movies/${movieElement.dataset.movieId}`, { method: "DELETE" });
     if (!response.ok) throw new Error("Could not remove movie");
     movieDetailCache.delete(String(movieElement.dataset.movieId));
+    moviePreviewCache.delete(String(movieElement.dataset.tmdbId));
     await refreshMoviesContent();
     refreshScheduleForMediaChange();
     if (currentView === "detail") showView(detailParentView, "replace");
