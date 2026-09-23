@@ -2304,14 +2304,29 @@ html.navigation-drawer-closing .menu-scrim {
   gap: 8px;
 }
 
-.detail-action-row .episode-watch-action,
-.detail-action-row .detail-primary-action {
+.detail-action-row .detail-main-action {
   min-width: 0;
   min-height: 64px;
+  padding: 0 16px;
+  border: 0;
   border-radius: var(--radius-md);
   display: flex;
   flex: 1;
+  align-items: center;
   justify-content: center;
+  gap: 8px;
+  color: var(--primary);
+  background: var(--primary-mid);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.detail-main-action:focus-visible {
+  outline: 2px solid var(--on-primary);
+  outline-offset: 2px;
 }
 
 [data-show-detail-watch]:disabled {
@@ -2388,15 +2403,8 @@ html.navigation-drawer-closing .menu-scrim {
 
 .detail-content {
   display: grid;
-  gap: 20px;
-  padding: 0 16px;
-}
-
-[data-detail-show] .detail-content,
-[data-detail-movie] .detail-content,
-[data-detail-episode] .detail-content {
   gap: 10px;
-  padding-bottom: 20px;
+  padding: 0 16px 20px;
 }
 
 .detail-region-divider {
@@ -2764,34 +2772,6 @@ html.navigation-drawer-closing .menu-scrim {
   outline-offset: 2px;
 }
 
-.episode-watch-action,
-.detail-primary-action {
-  min-height: 40px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 20px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--primary);
-  background: var(--primary-mid);
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  cursor: pointer;
-}
-
-.episode-watch-action:focus-visible,
-.detail-primary-action:focus-visible {
-  outline: 2px solid var(--on-primary);
-  outline-offset: 2px;
-}
-
-.activity-icon {
-  color: var(--primary);
-}
-
 .activity-copy {
   min-width: 0;
   display: grid;
@@ -2832,7 +2812,7 @@ html.navigation-drawer-closing .menu-scrim {
   list-style: none;
 }
 
-.detail-activity-disclosure[open] .activity-list {
+[data-activity-log][open] .activity-list {
   margin-top: 8px;
 }
 
@@ -2882,6 +2862,7 @@ html.navigation-drawer-closing .menu-scrim {
 }
 
 .activity-icon {
+  color: var(--primary);
   font-size: 22px;
 }
 
@@ -3282,56 +3263,6 @@ html.navigation-drawer-closing .menu-scrim {
 
 .date-picker-actions button:disabled {
   opacity: 0.5;
-}
-
-.md-button-group {
-  width: 100%;
-  display: grid;
-  gap: 4px;
-}
-
-.md-button-group button {
-  width: 100%;
-  min-width: 0;
-  min-height: 48px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  color: var(--on-surface);
-  background: var(--primary-light);
-  font-size: clamp(0.69rem, 3vw, 0.82rem);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.md-button-group button:first-child {
-  border-start-start-radius: 24px;
-  border-end-start-radius: 24px;
-}
-
-.md-button-group button:last-child {
-  border-start-end-radius: 24px;
-  border-end-end-radius: 24px;
-}
-
-.md-button-group button>.material-symbols-rounded {
-  display: none;
-  flex: 0 0 auto;
-  font-size: 17px;
-}
-
-.md-button-group button[aria-pressed="true"] {
-  border-radius: 24px;
-  color: var(--on-primary);
-  background: var(--primary);
-}
-
-.md-button-group button[aria-pressed="true"]>.material-symbols-rounded {
-  display: inline-block;
 }
 
 .app-bar-search {

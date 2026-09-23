@@ -1,54 +1,52 @@
-<details class="detail-activity-disclosure detail-section-disclosure" data-activity-log>
+<details class="detail-section-disclosure" data-activity-log>
   <summary>
-    <span class="detail-section-label">{{ activity_title }} <span>· <span data-activity-count>{{ activity_items|length }}</span></span></span>
+    <span class="detail-section-label">Activity <span>· <span data-activity-count>{{ activity_items|length }}</span></span></span>
     <span class="material-symbols-rounded detail-section-chevron" aria-hidden="true">expand_more</span>
   </summary>
-    <ol class="activity-list" data-activity-list>
-      {% for item in activity_items %}
-      {% set event_type = item.event_type if activity_mode in ['show', 'movie'] or item.event_type is defined else
-      'watched' %}
-      {% set event_title = item.title if activity_mode in ['show', 'movie'] or item.title is defined else 'Watched' %}
-      {% set event_time = item.occurred_at if activity_mode in ['show', 'movie'] else item.display_date %}
-      {% set sort_time = item.sort_at if item.sort_at is defined else event_time %}
-      {% set record_id = item.watch_record_id %}
-      {% set watch_kind = item.watch_kind if activity_mode in ['show', 'movie'] or item.watch_kind is defined else
-      'episode' %}
-      {% set added_at = item.watch_added_at if activity_mode in ['show', 'movie'] else item.added_at %}
-      {% set diary_date = item.diary_date %}
-      <li class="activity-item" data-activity-type="{{ event_type }}" data-sort-date="{{ sort_time }}" {% if
-        activity_mode=='show' and item.season_id %} data-season-id="{{ item.season_id }}" {% endif %}{% if record_id %}
-        data-watch-record-id="{{ record_id }}" data-watch-kind="{{ watch_kind }}" data-added-at="{{ added_at }}"
-        data-diary-date="{{ diary_date or '' }}" {% endif %}>
-        {% if record_id %}<button class="activity-item-button" type="button" data-watch-log-menu-button
-          aria-label="Edit {{ event_title }}">{% endif %}
-          <span class="material-symbols-rounded is-filled activity-icon" aria-hidden="true">
-            {%- if event_type == 'added' -%}add_circle
-            {%- elif event_type == 'added_archive' -%}archive
-            {%- elif event_type == 'archived' -%}archive
-            {%- elif event_type == 'activated' -%}resume
-            {%- elif event_type == 'season_watched' -%}done_all
-            {%- elif event_type in ['skipped', 'season_skipped'] -%}skip_next
-            {%- else -%}visibility
-            {%- endif -%}
-            </span>
-            <span class="activity-copy">
-            <strong>{{ event_title }}</strong>
-            <span class="activity-date-row">
-              {% if record_id and not diary_date %}<span class="activity-undated-label">No date</span>
-              {% else %}<time datetime="{{ event_time }}" data-display-date>{{ event_time[:10] }}</time>{% endif %}
-            </span>
-          </span>
-          {% if record_id %}<span class="material-symbols-rounded activity-edit-icon"
-            aria-hidden="true">more_vert</span></button>{% endif %}
-        {% if record_id %}<div class="show-menu" data-watch-log-menu popover="manual" hidden>
-          <button type="button" data-watch-log-set-date><span class="material-symbols-rounded"
-              aria-hidden="true">edit_calendar</span><span>Edit</span></button>
-          <button type="button" data-watch-log-remove><span class="material-symbols-rounded"
-              aria-hidden="true">delete</span><span>Remove</span></button>
-        </div>{% endif %}
-      </li>
-      {% else %}
-      <li class="activity-empty" data-activity-empty>{{ activity_empty }}</li>
-      {% endfor %}
-    </ol>
+  <ol class="activity-list" data-activity-list>
+    {% for item in activity_items %}
+    {% set event_type = item.event_type %}
+    {% set event_title = item.title %}
+    {% set event_time = item.occurred_at if activity_mode in ['show', 'movie'] else item.display_date %}
+    {% set sort_time = item.sort_at if item.sort_at is defined else event_time %}
+    {% set record_id = item.watch_record_id %}
+    {% set watch_kind = item.watch_kind %}
+    {% set added_at = item.watch_added_at if activity_mode in ['show', 'movie'] else item.added_at %}
+    {% set diary_date = item.diary_date %}
+    <li class="activity-item" data-activity-type="{{ event_type }}" data-sort-date="{{ sort_time }}" {% if
+      activity_mode=='show' and item.season_id %} data-season-id="{{ item.season_id }}" {% endif %}{% if record_id %}
+      data-watch-record-id="{{ record_id }}" data-watch-kind="{{ watch_kind }}" data-added-at="{{ added_at }}"
+      data-diary-date="{{ diary_date or '' }}" {% endif %}>
+      {% if record_id %}<button class="activity-item-button" type="button" data-watch-log-menu-button
+        aria-label="Edit {{ event_title }}">{% endif %}
+      <span class="material-symbols-rounded is-filled activity-icon" aria-hidden="true">
+        {%- if event_type == 'added' -%}add_circle
+        {%- elif event_type == 'added_archive' -%}archive
+        {%- elif event_type == 'archived' -%}archive
+        {%- elif event_type == 'activated' -%}resume
+        {%- elif event_type == 'season_watched' -%}done_all
+        {%- elif event_type in ['skipped', 'season_skipped'] -%}skip_next
+        {%- else -%}visibility
+        {%- endif -%}
+      </span>
+      <span class="activity-copy">
+        <strong>{{ event_title }}</strong>
+        <span class="activity-date-row">
+          {% if record_id and not diary_date %}<span class="activity-undated-label">No date</span>
+          {% else %}<time datetime="{{ event_time }}" data-display-date>{{ event_time[:10] }}</time>{% endif %}
+        </span>
+      </span>
+      {% if record_id %}<span class="material-symbols-rounded activity-edit-icon"
+        aria-hidden="true">more_vert</span></button>{% endif %}
+      {% if record_id %}<div class="show-menu" data-watch-log-menu popover="manual" hidden>
+        <button type="button" data-watch-log-set-date><span class="material-symbols-rounded"
+            aria-hidden="true">edit_calendar</span><span>Edit</span></button>
+        <button type="button" data-watch-log-remove><span class="material-symbols-rounded"
+            aria-hidden="true">delete</span><span>Remove</span></button>
+      </div>{% endif %}
+    </li>
+    {% else %}
+    <li class="activity-empty" data-activity-empty>{{ activity_empty }}</li>
+    {% endfor %}
+  </ol>
 </details>

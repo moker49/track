@@ -38,7 +38,7 @@
     <section class="detail-content episode-detail-content">
       {% if episode.show_is_tracked %}
       <div class="detail-action-row" role="group" aria-label="Actions">
-        <button class="episode-watch-action" type="button" data-episode-detail-watch
+        <button class="detail-main-action" type="button" data-episode-detail-watch
           data-watch-count="{{ episode.watch_count }}" aria-label="Watch {{ episode.name }}">
           <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
           <span>WATCH</span>
@@ -55,7 +55,6 @@
       </button>
       <hr class="detail-region-divider" aria-hidden="true" data-episode-show-divider>
 
-      {% set activity_title = 'Activity' %}
       {% set activity_items = watch_log %}
       {% set activity_mode = 'episode' %}
       {% set activity_empty = 'This episode has not been watched yet.' %}

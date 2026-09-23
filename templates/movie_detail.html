@@ -58,7 +58,7 @@
   <section class="detail-content">
     {% if movie.is_tracked %}
     <div class="detail-action-row" role="group" aria-label="Actions">
-      <button class="episode-watch-action" type="button" data-movie-detail-watch
+      <button class="detail-main-action" type="button" data-movie-detail-watch
         data-watch-count="{{ movie.watch_count }}" aria-label="Watch {{ movie.title }}">
         <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
         <span>WATCH</span>
@@ -72,7 +72,7 @@
     </div>
     {% else %}
     <div class="detail-action-row" role="group" aria-label="Actions">
-      <button class="detail-primary-action" type="button" data-track-movie-action="new">
+      <button class="detail-main-action" type="button" data-add-movie-action>
         <span class="material-symbols-rounded" aria-hidden="true">add</span><span>ADD</span>
       </button>
     </div>
@@ -84,7 +84,6 @@
     <hr class="detail-region-divider" aria-hidden="true">
     {% endif %}
 
-    {% set activity_title = 'Activity' %}
     {% set activity_items = activity %}
     {% set activity_mode = 'movie' %}
     {% set activity_empty = 'This movie has not been watched yet.' %}

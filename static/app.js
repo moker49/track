@@ -1748,34 +1748,26 @@ function finishDetailLoad({ resetScroll = true } = {}) {
   if (resetScroll) window.scrollTo({ top: 0, behavior: "auto" });
 }
 
-function preserveCastDisclosure(nextDetail) {
-  const mediaId = nextDetail.dataset.showId || nextDetail.dataset.movieId;
-  const selector = nextDetail.matches("[data-detail-show]")
-    ? `[data-detail-show][data-show-id="${mediaId}"]`
-    : `[data-detail-movie][data-movie-id="${mediaId}"]`;
-  if (views.get("detail").querySelector(`${selector} [data-cast-disclosure][open]`)) {
-    const nextDisclosure = nextDetail.querySelector("[data-cast-disclosure]");
-    if (nextDisclosure) nextDisclosure.open = true;
-  }
-}
-
-function preserveActivityDisclosure(nextDetail) {
+function matchingCurrentDetail(nextDetail) {
   const mediaType = nextDetail.matches("[data-detail-show]") ? "show"
     : nextDetail.matches("[data-detail-movie]") ? "movie" : "episode";
-  const mediaId = nextDetail.dataset[`${mediaType}Id`];
-  const selector = `[data-detail-${mediaType}][data-${mediaType}-id="${mediaId}"]`;
-  if (views.get("detail").querySelector(`${selector} [data-activity-log][open]`)) {
-    const nextDisclosure = nextDetail.querySelector("[data-activity-log]");
-    if (nextDisclosure) nextDisclosure.open = true;
+  const currentDetail = views.get("detail").querySelector(`[data-detail-${mediaType}]`);
+  if (!currentDetail || currentDetail.dataset[`${mediaType}Id`] !== nextDetail.dataset[`${mediaType}Id`]) return null;
+  if (mediaType === "movie" && !nextDetail.dataset.movieId
+    && currentDetail.dataset.tmdbId !== nextDetail.dataset.tmdbId) return null;
+  return currentDetail;
+}
+
+function preserveDetailDisclosure(nextDetail, selector) {
+  if (matchingCurrentDetail(nextDetail)?.querySelector(selector)?.open) {
+    nextDetail.querySelector(selector)?.setAttribute("open", "");
   }
 }
 
 function preserveSeasonsDisclosure(nextDetail, context = null) {
   const nextDisclosure = nextDetail.querySelector("[data-seasons-disclosure]");
   if (!nextDisclosure) return;
-  const currentDisclosure = views.get("detail").querySelector(
-    `[data-detail-show][data-show-id="${nextDetail.dataset.showId}"] [data-seasons-disclosure]`,
-  );
+  const currentDisclosure = matchingCurrentDetail(nextDetail)?.querySelector("[data-seasons-disclosure]");
   if (currentDisclosure?.open
     || (!currentDisclosure && (context?.seasonsExpanded ?? Boolean(context?.openSeasonIds?.length)))) {
     nextDisclosure.open = true;
@@ -1807,12 +1799,12 @@ function refreshShowDetailCache(showId) {
   const request = Promise.all([
     fetch(`/api/shows/${showId}`, { headers: { "X-Requested-With": "Track" } }),
     fetch(`/api/shows/${showId}/seasons`, { headers: { "X-Requested-With": "Track" } }),
-  ]).then(async ([overviewResponse, seasonsResponse]) => {
-    if (!overviewResponse.ok || !seasonsResponse.ok) throw new Error("Could not refresh show");
-    const [overviewHtml, seasonsHtml] = await Promise.all([overviewResponse.text(), seasonsResponse.text()]);
-    showDetailCache.set(cacheKey, overviewHtml);
+  ]).then(async ([showResponse, seasonsResponse]) => {
+    if (!showResponse.ok || !seasonsResponse.ok) throw new Error("Could not refresh show");
+    const [showHtml, seasonsHtml] = await Promise.all([showResponse.text(), seasonsResponse.text()]);
+    showDetailCache.set(cacheKey, showHtml);
     showSeasonsCache.set(cacheKey, seasonsHtml);
-    return { overviewHtml, seasonsHtml };
+    return { showHtml, seasonsHtml };
   }).finally(() => {
     showDetailRefreshRequests.delete(cacheKey);
   });
@@ -2145,11 +2137,11 @@ function replaceLibraryCard(showId, cardHtml) {
 }
 
 async function fetchRefreshedShowFragments(showId) {
-  const overviewResponse = await fetch(`/api/shows/${showId}`, {
+  const showResponse = await fetch(`/api/shows/${showId}`, {
     headers: { "X-Requested-With": "Track" },
   });
-  if (!overviewResponse.ok) throw new Error("Could not load refreshed show");
-  const overviewHtml = await overviewResponse.text();
+  if (!showResponse.ok) throw new Error("Could not load refreshed show");
+  const showHtml = await showResponse.text();
 
   const seasonsResponse = await fetch(`/api/shows/${showId}/seasons`, {
     headers: { "X-Requested-With": "Track" },
@@ -2158,7 +2150,7 @@ async function fetchRefreshedShowFragments(showId) {
   const seasonsHtml = await seasonsResponse.text();
 
   const cacheKey = String(showId);
-  showDetailCache.set(cacheKey, overviewHtml);
+  showDetailCache.set(cacheKey, showHtml);
   showSeasonsCache.set(cacheKey, seasonsHtml);
   clearSeasonEpisodeCaches();
 
@@ -2172,10 +2164,10 @@ async function fetchRefreshedShowFragments(showId) {
   const detailScrollY = window.scrollY;
 
   const template = document.createElement("template");
-  template.innerHTML = overviewHtml.trim();
+  template.innerHTML = showHtml.trim();
   const nextShow = template.content.querySelector("[data-detail-show]");
-  preserveCastDisclosure(nextShow);
-  preserveActivityDisclosure(nextShow);
+  preserveDetailDisclosure(nextShow, "[data-cast-disclosure]");
+  preserveDetailDisclosure(nextShow, "[data-activity-log]");
   preserveSeasonsDisclosure(nextShow);
   const nextSeasonList = template.content.querySelector("[data-season-list]");
   nextSeasonList.innerHTML = seasonsHtml;
@@ -2212,11 +2204,11 @@ async function refreshShowMetadata(showId, { force = false, trigger = null } = {
       await fetchRefreshedShowFragments(showId);
       replaceLibraryCard(showId, data.card_html);
     } else {
-      const cachedOverview = showDetailCache.get(cacheKey);
-      if (cachedOverview) {
+      const cachedShow = showDetailCache.get(cacheKey);
+      if (cachedShow) {
         showDetailCache.set(
           cacheKey,
-          cachedOverview.replace('data-metadata-refresh-due="true"', 'data-metadata-refresh-due="false"'),
+          cachedShow.replace('data-metadata-refresh-due="true"', 'data-metadata-refresh-due="false"'),
         );
       }
       const currentShow = views.get("detail")
@@ -2317,13 +2309,13 @@ async function openShow(
       // A failed background refresh leaves the last known cache available.
     }
   }
-  const cachedOverview = showDetailCache.get(cacheKey);
+  const cachedShow = showDetailCache.get(cacheKey);
   const cachedSeasons = showSeasonsCache.get(cacheKey);
-  if (cachedOverview && cachedSeasons) {
+  if (cachedShow && cachedSeasons) {
     if (detailRequest) detailRequest.abort();
     detailRequest = null;
     if (currentView !== "detail") showView("detail");
-    renderShowDetail(cachedOverview, cachedSeasons, false, returnContext);
+    renderShowDetail(cachedShow, cachedSeasons, false, returnContext);
     refreshShowIfDue(showId);
     return;
   }
@@ -2344,17 +2336,17 @@ async function openShow(
       if (!response.ok) throw new Error(errorMessage);
       return response.text();
     };
-    const [overviewHtml, seasonsHtml] = await Promise.all([
-      cachedOverview
-        ? Promise.resolve(cachedOverview)
+    const [showHtml, seasonsHtml] = await Promise.all([
+      cachedShow
+        ? Promise.resolve(cachedShow)
         : fetchFragment(`/api/shows/${showId}`, "Could not load show"),
       cachedSeasons
         ? Promise.resolve(cachedSeasons)
         : fetchFragment(`/api/shows/${showId}/seasons`, "Could not load seasons"),
     ]);
-    showDetailCache.set(cacheKey, overviewHtml);
+    showDetailCache.set(cacheKey, showHtml);
     showSeasonsCache.set(cacheKey, seasonsHtml);
-    renderShowDetail(overviewHtml, seasonsHtml, true, returnContext);
+    renderShowDetail(showHtml, seasonsHtml, true, returnContext);
     refreshShowIfDue(showId);
   } catch (error) {
     if (error.name === "AbortError") return;
@@ -2378,8 +2370,8 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
   const showTemplate = document.createElement("template");
   showTemplate.innerHTML = showHtml;
   const detailShow = showTemplate.content.querySelector("[data-detail-show]");
-  preserveCastDisclosure(detailShow);
-  preserveActivityDisclosure(detailShow);
+  preserveDetailDisclosure(detailShow, "[data-cast-disclosure]");
+  preserveDetailDisclosure(detailShow, "[data-activity-log]");
   preserveSeasonsDisclosure(detailShow, returnContext);
   const hero = detailShow.querySelector(".hero");
   const detailContent = detailShow.querySelector(".detail-content");
@@ -2451,8 +2443,8 @@ function renderMovieDetail(movieHtml, animate, { resetScroll = true } = {}) {
   const template = document.createElement("template");
   template.innerHTML = movieHtml;
   const detailMovie = template.content.querySelector("[data-detail-movie]");
-  preserveCastDisclosure(detailMovie);
-  preserveActivityDisclosure(detailMovie);
+  preserveDetailDisclosure(detailMovie, "[data-cast-disclosure]");
+  preserveDetailDisclosure(detailMovie, "[data-activity-log]");
   if (animate) staggerDetailSlices([detailMovie.querySelector(".hero"), ...detailMovie.querySelectorAll(".detail-content > :not(.detail-region-divider)")]);
   views.get("detail").replaceChildren(template.content);
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
@@ -2732,7 +2724,7 @@ function renderEpisodeDetail(episodeHtml, previousWasShow, animate, entryDirecti
   const episodeTemplate = document.createElement("template");
   episodeTemplate.innerHTML = episodeHtml;
   const detailEpisode = episodeTemplate.content.querySelector("[data-detail-episode]");
-  preserveActivityDisclosure(detailEpisode);
+  preserveDetailDisclosure(detailEpisode, "[data-activity-log]");
   if (previousWasShow) {
     episodeTemplate.content.querySelector("[data-episode-show-open]")?.remove();
     episodeTemplate.content.querySelector("[data-episode-show-divider]")?.remove();
@@ -4213,11 +4205,11 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const trackMovieButton = event.target.closest("[data-track-movie-action]");
-  if (trackMovieButton) {
+  const addMovieButton = event.target.closest("[data-add-movie-action]");
+  if (addMovieButton) {
     trackDetailMovie(
-      trackMovieButton.closest("[data-detail-movie]"),
-      trackMovieButton,
+      addMovieButton.closest("[data-detail-movie]"),
+      addMovieButton,
     );
     return;
   }
