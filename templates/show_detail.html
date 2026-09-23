@@ -84,7 +84,7 @@
 
   </section>
   <div class="detail-bottom-actions" role="group" aria-label="Show actions">
-    <div class="detail-toolbar" style="--toolbar-items: {{ 3 if show.is_tracked else 1 }}">
+    <div class="detail-toolbar{% if not show.is_tracked %} detail-toolbar--labeled{% endif %}"{% if show.is_tracked %} style="--toolbar-items: 3"{% endif %}>
       {% if show.is_tracked %}
       <button class="detail-toolbar-button" type="button" data-reaction-toggle="liked"
         aria-pressed="{{ 'true' if show.liked_at else 'false' }}" aria-label="Like {{ show.name }}" title="Like">
@@ -100,9 +100,10 @@
         <span class="sr-only" data-move-label>{{ move.label }}</span>
       </button>
       {% else %}
-      <button class="detail-toolbar-button" type="button" data-track-show-state="ARCHIVED"
+      <button class="detail-toolbar-button detail-toolbar-button--labeled" type="button" data-track-show-state="ARCHIVED"
         aria-label="Archive {{ show.name }}" title="Archive">
         <span class="material-symbols-rounded" aria-hidden="true">archive</span>
+        <span>Archive</span>
       </button>
       {% endif %}
     </div>

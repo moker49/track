@@ -1788,49 +1788,62 @@ html.app-booting .schedule-empty-reveal {
   position: fixed;
   z-index: 19;
   left: 50%;
-  bottom: calc(12px + env(safe-area-inset-bottom));
+  bottom: calc(16px + env(safe-area-inset-bottom));
   width: min(calc(100% - 32px), 488px);
   min-height: 64px;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
 }
 
-.detail-bottom-actions:has(.detail-toolbar) {
+.detail-bottom-actions:not(:has(.detail-fab)) {
   justify-content: center;
 }
 
 .detail-toolbar {
   min-width: 0;
-  width: calc(var(--toolbar-items) * 56px + 8px);
+  width: calc(var(--toolbar-items) * 48px + 16px);
   height: 64px;
-  padding: 4px;
+  padding: 8px;
   display: flex;
   flex: 0 1 auto;
   border-radius: 32px;
-  background: var(--primary-light);
-  box-shadow: 0 4px 18px var(--shadow);
+  background: var(--surface-card);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.detail-toolbar--labeled {
+  width: auto;
 }
 
 .detail-toolbar-button {
   min-width: 0;
-  height: 56px;
+  height: 48px;
   padding: 0;
   border: 0;
-  border-radius: 28px;
+  border-radius: 24px;
   display: grid;
-  flex: 1 1 56px;
+  flex: 1 1 48px;
   place-items: center;
   color: var(--primary);
   background: transparent;
   cursor: pointer;
 }
 
+.detail-toolbar-button--labeled {
+  width: auto;
+  padding-inline: 12px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 .detail-toolbar-button[aria-pressed="true"] {
-  color: var(--on-primary);
-  background: var(--primary);
+  background: color-mix(in srgb, var(--primary) 18%, var(--surface-card));
 }
 
 .detail-toolbar-button[aria-pressed="true"] .material-symbols-rounded {
@@ -1843,26 +1856,26 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .detail-fab {
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   padding: 0;
   border: 0;
-  border-radius: 24px;
+  border-radius: 16px;
   display: grid;
-  flex: 0 0 64px;
+  flex: 0 0 56px;
   place-items: center;
   color: var(--on-primary);
-  background: hsl(302 95% 82%);
-  box-shadow: 0 4px 18px var(--shadow);
+  background: var(--primary);
+  box-shadow: 0 3px 10px var(--shadow);
   cursor: pointer;
 }
 
-.detail-fab[aria-pressed="true"] {
-  background: var(--primary);
+.detail-fab[aria-pressed="true"] .material-symbols-rounded {
+  font-family: "Material Symbols Rounded Filled";
 }
 
 .detail-fab .material-symbols-rounded {
-  font-size: 30px;
+  font-size: 24px;
 }
 
 .detail-toolbar-button:focus-visible,
@@ -4127,7 +4140,7 @@ html.app-booting .tv-slice-reveal {
   }
 
   .detail-bottom-actions {
-    bottom: calc(36px + env(safe-area-inset-bottom));
+    bottom: calc(40px + env(safe-area-inset-bottom));
   }
 
 }
