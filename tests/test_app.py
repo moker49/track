@@ -339,6 +339,11 @@ class TrackAppTest(unittest.TestCase):
         detail = self.client.get("/api/movies/1")
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.data.count(b"cast-rail-item"), 20)
+        self.assertIn(b'<details class="detail-cast-disclosure" data-cast-disclosure>', detail.data)
+        self.assertIn(b'Cast <span>\xc2\xb7 20</span>', detail.data)
+        self.assertEqual(detail.data.count(b'class="cast-avatar'), 4)
+        self.assertLess(detail.data.index(b'queue-control-row'), detail.data.index(b'data-cast-disclosure'))
+        self.assertLess(detail.data.index(b'data-cast-disclosure'), detail.data.index(b'data-activity-log'))
         self.assertIn(b"Actor One", detail.data)
         self.assertEqual(client.credits_calls, 1)
 
@@ -354,6 +359,7 @@ class TrackAppTest(unittest.TestCase):
         detail = self.client.get("/api/movies/tmdb/123456/preview")
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b'detail-cast-rail', detail.data)
+        self.assertNotIn(b'detail-cast-disclosure', detail.data)
         self.assertIn(b'Preview Actor', detail.data)
         self.assertIn(b'Full Role Name', detail.data)
 
@@ -1165,6 +1171,10 @@ class TrackAppTest(unittest.TestCase):
         connection.close()
         with_cast = self.client.get("/api/shows/1")
         self.assertIn(b'detail-cast-rail', with_cast.data)
+        self.assertIn(b'<details class="detail-cast-disclosure" data-cast-disclosure>', with_cast.data)
+        self.assertIn(b'Cast <span>\xc2\xb7 1</span>', with_cast.data)
+        self.assertLess(with_cast.data.index(b'queue-control-row'), with_cast.data.index(b'data-cast-disclosure'))
+        self.assertLess(with_cast.data.index(b'data-cast-disclosure'), with_cast.data.index(b'data-season-list'))
         self.assertIn(b'Show Actor', with_cast.data)
         self.assertIn(b'The Main Character', with_cast.data)
 

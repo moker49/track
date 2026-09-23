@@ -67,9 +67,10 @@
   </section>
 
   <section class="detail-content">
-    {% if cast %}<section class="detail-cast-rail" aria-label="Cast">
-      {% include '_cast_rail_content.html' %}
-    </section>{% endif %}
+    {% if cast and not show.is_tracked %}
+    {% set cast_collapsed = false %}
+    {% include '_cast_region.html' %}
+    {% endif %}
 
     {% if show.is_tracked %}
     {% set percent = ((show.total_watch_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
@@ -103,6 +104,11 @@
         <span>Archive</span>
       </button>
     </div>
+    {% endif %}
+
+    {% if cast and show.is_tracked %}
+    {% set cast_collapsed = true %}
+    {% include '_cast_region.html' %}
     {% endif %}
 
     <div class="season-list" data-season-list data-show-id="{{ show.id }}" aria-busy="true"></div>

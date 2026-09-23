@@ -1295,6 +1295,90 @@ html.app-booting .schedule-empty-reveal {
   min-width: 0;
 }
 
+.detail-cast-disclosure {
+  min-width: 0;
+}
+
+.detail-cast-disclosure summary {
+  min-height: 54px;
+  padding: 8px 0;
+  border-top: 1px solid var(--outline-soft);
+  border-bottom: 1px solid var(--outline-soft);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.detail-cast-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.detail-cast-disclosure summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.cast-disclosure-label {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.cast-disclosure-label span {
+  color: var(--on-surface-muted);
+  font-weight: 400;
+}
+
+.cast-avatar-stack {
+  padding-left: 7px;
+  display: flex;
+  flex: none;
+}
+
+.cast-avatar {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  flex: 0 0 28px;
+  place-items: center;
+  color: var(--primary);
+  background: var(--primary-light);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.cast-avatar + .cast-avatar {
+  margin-left: -7px;
+}
+
+.cast-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 40%;
+}
+
+.cast-disclosure-chevron {
+  color: var(--on-surface-muted);
+  transition: transform 180ms ease;
+}
+
+.detail-cast-disclosure[open] .cast-disclosure-chevron {
+  transform: rotate(180deg);
+}
+
+.detail-cast-disclosure .detail-cast-rail {
+  padding-top: 16px;
+}
+
 .cast-rail {
   display: flex;
   gap: 10px;

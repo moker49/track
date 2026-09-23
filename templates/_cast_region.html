@@ -1,0 +1,22 @@
+{% if cast_collapsed %}
+<details class="detail-cast-disclosure" data-cast-disclosure>
+  <summary>
+    <span class="cast-disclosure-label">Cast <span>· {{ cast|length }}</span></span>
+    <span class="cast-avatar-stack" aria-hidden="true">
+      {% for actor in cast[:3] %}
+      <span class="cast-avatar{% if actor.profile_path %} has-media-image{% endif %}">
+        {% if actor.profile_path %}<img src="{{ url_for('cached_tmdb_image', image_type='profile', size='w185', tmdb_path=actor.profile_path[1:]) }}" alt="" loading="lazy" decoding="async" data-media-image><template data-media-fallback-template><span>{{ actor.name[:1]|upper }}</span></template>{% else %}<span>{{ actor.name[:1]|upper }}</span>{% endif %}
+      </span>
+      {% endfor %}
+    </span>
+    <span class="material-symbols-rounded cast-disclosure-chevron" aria-hidden="true">expand_more</span>
+  </summary>
+  <div class="detail-cast-rail" aria-label="Cast">
+    {% include '_cast_rail_content.html' %}
+  </div>
+</details>
+{% else %}
+<section class="detail-cast-rail" aria-label="Cast">
+  {% include '_cast_rail_content.html' %}
+</section>
+{% endif %}

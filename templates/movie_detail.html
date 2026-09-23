@@ -56,9 +56,10 @@
   </section>
 
   <section class="detail-content">
-    {% if cast %}<section class="detail-cast-rail" aria-label="Cast">
-      {% include '_cast_rail_content.html' %}
-    </section>{% endif %}
+    {% if cast and not movie.is_tracked %}
+    {% set cast_collapsed = false %}
+    {% include '_cast_region.html' %}
+    {% endif %}
     {% if movie.is_tracked %}
     <div class="queue-control-row">
       <div class="episode-watch-summary-wrap">
@@ -82,6 +83,10 @@
           'playlist_add' }}</span>
       </button>
     </div>
+    {% if cast %}
+    {% set cast_collapsed = true %}
+    {% include '_cast_region.html' %}
+    {% endif %}
     {% set activity_title = 'Activity' %}
     {% set activity_items = activity %}
     {% set activity_mode = 'movie' %}

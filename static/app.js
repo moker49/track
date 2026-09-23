@@ -1762,6 +1762,17 @@ function finishDetailLoad({ resetScroll = true } = {}) {
   if (resetScroll) window.scrollTo({ top: 0, behavior: "auto" });
 }
 
+function preserveCastDisclosure(nextDetail) {
+  const mediaId = nextDetail.dataset.showId || nextDetail.dataset.movieId;
+  const selector = nextDetail.matches("[data-detail-show]")
+    ? `[data-detail-show][data-show-id="${mediaId}"]`
+    : `[data-detail-movie][data-movie-id="${mediaId}"]`;
+  if (views.get("detail").querySelector(`${selector} [data-cast-disclosure][open]`)) {
+    const nextDisclosure = nextDetail.querySelector("[data-cast-disclosure]");
+    if (nextDisclosure) nextDisclosure.open = true;
+  }
+}
+
 function invalidateShowCache(showId, includeSeasons = false) {
   showDetailCache.delete(String(showId));
   if (includeSeasons) {
@@ -2153,6 +2164,7 @@ async function fetchRefreshedShowFragments(showId) {
 
   const template = document.createElement("template");
   template.innerHTML = overviewHtml.trim();
+  preserveCastDisclosure(template.content.querySelector("[data-detail-show]"));
   const nextSeasonList = template.content.querySelector("[data-season-list]");
   nextSeasonList.innerHTML = seasonsHtml;
   nextSeasonList.removeAttribute("aria-busy");
@@ -2353,6 +2365,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
   const showTemplate = document.createElement("template");
   showTemplate.innerHTML = showHtml;
   const detailShow = showTemplate.content.querySelector("[data-detail-show]");
+  preserveCastDisclosure(detailShow);
   const hero = detailShow.querySelector(".hero");
   const detailContent = detailShow.querySelector(".detail-content");
   const seasonList = detailContent.querySelector("[data-season-list]");
@@ -2425,6 +2438,7 @@ function renderMovieDetail(movieHtml, animate, { resetScroll = true } = {}) {
   const template = document.createElement("template");
   template.innerHTML = movieHtml;
   const detailMovie = template.content.querySelector("[data-detail-movie]");
+  preserveCastDisclosure(detailMovie);
   if (animate) staggerDetailSlices([detailMovie.querySelector(".hero"), ...detailMovie.querySelectorAll(".detail-content > *")]);
   views.get("detail").replaceChildren(template.content);
   syncOverviewDisclosures(views.get("detail"));
