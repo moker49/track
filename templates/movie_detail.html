@@ -11,10 +11,6 @@
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
     <span class="detail-app-bar-title">Movie details</span>
-    {% if movie.is_tracked %}<button class="icon-button detail-delete-action" type="button"
-      data-movie-action="remove" aria-label="Remove {{ movie.title }}" title="Remove movie">
-      <span class="material-symbols-rounded" aria-hidden="true">delete</span>
-    </button>{% endif %}
   </header>
 
   <section class="hero">
@@ -51,32 +47,53 @@
     {% include '_activity_log.html' %}
 
   </section>
-  <div class="detail-bottom-actions" role="group" aria-label="Movie actions">
-    {% if movie.is_tracked %}
-    <div class="detail-toolbar" style="--toolbar-items: 3">
-      <button class="detail-toolbar-button" type="button" data-reaction-toggle="liked"
+  <div class="detail-docked-toolbar" role="group" aria-label="Movie actions">
+    <div class="detail-docked-start">
+      {% if movie.is_tracked %}
+      <button class="detail-docked-button" type="button" data-reaction-toggle="liked"
         aria-pressed="{{ 'true' if movie.liked_at else 'false' }}" aria-label="Like {{ movie.title }}" title="Like">
         <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
       </button>
-      <button class="detail-toolbar-button" type="button" data-reaction-toggle="queue"
+      <button class="detail-docked-button" type="button" data-reaction-toggle="queue"
         aria-pressed="{{ 'true' if movie.watch_again else 'false' }}"
         aria-label="{{ 'Remove ' ~ movie.title ~ ' from Queue' if movie.watch_again else 'Add ' ~ movie.title ~ ' to Queue' }}"
         title="Toggle Queue">
         <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if movie.watch_again else 'playlist_add' }}</span>
       </button>
-      <button class="detail-toolbar-button" type="button" data-movie-action="refresh"
+      {% else %}
+      <button class="detail-docked-button" type="button" data-add-movie-action
+        aria-label="Add {{ movie.title }}" title="Add movie">
+        <span class="material-symbols-rounded" aria-hidden="true">add</span>
+      </button>
+      {% endif %}
+    </div>
+    <div class="detail-docked-center">
+      {% if movie.is_tracked %}
+      <button class="detail-docked-primary" type="button" data-movie-detail-watch
+        data-watch-count="{{ movie.watch_count }}" aria-label="Watch {{ movie.title }}" title="Watch">
+        <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
+      </button>
+      {% endif %}
+    </div>
+    <div class="detail-docked-end">
+      {% if movie.is_tracked %}
+      <button class="detail-docked-button" type="button" data-movie-action="refresh"
         aria-label="Refresh {{ movie.title }}" title="Refresh">
         <span class="material-symbols-rounded" aria-hidden="true">refresh</span>
       </button>
+      <div class="menu-anchor detail-overflow-anchor">
+        <button class="detail-docked-button" type="button" data-movie-menu-button
+          aria-label="More options for {{ movie.title }}" aria-expanded="false" title="More options">
+          <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
+        </button>
+        <div class="show-menu" data-movie-menu popover="manual" hidden>
+          <button class="danger-action" type="button" data-movie-action="remove">
+            <span class="material-symbols-rounded is-filled" aria-hidden="true">delete</span>
+            <span>Remove</span>
+          </button>
+        </div>
+      </div>
+      {% endif %}
     </div>
-    <button class="detail-fab" type="button" data-movie-detail-watch
-      data-watch-count="{{ movie.watch_count }}" aria-label="Watch {{ movie.title }}" title="Watch">
-      <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
-    </button>
-    {% else %}
-    <button class="detail-fab" type="button" data-add-movie-action aria-label="Add {{ movie.title }}" title="Add movie">
-      <span class="material-symbols-rounded" aria-hidden="true">add</span>
-    </button>
-    {% endif %}
   </div>
 </div>

@@ -51,24 +51,28 @@
     </section>
   </div>
 
-  <div class="detail-bottom-actions" role="group" aria-label="Episode actions">
-    <div class="detail-toolbar" style="--toolbar-items: 2">
-      <button class="detail-toolbar-button" type="button" data-adjacent-episode="previous"
+  <div class="detail-docked-toolbar" role="group" aria-label="Episode actions">
+    <div class="detail-docked-start">
+      <button class="detail-docked-button" type="button" data-adjacent-episode="previous"
         aria-label="Previous episode" title="Previous episode" {% if episode.previous_episode_id
         %}data-episode-id="{{ episode.previous_episode_id }}" {% else %}disabled{% endif %}>
         <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
       </button>
-      <button class="detail-toolbar-button" type="button" data-adjacent-episode="next"
+    </div>
+    <div class="detail-docked-center">
+      {% if episode.show_is_tracked %}
+      <button class="detail-docked-primary" type="button" data-episode-detail-watch
+        data-watch-count="{{ episode.watch_count }}" aria-label="Watch {{ episode.name }}" title="Watch">
+        <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
+      </button>
+      {% endif %}
+    </div>
+    <div class="detail-docked-end">
+      <button class="detail-docked-button" type="button" data-adjacent-episode="next"
         aria-label="Next episode" title="Next episode" {% if episode.next_episode_id
         %}data-episode-id="{{ episode.next_episode_id }}" {% else %}disabled{% endif %}>
         <span class="material-symbols-rounded" aria-hidden="true">chevron_right</span>
       </button>
     </div>
-    {% if episode.show_is_tracked %}
-    <button class="detail-fab" type="button" data-episode-detail-watch
-      data-watch-count="{{ episode.watch_count }}" aria-label="Watch {{ episode.name }}" title="Watch">
-      <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
-    </button>
-    {% endif %}
   </div>
 </div>

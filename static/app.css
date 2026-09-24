@@ -1784,104 +1784,100 @@ html.app-booting .schedule-empty-reveal {
   padding-top: 12px;
 }
 
-.detail-bottom-actions {
+.detail-docked-toolbar {
   position: fixed;
   z-index: 19;
   left: 50%;
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  width: min(calc(100% - 32px), 488px);
-  min-height: 64px;
+  bottom: 0;
+  width: min(100%, 520px);
+  min-height: calc(80px + env(safe-area-inset-bottom));
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr);
+  align-items: center;
+  background: var(--surface-card);
+  border-top: 1px solid var(--outline-soft);
+}
+
+.detail-docked-start,
+.detail-docked-end {
+  min-width: 0;
   display: flex;
   align-items: center;
+}
+
+.detail-docked-end {
   justify-content: flex-end;
-  gap: 8px;
 }
 
-.detail-bottom-actions:not(:has(.detail-fab)) {
-  justify-content: center;
+.detail-docked-center {
+  display: grid;
+  place-items: center;
 }
 
-.detail-toolbar {
-  min-width: 0;
-  width: calc(var(--toolbar-items) * 48px + 16px);
-  height: 64px;
-  padding: 8px;
-  display: flex;
-  flex: 0 1 auto;
-  border-radius: 32px;
-  background: var(--surface-card);
-  box-shadow: 0 2px 8px var(--shadow);
-}
-
-.detail-toolbar--labeled {
-  width: auto;
-}
-
-.detail-toolbar-button {
-  min-width: 0;
+.detail-docked-button {
+  width: 48px;
   height: 48px;
   padding: 0;
   border: 0;
   border-radius: 24px;
   display: grid;
-  flex: 1 1 48px;
+  flex: 0 0 48px;
   place-items: center;
-  color: var(--primary);
+  color: var(--on-surface-muted);
   background: transparent;
   cursor: pointer;
 }
 
-.detail-toolbar-button--labeled {
-  width: auto;
-  padding-inline: 12px;
-  display: inline-flex;
-  flex: 0 0 auto;
-  gap: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
+.detail-docked-button .material-symbols-rounded {
+  font-size: 24px;
 }
 
-.detail-toolbar-button[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--primary) 18%, var(--surface-card));
+.detail-docked-button[aria-pressed="true"] {
+  color: var(--primary);
+  background: var(--primary-light);
 }
 
-.detail-toolbar-button[aria-pressed="true"] .material-symbols-rounded {
+.detail-docked-button[aria-pressed="true"] .material-symbols-rounded {
   font-family: "Material Symbols Rounded Filled";
 }
 
-.detail-toolbar-button:disabled {
+.detail-docked-button:disabled {
   cursor: default;
   opacity: 0.4;
 }
 
-.detail-fab {
+.detail-docked-primary {
   width: 56px;
   height: 56px;
   padding: 0;
   border: 0;
-  border-radius: 16px;
+  border-radius: 20px;
   display: grid;
-  flex: 0 0 56px;
   place-items: center;
   color: var(--on-primary);
   background: var(--primary);
-  box-shadow: 0 3px 10px var(--shadow);
   cursor: pointer;
 }
 
-.detail-fab[aria-pressed="true"] .material-symbols-rounded {
-  font-family: "Material Symbols Rounded Filled";
-}
-
-.detail-fab .material-symbols-rounded {
+.detail-docked-primary .material-symbols-rounded {
   font-size: 24px;
 }
 
-.detail-toolbar-button:focus-visible,
-.detail-fab:focus-visible {
+.detail-docked-button:focus-visible,
+.detail-docked-primary:focus-visible {
   outline: 2px solid var(--on-surface);
   outline-offset: 2px;
+}
+
+.detail-overflow-anchor {
+  margin-left: 0;
+}
+
+.detail-overflow-anchor .show-menu:not(:popover-open) {
+  right: 0;
+  bottom: calc(100% + 8px);
 }
 
 [data-view="tv"].is-searching {
@@ -2315,10 +2311,6 @@ html.navigation-drawer-closing .menu-scrim {
   height: 4px;
   margin: 0;
   border-radius: 0;
-}
-
-.detail-delete-action {
-  color: var(--error);
 }
 
 .hero-progress-tags {
@@ -4139,8 +4131,9 @@ html.app-booting .tv-slice-reveal {
     border-radius: 0 0 28px 28px;
   }
 
-  .detail-bottom-actions {
-    bottom: calc(40px + env(safe-area-inset-bottom));
+  .detail-docked-toolbar {
+    bottom: 24px;
+    border-radius: 0 0 28px 28px;
   }
 
 }
