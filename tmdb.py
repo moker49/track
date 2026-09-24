@@ -9,7 +9,9 @@ from urllib.request import Request, urlopen
 
 
 class TMDBError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class TokenBucketRateLimiter:
@@ -86,7 +88,7 @@ class TMDBClient:
             with self.transport(request, timeout=15) as response:
                 return json.load(response)
         except HTTPError as error:
-            raise TMDBError(f"TMDB returned HTTP {error.code}") from error
+            raise TMDBError(f"TMDB returned HTTP {error.code}", status_code=error.code) from error
         except (URLError, TimeoutError, json.JSONDecodeError) as error:
             raise TMDBError("TMDB could not be reached") from error
 

@@ -1,7 +1,8 @@
 import io
 import unittest
+from urllib.error import HTTPError
 
-from tmdb import TMDBClient, TokenBucketRateLimiter
+from tmdb import TMDBClient, TMDBError, TokenBucketRateLimiter
 
 
 class FakeClock:
@@ -51,6 +52,16 @@ class TMDBRateLimitTest(unittest.TestCase):
         client.popular_tv()
 
         self.assertEqual(limiter.calls, 1)
+
+    def test_http_error_exposes_status_code(self):
+        def missing(request, timeout):
+            raise HTTPError(request.full_url, 404, "Not Found", {}, None)
+
+        client = TMDBClient("test-token", transport=missing)
+        with self.assertRaises(TMDBError) as raised:
+            client.movie_credits(1368337)
+        self.assertEqual(str(raised.exception), "TMDB returned HTTP 404")
+        self.assertEqual(raised.exception.status_code, 404)
 
 
 if __name__ == "__main__":

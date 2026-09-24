@@ -179,11 +179,23 @@ def create_app(test_config: dict | None = None) -> Flask:
             db = connect_database(app.config["DATABASE"])
             try:
                 client = get_tmdb_client()
-                credits = (
-                    client.show_credits(tmdb_id)
-                    if media_type == "show"
-                    else client.movie_credits(tmdb_id)
-                )
+                try:
+                    credits = (
+                        client.show_credits(tmdb_id)
+                        if media_type == "show"
+                        else client.movie_credits(tmdb_id)
+                    )
+                except TMDBError as error:
+                    if error.status_code != 404:
+                        raise
+                    # TMDB can have a valid title without a credits resource yet.
+                    # Keep any previously saved cast until credits become available.
+                    app.logger.info(
+                        "TMDB credits unavailable for %s %s (TMDB %s)",
+                        media_type, media_id, tmdb_id,
+                    )
+                    set_cast_sync_status(db, media_type, media_id, "ready")
+                    return
                 replace_media_cast(
                     db, media_type=media_type, media_id=media_id, credits=credits
                 )

@@ -14,6 +14,7 @@ from unittest import mock
 
 from app import create_app, start_background_refresh
 from queries import get_catch_up_episodes
+from tmdb import TMDBError
 
 
 def seed_test_library(database: Path) -> None:
@@ -356,6 +357,50 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Actor One", detail.data)
         self.assertEqual(detail.data.count(b'class="detail-region-divider"'), 1)
         self.assertEqual(client.credits_calls, 1)
+
+    def test_missing_tmdb_credits_keeps_existing_cast_without_hydration_failure(self):
+        connection = sqlite3.connect(self.database)
+        movie_id = connection.execute(
+            "INSERT INTO movies (tmdb_id, title, is_tracked, added_at) VALUES (?, ?, 1, ?)",
+            (1368337, "The Odyssey", "2026-09-24T10:00:00+00:00"),
+        ).lastrowid
+        actor_id = connection.execute(
+            "INSERT INTO actors (tmdb_person_id, name) VALUES (?, ?)",
+            (12345, "Existing Actor"),
+        ).lastrowid
+        connection.execute(
+            "INSERT INTO movie_cast (movie_id, actor_id, cast_order) VALUES (?, ?, 0)",
+            (movie_id, actor_id),
+        )
+        connection.commit()
+        connection.close()
+
+        class MissingCreditsClient:
+            def movie(self, tmdb_id):
+                return {"id": tmdb_id, "title": "The Odyssey", "genres": []}
+
+            def movie_credits(self, _tmdb_id):
+                raise TMDBError("TMDB returned HTTP 404", status_code=404)
+
+        self.app.config["TMDB_CLIENT_FACTORY"] = lambda _token: MissingCreditsClient()
+        response = self.client.post(f"/api/movies/{movie_id}/refresh")
+        self.assertEqual(response.status_code, 200)
+
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            connection = sqlite3.connect(self.database)
+            sync = connection.execute(
+                "SELECT status, error FROM movie_cast_sync WHERE movie_id = ?", (movie_id,)
+            ).fetchone()
+            cast = connection.execute(
+                "SELECT actor_id FROM movie_cast WHERE movie_id = ?", (movie_id,)
+            ).fetchall()
+            connection.close()
+            if sync and sync[0] != "pending":
+                break
+            time.sleep(0.02)
+        self.assertEqual(sync, ("ready", None))
+        self.assertEqual(cast, [(actor_id,)])
 
     def test_catalog_movie_preview_renders_cast_in_initial_fragment(self):
         class PreviewClient:
