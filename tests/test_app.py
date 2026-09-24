@@ -655,7 +655,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-adjacent-episode="next"', episode_detail.data)
         self.assertIn(b'data-toolbar-slots="3"', episode_detail.data)
         self.assertIn(b'data-toolbar-slot="1" type="button" data-adjacent-episode="previous"', episode_detail.data)
-        self.assertIn(b'data-toolbar-slot="3" type="button" data-adjacent-episode="next"', episode_detail.data)
+        self.assertRegex(
+            episode_detail.data,
+            rb'<button[^>]*data-toolbar-slot="3"[^>]*data-adjacent-episode="next"',
+        )
         self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="2" type="button" data-episode-detail-watch', episode_detail.data)
         self.assertNotIn(b'data-reaction-toggle="queue"', episode_detail.data)
         self.assertNotIn(b'data-show-menu-button', episode_detail.data)
@@ -1789,7 +1792,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn("ordinalSuffix", javascript)
         self.assertNotIn("timeStyle", javascript)
         self.assertIn("dataset.datePickerYear", javascript)
-        self.assertIn("optionYear = 2000", javascript)
+        self.assertIn("optionYear = finalYear - 99", javascript)
         self.assertIn('const finalYear = new Date().getFullYear();', javascript)
         self.assertIn('let datePickerView = "day"', javascript)
         self.assertIn("dataset.datePickerMonthOption", javascript)
@@ -2505,7 +2508,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-adjacent-episode="next"', episode_detail.data)
         self.assertNotIn(b'class="detail-docked-primary"', episode_detail.data)
         self.assertIn(b'data-toolbar-slots="2"', episode_detail.data)
-        self.assertIn(b'data-toolbar-slot="2" type="button" data-adjacent-episode="next"', episode_detail.data)
+        self.assertRegex(
+            episode_detail.data,
+            rb'<button[^>]*data-toolbar-slot="2"[^>]*data-adjacent-episode="next"',
+        )
         self.assertNotIn(b'detail-action-row', episode_detail.data)
         self.assertNotIn(b'data-add-episode-show', episode_detail.data)
         self.assertNotIn(b'data-reaction-toggle="queue"', episode_detail.data)
