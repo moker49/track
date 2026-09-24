@@ -99,7 +99,7 @@ class WorkflowSmokeTest(unittest.TestCase):
             1,
         )
 
-    def test_initialization_repositions_existing_unknown_logs_after_tracking(self):
+    def test_initialization_preserves_existing_unknown_log_timestamps(self):
         db = connect_database(self.database)
         db.execute(
             "INSERT INTO episode_watch_history (episode_id, added_at) VALUES (6, '2030-01-01T00:00:00+00:00')"
@@ -110,7 +110,7 @@ class WorkflowSmokeTest(unittest.TestCase):
             "SELECT added_at FROM episode_watch_history WHERE episode_id = 6"
         ).fetchone()["added_at"]
         db.close()
-        self.assertEqual(timestamp, "2026-05-02T20:15:00+00:00")
+        self.assertEqual(timestamp, "2030-01-01T00:00:00+00:00")
 
     def test_season_logs_are_removed_as_batches(self):
         created = self.client.post(
