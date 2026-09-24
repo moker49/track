@@ -1843,6 +1843,11 @@ html.app-booting .schedule-empty-reveal {
 
 .detail-docked-button .material-symbols-rounded {
   font-size: 24px;
+  font-family: "Material Symbols Rounded Filled";
+}
+
+.detail-docked-button[data-reaction-toggle="liked"][aria-pressed="false"] .material-symbols-rounded {
+  font-family: "Material Symbols Rounded";
 }
 
 .detail-docked-button[aria-pressed="true"] {
@@ -1874,6 +1879,7 @@ html.app-booting .schedule-empty-reveal {
 
 .detail-docked-primary .material-symbols-rounded {
   font-size: 24px;
+  font-family: "Material Symbols Rounded Filled";
 }
 
 .detail-docked-button:focus-visible,

@@ -34,11 +34,11 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list expand_more expand_less check_box arrow_upward arrow_downward more_vert resume playlist_add playlist_add_check event tv movie video_library done_all arrow_forward menu account_circle arrow_back close",
+        "filter_list expand_more expand_less check_box arrow_upward arrow_downward more_vert resume playlist_add playlist_add_check event tv movie video_library done_all arrow_forward menu account_circle arrow_back close favorite",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
-        "resume playlist_add_check view_list grid_view calendar_view_month view_agenda event tv movie",
+        "resume playlist_add_check view_list grid_view calendar_view_month view_agenda event tv movie playlist_add play_arrow refresh more_vert add archive chevron_left chevron_right favorite",
       ),
     ]);
     await Promise.race([

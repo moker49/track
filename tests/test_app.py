@@ -213,6 +213,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".utility-top-bar-with-action {", css)
         self.assertIn(".reaction-page-results {", css)
         self.assertIn(".detail-docked-button {", css)
+        self.assertIn('.detail-docked-button[data-reaction-toggle="liked"][aria-pressed="false"] .material-symbols-rounded {', css)
+        self.assertIn('.detail-docked-primary .material-symbols-rounded {\n  font-size: 24px;\n  font-family: "Material Symbols Rounded Filled";', css)
         self.assertIn("grid-template-columns: repeat(var(--toolbar-slots), minmax(0, 1fr));", css)
         self.assertIn('.detail-docked-toolbar[data-toolbar-slots="2"]', css)
         self.assertIn('.detail-docked-toolbar[data-toolbar-slots="5"]', css)
