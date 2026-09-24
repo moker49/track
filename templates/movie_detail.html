@@ -47,7 +47,8 @@
     {% include '_activity_log.html' %}
 
   </section>
-  <div class="detail-docked-toolbar" data-toolbar-slots="{{ 5 if movie.is_tracked else 3 }}" role="group" aria-label="Movie actions">
+  <div class="detail-docked-toolbar" data-toolbar-slots="{{ 5 if movie.is_tracked else 3 }}" role="group"
+    aria-label="Movie actions">
     <div class="detail-docked-start">
       {% if movie.is_tracked %}
       <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-reaction-toggle="liked"
@@ -58,7 +59,8 @@
         aria-pressed="{{ 'true' if movie.watch_again else 'false' }}"
         aria-label="{{ 'Remove ' ~ movie.title ~ ' from Queue' if movie.watch_again else 'Add ' ~ movie.title ~ ' to Queue' }}"
         title="Toggle Queue">
-        <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if movie.watch_again else 'playlist_add' }}</span>
+        <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if movie.watch_again else
+          'playlist_add' }}</span>
       </button>
       {% else %}
       <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-watch-untracked-movie
@@ -84,7 +86,7 @@
       {% if movie.is_tracked %}
       <button class="detail-docked-button" data-toolbar-slot="4" type="button" data-movie-action="refresh"
         aria-label="Refresh {{ movie.title }}" title="Refresh">
-        <span class="material-symbols-rounded" aria-hidden="true">refresh</span>
+        <span class="material-symbols-rounded" aria-hidden="true">cloud_sync</span>
       </button>
       <div class="menu-anchor detail-overflow-anchor" data-toolbar-slot="5">
         <button class="detail-docked-button" type="button" data-movie-menu-button
@@ -102,7 +104,7 @@
       <button class="detail-docked-button" data-toolbar-slot="3" type="button" data-queue-untracked-movie
         aria-label="Add {{ movie.title }} to Queue" title="Add to Queue">
         <span class="material-symbols-rounded" aria-hidden="true">playlist_add</span>
-      {% endif %}
+        {% endif %}
     </div>
   </div>
 </div>
