@@ -5216,14 +5216,21 @@ function renderVirtualLibrary(state, force = false) {
   state.layoutKey = layoutKey;
   setVirtualSpacerHeight(state.topSpacer, startRow, metrics);
   setVirtualSpacerHeight(state.bottomSpacer, Math.max(0, rowCount - endRow), metrics);
-  const fragment = document.createDocumentFragment();
-  fragment.append(state.topSpacer);
-  state.filteredCards.slice(start, end).forEach((card) => {
+  const visibleCards = state.filteredCards.slice(start, end);
+  visibleCards.forEach((card) => {
     card.hidden = false;
-    fragment.append(card);
   });
-  fragment.append(state.bottomSpacer);
-  state.list.replaceChildren(fragment);
+  const desiredNodes = [state.topSpacer, ...visibleCards, state.bottomSpacer];
+  const desiredSet = new Set(desiredNodes);
+  // Keep matching cards mounted while search filters change. Reattaching an
+  // image before its first load completes makes its thumbnail flash.
+  [...state.list.children].forEach((node) => {
+    if (!desiredSet.has(node)) node.remove();
+  });
+  desiredNodes.forEach((node, index) => {
+    const current = state.list.children[index] || null;
+    if (current !== node) state.list.insertBefore(node, current);
+  });
   inspectMediaImages(state.list);
 }
 
