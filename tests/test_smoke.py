@@ -18,6 +18,7 @@ class WorkflowSmokeTest(unittest.TestCase):
         self.client = self.app.test_client()
 
     def tearDown(self):
+        self.app.extensions["shutdown_cast_hydration"]()
         self.temp_dir.cleanup()
 
     def rows(self, sql, parameters=()):

@@ -97,6 +97,7 @@ class TrackAppTest(unittest.TestCase):
         self.client = self.app.test_client()
 
     def tearDown(self):
+        self.app.extensions["shutdown_cast_hydration"]()
         self.temp_dir.cleanup()
 
     def test_single_page_shell_contains_primary_views(self):
@@ -358,6 +359,59 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(detail.data.count(b'class="detail-region-divider"'), 1)
         self.assertEqual(client.credits_calls, 1)
 
+    def test_cast_hydration_limits_concurrent_jobs(self):
+        connection = sqlite3.connect(self.database)
+        movie_ids = [
+            connection.execute(
+                "INSERT INTO movies (tmdb_id, title, added_at) VALUES (?, ?, ?)",
+                (930000 + index, f"Movie {index}", "2026-09-24T10:00:00+00:00"),
+            ).lastrowid
+            for index in range(4)
+        ]
+        connection.commit()
+        connection.close()
+        release_credits = threading.Event()
+        two_active = threading.Event()
+        lock = threading.Lock()
+        active = 0
+        peak = 0
+
+        class SlowCreditsClient:
+            def movie(self, tmdb_id):
+                return {"id": tmdb_id, "title": "Movie", "genres": []}
+
+            def movie_credits(self, _tmdb_id):
+                nonlocal active, peak
+                with lock:
+                    active += 1
+                    peak = max(peak, active)
+                    if active == 2:
+                        two_active.set()
+                try:
+                    release_credits.wait(timeout=5)
+                    return {"cast": []}
+                finally:
+                    with lock:
+                        active -= 1
+
+        self.app.config["TMDB_CLIENT_FACTORY"] = lambda _token: SlowCreditsClient()
+        try:
+            for movie_id in movie_ids:
+                self.assertEqual(self.client.post(f"/api/movies/{movie_id}/refresh").status_code, 200)
+            self.assertTrue(two_active.wait(timeout=2))
+            with lock:
+                self.assertEqual(peak, 2)
+                self.assertEqual(active, 2)
+        finally:
+            release_credits.set()
+        self.app.extensions["shutdown_cast_hydration"]()
+        connection = sqlite3.connect(self.database)
+        statuses = connection.execute(
+            "SELECT status FROM movie_cast_sync WHERE movie_id IN (?, ?, ?, ?)", movie_ids
+        ).fetchall()
+        connection.close()
+        self.assertEqual(statuses, [("ready",)] * 4)
+
     def test_missing_tmdb_credits_keeps_existing_cast_without_hydration_failure(self):
         connection = sqlite3.connect(self.database)
         movie_id = connection.execute(
@@ -526,9 +580,6 @@ class TrackAppTest(unittest.TestCase):
         ).fetchall()
         connection.close()
         self.assertEqual(watch_dates, [("2026-06-15",), ("2026-06-16",)])
-        for worker in threading.enumerate():
-            if worker.name.startswith("track-movie-cast-"):
-                worker.join(timeout=2)
 
     def test_detail_reveals_include_dividers_and_movie_previews_use_session_cache(self):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(

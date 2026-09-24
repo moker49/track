@@ -4,6 +4,8 @@ import os
 import json
 import sqlite3
 import threading
+from contextlib import closing
+from queue import Full, Queue
 from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -96,6 +98,8 @@ def create_app(test_config: dict | None = None) -> Flask:
         TMDB_CLIENT_FACTORY=TMDBClient,
         IMAGE_CACHE_DIR=None,
         IMAGE_TRANSPORT=urlopen,
+        CAST_HYDRATION_WORKERS=2,
+        CAST_HYDRATION_QUEUE_SIZE=64,
         BACKGROUND_REFRESH_INTERVAL_SECONDS=60 * 60,
     )
     if test_config:
@@ -138,6 +142,11 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     cast_hydration_lock = threading.Lock()
     cast_hydration_keys: set[tuple[str, int]] = set()
+    cast_hydration_queue: Queue[tuple[str, int, int] | None] = Queue(
+        maxsize=app.config["CAST_HYDRATION_QUEUE_SIZE"]
+    )
+    cast_hydration_workers: list[threading.Thread] = []
+    cast_hydration_closed = False
 
     def set_cast_sync_status(
         db: sqlite3.Connection,
@@ -161,21 +170,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         )
         db.commit()
 
-    def schedule_cast_hydration(media_type: str, media_id: int, tmdb_id: int) -> None:
-        """Fetch credits after metadata is safely persisted, without delaying the response."""
+    def hydrate_cast(media_type: str, media_id: int, tmdb_id: int) -> None:
         key = (media_type, media_id)
-        with cast_hydration_lock:
-            if key in cast_hydration_keys:
-                return
-            cast_hydration_keys.add(key)
-
-        status_db = connect_database(app.config["DATABASE"])
         try:
-            set_cast_sync_status(status_db, media_type, media_id, "pending")
-        finally:
-            status_db.close()
-
-        def hydrate() -> None:
             db = connect_database(app.config["DATABASE"])
             try:
                 client = get_tmdb_client()
@@ -230,14 +227,68 @@ def create_app(test_config: dict | None = None) -> Flask:
                 set_cast_sync_status(db, media_type, media_id, "failed", str(error))
             finally:
                 db.close()
-                with cast_hydration_lock:
-                    cast_hydration_keys.discard(key)
+        finally:
+            with cast_hydration_lock:
+                cast_hydration_keys.discard(key)
 
-        threading.Thread(
-            target=hydrate,
-            name=f"track-{media_type}-cast-{media_id}",
-            daemon=True,
-        ).start()
+    def cast_hydration_worker() -> None:
+        while True:
+            job = cast_hydration_queue.get()
+            try:
+                if job is None:
+                    return
+                try:
+                    hydrate_cast(*job)
+                except Exception:
+                    app.logger.exception("Cast hydration worker failed for %s %s", job[0], job[1])
+            finally:
+                cast_hydration_queue.task_done()
+
+    def schedule_cast_hydration(media_type: str, media_id: int, tmdb_id: int) -> None:
+        """Queue cast work without creating a thread for each media item."""
+        key = (media_type, media_id)
+        with cast_hydration_lock:
+            if cast_hydration_closed or key in cast_hydration_keys:
+                return
+            cast_hydration_keys.add(key)
+            try:
+                with closing(connect_database(app.config["DATABASE"])) as status_db:
+                    set_cast_sync_status(status_db, media_type, media_id, "pending")
+                cast_hydration_queue.put_nowait((media_type, media_id, tmdb_id))
+            except Full:
+                try:
+                    with closing(connect_database(app.config["DATABASE"])) as status_db:
+                        set_cast_sync_status(status_db, media_type, media_id, "failed", "Cast queue is full")
+                finally:
+                    cast_hydration_keys.discard(key)
+                app.logger.warning("Cast hydration queue is full for %s %s", media_type, media_id)
+                return
+            except Exception:
+                cast_hydration_keys.discard(key)
+                raise
+            if not cast_hydration_workers:
+                for index in range(app.config["CAST_HYDRATION_WORKERS"]):
+                    worker = threading.Thread(
+                        target=cast_hydration_worker,
+                        name=f"track-cast-worker-{index + 1}",
+                        daemon=True,
+                    )
+                    worker.start()
+                    cast_hydration_workers.append(worker)
+
+    def shutdown_cast_hydration() -> None:
+        nonlocal cast_hydration_closed
+        with cast_hydration_lock:
+            if cast_hydration_closed:
+                return
+            cast_hydration_closed = True
+        cast_hydration_queue.join()
+        for _worker in cast_hydration_workers:
+            cast_hydration_queue.put(None)
+        for worker in cast_hydration_workers:
+            worker.join()
+
+    app.extensions["shutdown_cast_hydration"] = shutdown_cast_hydration
 
     def request_local_date() -> date:
         value = request.headers.get("X-Track-Local-Date", "")

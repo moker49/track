@@ -12,6 +12,10 @@ Track is a server-rendered Flask application with a persistent, single-page brow
 - `refresh_service.py` owns oldest-first TV-show and recent-movie refresh orchestration, persisted retry backoff, and failure isolation.
 - `tmdb.py` and `image_cache.py` own external TMDB metadata and image concerns.
 
+Cast hydration runs through two background workers and a bounded queue. Each job
+fetches one title's credits and caches its portraits sequentially. Tests drain
+and stop the workers before removing their temporary databases.
+
 Routes should validate HTTP input, call one of these boundaries, and serialize the result. New business rules should not be embedded in route functions or duplicated in templates.
 
 ## Browser state and invalidation

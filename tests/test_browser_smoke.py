@@ -42,6 +42,7 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
         cls.server.shutdown()
         cls.server.server_close()
         cls.server_thread.join(timeout=5)
+        cls.app.extensions["shutdown_cast_hydration"]()
         cls.temp_dir.cleanup()
 
     def test_primary_navigation_detail_mutation_history_and_filter_flow(self):
