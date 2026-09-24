@@ -2489,11 +2489,11 @@ async function previewCatalogMovie(card, historyMode = "push") {
   }
 }
 
-async function trackDetailMovie(movieElement, trigger) {
+async function trackDetailMovie(movieElement, trigger, { queued = false } = {}) {
   trigger.disabled = true;
   try {
     const response = await fetch(`/api/movies/${movieElement.dataset.tmdbId}/import`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched: false }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched: false, queued }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add movie");
@@ -2780,6 +2780,10 @@ function sortActivityItems(log) {
     .forEach((item) => list.append(item));
 }
 
+function activitySortDate(displayDate, diaryDate) {
+  return diaryDate ? `${diaryDate}T01:00:00+00:00` : displayDate;
+}
+
 function setActivityDateDisplay(dateRow, displayDate, isUndated) {
   if (!dateRow) return;
   dateRow.querySelector("[data-display-date], .activity-undated-label")?.remove();
@@ -2815,7 +2819,7 @@ function addActivityItem({
   const item = document.createElement("li");
   item.className = "activity-item";
   item.dataset.activityType = type;
-  item.dataset.sortDate = occurredAt;
+  item.dataset.sortDate = activitySortDate(occurredAt, diaryDate);
   if (seasonId) item.dataset.seasonId = seasonId;
   if (recordId) {
     item.dataset.watchRecordId = recordId;
@@ -3123,7 +3127,7 @@ async function saveDiaryDate() {
     const data = await response.json();
     datePickerTarget.dataset.diaryDate = data.diary_date || "";
     datePickerTarget.dataset.addedAt = data.added_at;
-    datePickerTarget.dataset.sortDate = data.display_date;
+    datePickerTarget.dataset.sortDate = activitySortDate(data.display_date, data.diary_date);
     setActivityDateDisplay(
       datePickerTarget.querySelector(".activity-date-row"),
       data.display_date,
@@ -4226,6 +4230,18 @@ document.addEventListener("click", (event) => {
       addMovieButton.closest("[data-detail-movie]"),
       addMovieButton,
     );
+    return;
+  }
+
+  const queueUntrackedMovieButton = event.target.closest("[data-queue-untracked-movie]");
+  if (queueUntrackedMovieButton) {
+    trackDetailMovie(queueUntrackedMovieButton.closest("[data-detail-movie]"), queueUntrackedMovieButton, { queued: true });
+    return;
+  }
+
+  const watchUntrackedMovieButton = event.target.closest("[data-watch-untracked-movie]");
+  if (watchUntrackedMovieButton) {
+    openMovieImportDatePicker(watchUntrackedMovieButton.closest("[data-detail-movie]").dataset.tmdbId);
     return;
   }
 

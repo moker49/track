@@ -966,13 +966,17 @@ def get_movie_activity(db: sqlite3.Connection, movie_id: int) -> list[sqlite3.Ro
                watch_added_at, diary_date
         FROM (
             SELECT 'added' AS event_type, 'Added' AS title,
-                   m.added_at AS occurred_at, m.added_at AS sort_at, NULL AS watch_record_id,
+                   m.added_at AS occurred_at,
+                   substr(m.added_at, 1, 10) || 'T00:00:00+00:00' AS sort_at,
+                   NULL AS watch_record_id,
                     NULL AS watch_kind, NULL AS watch_added_at, NULL AS diary_date
             FROM movies m
             WHERE m.id = ? AND m.is_tracked = 1
             UNION ALL
             SELECT 'watched', 'Watched', COALESCE({effective_diary_date_sql('mwh')}, substr(mwh.added_at, 1, 10)),
-                    mwh.added_at, mwh.id, 'movie', mwh.added_at, mwh.diary_date
+                    CASE WHEN mwh.diary_date IS NOT NULL THEN mwh.diary_date || 'T01:00:00+00:00'
+                         ELSE mwh.added_at END,
+                    mwh.id, 'movie', mwh.added_at, mwh.diary_date
             FROM movie_watch_history mwh
             WHERE mwh.movie_id = ?
         )

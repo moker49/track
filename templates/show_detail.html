@@ -79,34 +79,45 @@
     {% include '_activity_log.html' %}
 
   </section>
-  <div class="detail-docked-toolbar" role="group" aria-label="Show actions">
+  <div class="detail-docked-toolbar" data-toolbar-slots="{{ 5 if show.is_tracked else 3 }}" role="group" aria-label="Show actions">
     <div class="detail-docked-start">
       {% if show.is_tracked %}
-      <button class="detail-docked-button" type="button" data-reaction-toggle="liked"
+      <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-reaction-toggle="liked"
         aria-pressed="{{ 'true' if show.liked_at else 'false' }}" aria-label="Like {{ show.name }}" title="Like">
         <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
       </button>
-      <button class="detail-docked-button" type="button" data-reaction-toggle="queue"
+      <button class="detail-docked-button" data-toolbar-slot="2" type="button" data-reaction-toggle="queue"
         aria-pressed="{{ 'true' if show.watch_again else 'false' }}"
         aria-label="{{ 'Remove ' ~ show.name ~ ' from Queue' if show.watch_again else 'Add ' ~ show.name ~ ' to Queue' }}"
         title="Toggle Queue">
         <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if show.watch_again else 'playlist_add' }}</span>
       </button>
       {% else %}
-      <button class="detail-docked-button" type="button" data-track-show-state="ACTIVE"
+      <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-track-show-state="ACTIVE"
+        aria-label="Watch {{ show.name }}" title="Watch">
+        <span class="material-symbols-rounded" aria-hidden="true">play_arrow</span>
+      </button>
+      {% endif %}
+    </div>
+    <div class="detail-docked-center">
+      {% if show.is_tracked %}
+      <button class="detail-docked-primary" data-toolbar-slot="3" type="button" aria-label="Watch {{ show.name }}" title="Watch">
+        <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
+      </button>
+      {% else %}
+      <button class="detail-docked-primary" data-toolbar-slot="2" type="button" data-track-show-state="ACTIVE"
         aria-label="Add {{ show.name }}" title="Add show">
         <span class="material-symbols-rounded" aria-hidden="true">add</span>
       </button>
       {% endif %}
     </div>
-    <div class="detail-docked-center"></div>
     <div class="detail-docked-end">
       {% if show.is_tracked %}
-      <button class="detail-docked-button" type="button" data-show-action="refresh"
+      <button class="detail-docked-button" data-toolbar-slot="4" type="button" data-show-action="refresh"
         aria-label="Refresh {{ show.name }}" title="Refresh">
         <span class="material-symbols-rounded" aria-hidden="true">refresh</span>
       </button>
-      <div class="menu-anchor detail-overflow-anchor">
+      <div class="menu-anchor detail-overflow-anchor" data-toolbar-slot="5">
         <button class="detail-docked-button" type="button" data-show-menu-button
           aria-label="More options for {{ show.name }}" aria-expanded="false" title="More options">
           <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
@@ -123,7 +134,7 @@
         </div>
       </div>
       {% else %}
-      <button class="detail-docked-button" type="button" data-track-show-state="ARCHIVED"
+      <button class="detail-docked-button" data-toolbar-slot="3" type="button" data-track-show-state="ARCHIVED"
         aria-label="Archive {{ show.name }}" title="Archive">
         <span class="material-symbols-rounded" aria-hidden="true">archive</span>
       </button>

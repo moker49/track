@@ -6,7 +6,7 @@ import os
 import re
 import threading
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from email.message import Message
 from io import BytesIO
 from pathlib import Path
@@ -213,6 +213,11 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".utility-top-bar-with-action {", css)
         self.assertIn(".reaction-page-results {", css)
         self.assertIn(".detail-docked-button {", css)
+        self.assertIn("grid-template-columns: repeat(var(--toolbar-slots), minmax(0, 1fr));", css)
+        self.assertIn('.detail-docked-toolbar[data-toolbar-slots="2"]', css)
+        self.assertIn('.detail-docked-toolbar[data-toolbar-slots="5"]', css)
+        self.assertIn('.detail-docked-toolbar [data-toolbar-slot]', css)
+        self.assertIn('.detail-docked-toolbar .detail-overflow-anchor {\n  width: 48px;\n  margin: 0;', css)
         self.assertIn("min-height: calc(80px + env(safe-area-inset-top));", css)
         self.assertIn("background: var(--surface-card);", css)
         self.assertIn('.material-symbols-rounded.is-filled {', css)
@@ -366,7 +371,13 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-activity-log', detail.data)
         self.assertIn(b'data-add-movie-action', detail.data)
         self.assertIn(b'<div class="detail-docked-toolbar"', detail.data)
-        self.assertIn(b'class="detail-docked-button" type="button" data-add-movie-action', detail.data)
+        self.assertIn(b'data-toolbar-slots="3"', detail.data)
+        self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="2" type="button" data-add-movie-action', detail.data)
+        self.assertIn(b'data-watch-untracked-movie', detail.data)
+        self.assertIn(b'data-queue-untracked-movie', detail.data)
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('openMovieImportDatePicker(watchUntrackedMovieButton.closest("[data-detail-movie]").dataset.tmdbId)', javascript)
+        self.assertIn('trackDetailMovie(queueUntrackedMovieButton.closest("[data-detail-movie]"), queueUntrackedMovieButton, { queued: true })', javascript)
         self.assertNotIn(b'data-movie-detail-watch', detail.data)
         self.assertNotIn(b'data-movie-menu-button', detail.data)
         self.assertNotIn(b'data-movie-action="refresh"', detail.data)
@@ -389,9 +400,88 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-reaction-toggle="liked"', detail.data)
         self.assertIn(b'data-reaction-toggle="queue"', detail.data)
         self.assertIn(b'data-movie-action="refresh"', detail.data)
-        self.assertIn(b'class="detail-docked-primary" type="button" data-movie-detail-watch', detail.data)
+        self.assertIn(b'data-toolbar-slots="5"', detail.data)
+        self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="3" type="button" data-movie-detail-watch', detail.data)
         self.assertIn(b'data-movie-menu-button', detail.data)
         self.assertNotIn(b'data-track-movie-action', detail.data)
+
+    def test_untracked_movie_queue_and_watch_imports(self):
+        class MovieClient:
+            def movie(self, tmdb_id):
+                return {"id": tmdb_id, "title": f"Movie {tmdb_id}", "genres": []}
+
+            def movie_credits(self, _tmdb_id):
+                return {"cast": []}
+
+        self.app.config["TMDB_CLIENT_FACTORY"] = lambda _token: MovieClient()
+        self.assertEqual(
+            self.client.post(
+                "/api/movies/901011/import",
+                json={"watched": True, "diary_date": "20260615"},
+            ).status_code,
+            400,
+        )
+        queued = self.client.post("/api/movies/901010/import", json={"queued": True})
+        watched = self.client.post(
+            "/api/movies/901011/import",
+            json={"watched": True, "diary_date": "2026-06-15"},
+        )
+        unknown = self.client.post(
+            "/api/movies/901012/import", json={"watched": True}
+        )
+        self.assertEqual(queued.status_code, 200)
+        self.assertEqual(watched.status_code, 200)
+        self.assertEqual(unknown.status_code, 200)
+
+        connection = sqlite3.connect(self.database)
+        queued_row = connection.execute(
+            "SELECT watch_again FROM movies WHERE tmdb_id = 901010"
+        ).fetchone()
+        watched_row = connection.execute(
+            "SELECT id, added_at FROM movies WHERE tmdb_id = 901011"
+        ).fetchone()
+        watch_log = connection.execute(
+            "SELECT added_at, diary_date FROM movie_watch_history WHERE movie_id = ?",
+            (watched_row[0],),
+        ).fetchone()
+        unknown_row = connection.execute(
+            """SELECT m.added_at, h.added_at, h.diary_date
+               FROM movies m JOIN movie_watch_history h ON h.movie_id = m.id
+               WHERE m.tmdb_id = 901012"""
+        ).fetchone()
+        connection.close()
+        self.assertEqual(queued_row[0], 1)
+        self.assertEqual(watched_row[1], "2026-06-15T00:00:00+00:00")
+        self.assertEqual(watch_log, ("2026-06-15T01:00:00+00:00", "2026-06-15"))
+        self.assertEqual(unknown_row[2], None)
+        self.assertEqual(
+            datetime.fromisoformat(unknown_row[1])
+            - datetime.fromisoformat(unknown_row[0]),
+            timedelta(hours=1),
+        )
+        detail = self.client.get(f"/api/movies/{watched_row[0]}")
+        self.assertIn(b'data-sort-date="2026-06-15T01:00:00+00:00"', detail.data)
+        self.assertIn(b'data-sort-date="2026-06-15T00:00:00+00:00"', detail.data)
+        self.assertLess(
+            detail.data.index(b'data-sort-date="2026-06-15T01:00:00+00:00"'),
+            detail.data.index(b'data-sort-date="2026-06-15T00:00:00+00:00"'),
+        )
+        self.assertEqual(self.client.delete(f"/api/movies/{watched_row[0]}").status_code, 204)
+        rewatched = self.client.post(
+            "/api/movies/901011/import",
+            json={"watched": True, "diary_date": "2026-06-16"},
+        )
+        self.assertEqual(rewatched.status_code, 200)
+        connection = sqlite3.connect(self.database)
+        watch_dates = connection.execute(
+            "SELECT diary_date FROM movie_watch_history WHERE movie_id = ? ORDER BY diary_date",
+            (watched_row[0],),
+        ).fetchall()
+        connection.close()
+        self.assertEqual(watch_dates, [("2026-06-15",), ("2026-06-16",)])
+        for worker in threading.enumerate():
+            if worker.name.startswith("track-movie-cast-"):
+                worker.join(timeout=2)
 
     def test_detail_reveals_include_dividers_and_movie_previews_use_session_cache(self):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
@@ -423,7 +513,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-show-id="1"', episode_detail.data)
         self.assertIn(b'data-adjacent-episode="previous"', episode_detail.data)
         self.assertIn(b'data-adjacent-episode="next"', episode_detail.data)
-        self.assertIn(b'class="detail-docked-primary" type="button" data-episode-detail-watch', episode_detail.data)
+        self.assertIn(b'data-toolbar-slots="3"', episode_detail.data)
+        self.assertIn(b'data-toolbar-slot="1" type="button" data-adjacent-episode="previous"', episode_detail.data)
+        self.assertIn(b'data-toolbar-slot="3" type="button" data-adjacent-episode="next"', episode_detail.data)
+        self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="2" type="button" data-episode-detail-watch', episode_detail.data)
         self.assertNotIn(b'data-reaction-toggle="queue"', episode_detail.data)
         self.assertNotIn(b'data-show-menu-button', episode_detail.data)
         self.assertNotIn(b'data-movie-menu-button', episode_detail.data)
@@ -1236,8 +1329,9 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Added", detail.data)
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Watching</span>', detail.data)
         self.assertIn(b'<span data-progress-copy>5/13</span>', detail.data)
-        self.assertIn(b'class="detail-docked-button" type="button" data-reaction-toggle="queue"', detail.data)
-        self.assertNotIn(b'data-show-detail-watch', detail.data)
+        self.assertIn(b'data-toolbar-slots="5"', detail.data)
+        self.assertIn(b'class="detail-docked-button" data-toolbar-slot="2" type="button" data-reaction-toggle="queue"', detail.data)
+        self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="3" type="button" aria-label="Watch', detail.data)
         self.assertIn(b'data-show-action="refresh"', detail.data)
         self.assertIn(b'data-show-action="move"', detail.data)
         self.assertIn(b'data-show-action="remove"', detail.data)
@@ -2202,8 +2296,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-track-show-state="ACTIVE"', detail.data)
         self.assertIn(b'data-track-show-state="ARCHIVED"', detail.data)
         self.assertIn(b'<div class="detail-docked-toolbar"', detail.data)
-        self.assertIn(b'class="detail-docked-button" type="button" data-track-show-state="ACTIVE"', detail.data)
-        self.assertNotIn(b'class="detail-docked-primary"', detail.data)
+        self.assertIn(b'data-toolbar-slots="3"', detail.data)
+        self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="2" type="button" data-track-show-state="ACTIVE"', detail.data)
         self.assertIn(b'data-show-tracked="false"', detail.data)
         self.assertIn(b'<details class="detail-section-disclosure" data-activity-log>', detail.data)
         self.assertIn(b'<details class="detail-section-disclosure" data-seasons-disclosure>', detail.data)
@@ -2236,6 +2330,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-adjacent-episode="previous"', episode_detail.data)
         self.assertIn(b'data-adjacent-episode="next"', episode_detail.data)
         self.assertNotIn(b'class="detail-docked-primary"', episode_detail.data)
+        self.assertIn(b'data-toolbar-slots="2"', episode_detail.data)
+        self.assertIn(b'data-toolbar-slot="2" type="button" data-adjacent-episode="next"', episode_detail.data)
         self.assertNotIn(b'detail-action-row', episode_detail.data)
         self.assertNotIn(b'data-add-episode-show', episode_detail.data)
         self.assertNotIn(b'data-reaction-toggle="queue"', episode_detail.data)
@@ -2279,9 +2375,8 @@ class TrackAppTest(unittest.TestCase):
 
         tracked_detail = self.client.get(f"/api/shows/{preview_data['show_id']}")
         self.assertIn(b"data-progress-summary", tracked_detail.data)
-        self.assertIn(b'class="detail-docked-button" type="button" data-reaction-toggle="queue"', tracked_detail.data)
-        self.assertNotIn(b'data-show-detail-watch', tracked_detail.data)
-        self.assertNotIn(b'class="detail-docked-primary"', tracked_detail.data)
+        self.assertIn(b'class="detail-docked-button" data-toolbar-slot="2" type="button" data-reaction-toggle="queue"', tracked_detail.data)
+        self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="3" type="button" aria-label="Watch', tracked_detail.data)
         self.assertNotIn(b"data-track-show-state", tracked_detail.data)
         tracked_episode = self.client.get(f"/api/episodes/{preview_episode_id}").data
         self.assertIn(b'data-episode-detail-watch', tracked_episode)

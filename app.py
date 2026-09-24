@@ -79,13 +79,6 @@ def precise_utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
-def timestamp_after(timestamp: str) -> str:
-    """Return a UTC timestamp guaranteed to follow ``timestamp``."""
-    return (datetime.fromisoformat(timestamp) + timedelta(microseconds=1)).isoformat(
-        timespec="microseconds"
-    )
-
-
 def create_app(test_config: dict | None = None) -> Flask:
     dotenv_path = (test_config or {}).get("DOTENV_PATH", BASE_DIR / ".env")
     load_dotenv(dotenv_path=dotenv_path, override=False)
@@ -488,26 +481,43 @@ def create_app(test_config: dict | None = None) -> Flask:
     def import_movie(tmdb_id: int):
         payload = request.get_json(silent=True) or {}
         watched = bool(payload.get("watched"))
+        queued = bool(payload.get("queued"))
         diary_date = payload.get("diary_date")
+        if diary_date is not None:
+            if not isinstance(diary_date, str):
+                return jsonify(error="diary_date must be an ISO date or null"), 400
+            try:
+                if date.fromisoformat(diary_date).isoformat() != diary_date:
+                    raise ValueError
+            except ValueError:
+                return jsonify(error="diary_date must be an ISO date or null"), 400
         try: movie = get_tmdb_client().movie(tmdb_id)
         except TMDBError as error: return jsonify(error=str(error)), 503
         if movie.get("id") != tmdb_id: return jsonify(error="TMDB returned the wrong movie"), 502
         now = precise_utc_now()
+        added_at = f"{diary_date}T00:00:00+00:00" if watched and diary_date else now
         db = get_db()
+        existing_movie = db.execute(
+            "SELECT is_tracked FROM movies WHERE tmdb_id = ?", (tmdb_id,)
+        ).fetchone()
         db.execute("""INSERT INTO movies (tmdb_id,title,original_title,overview,poster_path,backdrop_path,release_date,runtime_minutes,status,genres,original_language,is_tracked,added_at,updated_at,tmdb_refreshed_at,tmdb_payload)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tmdb_id) DO UPDATE SET is_tracked=1,updated_at=excluded.updated_at""",
-          (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), 1, now, now, now, json.dumps(movie)))
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tmdb_id) DO UPDATE SET is_tracked=1,added_at=CASE WHEN movies.is_tracked=0 THEN excluded.added_at ELSE movies.added_at END,updated_at=excluded.updated_at""",
+          (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), 1, added_at, now, now, json.dumps(movie)))
         db.commit()
         movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)).fetchone()["id"]
         clear_refresh_failure(db, "movie", movie_id)
+        if queued:
+            db.execute("UPDATE movies SET watch_again = 1 WHERE id = ?", (movie_id,))
         if watched:
-            watch_added_at = unknown_log_timestamp(now) if diary_date is None else precise_utc_now()
-            if diary_date is not None and watch_added_at <= now:
-                watch_added_at = timestamp_after(now)
-            db.execute("""INSERT INTO movie_watch_history (movie_id, added_at, diary_date)
-                          SELECT ?, ?, ?
-                          WHERE NOT EXISTS (SELECT 1 FROM movie_watch_history WHERE movie_id = ?)""",
-                       (movie_id, watch_added_at, diary_date, movie_id))
+            movie_added_at = db.execute("SELECT added_at FROM movies WHERE id = ?", (movie_id,)).fetchone()["added_at"]
+            watch_added_at = unknown_log_timestamp(movie_added_at)
+            if existing_movie is None or not existing_movie["is_tracked"] or not db.execute(
+                "SELECT 1 FROM movie_watch_history WHERE movie_id = ?", (movie_id,)
+            ).fetchone():
+                db.execute(
+                    "INSERT INTO movie_watch_history (movie_id, added_at, diary_date) VALUES (?, ?, ?)",
+                    (movie_id, watch_added_at, diary_date),
+                )
         normalize_movie_added_timestamps(db, movie_id)
         db.commit()
         schedule_cast_hydration("movie", movie_id, tmdb_id)

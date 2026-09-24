@@ -8,11 +8,11 @@
     {% set event_type = item.event_type %}
     {% set event_title = item.title %}
     {% set event_time = item.occurred_at if activity_mode in ['show', 'movie'] else item.display_date %}
-    {% set sort_time = item.sort_at if item.sort_at is defined else event_time %}
     {% set record_id = item.watch_record_id %}
     {% set watch_kind = item.watch_kind %}
     {% set added_at = item.watch_added_at if activity_mode in ['show', 'movie'] else item.added_at %}
     {% set diary_date = item.diary_date %}
+    {% set sort_time = item.sort_at if item.sort_at is defined else (diary_date ~ 'T01:00:00+00:00' if diary_date else event_time) %}
     <li class="activity-item" data-activity-type="{{ event_type }}" data-sort-date="{{ sort_time }}" {% if
       activity_mode=='show' and item.season_id %} data-season-id="{{ item.season_id }}" {% endif %}{% if record_id %}
       data-watch-record-id="{{ record_id }}" data-watch-kind="{{ watch_kind }}" data-added-at="{{ added_at }}"
