@@ -367,7 +367,7 @@ class TrackAppTest(unittest.TestCase):
         detail = self.client.get("/api/movies/tmdb/123456/preview")
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b'detail-cast-rail', detail.data)
-        self.assertIn(b'data-cast-disclosure', detail.data)
+        self.assertIn(b'<details class="detail-section-disclosure" data-cast-disclosure open>', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
         self.assertIn(b'data-add-movie-action', detail.data)
         self.assertIn(b'<div class="detail-docked-toolbar"', detail.data)
@@ -492,6 +492,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('staggerDetailSlices([episodeHero, ...episodeContent.children])', javascript)
         self.assertIn('const previewRevealKey = `movie-preview:${card.dataset.tmdbId}`', javascript)
         self.assertIn('const cachedPreview = moviePreviewCache.get(cacheKey)', javascript)
+        self.assertIn('if (currentDisclosure && nextDisclosure) nextDisclosure.open = currentDisclosure.open;', javascript)
         self.assertIn('renderMovieDetail(cachedPreview, false)', javascript)
         self.assertIn(
             'renderMovieDetail(movieHtml, !revealedViewAnimations.has(previewRevealKey))',
@@ -528,7 +529,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'data-show-menu-button', episode_detail.data)
         self.assertNotIn(b'data-movie-menu-button', episode_detail.data)
         self.assertNotIn(b'data-show-action="refresh"', episode_detail.data)
-        self.assertIn(b'<details class="detail-section-disclosure" data-activity-log>', episode_detail.data)
+        self.assertIn(b'<details class="detail-section-disclosure" data-activity-log open>', episode_detail.data)
         self.assertNotIn(b'episode-watch-summary', episode_detail.data)
         self.assertNotIn(b'data-overview-disclosure', episode_detail.data)
         self.assertNotIn(b'data-queued=', episode_detail.data)
@@ -1350,21 +1351,6 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"bottom-nav", detail.data)
         self.assertLess(len(detail.data), 50_000)
 
-    def test_season_summary_excludes_specials(self):
-        connection = sqlite3.connect(self.database)
-        connection.execute(
-            """INSERT INTO seasons
-               (show_id, tmdb_id, season_number, name, is_progress_counted)
-               VALUES (1, 999990, 0, 'Specials', 0)"""
-        )
-        connection.commit()
-        connection.close()
-
-        detail = self.client.get("/api/shows/1")
-        seasons = self.client.get("/api/shows/1/seasons")
-        self.assertIn(b'Seasons <span>\xc2\xb7 2</span>', detail.data)
-        self.assertIn(b'Specials', seasons.data)
-
         connection = sqlite3.connect(self.database)
         connection.execute(
             "INSERT INTO actors (tmdb_person_id, name) VALUES (12345, 'Show Actor')"
@@ -1430,6 +1416,38 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(missing.status_code, 404)
         missing_seasons = self.client.get("/api/shows/999/seasons")
         self.assertEqual(missing_seasons.status_code, 404)
+
+    def test_season_summary_excludes_specials(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            """INSERT INTO seasons
+               (show_id, tmdb_id, season_number, name, is_progress_counted)
+               VALUES (1, 999990, 0, 'Specials', 0)"""
+        )
+        connection.commit()
+        connection.close()
+
+        detail = self.client.get("/api/shows/1")
+        seasons = self.client.get("/api/shows/1/seasons")
+        self.assertIn(b'Seasons <span>\xc2\xb7 2</span>', detail.data)
+        self.assertIn(b'Specials', seasons.data)
+
+    def test_untracked_show_cast_starts_expanded(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute("UPDATE shows SET is_tracked = 0 WHERE id = 1")
+        actor_id = connection.execute(
+            "INSERT INTO actors (tmdb_person_id, name) VALUES (456789, 'Preview Actor')"
+        ).lastrowid
+        connection.execute(
+            "INSERT INTO show_cast (show_id, actor_id, character_name, cast_order) VALUES (1, ?, 'Lead', 0)",
+            (actor_id,),
+        )
+        connection.commit()
+        connection.close()
+
+        detail = self.client.get("/api/shows/1")
+        self.assertIn(b'<details class="detail-section-disclosure" data-cast-disclosure open>', detail.data)
+        self.assertIn(b'<details class="detail-section-disclosure" data-activity-log>', detail.data)
 
     def test_show_added_directly_to_archive_has_one_archive_activity(self):
         db = sqlite3.connect(self.database)
@@ -2349,7 +2367,7 @@ class TrackAppTest(unittest.TestCase):
         ).fetchone()[0]
         connection.close()
         episode_detail = self.client.get(f"/api/episodes/{preview_episode_id}")
-        self.assertIn(b'<details class="detail-section-disclosure" data-activity-log>', episode_detail.data)
+        self.assertIn(b'<details class="detail-section-disclosure" data-activity-log open>', episode_detail.data)
         self.assertNotIn(b'data-episode-detail-watch', episode_detail.data)
         self.assertIn(b'data-adjacent-episode="previous"', episode_detail.data)
         self.assertIn(b'data-adjacent-episode="next"', episode_detail.data)

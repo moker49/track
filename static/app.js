@@ -1789,9 +1789,9 @@ function matchingCurrentDetail(nextDetail) {
 }
 
 function preserveDetailDisclosure(nextDetail, selector) {
-  if (matchingCurrentDetail(nextDetail)?.querySelector(selector)?.open) {
-    nextDetail.querySelector(selector)?.setAttribute("open", "");
-  }
+  const currentDisclosure = matchingCurrentDetail(nextDetail)?.querySelector(selector);
+  const nextDisclosure = nextDetail.querySelector(selector);
+  if (currentDisclosure && nextDisclosure) nextDisclosure.open = currentDisclosure.open;
 }
 
 function preserveSeasonsDisclosure(nextDetail, context = null) {

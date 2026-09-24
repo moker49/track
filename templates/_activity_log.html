@@ -1,4 +1,4 @@
-<details class="detail-section-disclosure" data-activity-log>
+<details class="detail-section-disclosure" data-activity-log{% if activity_mode == 'episode' %} open{% endif %}>
   <summary>
     <span class="detail-section-label">Activity <span>· <span data-activity-count>{{ activity_items|length }}</span></span></span>
     <span class="material-symbols-rounded detail-section-chevron" aria-hidden="true">expand_more</span>

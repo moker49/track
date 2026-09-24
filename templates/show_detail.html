@@ -60,6 +60,7 @@
     {% endif %}
 
     {% if cast %}
+    {% set cast_default_open = not show.is_tracked %}
     {% include '_cast_region.html' %}
     <hr class="detail-region-divider" aria-hidden="true">
     {% endif %}
