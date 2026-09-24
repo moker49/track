@@ -57,7 +57,7 @@
       <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-adjacent-episode="previous"
         aria-label="Previous episode" title="Previous episode" {% if episode.previous_episode_id
         %}data-episode-id="{{ episode.previous_episode_id }}" {% else %}disabled{% endif %}>
-        <span class="material-symbols-rounded" aria-hidden="true">keyboard_double_arrow_left</span>
+        <span class="material-symbols-rounded" aria-hidden="true">skip_previous</span>
       </button>
     </div>
     <div class="detail-docked-center">
@@ -72,7 +72,7 @@
       <button class="detail-docked-button" data-toolbar-slot="{{ 3 if episode.show_is_tracked else 2 }}" type="button"
         data-adjacent-episode="next" aria-label="Next episode" title="Next episode" {% if episode.next_episode_id
         %}data-episode-id="{{ episode.next_episode_id }}" {% else %}disabled{% endif %}>
-        <span class="material-symbols-rounded" aria-hidden="true">keyboard_double_arrow_right</span>
+        <span class="material-symbols-rounded" aria-hidden="true">skip_next</span>
       </button>
     </div>
   </div>
