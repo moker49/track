@@ -57,6 +57,7 @@ const navButtons = [...document.querySelectorAll("[data-nav-view]")];
 const drawerButtons = [...document.querySelectorAll("[data-drawer-view]")];
 const appContent = document.querySelector(".app-content");
 const bottomChrome = document.querySelector(".bottom-chrome");
+let retainedDetailToolbar = null;
 const globalSearchBar = document.querySelector("[data-global-search-bar]");
 const globalSearchInput = document.querySelector("[data-global-search]");
 const searchMenuButton = document.querySelector("[data-search-menu]");
@@ -598,6 +599,31 @@ function motionIsReduced() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+function discardRetainedDetailToolbar() {
+  retainedDetailToolbar?.remove();
+  retainedDetailToolbar = null;
+}
+
+function retainDetailToolbarDuringLoad() {
+  if (currentView !== "detail") return;
+  const toolbar = views.get("detail")?.querySelector(".detail-docked-toolbar");
+  if (!toolbar) return;
+  discardRetainedDetailToolbar();
+  retainedDetailToolbar = toolbar.cloneNode(true);
+  retainedDetailToolbar.classList.add("detail-docked-toolbar-retained");
+  retainedDetailToolbar.setAttribute("aria-hidden", "true");
+  retainedDetailToolbar.inert = true;
+  retainedDetailToolbar.querySelectorAll("[popover]").forEach((menu) => { menu.hidden = true; });
+  document.body.append(retainedDetailToolbar);
+}
+
+function syncDetailBottomChrome() {
+  if (!bottomChrome) return;
+  const toolbarReady = Boolean(views.get("detail")?.querySelector(".detail-docked-toolbar"));
+  if (toolbarReady || currentView !== "detail") discardRetainedDetailToolbar();
+  bottomChrome.hidden = currentView === "detail" && (toolbarReady || Boolean(retainedDetailToolbar));
+}
+
 function showView(viewName, historyMode = null) {
   if (!views.has(viewName) || viewName === currentView) return;
 
@@ -634,7 +660,7 @@ function showView(viewName, historyMode = null) {
 
   updateActiveNav(viewName === "detail" ? detailParentView : viewName);
   currentView = viewName;
-  if (bottomChrome) bottomChrome.hidden = viewName === "detail";
+  syncDetailBottomChrome();
   syncGlobalSearch();
   syncTvControlVisibility();
   if (["tv", "movies"].includes(viewName)) {
@@ -1121,6 +1147,7 @@ async function trackDetailShow(showElement, state, trigger) {
 
 function renderDetailLoading(title) {
   const detailView = views.get("detail");
+  retainDetailToolbarDuringLoad();
   const template = document.querySelector("#detail-loading-template");
   detailView.replaceChildren(template.content.cloneNode(true));
   detailView.querySelector("[data-detail-loading-title]").textContent = title;
@@ -1128,6 +1155,7 @@ function renderDetailLoading(title) {
   const loading = detailView.querySelector(".detail-loading");
   loading.setAttribute("aria-label", loadingLabel);
   loading.querySelector("[data-detail-loading-label]").textContent = loadingLabel;
+  syncDetailBottomChrome();
 }
 
 function staggerDetailSlices(sections, startIndex = 0) {
@@ -1744,6 +1772,7 @@ async function processScheduleMovie(card) {
 
 function finishDetailLoad({ resetScroll = true } = {}) {
   const detailView = views.get("detail");
+  syncDetailBottomChrome();
   formatDisplayDates(detailView);
   document.title = APP_TITLE;
   if (resetScroll) window.scrollTo({ top: 0, behavior: "auto" });
@@ -2364,6 +2393,8 @@ async function openShow(
         <p>Check the connection and try again.</p>
         <button class="filled-button" type="button" data-retry-show="${showId}">Try again</button>
       </div>`;
+    discardRetainedDetailToolbar();
+    syncDetailBottomChrome();
   }
 }
 
@@ -2430,6 +2461,8 @@ async function openMovie(movieId, parentView = "movies", historyMode = "push") {
   } catch (error) {
     if (error.name === "AbortError") return;
     views.get("detail").innerHTML = `<header class="detail-app-bar"><button class="icon-button" type="button" data-detail-back aria-label="Back"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button><span>Movie details</span></header><div class="empty-state detail-error"><span class="empty-icon material-symbols-rounded" aria-hidden="true">cloud_off</span><h2>Couldn't load this movie</h2><p>Check the connection and try again.</p><button class="filled-button" type="button" data-retry-movie="${movieId}">Try again</button></div>`;
+    discardRetainedDetailToolbar();
+    syncDetailBottomChrome();
   }
 }
 
@@ -2591,6 +2624,8 @@ async function openEpisode(episodeId, historyMode = "push") {
         <p>Check the connection and try again.</p>
         <button class="filled-button" type="button" data-retry-episode="${episodeId}">Try again</button>
       </div>`;
+    discardRetainedDetailToolbar();
+    syncDetailBottomChrome();
   }
 }
 

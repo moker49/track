@@ -500,7 +500,14 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('moviePreviewCache.set(cacheKey, movieHtml)', javascript)
         self.assertIn('moviePreviewCache.delete(String(movieElement.dataset.tmdbId))', javascript)
         self.assertIn('revealedViewAnimations.add(previewRevealKey)', javascript)
-        self.assertIn('bottomChrome.hidden = viewName === "detail"', javascript)
+        self.assertIn('function syncDetailBottomChrome()', javascript)
+        self.assertIn('function retainDetailToolbarDuringLoad()', javascript)
+        self.assertIn('retainedDetailToolbar = toolbar.cloneNode(true);', javascript)
+        self.assertIn('retainedDetailToolbar.inert = true;', javascript)
+        self.assertIn('bottomChrome.hidden = currentView === "detail" && (toolbarReady || Boolean(retainedDetailToolbar));', javascript)
+        self.assertIn('const toolbarReady = Boolean(views.get("detail")?.querySelector(".detail-docked-toolbar"));', javascript)
+        self.assertIn('  retainDetailToolbarDuringLoad();\n  const template = document.querySelector("#detail-loading-template");', javascript)
+        self.assertIn('  syncDetailBottomChrome();\n  formatDisplayDates(detailView);', javascript)
 
     def test_episode_watch_bar_has_no_queue_action(self):
         episode_detail = self.client.get("/api/episodes/1")

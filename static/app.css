@@ -1800,6 +1800,10 @@ html.app-booting .schedule-empty-reveal {
   border-top: 1px solid var(--outline-soft);
 }
 
+.detail-docked-toolbar-retained {
+  pointer-events: none;
+}
+
 .detail-docked-toolbar[data-toolbar-slots="2"] { --toolbar-slots: 2; }
 .detail-docked-toolbar[data-toolbar-slots="3"] { --toolbar-slots: 3; }
 .detail-docked-toolbar[data-toolbar-slots="4"] { --toolbar-slots: 4; }
