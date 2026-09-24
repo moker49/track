@@ -1350,6 +1350,21 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"bottom-nav", detail.data)
         self.assertLess(len(detail.data), 50_000)
 
+    def test_season_summary_excludes_specials(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            """INSERT INTO seasons
+               (show_id, tmdb_id, season_number, name, is_progress_counted)
+               VALUES (1, 999990, 0, 'Specials', 0)"""
+        )
+        connection.commit()
+        connection.close()
+
+        detail = self.client.get("/api/shows/1")
+        seasons = self.client.get("/api/shows/1/seasons")
+        self.assertIn(b'Seasons <span>\xc2\xb7 2</span>', detail.data)
+        self.assertIn(b'Specials', seasons.data)
+
         connection = sqlite3.connect(self.database)
         connection.execute(
             "INSERT INTO actors (tmdb_person_id, name) VALUES (12345, 'Show Actor')"
@@ -1891,6 +1906,8 @@ class TrackAppTest(unittest.TestCase):
             f"/api/shows/{imported_show['id']}/seasons"
         ).data
         self.assertLess(season_list.find(b">Season 1</strong>"), season_list.find(b">Specials</strong>"))
+        show_detail = self.client.get(f"/api/shows/{imported_show['id']}")
+        self.assertIn(b'Seasons <span>\xc2\xb7 1</span>', show_detail.data)
         special_detail = self.client.get(f"/api/episodes/{special_episode_id}")
         self.assertNotIn(
             f'data-episode-id="{regular_episode_id}"'.encode(), special_detail.data
