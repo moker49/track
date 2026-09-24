@@ -124,6 +124,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-search-back', home.data)
         self.assertIn(b'>arrow_back</span>', home.data)
         self.assertIn(b'data-clear-search aria-label="Clear search" hidden', home.data)
+
         self.assertIn(b'data-tv-view-toggle', home.data)
         self.assertIn(b'class="material-symbols-rounded is-filled" aria-hidden="true">view_list</span>', home.data)
         self.assertIn(b'placeholder="Search queue"', home.data)
@@ -254,6 +255,39 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("function syncDiaryLayoutToggle()", javascript)
         self.assertIn("navigationDrawerHistoryActive = false;", javascript)
         self.assertIn('data-reaction-toggle', javascript)
+
+    def test_library_and_detail_use_the_request_local_date(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            """INSERT INTO episodes (season_id, tmdb_id, episode_number, name, air_date)
+               VALUES (2, 995000, 7, 'Boundary Episode', '2099-01-02')"""
+        )
+        movie_id = connection.execute(
+            """INSERT INTO movies (tmdb_id, title, release_date, added_at)
+               VALUES (995001, 'Boundary Movie', '2099-01-02', '2099-01-01T12:00:00+00:00')"""
+        ).lastrowid
+        connection.commit()
+        connection.close()
+
+        for local_day, episode_count, movie_upcoming in (
+            ("2099-01-01", 13, "true"),
+            ("2099-01-02", 14, "false"),
+        ):
+            headers = {"X-Track-Local-Date": local_day}
+            tv = self.client.get("/api/tv", headers=headers).data.decode()
+            show = self.client.get("/api/shows/1", headers=headers).data.decode()
+            movies = self.client.get("/api/movies", headers=headers).data.decode()
+            movie = self.client.get(f"/api/movies/{movie_id}", headers=headers).data.decode()
+            self.assertRegex(tv, rf'data-show-id="1"[^>]*data-episode-count="{episode_count}"')
+            self.assertRegex(show, rf'data-show-id="1"[^>]*data-episode-count="{episode_count}"')
+            self.assertRegex(movies, rf'data-movie-id="{movie_id}"[^>]*data-movie-upcoming="{movie_upcoming}"')
+            self.assertIn(f'data-movie-upcoming="{movie_upcoming}"', movie)
+            logged = self.client.post(
+                "/api/episodes/6/log",
+                headers=headers,
+                json={"action_kind": "skip", "log_date": local_day},
+            )
+            self.assertEqual(logged.get_json()["episode_count"], episode_count)
 
     def test_cast_hydration_follows_tmdb_metadata_refresh_without_detail_request(self):
         test_case = self

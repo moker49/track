@@ -22,7 +22,10 @@ def natural_title_key(value: str) -> tuple:
     )
 
 
-def get_show_progress(db: sqlite3.Connection, show_id: int) -> sqlite3.Row:
+def get_show_progress(
+    db: sqlite3.Connection, show_id: int, local_date: date | None = None
+) -> sqlite3.Row:
+    today = (local_date or date.today()).isoformat()
     return db.execute(
         """
         WITH episode_counts AS (
@@ -30,7 +33,7 @@ def get_show_progress(db: sqlite3.Connection, show_id: int) -> sqlite3.Row:
                    (SELECT COUNT(*) FROM episode_watch_history wh WHERE wh.episode_id = e.id)
                    + (SELECT COUNT(*) FROM episode_skips sk WHERE sk.episode_id = e.id) AS watch_count
             FROM seasons sn
-            JOIN episodes e ON e.season_id = sn.id AND e.air_date <= date('now')
+            JOIN episodes e ON e.season_id = sn.id AND e.air_date <= ?
             WHERE sn.show_id = ? AND sn.is_progress_counted = 1
         )
         SELECT COUNT(*) AS episode_count,
@@ -39,7 +42,7 @@ def get_show_progress(db: sqlite3.Connection, show_id: int) -> sqlite3.Row:
                COALESCE(MIN(watch_count), 0) AS completed_watch_count
         FROM episode_counts
         """,
-        (show_id,),
+        (today, show_id),
     ).fetchone()
 
 
@@ -58,8 +61,9 @@ def watch_payload(
     show_id: int,
     episode_id: int | None = None,
     previous_watched_count: int | None = None,
+    local_date: date | None = None,
 ) -> dict:
-    progress = get_show_progress(db, show_id)
+    progress = get_show_progress(db, show_id, local_date)
     episode_count = progress["episode_count"]
     watched_count = progress["watched_count"]
     show = db.execute(
@@ -120,8 +124,9 @@ def watch_payload(
 
 
 def get_library_show(
-    db: sqlite3.Connection, show_id: int
+    db: sqlite3.Connection, show_id: int, local_date: date | None = None
 ) -> sqlite3.Row | None:
+    today = (local_date or date.today()).isoformat()
     return db.execute(
         """
         WITH episode_counts AS (
@@ -132,7 +137,7 @@ def get_library_show(
             FROM seasons sn
             JOIN episodes e ON e.season_id = sn.id
               AND sn.is_progress_counted = 1
-              AND e.air_date <= date('now')
+              AND e.air_date <= ?
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             GROUP BY e.id
         )
@@ -146,7 +151,7 @@ def get_library_show(
         WHERE s.id = ?
         GROUP BY s.id
         """,
-        (show_id,),
+        (today, show_id),
     ).fetchone()
 
 
@@ -894,7 +899,9 @@ def get_show_activity(db: sqlite3.Connection, show_id: int) -> list[sqlite3.Row]
 
 def get_tv_library_shows(
     db: sqlite3.Connection,
+    local_date: date | None = None,
 ) -> tuple[list[sqlite3.Row], list[sqlite3.Row]]:
+    today = (local_date or date.today()).isoformat()
     shows = db.execute(
         """
         WITH episode_counts AS (
@@ -905,7 +912,7 @@ def get_tv_library_shows(
             FROM seasons sn
             JOIN episodes e ON e.season_id = sn.id
               AND sn.is_progress_counted = 1
-              AND e.air_date <= date('now')
+              AND e.air_date <= ?
             LEFT JOIN episode_watch_history wh ON wh.episode_id = e.id
             GROUP BY e.id
         )
@@ -919,7 +926,8 @@ def get_tv_library_shows(
         WHERE s.is_tracked = 1 AND s.state IN ('ACTIVE', 'ARCHIVED')
         GROUP BY s.id
         ORDER BY CASE s.state WHEN 'ACTIVE' THEN 0 ELSE 1 END, s.id ASC
-        """
+        """,
+        (today,),
     ).fetchall()
     active_shows = sorted(
         (show for show in shows if show["state"] == TRACKING_ACTIVE),
@@ -932,30 +940,34 @@ def get_tv_library_shows(
     return active_shows, archived_shows
 
 
-def get_movie_library(db: sqlite3.Connection) -> list[sqlite3.Row]:
+def get_movie_library(
+    db: sqlite3.Connection, local_date: date | None = None
+) -> list[sqlite3.Row]:
+    today = (local_date or date.today()).isoformat()
     movies = db.execute(
         """
         SELECT m.*, COUNT(mwh.id) AS watched_count,
-               CASE WHEN m.release_date > date('now', 'localtime') THEN 1 ELSE 0 END AS is_upcoming,
+               CASE WHEN m.release_date > ? THEN 1 ELSE 0 END AS is_upcoming,
                MAX(mwh.diary_date) AS last_watched_at
         FROM movies m
         LEFT JOIN movie_watch_history mwh ON mwh.movie_id = m.id
         WHERE m.is_tracked = 1
         GROUP BY m.id
         ORDER BY m.title COLLATE NOCASE
-        """
+        """,
+        (today,),
     ).fetchall()
     return movies
 
 
 def get_reaction_media(
-    db: sqlite3.Connection, reaction: str
+    db: sqlite3.Connection, reaction: str, local_date: date | None = None
 ) -> tuple[list[sqlite3.Row], list[sqlite3.Row]]:
     if reaction != "liked":
         raise ValueError(f"Unknown reaction: {reaction}")
-    active_shows, archived_shows = get_tv_library_shows(db)
+    active_shows, archived_shows = get_tv_library_shows(db, local_date)
     shows = [show for show in (*active_shows, *archived_shows) if show["liked_at"]]
-    movies = [movie for movie in get_movie_library(db) if movie["liked_at"]]
+    movies = [movie for movie in get_movie_library(db, local_date) if movie["liked_at"]]
     return shows, movies
 
 

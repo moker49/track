@@ -413,7 +413,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.get("/api/tv")
     def tv_fragment():
-        active_shows, archived_shows = get_tv_library_shows(get_db())
+        active_shows, archived_shows = get_tv_library_shows(get_db(), request_local_date())
         return render_template(
             "tv.html",
             active_shows=active_shows,
@@ -422,12 +422,12 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.get("/api/movies")
     def movies_fragment():
-        return render_template("movies.html", movies=get_movie_library(get_db()))
+        return render_template("movies.html", movies=get_movie_library(get_db(), request_local_date()))
 
     @app.get("/api/lists/<reaction>")
     def reaction_list_fragment(reaction: str):
         try:
-            shows, movies = get_reaction_media(get_db(), reaction)
+            shows, movies = get_reaction_media(get_db(), reaction, request_local_date())
         except ValueError:
             abort(404)
         return render_template("_reaction_list.html", reaction=reaction, shows=shows, movies=movies)
@@ -645,7 +645,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "release_date": payload.get("release_date"),
             "is_upcoming": bool(
                 payload.get("release_date")
-                and payload["release_date"] > datetime.now().date().isoformat()
+                and payload["release_date"] > request_local_date().isoformat()
             ),
             "runtime_minutes": payload.get("runtime"),
             "genres": ", ".join(genre.get("name", "") for genre in payload.get("genres", [])),
@@ -671,16 +671,17 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.get("/api/movies/<int:movie_id>")
     def movie_detail_fragment(movie_id: int):
         db = get_db()
+        today = request_local_date().isoformat()
         movie = db.execute(
             """
             SELECT m.*, COUNT(mwh.id) AS watch_count,
-                   CASE WHEN m.release_date > date('now', 'localtime') THEN 1 ELSE 0 END AS is_upcoming
+                   CASE WHEN m.release_date > ? THEN 1 ELSE 0 END AS is_upcoming
             FROM movies m
             LEFT JOIN movie_watch_history mwh ON mwh.movie_id = m.id
             WHERE m.id = ?
             GROUP BY m.id
             """,
-            (movie_id,),
+            (today, movie_id),
         ).fetchone()
         if movie is None:
             abort(404)
@@ -721,7 +722,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                 (selected, utc_now(), utc_now(), media_id),
             )
         elif table == "shows" and reaction == "queue":
-            baseline = get_show_progress(db, media_id)["completed_watch_count"] if selected else None
+            baseline = get_show_progress(db, media_id, request_local_date())["completed_watch_count"] if selected else None
             cursor = db.execute(
                 "UPDATE shows SET watch_again = ?, watch_again_baseline = ?, updated_at = ? WHERE id = ? AND is_tracked = 1",
                 (int(selected), baseline, utc_now(), media_id),
@@ -808,7 +809,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             return jsonify(error=str(error)), 503
         except ValueError as error:
             return jsonify(error=str(error)), 502
-        imported_show = get_library_show(get_db(), show_id)
+        imported_show = get_library_show(get_db(), show_id, request_local_date())
         schedule_cast_hydration("show", show_id, tmdb_id)
         return jsonify(
             show_id=show_id,
@@ -877,7 +878,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
             return jsonify(error=str(error)), 502
         clear_refresh_failure(db, "show", refreshed_id)
-        refreshed_show = get_library_show(db, refreshed_id)
+        refreshed_show = get_library_show(db, refreshed_id, request_local_date())
         schedule_cast_hydration("show", refreshed_id, local_show["tmdb_id"])
         return jsonify(
             show_id=refreshed_id,
@@ -1083,7 +1084,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             abort(404)
 
         episode = dict(episode)
-        show_progress = get_show_progress(db, episode["show_id"])
+        show_progress = get_show_progress(db, episode["show_id"], request_local_date())
         episode["show_finished"] = (
             show_progress["episode_count"] > 0
             and show_progress["watched_count"] >= show_progress["episode_count"]
@@ -1193,7 +1194,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
             db.commit()
 
-        library_show = get_library_show(db, show_id)
+        library_show = get_library_show(db, show_id, request_local_date())
         move = move_presentation(target_state)
         return jsonify(
             show_id=show_id,
@@ -1236,7 +1237,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if log_date is not None:
             try: date.fromisoformat(log_date)
             except ValueError: return jsonify(error="log_date must be an ISO date"), 400
-        try: return jsonify(create_episode_log(get_db(), episode_id, action_kind, log_date))
+        try: return jsonify(create_episode_log(get_db(), episode_id, action_kind, log_date, request_local_date()))
         except WatchNotFoundError as error: return jsonify(error=str(error)), 404
 
 
@@ -1249,7 +1250,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if log_date is not None:
             try: date.fromisoformat(log_date)
             except ValueError: return jsonify(error="log_date must be an ISO date"), 400
-        try: return jsonify(create_season_log(get_db(), season_id, action_kind, log_date))
+        try: return jsonify(create_season_log(get_db(), season_id, action_kind, log_date, request_local_date()))
         except WatchNotFoundError as error: return jsonify(error=str(error)), 404
 
     @app.delete("/api/logs/<string:watch_kind>/<int:record_id>")

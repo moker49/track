@@ -565,7 +565,7 @@ async function refreshStatisticsContent() {
   panel.setAttribute("aria-busy", "true");
   statisticsRequest = (async () => {
     const response = await fetch("/api/profile/statistics", {
-      headers: scheduleRequestHeaders({ "X-Requested-With": "Track" }),
+      headers: localDateHeaders({ "X-Requested-With": "Track" }),
     });
     if (!response.ok) throw new Error("Could not refresh statistics");
     panel.innerHTML = await response.text();
@@ -972,7 +972,7 @@ async function importCatalogShow(card, state, trigger) {
       : `/api/tv/shows/${card.dataset.tmdbId}/import`;
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: localDateHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ state }),
     });
     const data = await response.json();
@@ -1047,7 +1047,7 @@ async function searchMovieCatalog(query) {
 async function refreshMoviesContent() {
   if (moviesRefreshRequest) return moviesRefreshRequest;
   moviesRefreshRequest = (async () => {
-    const response = await fetch("/api/movies", { headers: { "X-Requested-With": "Track" } });
+    const response = await fetch("/api/movies", { headers: localDateHeaders({ "X-Requested-With": "Track" }) });
     if (!response.ok) throw new Error("Could not refresh movies");
     const template = document.createElement("template");
     template.innerHTML = (await response.text()).trim();
@@ -1098,7 +1098,7 @@ async function previewCatalogShow(card, historyMode = "push") {
   try {
     const response = await fetch(`/api/tv/shows/${card.dataset.tmdbId}/import`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: localDateHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ state: null }),
       signal: detailRequest.signal,
     });
@@ -1128,7 +1128,7 @@ async function trackDetailShow(showElement, state, trigger) {
   try {
     const response = await fetch(`/api/shows/${showElement.dataset.showId}/state`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: localDateHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ state }),
     });
     const data = await response.json();
@@ -1380,7 +1380,7 @@ function toIsoDate(date) {
   return `${year}-${month}-${day}`;
 }
 
-function scheduleRequestHeaders(extraHeaders = {}) {
+function localDateHeaders(extraHeaders = {}) {
   return {
     ...extraHeaders,
     "X-Track-Local-Date": toIsoDate(new Date()),
@@ -1576,7 +1576,7 @@ async function refreshScheduleContent({ preserveView = null, background = false 
   scheduleRefreshRequest = (async () => {
     scheduleCalendarDate = toIsoDate(new Date());
     const response = await fetch("/api/schedule", {
-      headers: scheduleRequestHeaders({ "X-Requested-With": "Track" }),
+      headers: localDateHeaders({ "X-Requested-With": "Track" }),
     });
     if (!response.ok) throw new Error("Could not refresh Schedule");
     const template = document.createElement("template");
@@ -1603,16 +1603,65 @@ async function refreshScheduleContent({ preserveView = null, background = false 
 function refreshScheduleForLocalDayChange() {
   const localDate = toIsoDate(new Date());
   if (localDate === scheduleCalendarDate) return;
+  const activeDetail = currentView === "detail"
+    ? views.get("detail")?.querySelector("[data-detail-show], [data-detail-movie], [data-detail-episode]")
+    : null;
+  const detailScrollY = window.scrollY;
   scheduleCalendarDate = localDate;
   scheduleViewsHydrated = false;
+  showDetailCache.clear();
+  movieDetailCache.clear();
+  moviePreviewCache.clear();
+  episodeDetailCache.clear();
+  diaryRevision += 1;
   refreshScheduleContent().catch(() => undefined);
+  refreshTvContent().catch(() => undefined);
+  refreshMoviesContent().catch(() => undefined);
+  refreshStatisticsContent().catch(() => undefined);
+  invalidateReactionLists();
+  if (currentView === "liked") refreshReactionList("liked", { force: true });
+  const stillViewingDetail = () => activeDetail?.isConnected
+    && currentView === "detail" && toIsoDate(new Date()) === localDate;
+  if (activeDetail?.matches("[data-detail-show]")) {
+    const showId = activeDetail.dataset.showId;
+    const context = {
+      openSeasonIds: [...activeDetail.querySelectorAll("details.season[open]")]
+        .map((season) => season.dataset.seasonId),
+      detailScrollY,
+    };
+    refreshShowDetailCache(showId).then(({ showHtml, seasonsHtml }) => {
+      if (stillViewingDetail()) renderShowDetail(showHtml, seasonsHtml, false, context);
+    }).catch(() => undefined);
+  } else if (activeDetail?.matches("[data-detail-movie]") && activeDetail.dataset.movieId) {
+    refreshMovieDetailCache(activeDetail.dataset.movieId).then((movieHtml) => {
+      if (stillViewingDetail()) renderMovieDetail(movieHtml, false, { resetScroll: false });
+    }).catch(() => undefined);
+  } else if (activeDetail?.matches("[data-detail-movie]") && activeDetail.dataset.tmdbId) {
+    const tmdbId = activeDetail.dataset.tmdbId;
+    fetch(`/api/movies/tmdb/${tmdbId}/preview`, {
+      headers: localDateHeaders({ "X-Requested-With": "Track" }),
+    }).then((response) => {
+      if (!response.ok) throw new Error("Could not refresh movie preview");
+      return response.text();
+    }).then((movieHtml) => {
+      moviePreviewCache.set(String(tmdbId), movieHtml);
+      if (stillViewingDetail()) renderMovieDetail(movieHtml, false, { resetScroll: false });
+    }).catch(() => undefined);
+  } else if (activeDetail?.matches("[data-detail-episode]")) {
+    const previousWasShow = !activeDetail.querySelector("[data-episode-show-open]");
+    refreshEpisodeDetailCache(activeDetail.dataset.episodeId).then((episodeHtml) => {
+      if (!stillViewingDetail()) return;
+      renderEpisodeDetail(episodeHtml, previousWasShow, false);
+      window.scrollTo({ top: detailScrollY, behavior: "auto" });
+    }).catch(() => undefined);
+  }
 }
 
 async function refreshTvContent({ background = false } = {}) {
   if (tvRefreshRequest) return tvRefreshRequest;
   tvRefreshRequest = (async () => {
     const response = await fetch("/api/tv", {
-      headers: { "X-Requested-With": "Track" },
+      headers: localDateHeaders({ "X-Requested-With": "Track" }),
     });
     if (!response.ok) throw new Error("Could not refresh TV");
     if (background && currentView === "tv") return;
@@ -1687,7 +1736,7 @@ async function processScheduleEpisode(card, action) {
   try {
     const response = await fetch(`/api/episodes/${episodeId}/log`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: localDateHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ action_kind: action, log_date: toIsoDate(new Date()) }),
     });
     const data = await response.json();
@@ -1708,7 +1757,7 @@ async function processScheduleEpisode(card, action) {
     }
 
     const nextResponse = await fetch(`/api/schedule/shows/${showId}/catch-up`, {
-      headers: scheduleRequestHeaders({ "X-Requested-With": "Track" }),
+      headers: localDateHeaders({ "X-Requested-With": "Track" }),
     });
     if (!nextResponse.ok && nextResponse.status !== 204) {
       throw new Error("Could not load the next episode");
@@ -1827,7 +1876,7 @@ function refreshShowDetailCache(showId) {
   const cacheKey = String(showId);
   if (showDetailRefreshRequests.has(cacheKey)) return showDetailRefreshRequests.get(cacheKey);
   const request = Promise.all([
-    fetch(`/api/shows/${showId}`, { headers: { "X-Requested-With": "Track" } }),
+    fetch(`/api/shows/${showId}`, { headers: localDateHeaders({ "X-Requested-With": "Track" }) }),
     fetch(`/api/shows/${showId}/seasons`, { headers: { "X-Requested-With": "Track" } }),
   ]).then(async ([showResponse, seasonsResponse]) => {
     if (!showResponse.ok || !seasonsResponse.ok) throw new Error("Could not refresh show");
@@ -1846,7 +1895,7 @@ function refreshMovieDetailCache(movieId) {
   const cacheKey = String(movieId);
   if (movieDetailRefreshRequests.has(cacheKey)) return movieDetailRefreshRequests.get(cacheKey);
   const request = fetch(`/api/movies/${movieId}`, {
-    headers: { "X-Requested-With": "Track" },
+    headers: localDateHeaders({ "X-Requested-With": "Track" }),
   }).then(async (response) => {
     if (!response.ok) throw new Error("Could not refresh movie");
     const movieHtml = await response.text();
@@ -1863,7 +1912,7 @@ function refreshEpisodeDetailCache(episodeId) {
   const cacheKey = String(episodeId);
   if (episodeDetailRefreshRequests.has(cacheKey)) return episodeDetailRefreshRequests.get(cacheKey);
   const request = fetch(`/api/episodes/${episodeId}`, {
-    headers: { "X-Requested-With": "Track" },
+    headers: localDateHeaders({ "X-Requested-With": "Track" }),
   }).then(async (response) => {
     if (!response.ok) throw new Error("Could not refresh episode");
     const episodeHtml = await response.text();
@@ -2168,7 +2217,7 @@ function replaceLibraryCard(showId, cardHtml) {
 
 async function fetchRefreshedShowFragments(showId) {
   const showResponse = await fetch(`/api/shows/${showId}`, {
-    headers: { "X-Requested-With": "Track" },
+    headers: localDateHeaders({ "X-Requested-With": "Track" }),
   });
   if (!showResponse.ok) throw new Error("Could not load refreshed show");
   const showHtml = await showResponse.text();
@@ -2223,7 +2272,7 @@ async function refreshShowMetadata(showId, { force = false, trigger = null } = {
   const refreshRequest = (async () => {
     const response = await fetch(`/api/shows/${showId}/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: localDateHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ force }),
     });
     const data = await response.json();
@@ -2360,7 +2409,7 @@ async function openShow(
   try {
     const fetchFragment = async (url, errorMessage) => {
       const response = await fetch(url, {
-        headers: { "X-Requested-With": "Track" },
+        headers: localDateHeaders({ "X-Requested-With": "Track" }),
         signal: detailRequest.signal,
       });
       if (!response.ok) throw new Error(errorMessage);
@@ -2452,7 +2501,7 @@ async function openMovie(movieId, parentView = "movies", historyMode = "push") {
   prepareDetailLoad("Movie details");
   try {
     const response = await fetch(`/api/movies/${movieId}`, {
-      headers: { "X-Requested-With": "Track" }, signal: detailRequest.signal,
+      headers: localDateHeaders({ "X-Requested-With": "Track" }), signal: detailRequest.signal,
     });
     if (!response.ok) throw new Error("Could not load movie");
     const movieHtml = await response.text();
@@ -2504,7 +2553,7 @@ async function previewCatalogMovie(card, historyMode = "push") {
   prepareDetailLoad("Movie details");
   try {
     const response = await fetch(`/api/movies/tmdb/${card.dataset.tmdbId}/preview`, {
-      headers: { "X-Requested-With": "Track" }, signal: detailRequest.signal,
+      headers: localDateHeaders({ "X-Requested-With": "Track" }), signal: detailRequest.signal,
     });
     if (!response.ok) throw new Error("Could not load movie");
     const previewRevealKey = `movie-preview:${card.dataset.tmdbId}`;
@@ -2602,7 +2651,7 @@ async function openEpisode(episodeId, historyMode = "push") {
 
   try {
     const response = await fetch(`/api/episodes/${episodeId}`, {
-      headers: { "X-Requested-With": "Track" },
+      headers: localDateHeaders({ "X-Requested-With": "Track" }),
       signal: detailRequest.signal,
     });
     if (!response.ok) throw new Error("Could not load episode");
@@ -2637,7 +2686,7 @@ function requestEpisodeDetailHtml(episodeId) {
   if (episodeDetailRequests.has(cacheKey)) return episodeDetailRequests.get(cacheKey);
 
   const request = fetch(`/api/episodes/${episodeId}`, {
-    headers: { "X-Requested-With": "Track" },
+    headers: localDateHeaders({ "X-Requested-With": "Track" }),
   }).then(async (response) => {
     if (!response.ok) throw new Error("Could not load episode");
     const episodeHtml = await response.text();
@@ -3118,7 +3167,7 @@ async function saveDiaryDate() {
     saveButton.disabled = true;
     try {
       const response = await fetch(`/api/${logDatePickerTarget.type}s/${logDatePickerTarget.id}/log`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: localDateHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ action_kind: "watch", log_date: datePickerSelectedDate ? toIsoDate(datePickerSelectedDate) : null }),
       });
       const data = await response.json();
@@ -3672,7 +3721,7 @@ async function fetchReactionListMarkup(reaction, { force = false } = {}) {
   const generation = reactionListGeneration;
   const controller = new AbortController();
   const request = fetch(`/api/lists/${reaction}`, {
-    headers: { "X-Requested-With": "Track" },
+    headers: localDateHeaders({ "X-Requested-With": "Track" }),
     signal: controller.signal,
   }).then(async (response) => {
     if (!response.ok) throw new Error("Could not load this list");
@@ -3774,7 +3823,7 @@ async function toggleMediaReaction(button) {
       `/api/${isMovie ? "movies" : "shows"}/${mediaId}/reactions/${reaction}`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: localDateHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ selected }),
       },
     );
@@ -3892,7 +3941,7 @@ async function moveShow(showElement, targetState, actionButton) {
   try {
     const response = await fetch(`/api/shows/${showId}/state`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: localDateHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ state: targetState }),
     });
     if (!response.ok) throw new Error("Could not move show");
@@ -5435,6 +5484,9 @@ window.addEventListener("focus", refreshScheduleForLocalDayChange);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") refreshScheduleForLocalDayChange();
 });
+window.setInterval(() => {
+  if (document.visibilityState === "visible") refreshScheduleForLocalDayChange();
+}, 60_000);
 
 function releaseTimelineScrollRestore() {
   settleActiveVirtualReveals();
