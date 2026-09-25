@@ -184,6 +184,7 @@ def get_catch_up_episodes(
             JOIN seasons sn ON sn.show_id = s.id AND sn.is_progress_counted = 1
             JOIN episodes e ON e.season_id = sn.id
             WHERE s.is_tracked = 1
+              AND (? IS NULL OR s.id = ?)
               AND e.air_date IS NOT NULL
               AND e.air_date <= ?
         ),
@@ -283,7 +284,7 @@ def get_catch_up_episodes(
         ORDER BY show_progress.last_watched_at DESC,
                  unresolved.show_name COLLATE NOCASE
         """,
-        (local_date_value, show_id, show_id),
+        (show_id, show_id, local_date_value, show_id, show_id),
     ).fetchall()
     if show_id is not None:
         return episodes
@@ -958,17 +959,6 @@ def get_movie_library(
         (today,),
     ).fetchall()
     return movies
-
-
-def get_reaction_media(
-    db: sqlite3.Connection, reaction: str, local_date: date | None = None
-) -> tuple[list[sqlite3.Row], list[sqlite3.Row]]:
-    if reaction != "liked":
-        raise ValueError(f"Unknown reaction: {reaction}")
-    active_shows, archived_shows = get_tv_library_shows(db, local_date)
-    shows = [show for show in (*active_shows, *archived_shows) if show["liked_at"]]
-    movies = [movie for movie in get_movie_library(db, local_date) if movie["liked_at"]]
-    return shows, movies
 
 
 def get_movie_activity(db: sqlite3.Connection, movie_id: int) -> list[sqlite3.Row]:

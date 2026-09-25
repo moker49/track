@@ -38,7 +38,6 @@ from queries import (
     get_diary_monthly_summary,
     get_library_show,
     get_movie_library,
-    get_reaction_media,
     get_movie_activity,
     get_show_progress,
     watch_payload,
@@ -424,14 +423,6 @@ def create_app(test_config: dict | None = None) -> Flask:
     def movies_fragment():
         return render_template("movies.html", movies=get_movie_library(get_db(), request_local_date()))
 
-    @app.get("/api/lists/<reaction>")
-    def reaction_list_fragment(reaction: str):
-        try:
-            shows, movies = get_reaction_media(get_db(), reaction, request_local_date())
-        except ValueError:
-            abort(404)
-        return render_template("_reaction_list.html", reaction=reaction, shows=shows, movies=movies)
-
     @app.get("/api/schedule")
     def schedule_fragment():
         db = get_db()
@@ -545,6 +536,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         payload = request.get_json(silent=True) or {}
         watched = bool(payload.get("watched"))
         queued = bool(payload.get("queued"))
+        target_state = payload.get("state", TRACKING_ACTIVE)
+        if target_state not in TRACKING_STATES:
+            return jsonify(error="state must be ACTIVE or ARCHIVED"), 400
         diary_date = payload.get("diary_date")
         if diary_date is not None:
             if not isinstance(diary_date, str):
@@ -563,9 +557,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         existing_movie = db.execute(
             "SELECT is_tracked FROM movies WHERE tmdb_id = ?", (tmdb_id,)
         ).fetchone()
-        db.execute("""INSERT INTO movies (tmdb_id,title,original_title,overview,poster_path,backdrop_path,release_date,runtime_minutes,status,genres,original_language,is_tracked,added_at,updated_at,tmdb_refreshed_at,tmdb_payload)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tmdb_id) DO UPDATE SET is_tracked=1,added_at=CASE WHEN movies.is_tracked=0 THEN excluded.added_at ELSE movies.added_at END,updated_at=excluded.updated_at""",
-          (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), 1, added_at, now, now, json.dumps(movie)))
+        db.execute("""INSERT INTO movies (tmdb_id,title,original_title,overview,poster_path,backdrop_path,release_date,runtime_minutes,status,genres,original_language,is_tracked,state,added_at,updated_at,tmdb_refreshed_at,tmdb_payload)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tmdb_id) DO UPDATE SET is_tracked=1,state=excluded.state,added_at=CASE WHEN movies.is_tracked=0 THEN excluded.added_at ELSE movies.added_at END,updated_at=excluded.updated_at""",
+          (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), 1, target_state, added_at, now, now, json.dumps(movie)))
         db.commit()
         movie_id = db.execute("SELECT id FROM movies WHERE tmdb_id = ?", (tmdb_id,)).fetchone()["id"]
         clear_refresh_failure(db, "movie", movie_id)
@@ -584,7 +578,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         normalize_movie_added_timestamps(db, movie_id)
         db.commit()
         schedule_cast_hydration("movie", movie_id, tmdb_id)
-        return jsonify(ok=True, movie_id=movie_id)
+        return jsonify(ok=True, movie_id=movie_id, state=target_state)
 
     @app.post("/api/movies/<int:movie_id>/refresh")
     def refresh_movie(movie_id: int):
@@ -634,7 +628,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if payload.get("id") != tmdb_id:
             return jsonify(error="TMDB returned the wrong movie"), 502
         saved_movie = get_db().execute(
-            "SELECT id, is_tracked, liked_at FROM movies WHERE tmdb_id = ?", (tmdb_id,)
+            "SELECT id, is_tracked, state FROM movies WHERE tmdb_id = ?", (tmdb_id,)
         ).fetchone()
         movie = {
             "id": saved_movie["id"] if saved_movie else None,
@@ -650,7 +644,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "runtime_minutes": payload.get("runtime"),
             "genres": ", ".join(genre.get("name", "") for genre in payload.get("genres", [])),
             "is_tracked": bool(saved_movie["is_tracked"]) if saved_movie else False,
-            "liked_at": saved_movie["liked_at"] if saved_movie else None,
+            "state": saved_movie["state"] if saved_movie else None,
             "watch_count": 0,
         }
         try:
@@ -708,20 +702,11 @@ def create_app(test_config: dict | None = None) -> Flask:
         ).fetchall()
 
     def update_media_reaction(table: str, media_id: int, reaction: str):
-        column = {"queue": "watch_again"}.get(reaction)
-        if reaction not in {"liked", "queue"}:
+        if reaction != "queue":
             abort(404)
         selected = bool((request.get_json(silent=True) or {}).get("selected"))
         db = get_db()
-        if reaction == "liked":
-            cursor = db.execute(
-                f"""UPDATE {table}
-                    SET liked_at = CASE WHEN ? THEN ? ELSE NULL END,
-                        updated_at = ?
-                    WHERE id = ? AND is_tracked = 1""",
-                (selected, utc_now(), utc_now(), media_id),
-            )
-        elif table == "shows" and reaction == "queue":
+        if table == "shows":
             baseline = get_show_progress(db, media_id, request_local_date())["completed_watch_count"] if selected else None
             cursor = db.execute(
                 "UPDATE shows SET watch_again = ?, watch_again_baseline = ?, updated_at = ? WHERE id = ? AND is_tracked = 1",
@@ -729,7 +714,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
         else:
             cursor = db.execute(
-                f"UPDATE {table} SET {column} = ?, updated_at = ? WHERE id = ? AND is_tracked = 1",
+                f"UPDATE {table} SET watch_again = ?, updated_at = ? WHERE id = ? AND is_tracked = 1",
                 (int(selected), utc_now(), media_id),
             )
         if cursor.rowcount == 0:
@@ -744,6 +729,21 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.post("/api/movies/<int:movie_id>/reactions/<reaction>")
     def set_movie_reaction(movie_id: int, reaction: str):
         return update_media_reaction("movies", movie_id, reaction)
+
+    @app.post("/api/movies/<int:movie_id>/state")
+    def set_movie_state(movie_id: int):
+        target_state = (request.get_json(silent=True) or {}).get("state")
+        if target_state not in TRACKING_STATES:
+            return jsonify(error="state must be ACTIVE or ARCHIVED"), 400
+        db = get_db()
+        cursor = db.execute(
+            "UPDATE movies SET state = ?, updated_at = ? WHERE id = ? AND is_tracked = 1",
+            (target_state, utc_now(), movie_id),
+        )
+        if cursor.rowcount == 0:
+            return jsonify(error="Movie not found"), 404
+        db.commit()
+        return jsonify(movie_id=movie_id, state=target_state)
 
     @app.delete("/api/movies/<int:movie_id>")
     def remove_movie(movie_id: int):
@@ -976,9 +976,11 @@ def create_app(test_config: dict | None = None) -> Flask:
         if show is None:
             abort(404)
 
+        next_episode = get_catch_up_episodes(db, show_id=show_id, local_date=request_local_date()) if show["is_tracked"] else []
         return render_template(
             "show_detail.html",
             show=show,
+            next_watch_episode_id=next_episode[0]["episode_id"] if next_episode else None,
             activity=get_show_activity(db, show_id),
             cast=get_media_cast(db, "show", show_id),
             metadata_refresh_due=not show_metadata_is_fresh(show["tmdb_refreshed_at"]),
@@ -1160,6 +1162,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         target_state = payload.get("state")
         if target_state not in TRACKING_STATES:
             return jsonify(error="state must be ACTIVE or ARCHIVED"), 400
+        queued = payload.get("queued", False)
+        if type(queued) is not bool or (queued and target_state != TRACKING_ACTIVE):
+            return jsonify(error="queued requires ACTIVE and must be a boolean"), 400
 
         db = get_db()
         show = db.execute(
@@ -1191,6 +1196,14 @@ def create_app(test_config: dict | None = None) -> Flask:
                 VALUES (?, ?, ?)
                 """,
                 (show_id, target_state, changed_at),
+            )
+            db.commit()
+
+        if queued:
+            baseline = get_show_progress(db, show_id, request_local_date())["completed_watch_count"]
+            db.execute(
+                "UPDATE shows SET watch_again = 1, watch_again_baseline = ?, updated_at = ? WHERE id = ?",
+                (baseline, utc_now(), show_id),
             )
             db.commit()
 

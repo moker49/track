@@ -29,13 +29,14 @@ TMDB poster, season, and episode images are downloaded on demand through the loc
 
 The browser loads one persistent application shell at `/`. Queue is the first and default destination, followed by Upcoming and TV. These views switch in place without changing the URL. Selecting a show renders its compact overview first, then loads seasons and episodes in the background. Both fragments are cached in memory for seamless repeat visits during the current browser session. Stored TMDB metadata is refreshed in the background only when its last refresh is at least 24 hours old, or immediately when Refresh is chosen from the show-detail menu. Existing details stay visible until the refreshed overview and episode list are ready. The outer app shell and navigation are never replaced.
 
-Queue displays the oldest unresolved released episode for each Active show. Watch records a normal watch event; Skip advances the queue without changing watch history and offers a temporary Undo action in the snackbar. Skipped episodes cycle back after the other unresolved episodes. Upcoming presents future-dated episodes for Active and Archived shows as a month-grouped timeline with release-day markers and live day countdowns. Specials are excluded from both views.
+Queue displays eligible TV episodes and explicitly queued movies. Watch records a normal watch event; Skip advances the TV queue without changing watch history and offers a temporary Undo action in the snackbar. Skipped episodes cycle back after the other unresolved episodes. Upcoming presents future-dated episodes and movies from Active and Archived media as a month-grouped timeline with release-day markers and live day countdowns. Specials are excluded from both views.
 
 While the Flask server is running, a server-side worker checks tracked TV shows and movies every hour. It refreshes stale eligible media oldest-first, so an overdue library is drained fairly. Ended shows and movies released more than three months ago are skipped. Failures retry after 1 hour, then 6 hours, then every 24 hours; a failure for one item does not prevent the remaining stale media from refreshing. All TMDB requests share a process-wide token bucket capped at four requests per second, with a burst capacity of eight requests.
 
 ## Data model
 
-- `shows` stores imported show metadata, TMDB/TVDB identifiers, tracking and reaction state, its `ACTIVE`/`ARCHIVED` lifecycle timestamps, the last TMDB refresh, and the complete source payload.
+- `shows` stores imported show metadata, TMDB/TVDB identifiers, tracking state, its `ACTIVE`/`ARCHIVED` lifecycle timestamps, the last TMDB refresh, and the complete source payload.
+- `movies` uses the same Active/Archived states. Movie Queue is explicitly selected; TV Queue includes eligible episodes automatically and supports forced entries.
 - `show_state_history` retains every state entry for future transitions and reporting.
 - `show_metadata_refresh_failures` persists automatic-refresh failures and their next eligible retry time.
 - `movie_metadata_refresh_failures` persists the same retry state for movies.
@@ -43,7 +44,7 @@ While the Flask server is running, a server-side worker checks tracked TV shows 
 - `episode_watch_history` stores one row per watch event with an immutable `added_at` timestamp and an optional user-selected `diary_date`; undated events remain out of Diary and statistics.
 - `season_watch_history` uses the same two-date model for whole-season watch actions.
 
-The canonical schema is applied idempotently at startup for new databases and missing schema objects; startup does not alter existing table layouts or migrate historical data. TMDB refreshes update shows, seasons, and episodes in place by TMDB ID, preserving local row IDs and watch history. Season zero and any season marked special are imported and remain watchable, but are excluded from show and season progress.
+The canonical schema is applied idempotently at startup for new databases and missing schema objects. A one-time movie-state migration makes previously liked or unwatched movies Active and watched, unliked movies Archived. TMDB refreshes update shows, seasons, and episodes in place by TMDB ID, preserving local row IDs and watch history. Season zero and any season marked special are imported and remain watchable, but are excluded from show and season progress.
 
 Removing a show demotes it to an untracked preview. It disappears from Active and Archived while its imported metadata and complete watch history remain available through TV search for later re-adding.
 

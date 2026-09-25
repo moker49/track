@@ -2,7 +2,7 @@
 {% set upcoming = not watched and movie.is_upcoming|default(false) %}
 <div data-detail-movie data-detail-title="{{ movie.title }}"
   data-movie-id="{{ movie.id if movie.id is not none else '' }}" data-tmdb-id="{{ movie.tmdb_id }}"
-  data-watch-count="{{ movie.watch_count }}" data-liked="{{ 'true' if movie.liked_at else 'false' }}"
+  data-watch-count="{{ movie.watch_count }}" data-show-state="{{ movie.state or 'ACTIVE' }}"
   data-queued="{{ 'true' if movie.watch_again else 'false' }}"
   data-movie-upcoming="{{ 'true' if upcoming else 'false' }}"
   data-progress-state="{{ 'finished' if watched else 'not-started' }}">
@@ -28,7 +28,7 @@
     </button>{% endif %}
     <div class="hero-copy">
       {% if movie.is_tracked %}<span class="state-label progress-tag" data-movie-progress-tag>{{ 'Watched' if watched
-        else 'Upcoming' if upcoming else 'New' }}</span>{% endif %}
+        else 'Upcoming' if upcoming else 'New' }}</span><span class="state-label" data-movie-state-label {% if movie.state != 'ARCHIVED' %}hidden{% endif %}>Archived</span>{% endif %}
       <h1>{{ movie.title }}</h1>
       <p>{{ movie.release_date[:4] if movie.release_date else '' }}{% if movie.runtime_minutes %} · {{
         movie.runtime_minutes }} min{% endif %}{% if movie.genres %}<br>{{ movie.genres }}{% endif %}</p>
@@ -52,16 +52,18 @@
     aria-label="Movie actions">
     <div class="detail-docked-start">
       {% if movie.is_tracked %}
-      <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-reaction-toggle="liked"
-        aria-pressed="{{ 'true' if movie.liked_at else 'false' }}" aria-label="Like {{ movie.title }}" title="Like">
-        <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
-      </button>
-      <button class="detail-docked-button" data-toolbar-slot="2" type="button" data-reaction-toggle="queue"
+      <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-reaction-toggle="queue"
         aria-pressed="{{ 'true' if movie.watch_again else 'false' }}"
         aria-label="{{ 'Remove ' ~ movie.title ~ ' from Queue' if movie.watch_again else 'Add ' ~ movie.title ~ ' to Queue' }}"
         title="Toggle Queue">
         <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if movie.watch_again else
           'playlist_add' }}</span>
+      </button>
+      <button class="detail-docked-button" data-toolbar-slot="2" type="button" data-movie-action="move"
+        data-target-state="{{ 'ACTIVE' if movie.state == 'ARCHIVED' else 'ARCHIVED' }}"
+        aria-label="{{ 'Resume' if movie.state == 'ARCHIVED' else 'Archive' }} {{ movie.title }}"
+        title="{{ 'Resume' if movie.state == 'ARCHIVED' else 'Archive' }}">
+        <span class="material-symbols-rounded is-filled" aria-hidden="true">{{ 'resume' if movie.state == 'ARCHIVED' else 'archive' }}</span>
       </button>
       {% else %}
       <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-watch-untracked-movie
@@ -89,23 +91,16 @@
         aria-label="Refresh {{ movie.title }}" title="Refresh">
         <span class="material-symbols-rounded" aria-hidden="true">cloud_sync</span>
       </button>
-      <div class="menu-anchor detail-overflow-anchor" data-toolbar-slot="5">
-        <button class="detail-docked-button" type="button" data-movie-menu-button
-          aria-label="More options for {{ movie.title }}" aria-expanded="false" title="More options">
-          <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
-        </button>
-        <div class="show-menu" data-movie-menu popover="manual" hidden>
-          <button class="danger-action" type="button" data-movie-action="remove">
-            <span class="material-symbols-rounded is-filled" aria-hidden="true">delete</span>
-            <span>Remove</span>
-          </button>
-        </div>
-      </div>
+      <button class="detail-docked-button danger-action" data-toolbar-slot="5" type="button" data-movie-action="remove"
+        aria-label="Remove {{ movie.title }}" title="Remove">
+        <span class="material-symbol-rounded" aria-hidden="true">delete</span>
+      </button>
       {% else %}
-      <button class="detail-docked-button" data-toolbar-slot="3" type="button" data-queue-untracked-movie
-        aria-label="Add {{ movie.title }} to Queue" title="Add to Queue">
-        <span class="material-symbols-rounded" aria-hidden="true">playlist_add</span>
-        {% endif %}
+      <button class="detail-docked-button" data-toolbar-slot="3" type="button" data-archive-untracked-movie
+        aria-label="Archive {{ movie.title }}" title="Archive">
+        <span class="material-symbols-rounded" aria-hidden="true">archive</span>
+      </button>
+      {% endif %}
     </div>
   </div>
 </div>

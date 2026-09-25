@@ -51,5 +51,25 @@ def unknown_log_timestamp(media_added_at: str) -> str:
 def initialize_database(db: sqlite3.Connection, schema_path: str | Path) -> None:
     schema = Path(schema_path).read_text(encoding="utf-8")
     db.executescript(schema)
+    movie_columns = {row["name"] for row in db.execute("PRAGMA table_info(movies)")}
+    if "state" not in movie_columns:
+        db.execute("ALTER TABLE movies ADD COLUMN state TEXT NOT NULL DEFAULT 'ARCHIVED' CHECK (state IN ('ACTIVE', 'ARCHIVED'))")
+    migration_name = "movie_state_from_likes_and_watch_history"
+    if db.execute(
+        "SELECT 1 FROM schema_migrations WHERE name = ?", (migration_name,)
+    ).fetchone() is None:
+        liked_condition = "liked_at IS NOT NULL OR " if "liked_at" in movie_columns else ""
+        db.execute(
+            f"""UPDATE movies SET state = CASE
+                WHEN {liked_condition}NOT EXISTS (
+                    SELECT 1 FROM movie_watch_history h WHERE h.movie_id = movies.id
+                ) THEN 'ACTIVE'
+                ELSE 'ARCHIVED'
+            END"""
+        )
+        db.execute(
+            "INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)",
+            (migration_name, datetime.now(timezone.utc).isoformat(timespec="seconds")),
+        )
     db.execute("PRAGMA optimize")
     db.commit()

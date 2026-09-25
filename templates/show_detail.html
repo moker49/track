@@ -6,7 +6,7 @@
   data-metadata-refresh-due="{{ 'true' if metadata_refresh_due else 'false' }}"
   data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
   data-total-watch-count="{{ show.total_watch_count }}" data-completed-watch-count="{{ show.completed_watch_count }}"
-  data-liked="{{ 'true' if show.liked_at else 'false' }}" data-queued="{{ 'true' if show.watch_again else 'false' }}"
+  data-queued="{{ 'true' if show.watch_again else 'false' }}"
   data-progress-state="{{ progress.css_state }}">
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back aria-label="Back">
@@ -84,28 +84,28 @@
     aria-label="Show actions">
     <div class="detail-docked-start">
       {% if show.is_tracked %}
-      <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-reaction-toggle="liked"
-        aria-pressed="{{ 'true' if show.liked_at else 'false' }}" aria-label="Like {{ show.name }}" title="Like">
-        <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
-      </button>
-      <button class="detail-docked-button" data-toolbar-slot="2" type="button" data-reaction-toggle="queue"
+      <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-reaction-toggle="queue"
         aria-pressed="{{ 'true' if show.watch_again else 'false' }}"
         aria-label="{{ 'Remove ' ~ show.name ~ ' from Queue' if show.watch_again else 'Add ' ~ show.name ~ ' to Queue' }}"
         title="Toggle Queue">
         <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if show.watch_again else
           'playlist_add' }}</span>
       </button>
+      <button class="detail-docked-button" data-toolbar-slot="2" type="button" data-show-action="move"
+        data-target-state="{{ move.target_state }}" aria-label="{{ move.label }} {{ show.name }}" title="{{ move.label }}">
+        <span class="material-symbols-rounded is-filled" aria-hidden="true">{{ move.icon }}</span><span class="sr-only" data-move-label>{{ move.label }}</span>
+      </button>
       {% else %}
-      <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-track-show-state="ACTIVE"
-        aria-label="Watch {{ show.name }}" title="Watch">
-        <span class="material-symbols-rounded" aria-hidden="true">play_arrow</span>
+      <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-track-show-state="ACTIVE" data-track-show-queued
+        aria-label="Add {{ show.name }} to Queue" title="Add to Queue">
+        <span class="material-symbols-rounded" aria-hidden="true">playlist_add</span>
       </button>
       {% endif %}
     </div>
     <div class="detail-docked-center">
       {% if show.is_tracked %}
-      <button class="detail-docked-primary" data-toolbar-slot="3" type="button" aria-label="Watch {{ show.name }}"
-        title="Watch">
+      <button class="detail-docked-primary" data-toolbar-slot="3" type="button" data-show-next-episode="{{ next_watch_episode_id or '' }}"
+        aria-label="Open next episode of {{ show.name }}" title="Open next episode" {% if not next_watch_episode_id %}disabled{% endif %}>
         <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
       </button>
       {% else %}
@@ -121,22 +121,10 @@
         aria-label="Refresh {{ show.name }}" title="Refresh">
         <span class="material-symbols-rounded" aria-hidden="true">cloud_sync</span>
       </button>
-      <div class="menu-anchor detail-overflow-anchor" data-toolbar-slot="5">
-        <button class="detail-docked-button" type="button" data-show-menu-button
-          aria-label="More options for {{ show.name }}" aria-expanded="false" title="More options">
-          <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
-        </button>
-        <div class="show-menu" data-show-menu popover="manual" hidden>
-          <button type="button" data-show-action="move" data-target-state="{{ move.target_state }}">
-            <span class="material-symbols-rounded is-filled" aria-hidden="true">{{ move.icon }}</span>
-            <span data-move-label>{{ move.label }}</span>
-          </button>
-          <button class="danger-action" type="button" data-show-action="remove">
-            <span class="material-symbols-rounded is-filled" aria-hidden="true">delete</span>
-            <span>Remove</span>
-          </button>
-        </div>
-      </div>
+      <button class="detail-docked-button danger-action" data-toolbar-slot="5" type="button" data-show-action="remove"
+        aria-label="Remove {{ show.name }}" title="Remove">
+        <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+      </button>
       {% else %}
       <button class="detail-docked-button" data-toolbar-slot="3" type="button" data-track-show-state="ARCHIVED"
         aria-label="Archive {{ show.name }}" title="Archive">

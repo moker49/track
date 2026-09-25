@@ -34,11 +34,11 @@ async function revealAppWhenIconsAreReady() {
     const iconFonts = Promise.all([
       document.fonts.load(
         '24px "Material Symbols Rounded"',
-        "filter_list expand_more expand_less check_box arrow_upward arrow_downward more_vert resume playlist_add playlist_add_check event tv movie video_library done_all arrow_forward menu account_circle arrow_back close favorite",
+        "filter_list expand_more expand_less check_box arrow_upward arrow_downward more_vert resume playlist_add playlist_add_check event tv movie video_library done_all arrow_forward menu account_circle arrow_back close",
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
-        "resume playlist_add_check view_list grid_view calendar_view_month view_agenda event tv movie playlist_add play_arrow refresh more_vert add archive chevron_left chevron_right favorite",
+        "resume playlist_add_check view_list grid_view calendar_view_month view_agenda event tv movie playlist_add play_arrow refresh more_vert add archive chevron_left chevron_right",
       ),
     ]);
     await Promise.race([
@@ -67,7 +67,7 @@ const tvViewToggle = document.querySelector("[data-tv-view-toggle]");
 const displayHiddenLogItemsToggle = document.querySelector("[data-setting-display-hidden-log-items]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, diary: 0, statistics: 0, liked: 0 };
+const scrollPositions = { backlog: 0, upcoming: 0, tv: 0, movies: 0, detail: 0, diary: 0, statistics: 0 };
 const DISPLAY_HIDDEN_LOG_ITEMS_STORAGE_KEY = "track.display-hidden-log-items";
 let displayHiddenLogItems = false;
 
@@ -112,7 +112,6 @@ sharedDialogs.forEach((dialog) => {
 
 const tvControlBar = document.querySelector("[data-tv-control-bar]");
 const tvControlBarSlot = document.querySelector("[data-tv-control-bar-slot]");
-const likedControlBarSlot = document.querySelector("[data-liked-control-bar-slot]");
 const menuIsolatedElements = new Set();
 const floatingMenuAnimations = new WeakMap();
 let menuScrollLockPosition = null;
@@ -148,20 +147,10 @@ const libraryViewPreferences = {
     mediaTypes: ["movies"],
     layout: "list",
   },
-  liked: {
-    progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP],
-    sortField: "likedAt",
-    sortDirection: "desc",
-    mediaTypes: ["tv", "movies", "tv-archive"],
-  },
 };
-const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "", liked: "" };
+const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "" };
 const librarySearchUpdates = { tv: false, movies: false };
 const virtualLibraries = new Map();
-const virtualReactionLists = new Map();
-const reactionListMarkup = new Map();
-const reactionListRequests = new Map();
-let reactionListGeneration = 0;
 // Keep enough cards mounted around the viewport that normal scrolling does not
 // repeatedly detach and repaint poster images at the slice boundary.
 const VIRTUAL_LIBRARY_OVERSCAN_ROWS = 8;
@@ -236,7 +225,6 @@ let tvLayoutTransitionTimer = null;
 let tvDropdownHistoryActive = false;
 let navigationDrawerHistoryActive = false;
 let navigationDrawerCloseTimer = null;
-let reactionListsDirty = true;
 let searchHistoryActive = false;
 let searchHistoryView = null;
 let searchHistoryClosing = false;
@@ -402,7 +390,7 @@ function syncSearchTextPosition() {
 
 function syncGlobalSearch() {
   if (!globalSearchBar || !globalSearchInput) return;
-  const hasDedicatedAppBar = ["detail", "diary", "statistics", "liked"].includes(currentView);
+  const hasDedicatedAppBar = ["detail", "diary", "statistics"].includes(currentView);
   globalSearchBar.hidden = hasDedicatedAppBar;
   if (hasDedicatedAppBar) return;
 
@@ -703,14 +691,6 @@ function showView(viewName, historyMode = null) {
   }
   if (viewName === "statistics" && renderedStatisticsRevision === diaryRevision) {
     revealStatisticsOnce(views.get("statistics"));
-  }
-  if (viewName === "liked") {
-    if (reactionListsDirty) refreshReactionList(viewName);
-    else {
-      initializeVirtualReactionList(viewName);
-      filterReactionList();
-      window.requestAnimationFrame(() => revealReactionListOnce(viewName));
-    }
   }
   document.title = APP_TITLE;
   if (["backlog", "upcoming"].includes(viewName)) {
@@ -1123,13 +1103,13 @@ async function previewCatalogShow(card, historyMode = "push") {
   }
 }
 
-async function trackDetailShow(showElement, state, trigger) {
+async function trackDetailShow(showElement, state, trigger, queued = false) {
   trigger.disabled = true;
   try {
     const response = await fetch(`/api/shows/${showElement.dataset.showId}/state`, {
       method: "POST",
       headers: localDateHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ state }),
+      body: JSON.stringify({ state, queued }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add show");
@@ -1618,8 +1598,6 @@ function refreshScheduleForLocalDayChange() {
   refreshTvContent().catch(() => undefined);
   refreshMoviesContent().catch(() => undefined);
   refreshStatisticsContent().catch(() => undefined);
-  invalidateReactionLists();
-  if (currentView === "liked") refreshReactionList("liked", { force: true });
   const stillViewingDetail = () => activeDetail?.isConnected
     && currentView === "detail" && toIsoDate(new Date()) === localDate;
   if (activeDetail?.matches("[data-detail-show]")) {
@@ -1714,7 +1692,6 @@ function hydrateOtherPrimaryViews(currentPrimaryView = null) {
       hydrationTasks.push(
         refreshDiaryContent(),
         refreshStatisticsContent(),
-        prefetchReactionLists(),
       );
       Promise.allSettled(hydrationTasks);
     });
@@ -2369,7 +2346,7 @@ async function openShow(
   returnContext = null,
 ) {
   const cacheKey = String(showId);
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics"].includes(parentView)
     ? parentView
     : "backlog";
   if (historyMode) {
@@ -2476,7 +2453,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
 }
 
 async function openMovie(movieId, parentView = "movies", historyMode = "push") {
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked"].includes(parentView)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics"].includes(parentView)
     ? parentView : "movies";
   if (historyMode) {
     writeHistory({ view: "detail", detailType: "movie", movieId: String(movieId), parentView: detailParentView }, historyMode);
@@ -2571,11 +2548,11 @@ async function previewCatalogMovie(card, historyMode = "push") {
   }
 }
 
-async function trackDetailMovie(movieElement, trigger, { queued = false } = {}) {
+async function trackDetailMovie(movieElement, trigger, { queued = false, state = TRACKING_STATE.ACTIVE } = {}) {
   trigger.disabled = true;
   try {
     const response = await fetch(`/api/movies/${movieElement.dataset.tmdbId}/import`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched: false, queued }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched: false, queued, state }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not add movie");
@@ -3251,7 +3228,6 @@ const sortFieldLabels = {
   releaseDate: "Released",
   lastWatched: "Watched",
   progress: "Progress",
-  likedAt: "Liked",
 };
 
 const libraryViewDefaults = {
@@ -3259,7 +3235,6 @@ const libraryViewDefaults = {
   upcoming: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "movies"] },
   tv: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP], sortField: "name", sortDirection: "asc", mediaTypes: ["tv"] },
   movies: { progress: [PROGRESS_STATE.NEW], sortField: "dateAdded", sortDirection: "desc", mediaTypes: ["movies"] },
-  liked: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "likedAt", sortDirection: "desc", mediaTypes: ["tv", "movies", "tv-archive"] },
 };
 
 function selectionSummary(values, defaults, available, defaultLabel) {
@@ -3271,14 +3246,15 @@ function selectionSummary(values, defaults, available, defaultLabel) {
 
 function mediaTypeLabel(mediaTypes, defaultMediaTypes) {
   const summary = selectionSummary(
-    mediaTypes, defaultMediaTypes, ["tv", "movies", "tv-archive"], "Library",
+    mediaTypes, defaultMediaTypes, ["tv", "movies", "tv-archive", "movies-archive"], "Library",
   );
   if (summary) return summary;
   const selected = new Set(mediaTypes);
   const tvArchive = selected.has("tv-archive");
-  if (selected.has("tv") && selected.has("movies")) return tvArchive ? "All" : "TV + Movies";
+  const movieArchive = selected.has("movies-archive");
+  if (selected.has("tv") && selected.has("movies")) return tvArchive || movieArchive ? "All" : "TV + Movies";
   if (selected.has("tv")) return tvArchive ? "TV+" : "TV";
-  if (selected.has("movies")) return tvArchive ? "Movies+" : "Movies";
+  if (selected.has("movies")) return movieArchive ? "Movies+" : "Movies";
   return "Archive";
 }
 
@@ -3346,12 +3322,12 @@ function syncTvControlBar(view = views.get(currentView)) {
 
   tvControlBar.querySelectorAll("[data-tv-media-option]").forEach((button) => {
     const type = button.dataset.tvMediaOption;
-    const excluded = (viewName === "tv" && type === "movies")
+    const excluded = (viewName === "tv" && ["movies", "movies-archive"].includes(type))
       || (viewName === "movies" && ["tv", "tv-archive"].includes(type));
     button.hidden = excluded;
     const label = button.querySelector("[data-tv-media-option-label]");
     if (label) {
-      label.textContent = ({ tv: "TV", movies: "Movies", "tv-archive": "Archive" }[type]);
+      label.textContent = ({ tv: "TV", movies: "Movies", "tv-archive": "Archive", "movies-archive": "Archive" }[type]);
     }
     const selected = preferences.mediaTypes.includes(type);
     button.classList.toggle("is-unselected-default", defaults.mediaTypes.includes(type) && !selected);
@@ -3367,7 +3343,7 @@ function syncTvControlBar(view = views.get(currentView)) {
     }
     const selected = preferences.progress.includes(value);
     button.classList.toggle("is-unselected-default", defaults.progress.includes(value) && !selected);
-    const progressLocked = viewName === "liked";
+    const progressLocked = false;
     button.disabled = progressLocked;
     button.setAttribute("aria-disabled", String(progressLocked));
     button.setAttribute("aria-checked", String(selected));
@@ -3375,9 +3351,7 @@ function syncTvControlBar(view = views.get(currentView)) {
   });
   tvControlBar.querySelectorAll("[data-tv-sort-option]").forEach((button) => {
     const option = button.dataset.tvSortOption;
-    button.hidden = viewName === "liked"
-      ? !["name", "dateAdded", "releaseDate", "likedAt"].includes(option)
-      : option === "likedAt" || (viewName === "movies" && option === "progress");
+    button.hidden = viewName === "movies" && option === "progress";
     const selected = button.dataset.tvSortOption === preferences.sortField;
     button.classList.toggle("is-unselected-default", button.dataset.tvSortOption === defaults.sortField && !selected);
     const sortLocked = viewName === "upcoming";
@@ -3394,9 +3368,9 @@ function syncTvControlBar(view = views.get(currentView)) {
 
 function syncTvControlVisibility() {
   if (!tvControlBar) return;
-  const visible = ["backlog", "upcoming", "tv", "movies", "liked"].includes(currentView)
+  const visible = ["backlog", "upcoming", "tv", "movies"].includes(currentView)
     && !searchQueries[currentView].trim();
-  const target = currentView === "liked" ? likedControlBarSlot : tvControlBarSlot;
+  const target = tvControlBarSlot;
   if (target && tvControlBar.parentElement !== target) target.append(tvControlBar);
   tvControlBar.hidden = !visible;
   appContent?.classList.toggle("has-library-controls", visible);
@@ -3714,101 +3688,6 @@ function syncCompletedForcedQueue(data) {
   if (data.watch_again_cleared) refreshScheduleContent().catch(() => undefined);
 }
 
-async function fetchReactionListMarkup(reaction, { force = false } = {}) {
-  if (!force && reactionListMarkup.has(reaction)) return reactionListMarkup.get(reaction);
-  const inFlight = reactionListRequests.get(reaction);
-  if (inFlight) return inFlight.promise;
-  const generation = reactionListGeneration;
-  const controller = new AbortController();
-  const request = fetch(`/api/lists/${reaction}`, {
-    headers: localDateHeaders({ "X-Requested-With": "Track" }),
-    signal: controller.signal,
-  }).then(async (response) => {
-    if (!response.ok) throw new Error("Could not load this list");
-    const markup = await response.text();
-    if (generation !== reactionListGeneration) throw new DOMException("Stale reaction list", "AbortError");
-    reactionListMarkup.set(reaction, markup);
-    return markup;
-  }).finally(() => {
-    if (reactionListRequests.get(reaction)?.generation === generation) {
-      reactionListRequests.delete(reaction);
-    }
-  });
-  reactionListRequests.set(reaction, { promise: request, controller, generation });
-  return request;
-}
-
-function prefetchReactionLists() {
-  const reactions = ["liked"];
-  return Promise.allSettled(
-    reactions.map((reaction) => fetchReactionListMarkup(reaction)),
-  );
-}
-
-function invalidateReactionLists() {
-  reactionListGeneration += 1;
-  reactionListMarkup.clear();
-  reactionListRequests.forEach(({ controller }) => controller.abort());
-  reactionListRequests.clear();
-  virtualReactionLists.clear();
-  reactionListsDirty = true;
-  prefetchReactionLists();
-}
-
-function refreshReactionLists() {
-  reactionListsDirty = false;
-  fetchReactionListMarkup("liked", { force: true }).then((markup) => {
-    if (currentView === "liked") renderReactionListMarkup("liked", markup);
-  }).catch(() => undefined);
-}
-
-function renderReactionListMarkup(reaction, markup) {
-  const panel = views.get(reaction)?.querySelector("[data-reaction-list-content]");
-  if (!panel) return;
-  virtualReactionLists.forEach((state) => window.cancelAnimationFrame(state.frame));
-  virtualReactionLists.clear();
-  panel.innerHTML = markup;
-  formatDisplayDates(panel);
-  initializeVirtualReactionList(reaction);
-  if (reaction === "liked") filterReactionList();
-  if (currentView === reaction) revealReactionListOnce(reaction);
-}
-
-async function refreshReactionList(reaction, { force = false } = {}) {
-  const panel = views.get(reaction)?.querySelector("[data-reaction-list-content]");
-  if (!panel) return;
-  panel.setAttribute("aria-busy", "true");
-  try {
-    const markup = await fetchReactionListMarkup(reaction, { force });
-    renderReactionListMarkup(reaction, markup);
-    reactionListsDirty = false;
-  } catch (error) {
-    if (error.name !== "AbortError") showSnackbar(error.message || "Couldn't load this list.");
-  } finally {
-    panel.removeAttribute("aria-busy");
-  }
-}
-
-function cacheInitialReactionList() {
-  ["liked"].forEach((reaction) => {
-    const panel = views.get(reaction)?.querySelector("[data-reaction-list-content]");
-    if (panel?.innerHTML.trim()) reactionListMarkup.set(reaction, panel.innerHTML);
-  });
-}
-
-function revealReactionListOnce(reaction) {
-  const revealKey = `reaction:${reaction}`;
-  if (revealedViewAnimations.has(revealKey)) return;
-  const panel = views.get(reaction)?.querySelector("[data-reaction-list-content]");
-  if (!panel) return;
-  initializeVirtualReactionList(reaction);
-  revealedViewAnimations.add(revealKey);
-  staggerTvSlices([
-    ...panel.querySelectorAll(".reaction-media-list > .show-card:not([hidden])"),
-    panel.querySelector(".reaction-empty-state:not([hidden])"),
-  ], "compact", 20);
-}
-
 async function toggleMediaReaction(button) {
   const detail = button.closest("[data-detail-show], [data-detail-movie], [data-detail-episode]");
   if (!detail) return;
@@ -3842,9 +3721,6 @@ async function toggleMediaReaction(button) {
     if (isMovie) refreshMovieDetailCache(mediaId).catch(() => undefined);
     else refreshShowDetailCache(mediaId).catch(() => undefined);
     if (reaction === "queue") await refreshScheduleContent();
-    if (reaction === "liked") {
-      refreshReactionLists();
-    }
   } catch (error) {
     showSnackbar(error.message || "Couldn't update reaction.");
   } finally {
@@ -4063,6 +3939,37 @@ function requestShowRemoval(showElement) {
 
 function isDiaryHiddenLogItem(item) {
   return ["episode", "season", "movie"].includes(item.dataset.watchKind) && !item.dataset.diaryDate;
+}
+
+async function moveMovie(movieElement, actionButton) {
+  const movieId = movieElement.dataset.movieId;
+  const state = actionButton.dataset.targetState;
+  actionButton.disabled = true;
+  try {
+    const response = await fetch(`/api/movies/${movieId}/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state }),
+    });
+    if (!response.ok) throw new Error("Could not move movie");
+    movieElement.dataset.showState = state;
+    const stateLabel = movieElement.querySelector("[data-movie-state-label]");
+    if (stateLabel) stateLabel.hidden = state !== TRACKING_STATE.ARCHIVED;
+    movieDetailCache.delete(String(movieId));
+    await refreshMoviesContent();
+    const nextState = state === TRACKING_STATE.ACTIVE ? TRACKING_STATE.ARCHIVED : TRACKING_STATE.ACTIVE;
+    const label = nextState === TRACKING_STATE.ACTIVE ? "Resume" : "Archive";
+    actionButton.dataset.targetState = nextState;
+    actionButton.title = label;
+    actionButton.setAttribute("aria-label", `${label} ${movieElement.dataset.detailTitle}`);
+    actionButton.querySelector(".material-symbols-rounded").textContent = nextState === TRACKING_STATE.ACTIVE ? "resume" : "archive";
+    refreshScheduleForMediaChange();
+    showSnackbar(state === TRACKING_STATE.ARCHIVED ? "Movie archived" : "Movie resumed");
+  } catch (_error) {
+    showSnackbar("Couldn't move this movie. Try again.");
+  } finally {
+    actionButton.disabled = false;
+  }
 }
 
 function syncDisplayHiddenLogItemsSetting(root = document) {
@@ -4304,7 +4211,14 @@ document.addEventListener("click", (event) => {
       trackShowButton.closest("[data-detail-show]"),
       trackShowButton.dataset.trackShowState,
       trackShowButton,
+      trackShowButton.hasAttribute("data-track-show-queued"),
     );
+    return;
+  }
+
+  const showNextEpisode = event.target.closest("[data-show-next-episode]");
+  if (showNextEpisode?.dataset.showNextEpisode) {
+    openEpisode(showNextEpisode.dataset.showNextEpisode);
     return;
   }
 
@@ -4317,9 +4231,9 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const queueUntrackedMovieButton = event.target.closest("[data-queue-untracked-movie]");
-  if (queueUntrackedMovieButton) {
-    trackDetailMovie(queueUntrackedMovieButton.closest("[data-detail-movie]"), queueUntrackedMovieButton, { queued: true });
+  const archiveUntrackedMovieButton = event.target.closest("[data-archive-untracked-movie]");
+  if (archiveUntrackedMovieButton) {
+    trackDetailMovie(archiveUntrackedMovieButton.closest("[data-detail-movie]"), archiveUntrackedMovieButton, { state: TRACKING_STATE.ARCHIVED });
     return;
   }
 
@@ -4485,14 +4399,12 @@ document.addEventListener("click", (event) => {
   if (progressOption) {
     const preferences = libraryViewPreferences[currentView];
     if (!preferences) return;
-    if (currentView === "liked") return;
     const value = progressOption.dataset.tvProgressOption;
     preferences.progress = preferences.progress.includes(value)
       ? preferences.progress.filter((selected) => selected !== value)
       : [...preferences.progress, value];
     if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
     else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
-    else if (currentView === "liked") filterReactionList();
     else syncTvControlBar(views.get(currentView));
     return;
   }
@@ -4507,7 +4419,6 @@ document.addEventListener("click", (event) => {
       : [...preferences.mediaTypes, type];
     if (["backlog", "upcoming"].includes(currentView)) filterSchedule(currentView);
     else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
-    else if (currentView === "liked") filterReactionList();
     syncTvControlBar(views.get(currentView));
     return;
   }
@@ -4532,7 +4443,6 @@ document.addEventListener("click", (event) => {
     }
     if (currentView === "backlog") filterSchedule(currentView);
     else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
-    else if (currentView === "liked") filterReactionList();
     syncTvControlBar(views.get(currentView));
     return;
   }
@@ -4660,6 +4570,8 @@ document.addEventListener("click", (event) => {
     closeShowMenus();
     if (movieAction.dataset.movieAction === "refresh") {
       refreshMovieMetadata(movieElement.dataset.movieId, movieAction);
+    } else if (movieAction.dataset.movieAction === "move") {
+      moveMovie(movieElement, movieAction);
     } else {
       requestMovieRemoval(movieElement);
     }
@@ -5242,73 +5154,6 @@ function scheduleVirtualLibraryRender(state) {
   });
 }
 
-function initializeVirtualReactionList(reaction) {
-  const view = views.get(reaction);
-  const list = view?.querySelector("[data-reaction-list-content] .reaction-media-list");
-  if (!view || !list) return null;
-  let state = virtualReactionLists.get(reaction);
-  if (state?.list === list) return state;
-  const cards = [...list.querySelectorAll(":scope > .show-card")];
-  state = {
-    view,
-    list,
-    cards,
-    filteredCards: cards,
-    topSpacer: createVirtualLibrarySpacer("reaction-top"),
-    bottomSpacer: createVirtualLibrarySpacer("reaction-bottom"),
-    renderStart: -1,
-    renderEnd: -1,
-    layoutKey: "",
-    frame: 0,
-  };
-  virtualReactionLists.set(reaction, state);
-  list.replaceChildren(state.topSpacer, state.bottomSpacer);
-  renderVirtualReactionList(state, true);
-  return state;
-}
-
-function virtualReactionListMetrics(state) {
-  const columns = window.getComputedStyle(state.list).gridTemplateColumns
-    .split(" ")
-    .filter((track) => track && track !== "none").length
-    || Math.max(1, Math.floor((state.list.clientWidth + 12) / 100));
-  return { columns, pitch: 200 };
-}
-
-function renderVirtualReactionList(state, force = false) {
-  if (!state || state.view.hidden) return;
-  const metrics = virtualReactionListMetrics(state);
-  const rowCount = Math.ceil(state.filteredCards.length / metrics.columns);
-  const listTop = window.scrollY + state.list.getBoundingClientRect().top;
-  const viewportTop = Math.max(0, window.scrollY - listTop);
-  const firstVisibleRow = Math.floor(viewportTop / metrics.pitch);
-  const lastVisibleRow = Math.ceil((viewportTop + window.innerHeight) / metrics.pitch);
-  const startRow = Math.max(0, Math.min(rowCount, firstVisibleRow - VIRTUAL_LIBRARY_OVERSCAN_ROWS));
-  const endRow = Math.max(startRow, Math.min(rowCount, lastVisibleRow + VIRTUAL_LIBRARY_OVERSCAN_ROWS));
-  const start = startRow * metrics.columns;
-  const end = Math.min(state.filteredCards.length, endRow * metrics.columns);
-  const layoutKey = `${metrics.columns}:${rowCount}`;
-  if (!force && state.renderStart === start && state.renderEnd === end && state.layoutKey === layoutKey) return;
-  state.renderStart = start;
-  state.renderEnd = end;
-  state.layoutKey = layoutKey;
-  setVirtualSpacerHeight(state.topSpacer, startRow, { pitch: metrics.pitch, gap: 16 });
-  setVirtualSpacerHeight(state.bottomSpacer, Math.max(0, rowCount - endRow), { pitch: metrics.pitch, gap: 16 });
-  const fragment = document.createDocumentFragment();
-  fragment.append(state.topSpacer, ...state.filteredCards.slice(start, end), state.bottomSpacer);
-  state.list.replaceChildren(fragment);
-  inspectMediaImages(state.list);
-}
-
-function scheduleVirtualReactionListRender() {
-  const state = [...virtualReactionLists.values()].find((candidate) => !candidate.view.hidden);
-  if (!state || state.frame) return;
-  state.frame = window.requestAnimationFrame(() => {
-    state.frame = 0;
-    renderVirtualReactionList(state);
-  });
-}
-
 function refreshVirtualLibraryLayout(view) {
   const state = initializeVirtualLibrary(view);
   if (!state) return;
@@ -5343,7 +5188,7 @@ function filterShowView(view) {
   const mediaType = viewName === "movies" ? "movies" : "tv";
   const filteredCards = state.allCards.filter((card) => {
     const stateSelected = searching || (card.dataset.showState === TRACKING_STATE.ARCHIVED
-      ? preferences.mediaTypes.includes("tv-archive")
+      ? preferences.mediaTypes.includes(`${mediaType}-archive`)
       : preferences.mediaTypes.includes(mediaType));
     const matchesProgress = searching || preferences.progress.includes(card.dataset.progressState)
       || (card.dataset.progressState === PROGRESS_STATE.FINISHED
@@ -5478,12 +5323,6 @@ window.addEventListener("resize", () => {
   syncSearchTextPosition();
   fitEpisodeDetailTitle(views.get("detail"));
   virtualLibraries.forEach((state) => refreshVirtualLibraryLayout(state.view));
-  virtualReactionLists.forEach((state) => {
-    state.renderStart = -1;
-    state.renderEnd = -1;
-    state.layoutKey = "";
-    renderVirtualReactionList(state, true);
-  });
   virtualTimelines.forEach((state) => renderVirtualTimeline(state, true));
 });
 
@@ -5502,40 +5341,11 @@ function releaseTimelineScrollRestore() {
   }
 }
 
-function filterReactionList() {
-  const state = virtualReactionLists.get("liked") || initializeVirtualReactionList("liked");
-  const preferences = libraryViewPreferences.liked;
-  if (!state || !preferences) return;
-  state.filteredCards = state.cards.filter((card) => {
-    const isMovie = card.classList.contains("movie-card");
-    const mediaType = isMovie ? "movies" : card.dataset.showState === TRACKING_STATE.ARCHIVED
-      ? "tv-archive" : "tv";
-    const progress = card.dataset.progressState;
-    return preferences.mediaTypes.includes(mediaType)
-      && (preferences.progress.includes(progress)
-        || (progress === PROGRESS_STATE.FINISHED
-          && preferences.progress.includes(PROGRESS_STATE.CAUGHT_UP)));
-  }).sort((first, second) => {
-    const firstValue = first.dataset[preferences.sortField] || "";
-    const secondValue = second.dataset[preferences.sortField] || "";
-    const comparison = firstValue.localeCompare(secondValue, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
-    if (comparison !== 0) return preferences.sortDirection === "asc" ? comparison : -comparison;
-    return Number(first.dataset.showId || first.dataset.movieId)
-      - Number(second.dataset.showId || second.dataset.movieId);
-  });
-  state.renderStart = -1;
-  state.renderEnd = -1;
-  renderVirtualReactionList(state, true);
-}
-
 function settleActiveVirtualReveals() {
   if (["backlog", "upcoming", "diary"].includes(currentView)) {
     clearScheduleFirstReveal(views.get(currentView));
   }
-  if (["tv", "movies", "liked"].includes(currentView)) {
+  if (["tv", "movies"].includes(currentView)) {
     clearTvFirstReveal(views.get(currentView));
   }
 }
@@ -5561,7 +5371,6 @@ window.addEventListener("scroll", () => {
   if (["tv", "movies"].includes(currentView)) {
     scheduleVirtualLibraryRender(virtualLibraries.get(currentView));
   }
-  if (currentView === "liked") scheduleVirtualReactionListRender();
   if (["backlog", "upcoming"].includes(currentView)) {
     scheduleVirtualTimelineRender(virtualTimelines.get(currentView));
   } else if (currentView === "diary") {
@@ -5585,7 +5394,6 @@ formatDisplayDates(document);
 syncDisplayHiddenLogItemsSetting();
 syncGlobalSearch();
 syncDiaryLayoutToggle();
-cacheInitialReactionList();
 initializeVirtualTimeline("diary");
 
 displayHiddenLogItemsToggle?.addEventListener("change", () => {
@@ -5672,7 +5480,7 @@ function restoreHistoryState(state) {
   }
 
   const restoredParent = legacyViews[state.parentView] || state.parentView;
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics", "liked"].includes(restoredParent)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics"].includes(restoredParent)
     ? restoredParent
     : "backlog";
   if (state.detailType === "show" && state.showId) {

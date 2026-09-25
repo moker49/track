@@ -4,10 +4,9 @@
 <article class="show-card movie-card" data-movie-id="{{ movie.id }}" data-tmdb-id="{{ movie.tmdb_id }}"
   data-show-name="{{ movie.title|lower }}" data-name="{{ movie.title|lower }}" data-date-added="{{ movie.added_at }}"
   data-release-date="{{ movie.release_date or '' }}" data-last-watched="{{ movie.last_watched_at or '' }}"
-  data-liked-at="{{ movie.liked_at or '' }}"
   data-progress="{{ 100 if watched else 0 }}" data-progress-state="{{ 'finished' if watched else 'not-started' }}"
   data-movie-upcoming="{{ 'true' if upcoming else 'false' }}"
-  data-show-state="ACTIVE">
+  data-show-state="{{ movie.state }}">
   <button class="show-card-open" type="button" data-movie-open aria-label="Open {{ movie.title }}">
     <div class="poster poster-purple{% if movie.poster_path %} has-media-image{% endif %}" aria-hidden="true">
       {% if movie.poster_path %}<img class="poster-image"
@@ -17,7 +16,7 @@
     </div>
     <div class="show-card-body">
       <div class="show-card-heading">
-        <div class="show-card-meta"><span class="state-label progress-tag">{{ 'Watched' if watched else 'Upcoming' if upcoming else 'New' }}</span>
+        <div class="show-card-meta"><span class="state-label progress-tag">{{ 'Watched' if watched else 'Upcoming' if upcoming else 'New' }}</span>{% if movie.state == 'ARCHIVED' %}<span class="state-label">Archived</span>{% endif %}
         </div>
         <h3>{{ movie.title }}</h3><span class="show-card-year{% if upcoming %} is-upcoming{% endif %}">{{ movie.release_date[:4] if movie.release_date else
           ''}}</span>

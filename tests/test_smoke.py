@@ -219,11 +219,15 @@ class DatabaseBootstrapSmokeTest(unittest.TestCase):
             db = sqlite3.connect(database)
             tables = {row[0] for row in db.execute("SELECT name FROM sqlite_schema WHERE type = 'table'")}
             indexes = {row[0] for row in db.execute("SELECT name FROM sqlite_schema WHERE type = 'index'")}
-            db.close()
             self.assertIn("shows", tables)
             self.assertIn("episode_watch_history", tables)
-            self.assertNotIn("schema_migrations", tables)
+            self.assertIn("schema_migrations", tables)
+            self.assertEqual(
+                db.execute("SELECT COUNT(*) FROM schema_migrations WHERE name = 'movie_state_from_likes_and_watch_history'").fetchone()[0],
+                1,
+            )
             self.assertTrue(any(name.startswith("idx_") for name in indexes))
+            db.close()
 
     def test_cast_schema_uses_normalized_people_and_media_joins(self):
         with tempfile.TemporaryDirectory() as temp_dir:

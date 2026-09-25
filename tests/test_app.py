@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 from app import create_app, start_background_refresh
+from database import connect_database, initialize_database
 from queries import get_catch_up_episodes
 from tmdb import TMDBError
 
@@ -133,21 +134,21 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-view="tv"', home.data)
         self.assertIn(b'data-navigation-drawer', home.data)
         self.assertIn(b'data-drawer-view="diary"', home.data)
-        self.assertIn(b'data-drawer-view="liked"', home.data)
+        self.assertNotIn(b'data-drawer-view="liked"', home.data)
         self.assertIn(b'data-drawer-view="statistics"', home.data)
         self.assertIn(b'data-view="diary"', home.data)
-        self.assertIn(b'data-view="liked"', home.data)
+        self.assertNotIn(b'data-view="liked"', home.data)
         self.assertIn(b'data-view="statistics"', home.data)
         self.assertNotIn(b'data-drawer-view="settings"', home.data)
         self.assertNotIn(b'data-view="settings"', home.data)
-        self.assertEqual(home.data.count(b'data-utility-menu'), 3)
+        self.assertEqual(home.data.count(b'data-utility-menu'), 2)
         self.assertIn(b'data-diary-layout-toggle', home.data)
         self.assertNotIn(b'data-utility-back', home.data)
         self.assertIn(b'data-tv-media-label>Library</span>', home.data)
         self.assertIn(b'data-tv-progress-label>Progress</span>', home.data)
         self.assertIn(b'data-setting-display-hidden-log-items', home.data)
         self.assertIn(b'Display hidden log items', home.data)
-        self.assertIn(b'data-reaction-list-content="liked"', home.data)
+        self.assertNotIn(b'data-reaction-list-content="liked"', home.data)
         self.assertNotIn(b'Bookmarks', home.data)
         self.assertNotIn(b'Favorites', home.data)
         self.assertIn(b'data-image-viewer', home.data)
@@ -214,9 +215,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(".top-chrome {", css)
         self.assertIn(".utility-top-bar {", css)
         self.assertIn(".utility-top-bar-with-action {", css)
-        self.assertIn(".reaction-page-results {", css)
         self.assertIn(".detail-docked-button {", css)
-        self.assertIn('.detail-docked-button[data-reaction-toggle="liked"][aria-pressed="false"] .material-symbols-rounded {', css)
         self.assertIn('.detail-docked-primary .material-symbols-rounded {\n  font-size: 24px;\n  font-family: "Material Symbols Rounded Filled";', css)
         self.assertIn("grid-template-columns: repeat(var(--toolbar-slots), minmax(0, 1fr));", css)
         self.assertIn('.detail-docked-toolbar[data-toolbar-slots="2"]', css)
@@ -509,10 +508,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-toolbar-slots="3"', detail.data)
         self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="2" type="button" data-add-movie-action', detail.data)
         self.assertIn(b'data-watch-untracked-movie', detail.data)
-        self.assertIn(b'data-queue-untracked-movie', detail.data)
+        self.assertIn(b'data-archive-untracked-movie', detail.data)
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(encoding="utf-8")
         self.assertIn('openMovieImportDatePicker(watchUntrackedMovieButton.closest("[data-detail-movie]").dataset.tmdbId)', javascript)
-        self.assertIn('trackDetailMovie(queueUntrackedMovieButton.closest("[data-detail-movie]"), queueUntrackedMovieButton, { queued: true })', javascript)
+        self.assertIn('state: TRACKING_STATE.ARCHIVED', javascript)
         self.assertNotIn(b'data-movie-detail-watch', detail.data)
         self.assertNotIn(b'data-movie-menu-button', detail.data)
         self.assertNotIn(b'data-movie-action="refresh"', detail.data)
@@ -532,12 +531,12 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b'data-movie-action="remove"', detail.data)
         self.assertIn(b'<div class="detail-docked-toolbar"', detail.data)
-        self.assertIn(b'data-reaction-toggle="liked"', detail.data)
+        self.assertIn(b'data-movie-action="move"', detail.data)
         self.assertIn(b'data-reaction-toggle="queue"', detail.data)
         self.assertIn(b'data-movie-action="refresh"', detail.data)
         self.assertIn(b'data-toolbar-slots="5"', detail.data)
         self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="3" type="button" data-movie-detail-watch', detail.data)
-        self.assertIn(b'data-movie-menu-button', detail.data)
+        self.assertNotIn(b'data-movie-menu-button', detail.data)
         self.assertNotIn(b'data-track-movie-action', detail.data)
 
     def test_untracked_movie_queue_and_watch_imports(self):
@@ -564,14 +563,21 @@ class TrackAppTest(unittest.TestCase):
         unknown = self.client.post(
             "/api/movies/901012/import", json={"watched": True}
         )
+        archived = self.client.post(
+            "/api/movies/901013/import", json={"state": "ARCHIVED"}
+        )
         self.assertEqual(queued.status_code, 200)
         self.assertEqual(watched.status_code, 200)
         self.assertEqual(unknown.status_code, 200)
+        self.assertEqual(archived.get_json()["state"], "ARCHIVED")
 
         connection = sqlite3.connect(self.database)
         queued_row = connection.execute(
-            "SELECT watch_again FROM movies WHERE tmdb_id = 901010"
+            "SELECT watch_again, state FROM movies WHERE tmdb_id = 901010"
         ).fetchone()
+        archived_state = connection.execute(
+            "SELECT state FROM movies WHERE tmdb_id = 901013"
+        ).fetchone()[0]
         watched_row = connection.execute(
             "SELECT id, added_at FROM movies WHERE tmdb_id = 901011"
         ).fetchone()
@@ -586,6 +592,8 @@ class TrackAppTest(unittest.TestCase):
         ).fetchone()
         connection.close()
         self.assertEqual(queued_row[0], 1)
+        self.assertEqual(queued_row[1], "ACTIVE")
+        self.assertEqual(archived_state, "ARCHIVED")
         self.assertEqual(watched_row[1], "2026-06-15T00:00:00+00:00")
         self.assertEqual(watch_log, ("2026-06-15T01:00:00+00:00", "2026-06-15"))
         self.assertEqual(unknown_row[2], None)
@@ -1058,7 +1066,7 @@ class TrackAppTest(unittest.TestCase):
             home.data,
         )
 
-    def test_likes_and_forced_queue_state_persist(self):
+    def test_movie_state_and_forced_queue_persist(self):
         show_response = self.client.post(
             "/api/shows/1/reactions/queue", json={"selected": True}
         )
@@ -1081,12 +1089,68 @@ class TrackAppTest(unittest.TestCase):
         connection.close()
 
         movie_response = self.client.post(
-            f"/api/movies/{movie_id}/reactions/liked", json={"selected": True}
+            f"/api/movies/{movie_id}/state", json={"state": "ACTIVE"}
         )
         self.assertEqual(movie_response.status_code, 200)
-        self.assertTrue(movie_response.get_json()["selected"])
-        self.assertIn(b"Reaction Test Movie", self.client.get("/api/lists/liked").data)
+        self.assertEqual(movie_response.get_json()["state"], "ACTIVE")
+        self.assertIn(b'data-show-state="ACTIVE"', self.client.get(f"/api/movies/{movie_id}").data)
+        self.assertEqual(self.client.post(f"/api/movies/{movie_id}/reactions/liked", json={"selected": True}).status_code, 404)
+        self.assertEqual(self.client.get("/api/lists/liked").status_code, 404)
         self.assertEqual(self.client.get("/api/lists/watch-again").status_code, 404)
+
+    def test_untracked_show_queue_adds_and_forces_queue(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute("UPDATE shows SET is_tracked = 0 WHERE id = 1")
+        connection.commit()
+        connection.close()
+
+        response = self.client.post(
+            "/api/shows/1/state", json={"state": "ACTIVE", "queued": True}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["newly_tracked"])
+        connection = sqlite3.connect(self.database)
+        self.assertEqual(
+            connection.execute("SELECT state, is_tracked, watch_again FROM shows WHERE id = 1").fetchone(),
+            ("ACTIVE", 1, 1),
+        )
+        connection.close()
+        self.assertIn(b'data-show-next-episode="6"', self.client.get("/api/shows/1").data)
+
+    def test_movie_state_upgrade_maps_liked_or_unwatched_once(self):
+        for already_has_state in (False, True):
+            with self.subTest(already_has_state=already_has_state), tempfile.TemporaryDirectory() as temporary:
+                db = connect_database(Path(temporary) / "legacy.db")
+                state_column = ", state TEXT NOT NULL DEFAULT 'ARCHIVED'" if already_has_state else ""
+                db.execute(
+                    f"CREATE TABLE movies (id INTEGER PRIMARY KEY, liked_at TEXT, is_tracked INTEGER, tmdb_id INTEGER, title TEXT, added_at TEXT{state_column})"
+                )
+                db.execute(
+                    "CREATE TABLE movie_watch_history (id INTEGER PRIMARY KEY, movie_id INTEGER, added_at TEXT, diary_date TEXT)"
+                )
+                db.executemany(
+                    "INSERT INTO movies (tmdb_id, title, is_tracked, liked_at, added_at) VALUES (?, ?, 1, ?, ?)",
+                    [
+                        (1, "Liked and watched", "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00"),
+                        (2, "Unliked and unwatched", None, "2026-01-01T00:00:00+00:00"),
+                        (3, "Unliked and watched", None, "2026-01-01T00:00:00+00:00"),
+                    ],
+                )
+                db.executemany(
+                    "INSERT INTO movie_watch_history (movie_id, added_at) VALUES (?, ?)",
+                    [(1, "2026-01-02T00:00:00+00:00"), (3, "2026-01-02T00:00:00+00:00")],
+                )
+                schema_path = Path(__file__).parents[1] / "schema.sql"
+                initialize_database(db, schema_path)
+                self.assertEqual(
+                    [row[0] for row in db.execute("SELECT state FROM movies ORDER BY tmdb_id")],
+                    ["ACTIVE", "ACTIVE", "ARCHIVED"],
+                )
+                db.execute("UPDATE movies SET state = 'ACTIVE' WHERE tmdb_id = 3")
+                db.commit()
+                initialize_database(db, schema_path)
+                self.assertEqual(db.execute("SELECT state FROM movies WHERE tmdb_id = 3").fetchone()[0], "ACTIVE")
+                db.close()
 
     def test_forced_queue_items_follow_natural_items_and_display_zero_progress(self):
         response = self.client.post(
@@ -1263,14 +1327,15 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-tv-dropdown-menu="media"', home.data)
         self.assertIn(b'data-tv-dropdown-menu="filter"', home.data)
         self.assertIn(b'data-tv-dropdown-menu="sort"', home.data)
-        self.assertEqual(home.data.count(b"data-tv-media-option="), 3)
+        self.assertEqual(home.data.count(b"data-tv-media-option="), 4)
         self.assertIn(b'data-tv-media-option="tv-archive"', home.data)
+        self.assertIn(b'data-tv-media-option="movies-archive"', home.data)
         self.assertIn(b"data-tv-progress-label>Progress</span>", home.data)
         self.assertIn(b"data-tv-sort-label>Sort</span>", home.data)
         self.assertNotIn(b"data-tv-combined-divider", home.data)
         self.assertEqual(home.data.count(b'class="tv-dropdown-menu-section"'), 0)
         self.assertEqual(home.data.count(b"data-tv-progress-option="), 3)
-        self.assertEqual(home.data.count(b"data-tv-sort-option="), 6)
+        self.assertEqual(home.data.count(b"data-tv-sort-option="), 5)
         self.assertNotIn(b'data-tv-progress-option=""', home.data)
         self.assertIn(b'data-tv-sort-option="name"', home.data)
         self.assertIn(b'data-tv-sort-option="dateAdded"', home.data)
@@ -1307,7 +1372,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('preferences.sortDirection === "asc" ? "desc" : "asc"', javascript)
         self.assertIn("const mediaOption = event.target.closest", javascript)
         self.assertIn("function syncTvControlVisibility", javascript)
-        self.assertIn('["backlog", "upcoming", "tv", "movies", "liked"].includes(currentView)', javascript)
+        self.assertIn('["backlog", "upcoming", "tv", "movies"].includes(currentView)', javascript)
         self.assertIn('sortField: "lastWatched"', javascript)
         self.assertIn('sortField: "releaseDate"', javascript)
         self.assertIn('const sortLocked = viewName === "upcoming";', javascript)
@@ -1473,8 +1538,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Watching</span>', detail.data)
         self.assertIn(b'<span data-progress-copy>5/13</span>', detail.data)
         self.assertIn(b'data-toolbar-slots="5"', detail.data)
-        self.assertIn(b'class="detail-docked-button" data-toolbar-slot="2" type="button" data-reaction-toggle="queue"', detail.data)
-        self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="3" type="button" aria-label="Watch', detail.data)
+        self.assertIn(b'class="detail-docked-button" data-toolbar-slot="1" type="button" data-reaction-toggle="queue"', detail.data)
+        self.assertIn(b'data-show-next-episode="6"', detail.data)
         self.assertIn(b'data-show-action="refresh"', detail.data)
         self.assertIn(b'data-show-action="move"', detail.data)
         self.assertIn(b'data-show-action="remove"', detail.data)
@@ -1543,9 +1608,9 @@ class TrackAppTest(unittest.TestCase):
         move_position = archived_detail.data.index(b'data-show-action="move"')
         refresh_position = archived_detail.data.index(b'data-show-action="refresh"')
         remove_position = archived_detail.data.index(b'data-show-action="remove"')
-        self.assertLess(refresh_position, move_position)
-        self.assertLess(move_position, remove_position)
-        self.assertIn(b'<span data-move-label>Resume</span>', archived_detail.data)
+        self.assertLess(move_position, refresh_position)
+        self.assertLess(refresh_position, remove_position)
+        self.assertIn(b'<span class="sr-only" data-move-label>Resume</span>', archived_detail.data)
 
         missing = self.client.get("/api/shows/999")
         self.assertEqual(missing.status_code, 404)
@@ -2145,13 +2210,13 @@ class TrackAppTest(unittest.TestCase):
         connection = sqlite3.connect(self.database)
         connection.execute(
             """INSERT INTO movies (
-                tmdb_id, title, overview, is_tracked, liked_at, watch_again, added_at
+                tmdb_id, title, overview, is_tracked, state, watch_again, added_at
             ) VALUES (?, ?, ?, 1, ?, 1, ?)""",
             (
                 901002,
                 "Old movie title",
                 "Old overview",
-                "2026-09-04T12:00:00+00:00",
+                "ACTIVE",
                 "2026-09-01T12:00:00+00:00",
             ),
         )
@@ -2194,7 +2259,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertTrue(response.get_json()["refreshed"])
         connection = sqlite3.connect(self.database)
         movie = connection.execute(
-            """SELECT title, overview, genres, is_tracked, liked_at, watch_again,
+            """SELECT title, overview, genres, is_tracked, state, watch_again,
                       added_at, tmdb_refreshed_at, tmdb_payload
                FROM movies WHERE id = ?""",
             (movie_id,),
@@ -2205,7 +2270,7 @@ class TrackAppTest(unittest.TestCase):
         connection.close()
 
         self.assertEqual(movie[0:3], ("Refreshed movie title", "Refreshed overview", "Adventure"))
-        self.assertEqual(movie[3:7], (1, "2026-09-04T12:00:00+00:00", 1, "2026-09-01T12:00:00+00:00"))
+        self.assertEqual(movie[3:7], (1, "ACTIVE", 1, "2026-09-01T12:00:00+00:00"))
         self.assertIsNotNone(movie[7])
         self.assertEqual(json.loads(movie[8])["title"], "Refreshed movie title")
         self.assertEqual(watch_count, 1)
@@ -2555,8 +2620,8 @@ class TrackAppTest(unittest.TestCase):
 
         tracked_detail = self.client.get(f"/api/shows/{preview_data['show_id']}")
         self.assertIn(b"data-progress-summary", tracked_detail.data)
-        self.assertIn(b'class="detail-docked-button" data-toolbar-slot="2" type="button" data-reaction-toggle="queue"', tracked_detail.data)
-        self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="3" type="button" aria-label="Watch', tracked_detail.data)
+        self.assertIn(b'class="detail-docked-button" data-toolbar-slot="1" type="button" data-reaction-toggle="queue"', tracked_detail.data)
+        self.assertIn(b'data-show-next-episode="', tracked_detail.data)
         self.assertNotIn(b"data-track-show-state", tracked_detail.data)
         tracked_episode = self.client.get(f"/api/episodes/{preview_episode_id}").data
         self.assertIn(b'data-episode-detail-watch', tracked_episode)

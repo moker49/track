@@ -1846,10 +1846,6 @@ html.app-booting .schedule-empty-reveal {
   font-family: "Material Symbols Rounded Filled";
 }
 
-.detail-docked-button[data-reaction-toggle="liked"][aria-pressed="false"] .material-symbols-rounded {
-  font-family: "Material Symbols Rounded";
-}
-
 .detail-docked-button[aria-pressed="true"] {
   color: var(--primary);
   background: var(--primary-light);
@@ -2032,10 +2028,6 @@ html.app-booting .schedule-empty-reveal {
   font-feature-settings: "liga";
 }
 
-.movie-like-button.is-liked {
-  color: var(--error);
-}
-
 .material-symbols-rounded.is-filled {
   font-family: "Material Symbols Rounded Filled";
 }
@@ -2212,123 +2204,6 @@ html.navigation-drawer-closing .menu-scrim {
   min-height: 100dvh;
   padding-bottom: calc(88px + env(safe-area-inset-bottom));
   background: var(--surface);
-}
-
-.reaction-empty-state {
-  min-height: 220px;
-  padding: 40px 24px;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 12px;
-  color: var(--on-surface-muted);
-  text-align: center;
-}
-
-.reaction-empty-state .material-symbols-rounded {
-  font-size: 32px;
-}
-
-.reaction-empty-state p {
-  margin: 0;
-}
-
-.reaction-page-results {
-  padding: 16px;
-}
-
-.reaction-media-list {
-  padding: 0;
-  grid-template-columns: repeat(auto-fill, 88px);
-  align-items: start;
-  justify-content: space-between;
-  gap: 16px 12px;
-}
-
-.reaction-media-list .show-card {
-  width: 88px;
-  height: 184px;
-  display: block;
-  overflow: visible;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.reaction-media-list .show-card-open {
-  height: auto;
-  display: block;
-  overflow: visible;
-  border-radius: 0;
-}
-
-.reaction-media-list .poster {
-  width: 88px;
-  height: var(--compact-card-height);
-  min-height: 0;
-  padding: 0;
-  border-radius: 0;
-}
-
-.reaction-media-list .show-card-body {
-  min-height: 0;
-  padding: 7px 0 0;
-  display: block;
-}
-
-.reaction-media-list .show-card-heading {
-  padding: 0;
-}
-
-.reaction-media-list .show-card-meta,
-.reaction-media-list .card-menu-button {
-  display: none;
-}
-
-.reaction-media-list .show-card h3 {
-  margin: 0;
-  font-size: .78rem;
-  font-weight: 700;
-  line-height: 1.25;
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.reaction-media-list .show-card-year {
-  position: absolute;
-  z-index: 4;
-  top: 7px;
-  left: 7px;
-  margin: 0;
-  padding: 3px 5px;
-  border-radius: 5px;
-  color: var(--on-surface);
-  background: hsl(0 0% 0% / .58);
-  font-size: .68rem;
-  line-height: 1;
-}
-
-.reaction-media-list .progress-block {
-  position: absolute;
-  z-index: 4;
-  top: calc(var(--compact-card-height) - 4px);
-  right: 0;
-  left: 0;
-  padding: 0;
-  border-radius: 0;
-  background: hsl(0 0% 0% / .58);
-}
-
-.reaction-media-list .progress-copy {
-  display: none;
-}
-
-.reaction-media-list .show-card .progress-track {
-  height: 4px;
-  margin: 0;
-  border-radius: 0;
 }
 
 .hero-progress-tags {

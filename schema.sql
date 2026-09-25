@@ -1,3 +1,8 @@
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    name TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS shows (
     id INTEGER PRIMARY KEY,
     tmdb_id INTEGER UNIQUE NOT NULL,
@@ -14,7 +19,6 @@ CREATE TABLE IF NOT EXISTS shows (
     original_language TEXT,
     state TEXT NOT NULL CHECK (state IN ('ACTIVE', 'ARCHIVED')),
     is_tracked INTEGER NOT NULL DEFAULT 1 CHECK (is_tracked IN (0, 1)),
-    liked_at TEXT,
     watch_again INTEGER NOT NULL DEFAULT 0 CHECK (watch_again IN (0, 1)),
     watch_again_baseline INTEGER,
     added_at TEXT NOT NULL,
@@ -148,7 +152,7 @@ CREATE TABLE IF NOT EXISTS movies (
     genres TEXT,
     original_language TEXT,
     is_tracked INTEGER NOT NULL DEFAULT 1 CHECK (is_tracked IN (0, 1)),
-    liked_at TEXT,
+    state TEXT NOT NULL DEFAULT 'ARCHIVED' CHECK (state IN ('ACTIVE', 'ARCHIVED')),
     watch_again INTEGER NOT NULL DEFAULT 0 CHECK (watch_again IN (0, 1)),
     added_at TEXT NOT NULL,
     updated_at TEXT,
