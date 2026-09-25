@@ -555,8 +555,16 @@ def create_app(test_config: dict | None = None) -> Flask:
         added_at = f"{diary_date}T00:00:00+00:00" if watched and diary_date else now
         db = get_db()
         existing_movie = db.execute(
-            "SELECT is_tracked FROM movies WHERE tmdb_id = ?", (tmdb_id,)
+            "SELECT is_tracked, state FROM movies WHERE tmdb_id = ?", (tmdb_id,)
         ).fetchone()
+        had_watch_history = bool(db.execute(
+            "SELECT 1 FROM movie_watch_history h JOIN movies m ON m.id = h.movie_id WHERE m.tmdb_id = ? LIMIT 1",
+            (tmdb_id,),
+        ).fetchone())
+        if watched and not had_watch_history:
+            target_state = TRACKING_ARCHIVED
+        elif watched and existing_movie is not None and "state" not in payload:
+            target_state = existing_movie["state"]
         db.execute("""INSERT INTO movies (tmdb_id,title,original_title,overview,poster_path,backdrop_path,release_date,runtime_minutes,status,genres,original_language,is_tracked,state,added_at,updated_at,tmdb_refreshed_at,tmdb_payload)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tmdb_id) DO UPDATE SET is_tracked=1,state=excluded.state,added_at=CASE WHEN movies.is_tracked=0 THEN excluded.added_at ELSE movies.added_at END,updated_at=excluded.updated_at""",
           (tmdb_id, movie.get("title") or "Untitled movie", movie.get("original_title"), movie.get("overview"), movie.get("poster_path"), movie.get("backdrop_path"), movie.get("release_date"), movie.get("runtime"), movie.get("status"), ", ".join(g.get("name", "") for g in movie.get("genres", [])), movie.get("original_language"), 1, target_state, added_at, now, now, json.dumps(movie)))
@@ -568,13 +576,12 @@ def create_app(test_config: dict | None = None) -> Flask:
         if watched:
             movie_added_at = db.execute("SELECT added_at FROM movies WHERE id = ?", (movie_id,)).fetchone()["added_at"]
             watch_added_at = unknown_log_timestamp(movie_added_at)
-            if existing_movie is None or not existing_movie["is_tracked"] or not db.execute(
-                "SELECT 1 FROM movie_watch_history WHERE movie_id = ?", (movie_id,)
-            ).fetchone():
+            if existing_movie is None or not existing_movie["is_tracked"] or not had_watch_history:
                 db.execute(
                     "INSERT INTO movie_watch_history (movie_id, added_at, diary_date) VALUES (?, ?, ?)",
                     (movie_id, watch_added_at, diary_date),
                 )
+            db.execute("UPDATE movies SET watch_again = 0 WHERE id = ?", (movie_id,))
         normalize_movie_added_timestamps(db, movie_id)
         db.commit()
         schedule_cast_hydration("movie", movie_id, tmdb_id)
@@ -769,7 +776,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                 return jsonify(error="log_date must be an ISO date"), 400
         db = get_db()
         movie = db.execute(
-            "SELECT id, added_at FROM movies WHERE id = ? AND is_tracked = 1", (movie_id,)
+            "SELECT id, added_at, state FROM movies WHERE id = ? AND is_tracked = 1", (movie_id,)
         ).fetchone()
         if movie is None:
             return jsonify(error="Movie not found"), 404
@@ -780,6 +787,16 @@ def create_app(test_config: dict | None = None) -> Flask:
                VALUES (?, ?, ?)""",
             (movie_id, added_at, log_date),
         ).lastrowid
+        first_watch = not db.execute(
+            "SELECT 1 FROM movie_watch_history WHERE movie_id = ? AND id != ? LIMIT 1",
+            (movie_id, record_id),
+        ).fetchone()
+        state_changed = first_watch and movie["state"] != TRACKING_ARCHIVED
+        if state_changed:
+            db.execute(
+                "UPDATE movies SET state = ?, updated_at = ? WHERE id = ?",
+                (TRACKING_ARCHIVED, precise_utc_now(), movie_id),
+            )
         watch_again_cleared = db.execute(
             "UPDATE movies SET watch_again = 0 WHERE id = ? AND watch_again = 1",
             (movie_id,),
@@ -790,7 +807,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         return jsonify(movie_id=movie_id, watch_count=watch_count, watch_record_id=record_id,
                        watch_kind="movie", action_kind="watch", added_at=added_at,
                        diary_date=log_date, display_date=log_date or added_at[:10],
-                       watch_again_cleared=watch_again_cleared)
+                       watch_again_cleared=watch_again_cleared,
+                       state=TRACKING_ARCHIVED if state_changed else movie["state"],
+                       state_changed=state_changed)
 
     @app.post("/api/tv/shows/<int:tmdb_id>/import")
     def import_tv_show(tmdb_id: int):

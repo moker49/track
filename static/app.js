@@ -3053,6 +3053,28 @@ function applyCreatedLog(data) {
     const detailMovie = document.querySelector(`[data-detail-movie][data-movie-id="${data.movie_id}"]`);
     if (detailMovie) {
       updateMovieWatchUi(detailMovie, data.watch_count);
+      if (data.watch_again_cleared) {
+        detailMovie.dataset.queued = "false";
+        const queueButton = detailMovie.querySelector('[data-reaction-toggle="queue"]');
+        if (queueButton) {
+          queueButton.setAttribute("aria-pressed", "false");
+          queueButton.classList.remove("is-selected");
+          queueButton.setAttribute("aria-label", `Add ${detailMovie.dataset.detailTitle} to Queue`);
+          queueButton.querySelector(".material-symbols-rounded").textContent = "playlist_add";
+        }
+      }
+      if (data.state_changed) {
+        detailMovie.dataset.showState = data.state;
+        const stateLabel = detailMovie.querySelector("[data-movie-state-label]");
+        if (stateLabel) stateLabel.hidden = false;
+        const moveButton = detailMovie.querySelector('[data-movie-action="move"]');
+        if (moveButton) {
+          moveButton.dataset.targetState = TRACKING_STATE.ACTIVE;
+          moveButton.title = "Resume";
+          moveButton.setAttribute("aria-label", `Resume ${detailMovie.dataset.detailTitle}`);
+          moveButton.querySelector(".material-symbols-rounded").textContent = "resume";
+        }
+      }
       addActivityItem({
         type: "watched", title: "Watched", occurredAt: data.display_date,
         recordId: data.watch_record_id, watchKind: "movie", addedAt: data.added_at,

@@ -22,7 +22,8 @@ dormant until it is tracked again and must not be interpreted as current.
 Tracked movies also use `ACTIVE` and `ARCHIVED`. On the one-time upgrade from
 Likes, previously liked or unwatched movies become Active; watched, unliked
 movies become Archived. Queue is a separate flag: a movie enters it only when chosen
-explicitly. Watching a movie clears that flag without changing its state.
+explicitly. A movie's first watch clears Queue and moves it to Archived.
+Rewatches clear Queue without changing its state.
 
 ## Progress state
 

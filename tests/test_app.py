@@ -569,6 +569,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(queued.status_code, 200)
         self.assertEqual(watched.status_code, 200)
         self.assertEqual(unknown.status_code, 200)
+        self.assertEqual(watched.get_json()["state"], "ARCHIVED")
+        self.assertEqual(unknown.get_json()["state"], "ARCHIVED")
         self.assertEqual(archived.get_json()["state"], "ARCHIVED")
 
         connection = sqlite3.connect(self.database)
@@ -579,7 +581,7 @@ class TrackAppTest(unittest.TestCase):
             "SELECT state FROM movies WHERE tmdb_id = 901013"
         ).fetchone()[0]
         watched_row = connection.execute(
-            "SELECT id, added_at FROM movies WHERE tmdb_id = 901011"
+            "SELECT id, added_at, state FROM movies WHERE tmdb_id = 901011"
         ).fetchone()
         watch_log = connection.execute(
             "SELECT added_at, diary_date FROM movie_watch_history WHERE movie_id = ?",
@@ -594,6 +596,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(queued_row[0], 1)
         self.assertEqual(queued_row[1], "ACTIVE")
         self.assertEqual(archived_state, "ARCHIVED")
+        self.assertEqual(watched_row[2], "ARCHIVED")
         self.assertEqual(watched_row[1], "2026-06-15T00:00:00+00:00")
         self.assertEqual(watch_log, ("2026-06-15T01:00:00+00:00", "2026-06-15"))
         self.assertEqual(unknown_row[2], None)
@@ -615,6 +618,7 @@ class TrackAppTest(unittest.TestCase):
             json={"watched": True, "diary_date": "2026-06-16"},
         )
         self.assertEqual(rewatched.status_code, 200)
+        self.assertEqual(rewatched.get_json()["state"], "ARCHIVED")
         connection = sqlite3.connect(self.database)
         watch_dates = connection.execute(
             "SELECT diary_date FROM movie_watch_history WHERE movie_id = ? ORDER BY diary_date",
@@ -622,6 +626,41 @@ class TrackAppTest(unittest.TestCase):
         ).fetchall()
         connection.close()
         self.assertEqual(watch_dates, [("2026-06-15",), ("2026-06-16",)])
+
+    def test_first_movie_watch_archives_but_rewatch_preserves_resumed_state(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            "INSERT INTO movies (tmdb_id, title, is_tracked, state, watch_again, added_at) "
+            "VALUES (901020, 'First Watch Movie', 1, 'ACTIVE', 1, '2026-09-04T12:00:00+00:00')"
+        )
+        movie_id = connection.execute(
+            "SELECT id FROM movies WHERE tmdb_id = 901020"
+        ).fetchone()[0]
+        connection.commit()
+        connection.close()
+
+        first = self.client.post(
+            f"/api/movies/{movie_id}/log",
+            json={"action_kind": "watch", "log_date": "2026-09-04"},
+        )
+        self.assertEqual(first.status_code, 200)
+        self.assertTrue(first.get_json()["state_changed"])
+        self.assertEqual(first.get_json()["state"], "ARCHIVED")
+        self.assertTrue(first.get_json()["watch_again_cleared"])
+        self.assertIn(b'data-show-state="ARCHIVED"', self.client.get(f"/api/movies/{movie_id}").data)
+
+        resumed = self.client.post(
+            f"/api/movies/{movie_id}/state", json={"state": "ACTIVE"}
+        )
+        self.assertEqual(resumed.status_code, 200)
+        second = self.client.post(
+            f"/api/movies/{movie_id}/log",
+            json={"action_kind": "watch", "log_date": "2026-09-05"},
+        )
+        self.assertEqual(second.status_code, 200)
+        self.assertFalse(second.get_json()["state_changed"])
+        self.assertEqual(second.get_json()["state"], "ACTIVE")
+        self.assertEqual(second.get_json()["watch_count"], 2)
 
     def test_detail_reveals_include_dividers_and_movie_previews_use_session_cache(self):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
