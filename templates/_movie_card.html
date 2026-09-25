@@ -16,7 +16,7 @@
     </div>
     <div class="show-card-body">
       <div class="show-card-heading">
-        <div class="show-card-meta"><span class="state-label progress-tag">{{ 'Watched' if watched else 'Upcoming' if upcoming else 'New' }}</span>{% if movie.state == 'ARCHIVED' %}<span class="state-label">Archived</span>{% endif %}
+        <div class="show-card-meta"><span class="state-label progress-tag">{{ 'Watched' if watched else 'Upcoming' if upcoming else 'New' }}</span>
         </div>
         <h3>{{ movie.title }}</h3><span class="show-card-year{% if upcoming %} is-upcoming{% endif %}">{{ movie.release_date[:4] if movie.release_date else
           ''}}</span>

@@ -3064,16 +3064,7 @@ function applyCreatedLog(data) {
         }
       }
       if (data.state_changed) {
-        detailMovie.dataset.showState = data.state;
-        const stateLabel = detailMovie.querySelector("[data-movie-state-label]");
-        if (stateLabel) stateLabel.hidden = false;
-        const moveButton = detailMovie.querySelector('[data-movie-action="move"]');
-        if (moveButton) {
-          moveButton.dataset.targetState = TRACKING_STATE.ACTIVE;
-          moveButton.title = "Resume";
-          moveButton.setAttribute("aria-label", `Resume ${detailMovie.dataset.detailTitle}`);
-          moveButton.querySelector(".material-symbols-rounded").textContent = "resume";
-        }
+        updateMovieDetailState(detailMovie, data.state);
       }
       addActivityItem({
         type: "watched", title: "Watched", occurredAt: data.display_date,
@@ -3797,6 +3788,36 @@ function syncProgressState(showElement) {
   if (tag) tag.textContent = progress.label;
 }
 
+function syncArchivedDetailToolbar(detail) {
+  const toolbar = detail.querySelector(".detail-docked-toolbar");
+  if (!toolbar) return;
+  const archived = detail.dataset.showState === TRACKING_STATE.ARCHIVED;
+  const moveButton = toolbar.querySelector('[data-show-action="move"], [data-movie-action="move"]');
+  const watchButton = toolbar.querySelector("[data-show-next-episode], [data-movie-detail-watch]");
+  const refreshButton = toolbar.querySelector('[data-show-action="refresh"], [data-movie-action="refresh"]');
+  const removeButton = toolbar.querySelector('[data-show-action="remove"], [data-movie-action="remove"]');
+  toolbar.dataset.toolbarSlots = archived ? "3" : "5";
+  moveButton?.classList.toggle("detail-docked-primary", archived);
+  moveButton?.classList.toggle("detail-docked-button", !archived);
+  if (watchButton) watchButton.hidden = archived;
+  if (refreshButton) refreshButton.hidden = archived;
+  if (removeButton) removeButton.dataset.toolbarSlot = archived ? "3" : "5";
+}
+
+function updateMovieDetailState(detailMovie, state) {
+  detailMovie.dataset.showState = state;
+  const moveButton = detailMovie.querySelector('[data-movie-action="move"]');
+  if (moveButton) {
+    const archived = state === TRACKING_STATE.ARCHIVED;
+    const label = archived ? "Resume" : "Archive";
+    moveButton.dataset.targetState = archived ? TRACKING_STATE.ACTIVE : TRACKING_STATE.ARCHIVED;
+    moveButton.title = label;
+    moveButton.setAttribute("aria-label", `${label} ${detailMovie.dataset.detailTitle}`);
+    moveButton.querySelector(".material-symbols-rounded").textContent = archived ? "resume" : "archive";
+  }
+  syncArchivedDetailToolbar(detailMovie);
+}
+
 function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
   const showElements = new Set(document.querySelectorAll(`[data-show-id="${showId}"]`));
   const libraryCard = virtualLibraryCard("tv", `.show-card[data-show-id="${showId}"]`);
@@ -3820,6 +3841,7 @@ function updateShowRepresentations(showId, state, moveLabel, moveIcon) {
       moveButton.setAttribute("aria-label", `${moveLabel} ${showElement.dataset.detailTitle || showElement.querySelector("h1, h3")?.textContent || "show"}`);
       moveButton.title = moveLabel;
     });
+    if (showElement.matches("[data-detail-show]")) syncArchivedDetailToolbar(showElement);
     syncProgressState(showElement);
   });
 }
@@ -3835,8 +3857,15 @@ function syncStateSections() {
 
 async function moveShow(showElement, targetState, actionButton) {
   const showId = showElement.dataset.showId;
+  const previousState = targetState === TRACKING_STATE.ARCHIVED
+    ? TRACKING_STATE.ACTIVE : TRACKING_STATE.ARCHIVED;
   actionButton.disabled = true;
   try {
+    updateShowRepresentations(
+      showId, targetState,
+      targetState === TRACKING_STATE.ARCHIVED ? "Resume" : "Archive",
+      targetState === TRACKING_STATE.ARCHIVED ? "resume" : "archive",
+    );
     const response = await fetch(`/api/shows/${showId}/state`, {
       method: "POST",
       headers: localDateHeaders({ "Content-Type": "application/json" }),
@@ -3846,8 +3875,6 @@ async function moveShow(showElement, targetState, actionButton) {
     const data = await response.json();
     invalidateShowCache(showId);
 
-    const card = document.querySelector(`.show-card[data-show-id="${showId}"]`)
-      || virtualLibraryCard("tv", `.show-card[data-show-id="${showId}"]`);
     updateShowRepresentations(showId, data.state, data.move_label, data.move_icon);
     if (currentView === "detail"
       && views.get("detail").querySelector(`[data-detail-show][data-show-id="${showId}"]`)) {
@@ -3867,6 +3894,11 @@ async function moveShow(showElement, targetState, actionButton) {
     showSnackbar(data.state === "ARCHIVED" ? "Show archived" : "Show resumed");
     return true;
   } catch (_error) {
+    updateShowRepresentations(
+      showId, previousState,
+      previousState === TRACKING_STATE.ARCHIVED ? "Resume" : "Archive",
+      previousState === TRACKING_STATE.ARCHIVED ? "resume" : "archive",
+    );
     showSnackbar("Couldn't move this show. Try again.");
     return false;
   } finally {
@@ -3966,28 +3998,22 @@ function isDiaryHiddenLogItem(item) {
 async function moveMovie(movieElement, actionButton) {
   const movieId = movieElement.dataset.movieId;
   const state = actionButton.dataset.targetState;
+  const previousState = movieElement.dataset.showState;
   actionButton.disabled = true;
   try {
+    updateMovieDetailState(movieElement, state);
     const response = await fetch(`/api/movies/${movieId}/state`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ state }),
     });
     if (!response.ok) throw new Error("Could not move movie");
-    movieElement.dataset.showState = state;
-    const stateLabel = movieElement.querySelector("[data-movie-state-label]");
-    if (stateLabel) stateLabel.hidden = state !== TRACKING_STATE.ARCHIVED;
     movieDetailCache.delete(String(movieId));
-    await refreshMoviesContent();
-    const nextState = state === TRACKING_STATE.ACTIVE ? TRACKING_STATE.ARCHIVED : TRACKING_STATE.ACTIVE;
-    const label = nextState === TRACKING_STATE.ACTIVE ? "Resume" : "Archive";
-    actionButton.dataset.targetState = nextState;
-    actionButton.title = label;
-    actionButton.setAttribute("aria-label", `${label} ${movieElement.dataset.detailTitle}`);
-    actionButton.querySelector(".material-symbols-rounded").textContent = nextState === TRACKING_STATE.ACTIVE ? "resume" : "archive";
+    await refreshMoviesContent().catch(() => undefined);
     refreshScheduleForMediaChange();
     showSnackbar(state === TRACKING_STATE.ARCHIVED ? "Movie archived" : "Movie resumed");
   } catch (_error) {
+    updateMovieDetailState(movieElement, previousState);
     showSnackbar("Couldn't move this movie. Try again.");
   } finally {
     actionButton.disabled = false;

@@ -522,7 +522,7 @@ class TrackAppTest(unittest.TestCase):
     def test_tracked_movie_actions_use_docked_toolbar(self):
         connection = sqlite3.connect(self.database)
         movie_id = connection.execute(
-            "INSERT INTO movies (tmdb_id, title, is_tracked, added_at) VALUES (?, ?, 1, ?)",
+            "INSERT INTO movies (tmdb_id, title, is_tracked, state, added_at) VALUES (?, ?, 1, 'ACTIVE', ?)",
             (901002, "Toolbar Test Movie", "2026-09-04T12:00:00+00:00"),
         ).lastrowid
         connection.commit()
@@ -536,8 +536,35 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-movie-action="refresh"', detail.data)
         self.assertIn(b'data-toolbar-slots="5"', detail.data)
         self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="3" type="button" data-movie-detail-watch', detail.data)
+        self.assertIn(b'<span class="material-symbols-rounded" aria-hidden="true">delete</span>', detail.data)
         self.assertNotIn(b'data-movie-menu-button', detail.data)
         self.assertNotIn(b'data-track-movie-action', detail.data)
+
+    def test_archived_media_toolbars_show_queue_resume_remove(self):
+        connection = sqlite3.connect(self.database)
+        movie_id = connection.execute(
+            "INSERT INTO movies (tmdb_id, title, is_tracked, state, added_at) "
+            "VALUES (901022, 'Archived Toolbar Movie', 1, 'ARCHIVED', '2026-09-04T12:00:00+00:00')"
+        ).lastrowid
+        connection.commit()
+        connection.close()
+
+        show_detail = self.client.get("/api/shows/2").data.decode()
+        movie_detail = self.client.get(f"/api/movies/{movie_id}").data.decode()
+        for detail, media in ((show_detail, "show"), (movie_detail, "movie")):
+            with self.subTest(media=media):
+                self.assertIn('data-toolbar-slots="3"', detail)
+                self.assertIn('data-reaction-toggle="queue"', detail)
+                self.assertIn('class="detail-docked-primary" data-toolbar-slot="2"', detail)
+                self.assertIn('data-target-state="ACTIVE"', detail)
+                self.assertIn(f'data-toolbar-slot="3" type="button" data-{media}-action="remove"', detail)
+                self.assertRegex(detail, rf'data-{media}-action="refresh"[^>]*hidden')
+        self.assertRegex(show_detail, r'data-show-next-episode="[^"]*"[^>]*hidden')
+        self.assertRegex(movie_detail, r'data-movie-detail-watch[^>]*hidden')
+        self.assertNotIn('data-movie-state-label', movie_detail)
+        self.assertNotIn('>Archived</span>', movie_detail)
+        self.assertIn('<span class="material-symbols-rounded" aria-hidden="true">delete</span>', movie_detail)
+        self.assertNotIn('>Archived</span>', self.client.get("/api/movies").data.decode())
 
     def test_untracked_movie_queue_and_watch_imports(self):
         class MovieClient:

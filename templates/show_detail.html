@@ -80,7 +80,7 @@
     {% include '_activity_log.html' %}
 
   </section>
-  <div class="detail-docked-toolbar" data-toolbar-slots="{{ 5 if show.is_tracked else 3 }}" role="group"
+  <div class="detail-docked-toolbar" data-toolbar-slots="{{ 3 if show.state == 'ARCHIVED' else 5 if show.is_tracked else 3 }}" role="group"
     aria-label="Show actions">
     <div class="detail-docked-start">
       {% if show.is_tracked %}
@@ -91,7 +91,7 @@
         <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if show.watch_again else
           'playlist_add' }}</span>
       </button>
-      <button class="detail-docked-button" data-toolbar-slot="2" type="button" data-show-action="move"
+      <button class="{{ 'detail-docked-primary' if show.state == 'ARCHIVED' else 'detail-docked-button' }}" data-toolbar-slot="2" type="button" data-show-action="move"
         data-target-state="{{ move.target_state }}" aria-label="{{ move.label }} {{ show.name }}" title="{{ move.label }}">
         <span class="material-symbols-rounded is-filled" aria-hidden="true">{{ move.icon }}</span><span class="sr-only" data-move-label>{{ move.label }}</span>
       </button>
@@ -105,7 +105,7 @@
     <div class="detail-docked-center">
       {% if show.is_tracked %}
       <button class="detail-docked-primary" data-toolbar-slot="3" type="button" data-show-next-episode="{{ next_watch_episode_id or '' }}"
-        aria-label="Open next episode of {{ show.name }}" title="Open next episode" {% if not next_watch_episode_id %}disabled{% endif %}>
+        aria-label="Open next episode of {{ show.name }}" title="Open next episode" {% if show.state == 'ARCHIVED' %}hidden{% endif %} {% if not next_watch_episode_id %}disabled{% endif %}>
         <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
       </button>
       {% else %}
@@ -118,10 +118,10 @@
     <div class="detail-docked-end">
       {% if show.is_tracked %}
       <button class="detail-docked-button" data-toolbar-slot="4" type="button" data-show-action="refresh"
-        aria-label="Refresh {{ show.name }}" title="Refresh">
+        aria-label="Refresh {{ show.name }}" title="Refresh" {% if show.state == 'ARCHIVED' %}hidden{% endif %}>
         <span class="material-symbols-rounded" aria-hidden="true">cloud_sync</span>
       </button>
-      <button class="detail-docked-button danger-action" data-toolbar-slot="5" type="button" data-show-action="remove"
+      <button class="detail-docked-button danger-action" data-toolbar-slot="{{ 3 if show.state == 'ARCHIVED' else 5 }}" type="button" data-show-action="remove"
         aria-label="Remove {{ show.name }}" title="Remove">
         <span class="material-symbols-rounded" aria-hidden="true">delete</span>
       </button>

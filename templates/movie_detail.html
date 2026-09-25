@@ -28,7 +28,7 @@
     </button>{% endif %}
     <div class="hero-copy">
       {% if movie.is_tracked %}<span class="state-label progress-tag" data-movie-progress-tag>{{ 'Watched' if watched
-        else 'Upcoming' if upcoming else 'New' }}</span><span class="state-label" data-movie-state-label {% if movie.state != 'ARCHIVED' %}hidden{% endif %}>Archived</span>{% endif %}
+        else 'Upcoming' if upcoming else 'New' }}</span>{% endif %}
       <h1>{{ movie.title }}</h1>
       <p>{{ movie.release_date[:4] if movie.release_date else '' }}{% if movie.runtime_minutes %} · {{
         movie.runtime_minutes }} min{% endif %}{% if movie.genres %}<br>{{ movie.genres }}{% endif %}</p>
@@ -48,7 +48,7 @@
     {% include '_activity_log.html' %}
 
   </section>
-  <div class="detail-docked-toolbar" data-toolbar-slots="{{ 5 if movie.is_tracked else 3 }}" role="group"
+  <div class="detail-docked-toolbar" data-toolbar-slots="{{ 3 if movie.state == 'ARCHIVED' else 5 if movie.is_tracked else 3 }}" role="group"
     aria-label="Movie actions">
     <div class="detail-docked-start">
       {% if movie.is_tracked %}
@@ -59,7 +59,7 @@
         <span class="material-symbols-rounded" aria-hidden="true">{{ 'playlist_add_check' if movie.watch_again else
           'playlist_add' }}</span>
       </button>
-      <button class="detail-docked-button" data-toolbar-slot="2" type="button" data-movie-action="move"
+      <button class="{{ 'detail-docked-primary' if movie.state == 'ARCHIVED' else 'detail-docked-button' }}" data-toolbar-slot="2" type="button" data-movie-action="move"
         data-target-state="{{ 'ACTIVE' if movie.state == 'ARCHIVED' else 'ARCHIVED' }}"
         aria-label="{{ 'Resume' if movie.state == 'ARCHIVED' else 'Archive' }} {{ movie.title }}"
         title="{{ 'Resume' if movie.state == 'ARCHIVED' else 'Archive' }}">
@@ -75,7 +75,7 @@
     <div class="detail-docked-center">
       {% if movie.is_tracked %}
       <button class="detail-docked-primary" data-toolbar-slot="3" type="button" data-movie-detail-watch
-        data-watch-count="{{ movie.watch_count }}" aria-label="Watch {{ movie.title }}" title="Watch">
+        data-watch-count="{{ movie.watch_count }}" aria-label="Watch {{ movie.title }}" title="Watch" {% if movie.state == 'ARCHIVED' %}hidden{% endif %}>
         <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
       </button>
       {% else %}
@@ -88,12 +88,12 @@
     <div class="detail-docked-end">
       {% if movie.is_tracked %}
       <button class="detail-docked-button" data-toolbar-slot="4" type="button" data-movie-action="refresh"
-        aria-label="Refresh {{ movie.title }}" title="Refresh">
+        aria-label="Refresh {{ movie.title }}" title="Refresh" {% if movie.state == 'ARCHIVED' %}hidden{% endif %}>
         <span class="material-symbols-rounded" aria-hidden="true">cloud_sync</span>
       </button>
-      <button class="detail-docked-button danger-action" data-toolbar-slot="5" type="button" data-movie-action="remove"
+      <button class="detail-docked-button danger-action" data-toolbar-slot="{{ 3 if movie.state == 'ARCHIVED' else 5 }}" type="button" data-movie-action="remove"
         aria-label="Remove {{ movie.title }}" title="Remove">
-        <span class="material-symbol-rounded" aria-hidden="true">delete</span>
+        <span class="material-symbols-rounded" aria-hidden="true">delete</span>
       </button>
       {% else %}
       <button class="detail-docked-button" data-toolbar-slot="3" type="button" data-archive-untracked-movie
