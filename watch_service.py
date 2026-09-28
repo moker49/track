@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 
 from database import unknown_log_timestamp
 from domain import effective_diary_date_sql
-from queries import get_episode_watch_count, get_show_progress, watch_payload
+from queries import get_catch_up_episodes, get_episode_watch_count, get_show_progress, watch_payload
 
 
 class WatchNotFoundError(LookupError):
@@ -50,6 +50,21 @@ def _clear_completed_watch_again(
         )
         return True
     return False
+
+
+def _auto_queue_show(db: sqlite3.Connection, show_id: int, local_date: date | None) -> None:
+    show = db.execute(
+        "SELECT is_tracked, state, watch_again FROM shows WHERE id = ?", (show_id,)
+    ).fetchone()
+    if not show or not show["is_tracked"] or show["watch_again"]:
+        return
+    candidates = get_catch_up_episodes(db, show_id=show_id, local_date=local_date)
+    if any(not candidate["is_forced_queue"] for candidate in candidates):
+        baseline = get_show_progress(db, show_id, local_date)["completed_watch_count"]
+        db.execute(
+            "UPDATE shows SET watch_again = 1, watch_again_baseline = ? WHERE id = ?",
+            (baseline, show_id),
+        )
 
 
 def set_log_diary_date(
@@ -122,6 +137,7 @@ def create_episode_log(
         if action_kind == "watch"
         else False
     )
+    _auto_queue_show(db, episode["show_id"], local_date)
     db.commit()
     result = watch_payload(
         db,
@@ -190,6 +206,7 @@ def create_season_log(
         if action_kind == "watch"
         else False
     )
+    _auto_queue_show(db, season["show_id"], local_date)
     db.commit()
     result = watch_payload(
         db, season["show_id"], previous_watched_count=previous_watched_count,

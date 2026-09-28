@@ -250,6 +250,16 @@ def import_or_refresh_show(
                         json.dumps(episode, separators=(",", ":")),
                     ),
                 )
+        if newly_tracked:
+            from queries import get_catch_up_episodes, get_show_progress
+
+            candidates = get_catch_up_episodes(db, show_id=show_id)
+            if any(not candidate["is_forced_queue"] for candidate in candidates):
+                baseline = get_show_progress(db, show_id)["completed_watch_count"]
+                db.execute(
+                    "UPDATE shows SET watch_again = 1, watch_again_baseline = ? WHERE id = ?",
+                    (baseline, show_id),
+                )
         if manage_transaction:
             db.commit()
         return show_id, created, newly_tracked

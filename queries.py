@@ -281,10 +281,11 @@ def get_catch_up_episodes(
         FROM unresolved
         JOIN show_progress ON show_progress.show_id = unresolved.show_id
         WHERE (? IS NULL OR unresolved.show_id = ?)
+          AND (? = 1 OR unresolved.watch_again = 1)
         ORDER BY show_progress.last_watched_at DESC,
                  unresolved.show_name COLLATE NOCASE
         """,
-        (show_id, show_id, local_date_value, show_id, show_id),
+        (show_id, show_id, local_date_value, show_id, show_id, int(show_id is not None)),
     ).fetchall()
     if show_id is not None:
         return episodes

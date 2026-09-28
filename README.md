@@ -29,14 +29,14 @@ TMDB poster, season, and episode images are downloaded on demand through the loc
 
 The browser loads one persistent application shell at `/`. Queue is the first and default destination, followed by Upcoming and TV. These views switch in place without changing the URL. Selecting a show renders its compact overview first, then loads seasons and episodes in the background. Both fragments are cached in memory for seamless repeat visits during the current browser session. Stored TMDB metadata is refreshed in the background only when its last refresh is at least 24 hours old, or immediately when Refresh is chosen from the show-detail menu. Existing details stay visible until the refreshed overview and episode list are ready. The outer app shell and navigation are never replaced.
 
-Queue displays eligible TV episodes and explicitly queued movies. Watch records a normal watch event; Skip advances the TV queue without changing watch history and offers a temporary Undo action in the snackbar. Skipped episodes cycle back after the other unresolved episodes. Upcoming presents future-dated episodes and movies from Active and Archived media as a month-grouped timeline with release-day markers and live day countdowns. Specials are excluded from both views.
+Queue displays TV shows and movies whose saved Queue switch is on. Tracking or watching a TV show can turn it on automatically; you can turn it off afterward. Watch records a normal watch event; Skip advances the TV queue without changing watch history and offers a temporary Undo action in the snackbar. Skipped episodes cycle back after the other unresolved episodes. Upcoming presents future-dated episodes and movies from Active and Archived media as a month-grouped timeline with release-day markers and live day countdowns. Specials are excluded from both views.
 
 While the Flask server is running, a server-side worker checks tracked TV shows and movies every hour. It refreshes stale eligible media oldest-first, so an overdue library is drained fairly. Ended shows and movies released more than three months ago are skipped. Failures retry after 1 hour, then 6 hours, then every 24 hours; a failure for one item does not prevent the remaining stale media from refreshing. All TMDB requests share a process-wide token bucket capped at four requests per second, with a burst capacity of eight requests.
 
 ## Data model
 
 - `shows` stores imported show metadata, TMDB/TVDB identifiers, tracking state, its `ACTIVE`/`ARCHIVED` lifecycle timestamps, the last TMDB refresh, and the complete source payload.
-- `movies` uses the same Active/Archived states. Movie Queue is explicitly selected; TV Queue includes eligible episodes automatically and supports forced entries.
+- `movies` uses the same Active/Archived states. Both movie and TV Queue membership uses the saved Queue switch; TV tracking and watch actions can turn it on automatically.
 - `show_state_history` retains every state entry for future transitions and reporting.
 - `show_metadata_refresh_failures` persists automatic-refresh failures and their next eligible retry time.
 - `movie_metadata_refresh_failures` persists the same retry state for movies.

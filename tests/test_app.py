@@ -79,6 +79,7 @@ def seed_test_library(database: Path) -> None:
             )
             episode_ids_by_show[show_id].append(episode_id)
             episode_id += 1
+    connection.execute("UPDATE shows SET watch_again = 1, watch_again_baseline = 0 WHERE id = 1")
     watched_episode_ids = episode_ids_by_show[1][:5] + episode_ids_by_show[2]
     connection.executemany(
         "INSERT INTO episode_watch_history (episode_id, added_at, diary_date) VALUES (?, ?, ?)",
@@ -1183,6 +1184,30 @@ class TrackAppTest(unittest.TestCase):
         connection.close()
         self.assertIn(b'data-show-next-episode="6"', self.client.get("/api/shows/1").data)
 
+    def test_tv_auto_queue_can_be_removed_after_random_episode(self):
+        removed = self.client.post(
+            "/api/shows/1/reactions/queue", json={"selected": False}
+        )
+        self.assertEqual(removed.status_code, 200)
+        self.assertNotIn(b'Active Test Show', self.client.get('/api/schedule').data.split(b'data-schedule-content="upcoming"')[0])
+        self.assertIn(b'data-show-next-episode="6"', self.client.get('/api/shows/1').data)
+
+        watched = self.client.post(
+            "/api/episodes/7/log",
+            json={"action_kind": "watch", "log_date": "2026-09-28"},
+        )
+        self.assertEqual(watched.status_code, 200)
+        connection = sqlite3.connect(self.database)
+        self.assertEqual(connection.execute("SELECT watch_again FROM shows WHERE id = 1").fetchone()[0], 1)
+        connection.close()
+        self.assertIn(b'Active Test Show', self.client.get('/api/schedule').data)
+
+        self.client.post("/api/shows/1/reactions/queue", json={"selected": False})
+        self.assertNotIn(b'Active Test Show', self.client.get('/api/schedule').data.split(b'data-schedule-content="upcoming"')[0])
+        detail = self.client.get('/api/shows/1').data
+        self.assertIn(b'data-queued="false"', detail)
+        self.assertIn(b'data-show-next-episode="6"', detail)
+
     def test_movie_state_upgrade_maps_liked_or_unwatched_once(self):
         for already_has_state in (False, True):
             with self.subTest(already_has_state=already_has_state), tempfile.TemporaryDirectory() as temporary:
@@ -1269,6 +1294,7 @@ class TrackAppTest(unittest.TestCase):
         connection.commit()
         connection.close()
 
+        self.client.post("/api/shows/2/reactions/queue", json={"selected": True})
         tracked_schedule = self.client.get("/api/schedule")
         self.assertIn(b"Archived Future Episode", tracked_schedule.data)
         self.assertIn(b"Archived Backlog Candidate", tracked_schedule.data)
