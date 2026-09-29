@@ -1568,6 +1568,10 @@ html.app-booting .schedule-empty-reveal {
   --toolbar-slots: 3;
 }
 
+.detail-docked-toolbar[data-episode-toolbar][data-toolbar-slots="3"] {
+  grid-template-columns: 96px minmax(0, 1fr) 96px;
+}
+
 .detail-docked-toolbar[data-toolbar-slots="4"] {
   --toolbar-slots: 4;
 }
@@ -1661,6 +1665,61 @@ html.app-booting .schedule-empty-reveal {
 
 .detail-docked-button:focus-visible,
 .detail-docked-primary:focus-visible {
+  outline: 2px solid var(--on-surface);
+  outline-offset: 2px;
+}
+
+.episode-detail-split-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: max-content;
+  height: 56px;
+}
+
+.episode-detail-split-watch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+  min-width: 0;
+  padding: 0 24px;
+  border-radius: 28px 4px 4px 28px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.episode-detail-split-skip {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px 28px 28px 4px;
+  color: var(--on-primary);
+  background: var(--primary);
+  cursor: pointer;
+}
+
+.episode-detail-split-skip .material-symbols-rounded {
+  font-size: 26px;
+  font-family: "Material Symbols Rounded Filled";
+}
+
+.episode-detail-split-control button:hover {
+  background: var(--primary-dark);
+}
+
+.episode-detail-split-skip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.episode-detail-split-control button:focus-visible {
   outline: 2px solid var(--on-surface);
   outline-offset: 2px;
 }

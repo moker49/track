@@ -2969,6 +2969,30 @@ function applyCreatedLog(data) {
   });
 }
 
+async function skipEpisodeFromDetail(button) {
+  if (button.disabled) return;
+  const episodeId = button.closest("[data-detail-episode]")?.dataset.episodeId;
+  if (!episodeId) return;
+  button.disabled = true;
+  try {
+    const response = await fetch(`/api/episodes/${episodeId}/log`, {
+      method: "POST",
+      headers: localDateHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ action_kind: "skip", log_date: toIsoDate(new Date()) }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not skip episode");
+    applyCreatedLog(data);
+    maybeOpenFinishedArchiveDialog(data);
+  } catch (_error) {
+    showSnackbar("Couldn't skip the episode.", {
+      actionLabel: "Retry",
+      onAction: () => skipEpisodeFromDetail(button),
+    });
+  } finally {
+    button.disabled = false;
+  }
+}
 function openLogDatePicker(target) {
   if (!datePicker) return;
   logDatePickerTarget = target;
@@ -4361,6 +4385,11 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const episodeDetailSkip = event.target.closest("[data-episode-detail-skip]");
+  if (episodeDetailSkip) {
+    skipEpisodeFromDetail(episodeDetailSkip);
+    return;
+  }
   const episodeDetailControl = event.target.closest("[data-episode-detail-watch]");
   if (episodeDetailControl) {
     const detailEpisode = episodeDetailControl.closest("[data-detail-episode]");

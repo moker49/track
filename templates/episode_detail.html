@@ -51,8 +51,8 @@
     </section>
   </div>
 
-  <div class="detail-docked-toolbar" data-toolbar-slots="{{ 3 if episode.show_is_tracked else 2 }}" role="group"
-    aria-label="Episode actions">
+  <div class="detail-docked-toolbar" data-episode-toolbar data-toolbar-slots="{{ 3 if episode.show_is_tracked else 2 }}"
+    role="group" aria-label="Episode actions">
     <div class="detail-docked-start">
       <button class="detail-docked-button" data-toolbar-slot="1" type="button" data-adjacent-episode="previous"
         aria-label="Previous episode" title="Previous episode" {% if episode.previous_episode_id
@@ -62,10 +62,17 @@
     </div>
     <div class="detail-docked-center">
       {% if episode.show_is_tracked %}
-      <button class="detail-docked-primary" data-toolbar-slot="2" type="button" data-episode-detail-watch
-        data-watch-count="{{ episode.watch_count }}" aria-label="Watch {{ episode.name }}" title="Watch">
-        <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
-      </button>
+      <div class="episode-detail-split-control" data-toolbar-slot="2" role="group" aria-label="Episode progress">
+        <button class="detail-docked-primary episode-detail-split-watch" type="button" data-episode-detail-watch
+          data-watch-count="{{ episode.watch_count }}" aria-label="Watch {{ episode.name }}" title="Watch">
+          <span class="material-symbols-rounded is-filled" aria-hidden="true">play_arrow</span>
+          <span>Watch</span>
+        </button>
+        <button class="episode-detail-split-skip" type="button" data-episode-detail-skip
+          aria-label="Skip {{ episode.name }}" title="Skip">
+          <span class="material-symbols-rounded is-filled" aria-hidden="true">step_over</span>
+        </button>
+      </div>
       {% endif %}
     </div>
     <div class="detail-docked-end">

@@ -731,7 +731,9 @@ class TrackAppTest(unittest.TestCase):
             episode_detail.data,
             rb'<button[^>]*data-toolbar-slot="3"[^>]*data-adjacent-episode="next"',
         )
-        self.assertIn(b'class="detail-docked-primary" data-toolbar-slot="2" type="button" data-episode-detail-watch', episode_detail.data)
+        self.assertIn(b'class="episode-detail-split-control" data-toolbar-slot="2"', episode_detail.data)
+        self.assertIn(b'class="detail-docked-primary episode-detail-split-watch" type="button" data-episode-detail-watch', episode_detail.data)
+        self.assertIn(b'data-episode-detail-skip', episode_detail.data)
         self.assertNotIn(b'data-reaction-toggle="queue"', episode_detail.data)
         self.assertNotIn(b'data-show-menu-button', episode_detail.data)
         self.assertNotIn(b'data-movie-menu-button', episode_detail.data)
@@ -742,6 +744,24 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'data-queued=', episode_detail.data)
         self.assertNotIn(b'Test episode overview.', episode_detail.data)
 
+    def test_first_time_episode_can_be_skipped_from_queue_and_detail(self):
+        home = self.client.get("/")
+        self.assertRegex(
+            home.data,
+            rb'data-episode-id="6"[\s\S]*?data-schedule-action="skip"',
+        )
+        detail = self.client.get("/api/episodes/6")
+        self.assertIn(b'data-episode-detail-skip', detail.data)
+
+        skipped = self.client.post(
+            "/api/episodes/6/log",
+            json={"action_kind": "skip", "log_date": "2026-05-20"},
+        )
+        self.assertEqual(skipped.status_code, 200)
+        self.assertEqual(skipped.get_json()["action_kind"], "skip")
+        self.assertEqual(skipped.get_json()["latest_resolution_kind"], "skip")
+        self.assertIn(b"Skipped", self.client.get("/api/episodes/6").data)
+        self.assertIn(b'data-episode-id="7"', self.client.get("/").data)
     def test_episode_activity_count_includes_undated_records(self):
         connection = sqlite3.connect(self.database)
         connection.execute(
@@ -1018,7 +1038,7 @@ class TrackAppTest(unittest.TestCase):
         schedule_item_template = (Path(__file__).parents[1] / "templates" / "_schedule_timeline_item.html").read_text(
             encoding="utf-8"
         )
-        self.assertIn('{% if not is_movie and episode.completed_watch_count > 0 %}', schedule_item_template)
+        self.assertIn('{% if not is_movie %}', schedule_item_template)
         self.assertIn('.schedule-timeline-rail::before {', css)
         self.assertIn('.schedule-timeline-list>.schedule-timeline-item:first-child .schedule-timeline-rail::before {', css)
         self.assertIn('.schedule-timeline-list>.schedule-timeline-item:last-child .schedule-timeline-rail::before,', css)
@@ -2770,6 +2790,7 @@ class TrackAppTest(unittest.TestCase):
         episode_detail = self.client.get(f"/api/episodes/{preview_episode_id}")
         self.assertIn(b'<details class="detail-section-disclosure" data-activity-log open>', episode_detail.data)
         self.assertNotIn(b'data-episode-detail-watch', episode_detail.data)
+        self.assertNotIn(b'data-episode-detail-skip', episode_detail.data)
         self.assertIn(b'data-adjacent-episode="previous"', episode_detail.data)
         self.assertIn(b'data-adjacent-episode="next"', episode_detail.data)
         self.assertNotIn(b'class="detail-docked-primary"', episode_detail.data)
@@ -2827,6 +2848,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"data-track-show-state", tracked_detail.data)
         tracked_episode = self.client.get(f"/api/episodes/{preview_episode_id}").data
         self.assertIn(b'data-episode-detail-watch', tracked_episode)
+        self.assertIn(b'data-episode-detail-skip', tracked_episode)
         self.assertNotIn(b'data-reaction-toggle="queue"', tracked_episode)
         self.assertNotIn(b'data-add-episode-show', tracked_episode)
         archived_home = self.client.get("/")
