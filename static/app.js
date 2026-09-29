@@ -224,6 +224,7 @@ let searchHistoryActive = false;
 let searchHistoryView = null;
 let searchHistoryClosing = false;
 let searchDismissShouldFocus = null;
+let searchDismissTimer = null;
 let snackbarAction = null;
 let backgroundPrimaryViewHydrationStarted = false;
 let scheduleViewsHydrated = false;
@@ -5039,6 +5040,8 @@ function pushSearchHistory() {
 }
 
 function clearSearchFromHistory({ refocus = false } = {}) {
+  clearTimeout(searchDismissTimer);
+  searchDismissTimer = null;
   searchHistoryActive = false;
   searchHistoryClosing = false;
   searchHistoryView = null;
@@ -5054,7 +5057,21 @@ function clearSearchFromHistory({ refocus = false } = {}) {
   else globalSearchInput?.blur();
 }
 
+function dismissSearchIfEmpty() {
+  clearTimeout(searchDismissTimer);
+  searchDismissTimer = null;
+  if (!searchHistoryActive || searchHistoryClosing
+    || currentView !== searchHistoryView || globalSearchInput?.value) return;
+  searchHistoryClosing = true;
+  if (searchDismissShouldFocus === null) {
+    searchDismissShouldFocus = document.activeElement === globalSearchInput;
+  }
+  window.history.back();
+}
+
 globalSearchInput?.addEventListener("input", () => {
+  clearTimeout(searchDismissTimer);
+  searchDismissTimer = null;
   if (currentView === "detail") return;
   syncSearchChrome();
   syncSearchTextPosition();
@@ -5090,11 +5107,7 @@ globalSearchInput?.addEventListener("input", () => {
     if (previousQuery.trim() && !query.trim()) flushSearchLibraryUpdates("movies");
   }
   if (previousQuery && !query && searchHistoryActive && !searchHistoryClosing) {
-    searchHistoryClosing = true;
-    if (searchDismissShouldFocus === null) {
-      searchDismissShouldFocus = document.activeElement === globalSearchInput;
-    }
-    window.history.back();
+    searchDismissTimer = window.setTimeout(dismissSearchIfEmpty, 200);
   }
 });
 
@@ -5105,6 +5118,7 @@ searchClearButton?.addEventListener("click", () => {
   searchDismissShouldFocus = true;
   globalSearchInput.value = "";
   globalSearchInput.dispatchEvent(new Event("input", { bubbles: true }));
+  dismissSearchIfEmpty();
   globalSearchInput.focus();
 });
 
@@ -5112,6 +5126,7 @@ searchBackButton?.addEventListener("click", () => {
   searchDismissShouldFocus = false;
   globalSearchInput.value = "";
   globalSearchInput.dispatchEvent(new Event("input", { bubbles: true }));
+  dismissSearchIfEmpty();
   globalSearchInput.blur();
 });
 
@@ -5298,6 +5313,8 @@ function restoreHistoryState(state) {
 }
 
 window.addEventListener("popstate", (event) => {
+  clearTimeout(searchDismissTimer);
+  searchDismissTimer = null;
   if (tvDropdownHistoryActive) {
     tvDropdownHistoryActive = false;
     closeTvDropdowns(null, { preserveHistory: true });

@@ -45,6 +45,26 @@ class PersistentShellBrowserSmokeTest(unittest.TestCase):
         cls.app.extensions["shutdown_cast_hydration"]()
         cls.temp_dir.cleanup()
 
+    def test_autocorrect_replacement_does_not_clear_search(self):
+        page = self.browser.new_page(viewport={"width": 390, "height": 844})
+        try:
+            page.goto(self.base_url, wait_until="domcontentloaded")
+            page.wait_for_function("!document.documentElement.classList.contains('app-booting')")
+            page.locator('[data-nav-view="tv"]').click()
+            search = page.locator('[data-global-search]')
+            search.fill("bobs")
+            search.fill("")
+            search.fill("Bob's")
+            page.wait_for_timeout(250)
+            self.assertEqual(search.input_value(), "Bob's")
+            self.assertTrue(page.locator('[data-search-back]').is_visible())
+
+            page.locator('[data-clear-search]').click()
+            self.assertEqual(search.input_value(), "")
+            self.assertFalse(page.locator('[data-search-back]').is_visible())
+        finally:
+            page.close()
+
     def test_primary_navigation_detail_mutation_history_and_filter_flow(self):
         page = self.browser.new_page(viewport={"width": 390, "height": 844})
         try:
