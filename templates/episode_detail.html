@@ -1,29 +1,31 @@
 <div data-detail-episode data-detail-title="{{ episode.name }}" data-episode-id="{{ episode.id }}"
   data-show-id="{{ episode.show_id }}" data-watch-count="{{ episode.watch_count }}"
   data-latest-resolution-kind="{{ episode.latest_resolution_kind or '' }}">
+  <div class="detail-backdrop{% if episode.still_path or episode.show_backdrop_path %} has-media-image{% endif %}" aria-hidden="true">
+    {% if episode.still_path %}<img src="{{ url_for('cached_tmdb_image', image_type='still', size='w780', tmdb_path=episode.still_path[1:]) }}" alt="" decoding="async" data-media-image>{% elif episode.show_backdrop_path %}<img src="{{ url_for('cached_tmdb_image', image_type='backdrop', size='w780', tmdb_path=episode.show_backdrop_path[1:]) }}" alt="" decoding="async" data-media-image>{% endif %}
+  </div>
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back data-back-show-id="{{ episode.show_id }}"
       aria-label="Back to {{ episode.show_name }}">
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
-    <span class="detail-app-bar-title">Episode details</span>
   </header>
 
   <div class="episode-detail-page-content" data-episode-page-content>
     <section class="hero episode-hero">
-      {% if episode.still_path %}<button class="image-preview-button hero-image-button" type="button"
-        data-full-image-src="https://image.tmdb.org/t/p/w780{{ episode.still_path }}"
-        data-full-image-alt="Still from {{ episode.name }}" aria-label="View still from {{ episode.name }}">{% endif %}
-        <div class="hero-poster poster{% if episode.still_path %} has-media-image{% endif %}" aria-hidden="true">
-          {% if episode.still_path %}<img class="poster-image episode-still-image"
-            src="{{ url_for('cached_tmdb_image', image_type='still', size='w300', tmdb_path=episode.still_path[1:]) }}"
+      {% if episode.show_poster_path %}<button class="image-preview-button hero-image-button" type="button"
+        data-full-image-src="https://image.tmdb.org/t/p/w780{{ episode.show_poster_path }}"
+        data-full-image-alt="{{ episode.show_name }} poster" aria-label="View {{ episode.show_name }} poster">{% endif %}
+        <div class="hero-poster poster{% if episode.show_poster_path %} has-media-image{% endif %}" aria-hidden="true">
+          {% if episode.show_poster_path %}<img class="poster-image"
+            src="{{ url_for('cached_tmdb_image', image_type='poster', size='w342', tmdb_path=episode.show_poster_path[1:]) }}"
             alt="" decoding="async" data-media-image><template data-media-fallback-template><span
               class="poster-mark episode-poster-mark">S{{ episode.season_number }}E{{ episode.episode_number
               }}</span><span class="poster-label">{{ episode.show_name }}</span></template>{% else %}<span
             class="poster-mark episode-poster-mark">S{{ episode.season_number }}E{{ episode.episode_number
             }}</span><span class="poster-label">{{ episode.show_name }}</span>{% endif %}
         </div>
-        {% if episode.still_path %}
+        {% if episode.show_poster_path %}
       </button>{% endif %}
       <div class="hero-copy">
         <span class="state-label">Episode {{ episode.episode_number }}</span>

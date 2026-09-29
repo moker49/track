@@ -6,11 +6,13 @@
   data-queued="{{ 'true' if movie.watch_again else 'false' }}"
   data-movie-upcoming="{{ 'true' if upcoming else 'false' }}"
   data-progress-state="{{ 'finished' if watched else 'not-started' }}">
+  <div class="detail-backdrop{% if movie.backdrop_path %} has-media-image{% endif %}" aria-hidden="true">
+    {% if movie.backdrop_path %}<img src="{{ url_for('cached_tmdb_image', image_type='backdrop', size='w780', tmdb_path=movie.backdrop_path[1:]) }}" alt="" decoding="async" data-media-image>{% endif %}
+  </div>
   <header class="detail-app-bar">
     <button class="icon-button" type="button" data-detail-back aria-label="Back">
       <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
     </button>
-    <span class="detail-app-bar-title">Movie details</span>
   </header>
 
   <section class="hero">

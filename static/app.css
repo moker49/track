@@ -1809,18 +1809,50 @@ html.app-booting .schedule-empty-reveal {
   color: var(--error) !important;
 }
 
+[data-detail-show],
+[data-detail-movie],
+[data-detail-episode] {
+  position: relative;
+}
+
+.detail-backdrop {
+  position: relative;
+  height: clamp(230px, 62vw, 330px);
+  overflow: hidden;
+  background: linear-gradient(145deg, var(--surface-high), var(--surface));
+}
+
+.detail-backdrop img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.detail-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 52%, var(--surface) 100%);
+  pointer-events: none;
+}
+
 .detail-app-bar {
-  position: sticky;
+  position: absolute;
   z-index: 10;
   top: 0;
-  min-height: calc(80px + env(safe-area-inset-top));
-  padding: max(12px, env(safe-area-inset-top)) 4px 12px;
+  left: 0;
+  width: 100%;
+  min-height: calc(72px + env(safe-area-inset-top));
+  padding: max(12px, env(safe-area-inset-top)) 8px 12px;
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 1rem;
-  font-weight: 500;
-  background: var(--surface);
+  background: transparent;
+}
+
+.detail-app-bar .icon-button {
+  color: white;
+  text-shadow: 0 1px 5px rgb(0 0 0 / 0.8);
 }
 
 .icon-button {
@@ -1860,11 +1892,27 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .hero {
-  padding: 8px 20px 20px;
+  min-height: 182px;
+  padding: 0 20px 20px;
   display: grid;
-  grid-template-columns: 112px 1fr;
+  grid-template-columns: minmax(0, 1fr) 112px;
   align-items: start;
   gap: 18px;
+}
+
+.hero-copy {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  padding-top: 20px;
+}
+
+.hero-image-button,
+.hero > .hero-poster {
+  grid-column: 2;
+  grid-row: 1;
+  margin-top: -42px;
+  z-index: 1;
 }
 
 .hero-poster {
@@ -1896,9 +1944,6 @@ html.app-booting .schedule-empty-reveal {
   outline-offset: 3px;
 }
 
-.hero-copy {
-  padding-top: 0;
-}
 
 .navigation-drawer {
   position: fixed;

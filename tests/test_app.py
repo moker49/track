@@ -102,6 +102,35 @@ class TrackAppTest(unittest.TestCase):
         self.app.extensions["shutdown_cast_hydration"]()
         self.temp_dir.cleanup()
 
+    def test_detail_headers_render_backdrops_before_overlay_navigation(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            "UPDATE shows SET backdrop_path = ?, poster_path = ? WHERE id = 1",
+            ("/show-backdrop.jpg", "/show-poster.jpg"),
+        )
+        connection.execute(
+            "UPDATE episodes SET still_path = ? WHERE id = 1",
+            ("/episode-still.jpg",),
+        )
+        connection.execute(
+            "INSERT INTO movies (tmdb_id, title, backdrop_path, poster_path, added_at) VALUES (?, ?, ?, ?, ?)",
+            (999001, "Backdrop Movie", "/movie-backdrop.jpg", "/movie-poster.jpg", "2026-09-29T10:00:00+00:00"),
+        )
+        movie_id = connection.execute("SELECT id FROM movies WHERE tmdb_id = 999001").fetchone()[0]
+        connection.commit()
+        connection.close()
+
+        for url, backdrop, poster in (
+            ("/api/shows/1", b"/media/backdrop/w780/show-backdrop.jpg", b"/media/poster/w342/show-poster.jpg"),
+            (f"/api/movies/{movie_id}", b"/media/backdrop/w780/movie-backdrop.jpg", b"/media/poster/w342/movie-poster.jpg"),
+            ("/api/episodes/1", b"/media/still/w780/episode-still.jpg", b"/media/poster/w342/show-poster.jpg"),
+        ):
+            html = self.client.get(url).data
+            self.assertLess(html.index(b'class="detail-backdrop'), html.index(b'class="detail-app-bar"'))
+            self.assertLess(html.index(backdrop), html.index(poster))
+            self.assertIn(b'data-detail-back', html)
+            self.assertNotIn(b'detail-app-bar-title', html)
+
     def test_single_page_shell_contains_primary_views(self):
         home = self.client.get("/")
         tv = self.client.get("/api/tv")
@@ -199,7 +228,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("font-size: 0.78rem", css)
         self.assertIn("grid-template-columns: repeat(4, 1fr)", css)
         self.assertIn("grid-template-columns: 48px minmax(0, 1fr) 48px", css)
-        self.assertIn("padding: max(12px, env(safe-area-inset-top)) 4px 12px", css)
+        self.assertIn("padding: max(12px, env(safe-area-inset-top)) 8px 12px", css)
         self.assertIn("text-align: center", css)
         self.assertIn(".app-bar-search:has(input:focus)", css)
         self.assertIn(".app-bar-search input.search-text-positioned:focus", css)
@@ -220,7 +249,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('.detail-docked-toolbar[data-toolbar-slots="5"]', css)
         self.assertIn('.detail-docked-toolbar [data-toolbar-slot]', css)
         self.assertIn('.detail-docked-toolbar .detail-overflow-anchor {\n  width: 48px;\n  margin: 0;', css)
-        self.assertIn("min-height: calc(80px + env(safe-area-inset-top));", css)
+        self.assertIn("min-height: calc(72px + env(safe-area-inset-top));", css)
         self.assertIn("background: var(--surface-card);", css)
         self.assertIn('.material-symbols-rounded.is-filled {', css)
 
@@ -1746,7 +1775,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"data-season-watch", detail.data)
         self.assertNotIn(b"data-episode-watch", detail.data)
         self.assertIn(b'data-detail-title="Active Test Show"', detail.data)
-        self.assertIn(b'class="detail-app-bar-title">Show details</span>', detail.data)
+        self.assertIn(b'class="detail-backdrop', detail.data)
+        self.assertIn(b'data-detail-back', detail.data)
         self.assertNotIn(b'data-overview-disclosure', detail.data)
         self.assertNotIn(b'detail-cast-rail', detail.data)
         self.assertEqual(detail.data.count(b'class="detail-region-divider"'), 2)
@@ -2804,9 +2834,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'data-reaction-toggle="queue"', episode_detail.data)
         self.assertNotIn(b'episode-watch-summary', episode_detail.data)
         self.assertNotIn(b'data-overview-disclosure', episode_detail.data)
-        self.assertIn(b"/media/still/w300/preview-still.jpg", episode_detail.data)
+        self.assertIn(b"/media/still/w780/preview-still.jpg", episode_detail.data)
+        self.assertIn(b"/media/poster/w342/preview.jpg", episode_detail.data)
         self.assertIn(
-            b'data-full-image-src="https://image.tmdb.org/t/p/w780/preview-still.jpg"',
+            b'data-full-image-src="https://image.tmdb.org/t/p/w780/preview.jpg"',
             episode_detail.data,
         )
 

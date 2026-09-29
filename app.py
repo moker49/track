@@ -1083,6 +1083,8 @@ def create_app(test_config: dict | None = None) -> Flask:
                    sn.is_progress_counted,
                    s.id AS show_id,
                    s.name AS show_name,
+                   s.poster_path AS show_poster_path,
+                   s.backdrop_path AS show_backdrop_path,
                    s.is_tracked AS show_is_tracked,
                    s.watch_again AS show_watch_again,
                    s.status AS show_status,

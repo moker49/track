@@ -17,7 +17,7 @@ ALLOWED_SIZES = {
     "backdrop": {"w780"},
     "profile": {"w185"},
     "season": {"w185", "w342"},
-    "still": {"w300"},
+    "still": {"w300", "w780"},
 }
 CONTENT_EXTENSIONS = {
     "image/jpeg": ".jpg",
