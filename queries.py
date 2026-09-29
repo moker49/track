@@ -297,8 +297,9 @@ def get_catch_up_episodes(
                m.watch_again, NULL AS season_number, 'Movie' AS season_name,
                NULL AS episode_id, NULL AS episode_number, m.title AS episode_name,
                m.release_date AS air_date, m.runtime_minutes, 1 AS is_rewatch, 1 AS is_forced_queue,
-               1 AS episode_count, 0 AS watched_count, 0 AS total_watch_count,
-               0 AS completed_watch_count, 0 AS rewatch_watched_count,
+               1 AS episode_count, CASE WHEN COUNT(mwh.id) > 0 THEN 1 ELSE 0 END AS watched_count,
+               COUNT(mwh.id) AS total_watch_count, COUNT(mwh.id) AS completed_watch_count,
+               0 AS rewatch_watched_count,
                MAX(mwh.added_at) AS last_watched_at, 1 AS is_movie, 'movies' AS media_type
         FROM movies m
         LEFT JOIN movie_watch_history mwh ON mwh.movie_id = m.id
@@ -310,7 +311,6 @@ def get_catch_up_episodes(
     queue_items.extend(dict(movie) for movie in watch_again_movies)
     queue_items.sort(key=lambda item: item["show_name"].casefold())
     queue_items.sort(key=lambda item: item["last_watched_at"] or "", reverse=True)
-    queue_items.sort(key=lambda item: item["is_forced_queue"])
     return queue_items
 
 

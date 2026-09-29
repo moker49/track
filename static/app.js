@@ -118,7 +118,7 @@ const snackbar = document.querySelector(".snackbar");
 const libraryViewPreferences = {
   backlog: {
     state: TRACKING_STATE.ACTIVE,
-    progress: [PROGRESS_STATE.STARTED],
+    progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP],
     sortField: "lastWatched",
     sortDirection: "desc",
     mediaTypes: ["tv", "movies"],
@@ -1587,21 +1587,24 @@ async function processScheduleEpisode(card, action) {
     processed = true;
     if (action === "watch" || action === "skip") {
       refreshLogRelatedCaches({ showId, episodeIds: [episodeId] });
-      syncCompletedForcedQueue(data);
       applyShowProgress(data);
       maybeOpenFinishedArchiveDialog(data);
     }
 
-    const nextResponse = await fetch(`/api/schedule/shows/${showId}/catch-up`, {
-      headers: localDateHeaders({ "X-Requested-With": "Track" }),
-    });
-    if (!nextResponse.ok && nextResponse.status !== 204) {
-      throw new Error("Could not load the next episode");
+    let nextHtml = "";
+    if (!data.watch_again_cleared) {
+      const nextResponse = await fetch(`/api/schedule/shows/${showId}/catch-up`, {
+        headers: localDateHeaders({ "X-Requested-With": "Track" }),
+      });
+      if (!nextResponse.ok && nextResponse.status !== 204) {
+        throw new Error("Could not load the next episode");
+      }
+      nextHtml = nextResponse.status === 204 ? "" : await nextResponse.text();
     }
-    const nextHtml = nextResponse.status === 204 ? "" : await nextResponse.text();
     const revealDelay = Math.max(0, 260 - (performance.now() - progressStartedAt));
     if (revealDelay) await new Promise((resolve) => window.setTimeout(resolve, revealDelay));
     const reachedFinishedState = action === "watch"
+      && !data.watch_again_cleared
       && data.episode_count > 0
       && data.watched_count === data.episode_count;
     if (nextHtml.trim()) {
@@ -1646,7 +1649,6 @@ async function processScheduleMovie(card) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not mark movie watched");
-    syncCompletedForcedQueue(data);
     refreshLogRelatedCaches({ movieId: data.movie_id });
   } catch (error) {
     showSnackbar(error.message || "Couldn't update this movie.");
@@ -3093,7 +3095,7 @@ const sortFieldLabels = {
 };
 
 const libraryViewDefaults = {
-  backlog: { progress: [PROGRESS_STATE.STARTED], sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv", "movies"] },
+  backlog: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv", "movies"] },
   upcoming: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "movies"] },
   tv: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP], sortField: "name", sortDirection: "asc", mediaTypes: ["tv"] },
   movies: { progress: [PROGRESS_STATE.NEW], sortField: "dateAdded", sortDirection: "desc", mediaTypes: ["movies"] },
@@ -3185,7 +3187,8 @@ function syncTvControlBar(view = views.get(currentView)) {
   tvControlBar.querySelectorAll("[data-tv-media-option]").forEach((button) => {
     const type = button.dataset.tvMediaOption;
     const excluded = (viewName === "tv" && ["movies", "movies-archive"].includes(type))
-      || (viewName === "movies" && ["tv", "tv-archive"].includes(type));
+      || (viewName === "movies" && ["tv", "tv-archive"].includes(type))
+      || (viewName === "backlog" && type.endsWith("-archive"));
     button.hidden = excluded;
     const label = button.querySelector("[data-tv-media-option-label]");
     if (label) {
@@ -3496,10 +3499,6 @@ function updateMovieWatchUi(detailMovie, watchCount) {
 
 function reactionDatasetKey(reaction) {
   return reaction === "queue" ? "queued" : reaction;
-}
-
-function syncCompletedForcedQueue(data) {
-  if (data.watch_again_cleared) refreshScheduleContent().catch(() => undefined);
 }
 
 async function toggleMediaReaction(button) {
@@ -3954,6 +3953,17 @@ function applyShowProgress(data) {
     detailShow.dataset.episodeCount = data.episode_count;
     detailShow.dataset.totalWatchCount = data.total_watch_count;
     detailShow.dataset.completedWatchCount = data.completed_watch_count;
+    if (data.watch_again_cleared) {
+      detailShow.dataset.queued = "false";
+      const queueButton = detailShow.querySelector('[data-reaction-toggle="queue"]');
+      if (queueButton) {
+        queueButton.setAttribute("aria-pressed", "false");
+        queueButton.classList.remove("is-selected");
+        queueButton.setAttribute("aria-label", `Add ${detailShow.dataset.detailTitle} to Queue`);
+        const icon = queueButton.querySelector(".material-symbols-rounded");
+        if (icon) icon.textContent = "playlist_add";
+      }
+    }
     syncProgressState(detailShow);
     syncOverwatchTag(detailShow, data);
   }
@@ -3975,7 +3985,7 @@ document.addEventListener("toggle", (event) => {
 document.addEventListener("click", (event) => {
   if (event.target.closest("[data-menu-scrim]")) {
     closeNavigationDrawer();
-      closeWatchMenus();
+    closeWatchMenus();
     closeWatchLogMenus();
     closeTvDropdowns();
     return;
@@ -4318,7 +4328,7 @@ document.addEventListener("click", (event) => {
       globalSearchInput?.focus();
       return;
     }
-      closeWatchMenus();
+    closeWatchMenus();
     if (detailRequest) detailRequest.abort();
     showView(navButton.dataset.navView, "push");
     return;
@@ -4382,7 +4392,7 @@ document.addEventListener("click", (event) => {
   const movieAction = event.target.closest("[data-movie-action]");
   if (movieAction) {
     const movieElement = movieAction.closest("[data-movie-id]");
-      if (movieAction.dataset.movieAction === "refresh") {
+    if (movieAction.dataset.movieAction === "refresh") {
       refreshMovieMetadata(movieElement.dataset.movieId, movieAction);
     } else if (movieAction.dataset.movieAction === "move") {
       moveMovie(movieElement, movieAction);
@@ -4395,7 +4405,7 @@ document.addEventListener("click", (event) => {
   const showAction = event.target.closest("[data-show-action]");
   if (showAction) {
     const showElement = showAction.closest("[data-show-id]");
-      if (showAction.dataset.showAction === "move") {
+    if (showAction.dataset.showAction === "move") {
       moveShow(showElement, showAction.dataset.targetState, showAction);
     } else if (showAction.dataset.showAction === "refresh") {
       refreshShowMetadata(showElement.dataset.showId, { force: true, trigger: showAction });
@@ -4483,7 +4493,7 @@ document.addEventListener("click", (event) => {
 
   const detailBackButton = event.target.closest("[data-detail-back]");
   if (detailBackButton) {
-      closeWatchMenus();
+    closeWatchMenus();
     if (detailRequest) detailRequest.abort();
     if (window.history.state?.trackApp && window.history.state.view === "detail") {
       window.history.back();
@@ -4558,7 +4568,7 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape" && menuScrim && !menuScrim.hidden) {
     closeNavigationDrawer();
-      closeWatchMenus();
+    closeWatchMenus();
     closeTvDropdowns();
     return;
   }
@@ -4723,9 +4733,6 @@ function buildVirtualTimelineEntries(state, visibleCards) {
     if (state.viewName === "backlog") {
       const preferences = libraryViewPreferences.backlog;
       cards = [...cards].sort((first, second) => {
-        const forcedComparison = Number(first.dataset.forcedQueue === "true")
-          - Number(second.dataset.forcedQueue === "true");
-        if (forcedComparison !== 0) return forcedComparison;
         const firstValue = first.dataset[preferences.sortField] || "";
         const secondValue = second.dataset[preferences.sortField] || "";
         const comparison = firstValue.localeCompare(secondValue, undefined, {
@@ -4817,11 +4824,12 @@ function applyVirtualTimelineFilters(state) {
     if (viewName === "diary") return true;
     const matchesSearch = !query || card.dataset.scheduleSearchText?.includes(query);
     const mediaType = card.dataset.mediaType || "tv";
-    const matchesState = searching || (card.dataset.trackingState === TRACKING_STATE.ACTIVE
+    const matchesState = searching || (viewName === "backlog"
       ? preferences.mediaTypes.includes(mediaType)
-      : preferences.mediaTypes.includes(`${mediaType}-archive`));
-    const matchesProgress = searching || (viewName === "backlog" && card.dataset.queued === "true")
-      || preferences.progress.includes(card.dataset.progressState)
+      : card.dataset.trackingState === TRACKING_STATE.ACTIVE
+        ? preferences.mediaTypes.includes(mediaType)
+        : preferences.mediaTypes.includes(`${mediaType}-archive`));
+    const matchesProgress = searching || preferences.progress.includes(card.dataset.progressState)
       || (card.dataset.progressState === PROGRESS_STATE.FINISHED
         && preferences.progress.includes(PROGRESS_STATE.CAUGHT_UP));
     return matchesSearch && matchesState && matchesProgress;

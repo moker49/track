@@ -1002,10 +1002,6 @@ html.app-booting .schedule-empty-reveal {
   background: var(--progress-complete);
 }
 
-.schedule-timeline-item[data-forced-queue="true"] .schedule-timeline-rail>span {
-  background: var(--progress-not-started);
-}
-
 .schedule-caught-up-icon {
   padding: 6px 8px;
   font-size: 1.5rem;

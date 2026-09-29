@@ -1119,7 +1119,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'data-show-progress-tags', home.data)
         self.assertIn(b'data-total-watch-count="18"', home.data)
 
-    def test_movie_state_and_forced_queue_persist(self):
+    def test_show_queue_reaction_and_movie_state_persist(self):
         show_response = self.client.post(
             "/api/shows/1/reactions/queue", json={"selected": True}
         )
@@ -1207,7 +1207,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('episodeIds: data.episode_ids || (data.episode_id ? [data.episode_id] : [])', javascript)
         self.assertIn('movieId: data.movie_id || detailMovie?.dataset.movieId || null', javascript)
 
-    def test_untracked_show_queue_adds_and_forces_queue(self):
+    def test_untracked_show_queue_tracks_and_queues(self):
         connection = sqlite3.connect(self.database)
         connection.execute("UPDATE shows SET is_tracked = 0 WHERE id = 1")
         connection.commit()
@@ -1285,7 +1285,7 @@ class TrackAppTest(unittest.TestCase):
                 self.assertEqual(db.execute("SELECT state FROM movies WHERE tmdb_id = 3").fetchone()[0], "ACTIVE")
                 db.close()
 
-    def test_forced_queue_items_follow_natural_items_and_display_zero_progress(self):
+    def test_queue_has_no_special_forced_marker_or_sort_priority(self):
         response = self.client.post(
             "/api/shows/2/reactions/queue", json={"selected": True}
         )
@@ -1295,29 +1295,85 @@ class TrackAppTest(unittest.TestCase):
         connection.row_factory = sqlite3.Row
         queue_items = get_catch_up_episodes(connection)
         connection.close()
-
         show_items = [item for item in queue_items if item["show_id"] is not None]
-        self.assertEqual(show_items[0]["show_id"], 1)
-        self.assertFalse(show_items[0]["is_forced_queue"])
-        self.assertEqual(show_items[-1]["show_id"], 2)
-        self.assertTrue(show_items[-1]["is_forced_queue"])
+        self.assertEqual([item["show_id"] for item in show_items], [2, 1])
 
-        schedule = self.client.get("/api/schedule")
-        schedule_text = schedule.data.decode("utf-8")
+        schedule_text = self.client.get("/api/schedule").data.decode("utf-8")
         self.assertRegex(
             schedule_text,
-            r'data-show-id="2"[^>]*data-forced-queue="true"[^>]*>\s*<div class="schedule-timeline-marker"[^>]*>\s*<strong>0%</strong>\s*<span>0/\d+</span>',
+            r'data-show-id="2"[^>]*>\s*<div class="schedule-timeline-marker"[^>]*>\s*<strong>0%</strong>\s*<span>0/\d+</span>',
         )
-        self.assertNotIn('schedule-return-marker', schedule_text)
+        self.assertNotIn('data-forced-queue=', schedule_text)
+        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(encoding="utf-8")
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn('[data-forced-queue="true"]', css)
+        self.assertNotIn('dataset.forcedQueue', javascript)
 
-        css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
-            encoding="utf-8"
+    def test_queue_filters_use_media_type_and_progress_without_archive_options(self):
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('viewName === "backlog" && type.endsWith("-archive")', javascript)
+        self.assertIn('viewName === "backlog"' + chr(10) + '      ? preferences.mediaTypes.includes(mediaType)', javascript)
+        self.assertNotIn('card.dataset.queued === "true"', javascript)
+        self.assertIn('progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP]', javascript)
+
+    def test_queued_movie_progress_reflects_watch_history(self):
+        connection = sqlite3.connect(self.database)
+        movie_id = connection.execute(
+            """INSERT INTO movies (tmdb_id, title, is_tracked, state, watch_again, added_at)
+               VALUES (990002, 'Queued Movie', 1, 'ACTIVE', 1, '2026-05-01T00:00:00+00:00')"""
+        ).lastrowid
+        connection.commit()
+        connection.close()
+        schedule = self.client.get("/api/schedule").data
+        self.assertIn(b'data-movie-id="' + str(movie_id).encode() + b'"', schedule)
+        self.assertIn(b'data-progress-state="not-started"', schedule)
+
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            """INSERT INTO movie_watch_history (movie_id, added_at, diary_date)
+               VALUES (?, '2026-05-02T00:00:00+00:00', '2026-05-02')""",
+            (movie_id,),
         )
-        self.assertIn(
-            '.schedule-timeline-item[data-forced-queue="true"] .schedule-timeline-rail>span {\n'
-            '  background: var(--progress-not-started);',
-            css,
-        )
+        connection.commit()
+        connection.close()
+        schedule = self.client.get("/api/schedule").data.decode("utf-8")
+        self.assertRegex(schedule, rf'data-movie-id="{movie_id}"[^>]*data-progress-state="finished"')
+
+    def test_last_available_episode_clears_terminal_show_queue_on_watch_or_skip(self):
+        for action, status in (("watch", "Ended"), ("skip", "Canceled")):
+            with self.subTest(action=action, status=status):
+                connection = sqlite3.connect(self.database)
+                connection.execute("UPDATE shows SET status = ? WHERE id = 1", (status,))
+                connection.execute(
+                    "UPDATE episodes SET air_date = '2099-01-01' WHERE id BETWEEN 7 AND 13"
+                )
+                connection.execute("DELETE FROM episode_watch_history WHERE episode_id = 6")
+                connection.execute("DELETE FROM episode_skips WHERE episode_id = 6")
+                connection.execute(
+                    "UPDATE shows SET watch_again = 1, watch_again_baseline = 0 WHERE id = 1"
+                )
+                connection.commit()
+                connection.close()
+
+                response = self.client.post(
+                    "/api/episodes/6/log",
+                    json={"action_kind": action, "log_date": "2026-09-28"},
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.get_json()["watch_again_cleared"])
+                self.assertTrue(response.get_json()["became_finished"])
+                connection = sqlite3.connect(self.database)
+                self.assertEqual(
+                    connection.execute(
+                        "SELECT state, watch_again, watch_again_baseline FROM shows WHERE id = 1"
+                    ).fetchone(),
+                    ("ACTIVE", 0, None),
+                )
+                connection.close()
+                self.assertNotIn(
+                    b'Active Test Show',
+                    self.client.get('/api/schedule').data.split(b'data-schedule-content="upcoming"')[0],
+                )
 
     def test_schedule_includes_archived_but_excludes_untracked_shows(self):
         connection = sqlite3.connect(self.database)

@@ -34,22 +34,32 @@ def _episode_context(db: sqlite3.Connection, episode_id: int) -> sqlite3.Row:
 
 
 def _clear_completed_watch_again(
-    db: sqlite3.Connection, show_id: int, local_date: date | None = None
-) -> bool:
+    db: sqlite3.Connection, show_id: int, previous_watched_count: int,
+    action_kind: str, local_date: date | None = None,
+) -> tuple[bool, bool]:
     show = db.execute(
-        "SELECT watch_again, watch_again_baseline FROM shows WHERE id = ?", (show_id,)
+        "SELECT watch_again, watch_again_baseline, status FROM shows WHERE id = ?", (show_id,)
     ).fetchone()
-    if not show or not show["watch_again"]:
-        return False
+    if show is None:
+        return False, False
     progress = get_show_progress(db, show_id, local_date)
+    completed_terminal_show = (
+        (show["status"] or "").strip().lower() in {"ended", "canceled", "cancelled"}
+        and progress["episode_count"] > 0
+        and previous_watched_count < progress["episode_count"]
+        and progress["watched_count"] == progress["episode_count"]
+    )
     baseline = show["watch_again_baseline"] or 0
-    if progress["episode_count"] and progress["completed_watch_count"] > baseline:
+    cleared = bool(show["watch_again"]) and (
+        completed_terminal_show
+        or (action_kind == "watch" and progress["completed_watch_count"] > baseline)
+    )
+    if cleared:
         db.execute(
             "UPDATE shows SET watch_again = 0, watch_again_baseline = NULL WHERE id = ?",
             (show_id,),
         )
-        return True
-    return False
+    return cleared, completed_terminal_show
 
 
 def _auto_queue_show(db: sqlite3.Connection, show_id: int, local_date: date | None) -> None:
@@ -156,12 +166,11 @@ def create_episode_log(
         ).lastrowid
     else:
         raise WatchNotFoundError("Unknown log action")
-    watch_again_cleared = (
-        _clear_completed_watch_again(db, episode["show_id"], local_date)
-        if action_kind == "watch"
-        else False
+    watch_again_cleared, completed_terminal_show = _clear_completed_watch_again(
+        db, episode["show_id"], previous_watched_count, action_kind, local_date
     )
-    _auto_queue_show(db, episode["show_id"], local_date)
+    if not completed_terminal_show:
+        _auto_queue_show(db, episode["show_id"], local_date)
     db.commit()
     result = watch_payload(
         db,
@@ -225,12 +234,11 @@ def create_season_log(
         {"episode_id": episode_id, "watch_count": get_episode_watch_count(db, episode_id)}
         for episode_id in episode_ids
     ]
-    watch_again_cleared = (
-        _clear_completed_watch_again(db, season["show_id"], local_date)
-        if action_kind == "watch"
-        else False
+    watch_again_cleared, completed_terminal_show = _clear_completed_watch_again(
+        db, season["show_id"], previous_watched_count, action_kind, local_date
     )
-    _auto_queue_show(db, season["show_id"], local_date)
+    if not completed_terminal_show:
+        _auto_queue_show(db, season["show_id"], local_date)
     db.commit()
     result = watch_payload(
         db, season["show_id"], previous_watched_count=previous_watched_count,
