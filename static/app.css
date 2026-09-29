@@ -1829,6 +1829,11 @@ html.app-booting .schedule-empty-reveal {
   object-fit: cover;
 }
 
+.detail-backdrop.has-media-image:not(.is-image-loaded),
+.detail-backdrop.has-media-image.is-image-loaded img.media-image-reveal {
+  animation: none;
+}
+
 .detail-backdrop::after {
   content: "";
   position: absolute;

@@ -1662,6 +1662,7 @@ async function processScheduleMovie(card) {
 
 function finishDetailLoad({ resetScroll = true } = {}) {
   const detailView = views.get("detail");
+  detailView.removeAttribute("aria-busy");
   syncDetailBottomChrome();
   formatDisplayDates(detailView);
   document.title = APP_TITLE;
@@ -2188,7 +2189,12 @@ function refreshShowIfDue(showId) {
 function prepareDetailLoad(title) {
   if (detailRequest) detailRequest.abort();
   detailRequest = new AbortController();
-  renderDetailLoading(title);
+  const detailView = views.get("detail");
+  if (currentView === "detail" && detailView.querySelector("[data-detail-show], [data-detail-movie], [data-detail-episode]")) {
+    detailView.setAttribute("aria-busy", "true");
+  } else {
+    renderDetailLoading(title);
+  }
   scrollPositions.detail = 0;
   if (currentView === "detail") window.scrollTo({ top: 0, behavior: "auto" });
   else showView("detail");
@@ -2258,10 +2264,14 @@ async function openShow(
     ]);
     showDetailCache.set(cacheKey, showHtml);
     showSeasonsCache.set(cacheKey, seasonsHtml);
+    const request = detailRequest;
+    await preloadDetailBackdrop(showHtml);
+    if (request?.signal.aborted || detailRequest !== request) return;
     renderShowDetail(showHtml, seasonsHtml, true, returnContext);
     refreshShowIfDue(showId);
   } catch (error) {
     if (error.name === "AbortError") return;
+    views.get("detail").removeAttribute("aria-busy");
     views.get("detail").innerHTML = `
       <header class="detail-app-bar">
         <button class="icon-button" type="button" data-detail-back aria-label="Back">
@@ -2284,6 +2294,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
   const showTemplate = document.createElement("template");
   showTemplate.innerHTML = showHtml;
   const detailShow = showTemplate.content.querySelector("[data-detail-show]");
+  revealPreloadedDetailBackdrop(detailShow);
   preserveDetailDisclosure(detailShow, "[data-cast-disclosure]");
   preserveDetailDisclosure(detailShow, "[data-activity-log]");
   preserveSeasonsDisclosure(detailShow, returnContext);
@@ -2339,9 +2350,13 @@ async function openMovie(movieId, parentView = "movies", historyMode = "push") {
     if (!response.ok) throw new Error("Could not load movie");
     const movieHtml = await response.text();
     movieDetailCache.set(cacheKey, movieHtml);
+    const request = detailRequest;
+    await preloadDetailBackdrop(movieHtml);
+    if (request?.signal.aborted || detailRequest !== request) return;
     renderMovieDetail(movieHtml, true);
   } catch (error) {
     if (error.name === "AbortError") return;
+    views.get("detail").removeAttribute("aria-busy");
     views.get("detail").innerHTML = `<header class="detail-app-bar"><button class="icon-button" type="button" data-detail-back aria-label="Back"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button><span>Movie details</span></header><div class="empty-state detail-error"><span class="empty-icon material-symbols-rounded" aria-hidden="true">cloud_off</span><h2>Couldn't load this movie</h2><p>Check the connection and try again.</p><button class="filled-button" type="button" data-retry-movie="${movieId}">Try again</button></div>`;
     discardRetainedDetailToolbar();
     syncDetailBottomChrome();
@@ -2352,6 +2367,7 @@ function renderMovieDetail(movieHtml, animate, { resetScroll = true } = {}) {
   const template = document.createElement("template");
   template.innerHTML = movieHtml;
   const detailMovie = template.content.querySelector("[data-detail-movie]");
+  revealPreloadedDetailBackdrop(detailMovie);
   preserveDetailDisclosure(detailMovie, "[data-cast-disclosure]");
   preserveDetailDisclosure(detailMovie, "[data-activity-log]");
   if (animate) staggerDetailSlices([detailMovie.querySelector(".hero"), ...detailMovie.querySelectorAll(".detail-content > *")]);
@@ -2390,6 +2406,9 @@ async function previewCatalogMovie(card, historyMode = "push") {
     if (!response.ok) throw new Error("Could not load movie");
     const previewRevealKey = `movie-preview:${card.dataset.tmdbId}`;
     const movieHtml = await response.text();
+    const request = detailRequest;
+    await preloadDetailBackdrop(movieHtml);
+    if (request?.signal.aborted || detailRequest !== request) return;
     renderMovieDetail(movieHtml, !revealedViewAnimations.has(previewRevealKey));
     moviePreviewCache.set(cacheKey, movieHtml);
     revealedViewAnimations.add(previewRevealKey);
@@ -2473,11 +2492,7 @@ async function openEpisode(episodeId, historyMode = "push") {
     return;
   }
 
-  detailRequest = new AbortController();
-  renderDetailLoading("Episode details");
-  scrollPositions.detail = 0;
-  if (currentView === "detail") window.scrollTo({ top: 0, behavior: "auto" });
-  else showView("detail");
+  prepareDetailLoad("Episode details");
 
   try {
     const response = await fetch(`/api/episodes/${episodeId}`, {
@@ -2487,9 +2502,13 @@ async function openEpisode(episodeId, historyMode = "push") {
     if (!response.ok) throw new Error("Could not load episode");
     const episodeHtml = await response.text();
     episodeDetailCache.set(cacheKey, episodeHtml);
+    const request = detailRequest;
+    await preloadDetailBackdrop(episodeHtml);
+    if (request?.signal.aborted || detailRequest !== request) return;
     renderEpisodeDetail(episodeHtml, previousWasShow, true);
   } catch (error) {
     if (error.name === "AbortError") return;
+    views.get("detail").removeAttribute("aria-busy");
     views.get("detail").innerHTML = `
       <header class="detail-app-bar">
         <button class="icon-button" type="button" data-detail-back aria-label="Back">
@@ -2539,6 +2558,7 @@ function preloadMediaImage(source) {
       settled = true;
       try {
         await image.decode();
+        if (image.naturalWidth > 0) settledMediaImageSources.add(absoluteSource);
       } catch (_error) {
         // A failed image is also settled; the normal media fallback handles it.
       }
@@ -2551,6 +2571,24 @@ function preloadMediaImage(source) {
   });
   mediaImagePreloads.set(absoluteSource, preload);
   return preload;
+}
+
+function preloadDetailBackdrop(detailHtml) {
+  const template = document.createElement("template");
+  template.innerHTML = detailHtml;
+  const source = template.content.querySelector(".detail-backdrop img[src]")?.getAttribute("src");
+  return source ? preloadMediaImage(source) : Promise.resolve();
+}
+
+function revealPreloadedDetailBackdrop(detailRoot) {
+  const backdrop = detailRoot?.querySelector(".detail-backdrop");
+  const image = backdrop?.querySelector("img[src]");
+  if (!image) return;
+  const source = new URL(image.getAttribute("src"), document.baseURI).href;
+  if (settledMediaImageSources.has(source)) {
+    backdrop.classList.add("is-image-loaded");
+    image.dataset.mediaImageLoaded = "";
+  }
 }
 
 function preloadEpisodeDetailImages(episodeHtml) {
@@ -2596,21 +2634,21 @@ async function navigateAdjacentEpisode(button) {
   const targetEpisodeId = button.dataset.episodeId;
   const previousWasShow = Boolean(window.history.state?.previousWasShow);
   const exitPosition = direction === "next" ? "-18%" : "18%";
-  const exitAnimation = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ? null
-    : page.animate(
-      [
-        { transform: "translateX(0)", opacity: 1 },
-        { transform: `translateX(${exitPosition})`, opacity: 0 },
-      ],
-      { duration: 140, easing: "ease-in", fill: "both" },
-    );
+  let exitAnimation = null;
 
   try {
-    const [episodeHtml] = await Promise.all([
-      requestEpisodeDetailHtml(targetEpisodeId),
-      exitAnimation?.finished.catch(() => undefined) || Promise.resolve(),
-    ]);
+    const episodeHtml = await requestEpisodeDetailHtml(targetEpisodeId);
+    await preloadDetailBackdrop(episodeHtml);
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      exitAnimation = page.animate(
+        [
+          { transform: "translateX(0)", opacity: 1 },
+          { transform: `translateX(${exitPosition})`, opacity: 0 },
+        ],
+        { duration: 140, easing: "ease-in", fill: "both" },
+      );
+      await exitAnimation.finished.catch(() => undefined);
+    }
     writeHistory({
       view: "detail",
       detailType: "episode",
@@ -2646,6 +2684,7 @@ function renderEpisodeDetail(episodeHtml, previousWasShow, animate, entryDirecti
   const episodeTemplate = document.createElement("template");
   episodeTemplate.innerHTML = episodeHtml;
   const detailEpisode = episodeTemplate.content.querySelector("[data-detail-episode]");
+  revealPreloadedDetailBackdrop(detailEpisode);
   preserveDetailDisclosure(detailEpisode, "[data-activity-log]");
   if (previousWasShow) {
     episodeTemplate.content.querySelector("[data-episode-show-open]")?.remove();
