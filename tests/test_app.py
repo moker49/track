@@ -109,10 +109,6 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Active Test Show", tv.data)
         self.assertIn(b"Archived Test Show", tv.data)
         self.assertIn(b"Archived", tv.data)
-        self.assertIn(b"Finished", tv.data)
-        self.assertIn(b"more_vert", tv.data)
-        self.assertIn(b"Resume", tv.data)
-        self.assertIn(b"Remove", tv.data)
         self.assertNotIn(b">Add show</h2>", tv.data)
         self.assertIn(b'data-tv-add-results', tv.data)
         self.assertNotIn(b'data-tv-search-loading', tv.data)
@@ -127,8 +123,9 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'>arrow_back</span>', home.data)
         self.assertIn(b'data-clear-search aria-label="Clear search" hidden', home.data)
 
-        self.assertIn(b'data-tv-view-toggle', home.data)
-        self.assertIn(b'class="material-symbols-rounded is-filled" aria-hidden="true">view_list</span>', home.data)
+        self.assertIn(b'aria-label="Grid view" aria-pressed="true" disabled', home.data)
+        self.assertIn(b'class="material-symbols-rounded is-filled" aria-hidden="true">grid_view</span>', home.data)
+        self.assertNotIn(b'data-tv-view-toggle', home.data)
         self.assertIn(b'placeholder="Search queue"', home.data)
         self.assertIn(b'data-view="backlog"', home.data)
         self.assertIn(b'data-view="upcoming"', home.data)
@@ -193,13 +190,13 @@ class TrackAppTest(unittest.TestCase):
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
             encoding="utf-8"
         )
-        self.assertIn("--compact-card-height: 152px", css)
-        self.assertIn(".show-card {\n  position: relative;\n  width: 100%;\n  height: var(--compact-card-height);", css)
-        self.assertIn(".popular-card {\n  position: relative;\n  height: var(--compact-card-height);", css)
-        self.assertIn("grid-template-columns: 88px 1fr", css)
-        self.assertIn('class="show-card-meta"', tv.data.decode("utf-8"))
+        self.assertIn("--grid-poster-height: 152px", css)
+        self.assertIn(".show-card {\n  position: relative;\n  width: 88px;\n  height: 184px;", css)
+        self.assertIn(".popular-card {\n  position: relative;\n  width: 88px;", css)
+        self.assertIn("grid-template-columns: repeat(auto-fill, 88px)", css)
+        self.assertNotIn('class="show-card-meta"', tv.data.decode("utf-8"))
         self.assertIn('class="show-card-year">2008</span>', tv.data.decode("utf-8"))
-        self.assertIn("font-size: 1.16rem", css)
+        self.assertIn("font-size: 0.78rem", css)
         self.assertIn("grid-template-columns: repeat(4, 1fr)", css)
         self.assertIn("grid-template-columns: 48px minmax(0, 1fr) 48px", css)
         self.assertIn("padding: max(12px, env(safe-area-inset-top)) 4px 12px", css)
@@ -984,7 +981,6 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn("centerScheduleOnNow", javascript)
         self.assertNotIn("preserveMarker", javascript)
         self.assertIn('data-schedule-action', javascript)
-        self.assertIn('button.classList.add("catalog-action-secondary")', javascript)
         self.assertIn('if (!snackbar || !actionLabel || !onAction) return;', javascript)
         self.assertIn('function showCaughtUpScheduleState(card, data, action)', javascript)
         self.assertIn('function clearCaughtUpScheduleItems()', javascript)
@@ -1018,7 +1014,6 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('@keyframes schedule-confirmation-out', css)
         self.assertIn('.schedule-action-slot .schedule-action-confirmation {', css)
         self.assertNotIn('@keyframes schedule-content-out', css)
-        self.assertIn('.catalog-action.catalog-action-secondary {', css)
         self.assertIn('.schedule-skip-button {\n  width: 100%;\n  color: var(--primary);\n  background: transparent;', css)
         schedule_item_template = (Path(__file__).parents[1] / "templates" / "_schedule_timeline_item.html").read_text(
             encoding="utf-8"
@@ -1121,13 +1116,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-overwatch-tag>\xc3\x971</span>', detail.data)
 
         home = self.client.get("/api/tv")
-        self.assertIn(
-            b'<div class="show-card-meta" data-show-progress-tags>\n'
-            b'          <span class="state-label progress-tag" data-progress-tag>Finished</span>\n'
-            b'          \n'
-            b'          <span class="state-label overwatch-tag" data-overwatch-tag>\xc3\x971</span>',
-            home.data,
-        )
+        self.assertNotIn(b'data-show-progress-tags', home.data)
+        self.assertIn(b'data-total-watch-count="18"', home.data)
 
     def test_movie_state_and_forced_queue_persist(self):
         show_response = self.client.post(
@@ -1476,12 +1466,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("const revealKey = `tv:${state}`;", javascript)
         self.assertIn("revealedViewAnimations.has(revealKey)", javascript)
         self.assertIn("staggerTvFirstReveal(view)", javascript)
-        self.assertIn("staggerTvSlices(cards)", javascript)
+        self.assertIn("staggerTvSlices(cards, 20)", javascript)
         self.assertIn('slice.classList.add("tv-slice-reveal")', javascript)
-        self.assertIn("const tvSliceStaggerMs = 55;", javascript)
         self.assertIn('slice.classList.remove("tv-slice-reveal")', javascript)
         self.assertIn('clearTvFirstReveal(views.get("tv"))', javascript)
-        self.assertIn('const itemLimit = layout === "compact" ? 20 : 8;', javascript)
         self.assertIn("const scheduleItemStaggerMs = 65;", javascript)
         self.assertIn("const scheduleItemLimit = 8;", javascript)
         self.assertIn('item.dataset.scheduleRevealed = "true"', javascript)
@@ -1595,7 +1583,7 @@ class TrackAppTest(unittest.TestCase):
         fragment = self.client.get("/api/tv")
         self.assertEqual(fragment.status_code, 200)
         self.assertIn(b'data-library-results-section', fragment.data)
-        self.assertIn(b'data-library-results-list', fragment.data)
+        self.assertIn(b'data-library-results-grid', fragment.data)
         self.assertNotIn(b"<!doctype html>", fragment.data.lower())
         self.assertNotIn(b"bottom-nav", fragment.data)
         self.assertNotIn(b"data-tv-control-bar", fragment.data)
@@ -1900,7 +1888,7 @@ class TrackAppTest(unittest.TestCase):
         )
         self.assertIsNotNone(match)
         self.assertIn(b'data-progress-state="caught-up"', match.group(0))
-        self.assertIn(b">Caught up</span>", match.group(0))
+        self.assertNotIn(b"Caught up</span>", match.group(0))
 
     def test_progress_colors_share_status_variables(self):
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(
@@ -2725,25 +2713,18 @@ class TrackAppTest(unittest.TestCase):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
             encoding="utf-8"
         )
-        self.assertIn("grid-template-columns: 88px 1fr", css)
-        self.assertIn("overflow: hidden", css)
-        self.assertNotIn(".popular-card.is-added", css)
-        self.assertIn(".popular-card.is-cached::after", css)
-        self.assertIn("background: var(--outline);", css)
+        self.assertIn("grid-template-columns: repeat(auto-fill, 88px)", css)
+        self.assertIn(".popular-card {\n  position: relative;\n  width: 88px;", css)
+        self.assertNotIn(".popular-card.is-cached::after", css)
+        self.assertNotIn(".catalog-action", css)
         self.assertIn(".has-media-image:not(.is-image-loaded)", css)
         self.assertIn("animation: skeleton-pulse 1.2s", css)
-        self.assertIn(
-            "background: color-mix(in srgb, var(--primary-light) 16%, var(--surface-card))",
-            css,
-        )
         self.assertIn(".mini-poster {\n  position: relative;", css)
         self.assertIn(".mini-poster img {\n  position: absolute;", css)
-        self.assertIn("inset: 0 0 0 auto", css)
-        self.assertNotIn("box-shadow: inset 0 0 0 2px var(--accent)", css)
-        self.assertIn('if (show.show_id || show.is_removed) article.classList.add("is-cached")', javascript)
+        self.assertNotIn('article.classList.add("is-cached")', javascript)
         self.assertIn("function markCatalogTracked", javascript)
-        self.assertIn('markCatalogTracked(card, state, String(data.show_id))', javascript)
-        self.assertIn('markCatalogTracked(card, state, String(data.movie_id))', javascript)
+        self.assertIn('markCatalogTracked(card, String(data.show_id))', javascript)
+        self.assertIn('markCatalogTracked(card, String(data.movie_id))', javascript)
         self.assertIn('openShow(data.show_id, "tv", false, "replace")', javascript)
         self.assertIn("const cachedShowId = card.dataset.showId", javascript)
         self.assertIn(
@@ -2755,7 +2736,7 @@ class TrackAppTest(unittest.TestCase):
         seasons_ready = javascript.index("nextSeasonList.innerHTML = seasonsHtml")
         detail_swap = javascript.index('views.get("detail").replaceChildren(template.content)')
         self.assertLess(seasons_ready, detail_swap)
-        self.assertIn('const list = view.querySelector("[data-library-results-list]")', javascript)
+        self.assertIn('const grid = view.querySelector("[data-library-results-grid]")', javascript)
         self.assertIn("const matchesProgress = searching || preferences.progress.includes(card.dataset.progressState)", javascript)
         self.assertIn('card.dataset.showState === TRACKING_STATE.ARCHIVED', javascript)
         self.assertIn("localCount + addCount > 0", javascript)

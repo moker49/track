@@ -38,7 +38,7 @@ async function revealAppWhenIconsAreReady() {
       ),
       document.fonts.load(
         '24px "Material Symbols Rounded Filled"',
-        "resume playlist_add_check view_list grid_view calendar_view_month view_agenda event tv movie playlist_add play_arrow refresh more_vert add archive chevron_left chevron_right",
+        "resume playlist_add_check grid_view calendar_view_month view_agenda event tv movie playlist_add play_arrow refresh more_vert add archive chevron_left chevron_right",
       ),
     ]);
     await Promise.race([
@@ -63,7 +63,6 @@ const globalSearchInput = document.querySelector("[data-global-search]");
 const searchMenuButton = document.querySelector("[data-search-menu]");
 const searchBackButton = document.querySelector("[data-search-back]");
 const searchClearButton = document.querySelector("[data-clear-search]");
-const tvViewToggle = document.querySelector("[data-tv-view-toggle]");
 const displayHiddenLogItemsToggle = document.querySelector("[data-setting-display-hidden-log-items]");
 const searchTextMeasureContext = document.createElement("canvas").getContext("2d");
 if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
@@ -136,7 +135,6 @@ const libraryViewPreferences = {
     progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP],
     sortField: "name",
     sortDirection: "asc",
-    layout: "list",
     mediaTypes: ["tv"],
   },
   movies: {
@@ -145,7 +143,6 @@ const libraryViewPreferences = {
     sortField: "dateAdded",
     sortDirection: "desc",
     mediaTypes: ["movies"],
-    layout: "list",
   },
 };
 const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "" };
@@ -157,7 +154,6 @@ const VIRTUAL_LIBRARY_OVERSCAN_ROWS = 8;
 const VIRTUAL_TIMELINE_OVERSCAN = 1152;
 const virtualTimelines = new Map();
 const pendingTimelineScrollRestores = new Map();
-restoreTvLayout();
 const showDetailCache = new Map();
 const movieDetailCache = new Map();
 const moviePreviewCache = new Map();
@@ -221,7 +217,6 @@ let movieSearchRequest = null;
 let movieSearchPending = false;
 let movieSearchComplete = false;
 let movieSearchError = "";
-let tvLayoutTransitionTimer = null;
 let tvDropdownHistoryActive = false;
 let navigationDrawerHistoryActive = false;
 let navigationDrawerCloseTimer = null;
@@ -404,76 +399,8 @@ function syncGlobalSearch() {
   globalSearchInput.placeholder = searchConfig.placeholder;
   globalSearchInput.setAttribute("aria-label", searchConfig.label);
   globalSearchInput.value = searchQueries[currentView];
-  syncTvLayout();
   syncSearchChrome();
   syncSearchTextPosition();
-}
-
-function syncTvLayout() {
-  ["tv", "movies"].forEach((name) => {
-    const view = views.get(name);
-    if (view) view.dataset.tvLayout = libraryViewPreferences[name].layout === "compact" ? "compact" : "list";
-  });
-  if (!tvViewToggle) return;
-  const supportsLayout = ["tv", "movies"].includes(currentView);
-  const isCompact = libraryViewPreferences[currentView]?.layout === "compact";
-  tvViewToggle.disabled = !supportsLayout;
-  tvViewToggle.setAttribute("aria-pressed", String(isCompact));
-  tvViewToggle.setAttribute("aria-label", supportsLayout ? "Switch layout" : "Layout controls unavailable");
-  tvViewToggle.querySelector(".material-symbols-rounded").textContent = isCompact
-    ? "view_list"
-    : "grid_view";
-}
-
-function restoreTvLayout() {
-  try {
-    if (window.localStorage.getItem("track.tv-layout") === "compact") {
-      libraryViewPreferences.tv.layout = "compact";
-    }
-    if (window.localStorage.getItem("track.movies-layout") === "compact") {
-      libraryViewPreferences.movies.layout = "compact";
-    }
-  } catch (_error) {
-    // Storage can be unavailable in private browsing contexts.
-  }
-}
-
-function toggleTvLayout() {
-  if (tvLayoutTransitionTimer) return;
-  const preferences = libraryViewPreferences[currentView];
-  const tvView = views.get(currentView);
-  const applyLayout = () => {
-    // The outgoing layout has finished fading; reset before the incoming
-    // virtual layout is measured and its stagger begins.
-    scrollPositions[currentView] = 0;
-    window.scrollTo({ top: 0, behavior: "auto" });
-    preferences.layout = preferences.layout === "compact" ? "list" : "compact";
-    try {
-      window.localStorage.setItem(`track.${currentView}-layout`, preferences.layout);
-    } catch (_error) {
-      // The selected layout remains active for the current session.
-    }
-    tvView?.classList.add("is-restarting-layout");
-    tvView?.classList.remove("is-switching-layout");
-    tvLayoutTransitionTimer = null;
-    syncTvLayout();
-    refreshVirtualLibraryLayout(tvView);
-    window.requestAnimationFrame(() => {
-      clearTvFirstReveal(tvView);
-      // Let the browser commit the cleared animation state before replaying it.
-      window.requestAnimationFrame(() => {
-        tvView?.classList.remove("is-restarting-layout");
-        staggerTvFirstReveal(tvView);
-      });
-    });
-  };
-
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    applyLayout();
-    return;
-  }
-  tvView?.classList.add("is-switching-layout");
-  tvLayoutTransitionTimer = window.setTimeout(applyLayout, 75);
 }
 
 function syncDiaryLayoutToggle() {
@@ -752,8 +679,6 @@ function catalogCard(show) {
   meta.textContent = show.first_air_date?.slice(0, 4) || "Release date unknown";
   copy.append(title, meta);
   article.append(poster, copy);
-  if (show.show_id || show.is_removed) article.classList.add("is-cached");
-  copy.append(catalogActions());
   return article;
 }
 
@@ -765,7 +690,7 @@ function settleMediaImage(image, loaded, reveal = false) {
     const source = image.currentSrc || image.src;
     if (source) settledMediaImageSources.add(source);
     image.dataset.mediaImageLoaded = "";
-    // A DOM node may leave and re-enter a virtualized list. Once it has
+    // A DOM node may leave and re-enter a virtualized grid. Once it has
     // painted successfully, do not replay the initial reveal animation.
     const shouldReveal = reveal && !wasLoaded;
     if (shouldReveal && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -807,36 +732,12 @@ function inspectMediaImages(root) {
   root.querySelectorAll?.("img[data-media-image]").forEach(inspectCompletedMediaImage);
 }
 
-function catalogActions() {
-  const actions = document.createElement("div");
-  actions.className = "popular-card-actions";
-  (currentView === "movies"
-    ? [["new", "Add"], ["watched", "Watch"]]
-    : [[TRACKING_STATE.ACTIVE, "Add"], [TRACKING_STATE.ARCHIVED, "Archive"]])
-    .forEach(([state, label]) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "catalog-action";
-      if (state === TRACKING_STATE.ARCHIVED || state === "watched") button.classList.add("catalog-action-secondary");
-      button.dataset.importState = state;
-      button.textContent = label;
-      actions.append(button);
-    });
-  return actions;
-}
-
-function markCatalogTracked(card, state, recordId = null) {
-  card.classList.add("is-cached");
+function markCatalogTracked(card, recordId = null) {
   if (card.dataset.catalogType === "movies") moviePreviewCache.delete(String(card.dataset.tmdbId));
   if (recordId) {
     if (card.dataset.catalogType === "movies") card.dataset.movieId = recordId;
     else card.dataset.showId = recordId;
   }
-  const icon = document.createElement("span");
-  icon.className = "catalog-tracked-icon material-symbols-rounded";
-  icon.textContent = state === TRACKING_STATE.ARCHIVED ? "archive" : "check_circle";
-  icon.title = state === TRACKING_STATE.ARCHIVED ? "Archived" : state === "watched" ? "Watched" : "Added";
-  card.querySelector(".popular-card-actions")?.replaceChildren(icon);
   if (card.dataset.catalogType in librarySearchUpdates) {
     librarySearchUpdates[card.dataset.catalogType] = true;
   }
@@ -929,40 +830,7 @@ function appendLibraryCard(data) {
     state.allCards.push(card);
     filterShowView(state.view);
   } else {
-    document.querySelector("[data-library-results-list]")?.append(template.content);
-  }
-}
-
-async function importCatalogShow(card, state, trigger) {
-  const actions = card.querySelectorAll(".catalog-action");
-  actions.forEach((button) => { button.disabled = true; });
-  try {
-    if (card.dataset.catalogType === "movies") {
-      const response = await fetch(`/api/movies/${card.dataset.tmdbId}/import`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ watched: state === "watched" }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not add movie");
-      markCatalogTracked(card, state, String(data.movie_id));
-      return;
-    }
-    const hasLocalShow = Boolean(card.dataset.showId);
-    const url = hasLocalShow
-      ? `/api/shows/${card.dataset.showId}/state`
-      : `/api/tv/shows/${card.dataset.tmdbId}/import`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: localDateHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ state }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Could not add show");
-    invalidateShowCache(data.show_id, true);
-    markCatalogTracked(card, state, String(data.show_id));
-    syncTvSearchPresentation();
-  } catch (error) {
-    actions.forEach((button) => { button.disabled = false; });
-    showSnackbar(error.message);
+    document.querySelector("[data-library-results-grid]")?.append(template.content);
   }
 }
 
@@ -1049,7 +917,6 @@ async function previewCatalogShow(card, historyMode = "push") {
   const hasCachedDetails = Boolean(cachedShowId);
   card.classList.add("is-loading");
   card.setAttribute("aria-busy", "true");
-  card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = true; });
   if (hasCachedDetails) await openShow(cachedShowId, "tv", true, historyMode);
   else {
     detailParentView = "tv";
@@ -1066,13 +933,11 @@ async function previewCatalogShow(card, historyMode = "push") {
   if (hasCachedDetails) {
     card.classList.remove("is-loading");
     card.removeAttribute("aria-busy");
-    card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = false; });
     return;
   }
   if (currentView !== "detail") {
     card.classList.remove("is-loading");
     card.removeAttribute("aria-busy");
-    card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = false; });
     return;
   }
   try {
@@ -1086,12 +951,10 @@ async function previewCatalogShow(card, historyMode = "push") {
     if (!response.ok) throw new Error(data.error || "Could not open show");
     card.dataset.showId = data.show_id;
     if (data.is_tracked) card.remove();
-    else card.classList.add("is-cached");
     invalidateShowCache(data.show_id, true);
     openShow(data.show_id, "tv", false, "replace");
   } catch (error) {
     if (error.name === "AbortError") return;
-    card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = false; });
     if (!hasCachedDetails) {
       showView("tv", "replace");
       views.get("detail").replaceChildren();
@@ -1115,7 +978,7 @@ async function trackDetailShow(showElement, state, trigger, queued = false) {
     if (!response.ok) throw new Error(data.error || "Could not add show");
     invalidateShowCache(data.show_id);
     document.querySelectorAll(`.popular-card[data-tmdb-id="${showElement.dataset.tmdbId}"]`)
-      .forEach((card) => markCatalogTracked(card, state, String(data.show_id)));
+      .forEach((card) => markCatalogTracked(card, String(data.show_id)));
     refreshScheduleForMediaChange();
     syncTvSearchPresentation();
     openShow(data.show_id, "tv", true, "replace");
@@ -1164,15 +1027,12 @@ function clearDetailSliceReveals(root) {
   });
 }
 
-function staggerTvSlices(slices, layout = libraryViewPreferences.tv.layout, limit = Infinity) {
-  const tvSliceStaggerMs = 55;
-  const tvLayoutStaggerMs = layout === "compact"
-    ? tvSliceStaggerMs / 2
-    : tvSliceStaggerMs;
+function staggerTvSlices(slices, limit = Infinity) {
+  const tvGridStaggerMs = 27.5;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   slices.filter(Boolean).slice(0, limit).forEach((slice, index) => {
     slice.classList.add("tv-slice-reveal");
-    slice.style.setProperty("--detail-slice-delay", `${index * tvLayoutStaggerMs}ms`);
+    slice.style.setProperty("--detail-slice-delay", `${index * tvGridStaggerMs}ms`);
     const finishReveal = (event) => {
       if (event.target !== slice || event.animationName !== "detail-slice-reveal") return;
       slice.classList.remove("tv-slice-reveal");
@@ -1190,15 +1050,13 @@ function staggerTvFirstReveal(view) {
   const cards = [];
   view.querySelectorAll(":scope > .page-section:not([hidden])").forEach((section) => {
     headings.push(section.querySelector(":scope > .section-heading"));
-    cards.push(...section.querySelectorAll(":scope > .show-list > .show-card:not([hidden])"));
+    cards.push(...section.querySelectorAll(":scope > .show-grid > .show-card:not([hidden])"));
     cards.push(...section.querySelectorAll(":scope > .popular-grid > .popular-card:not([hidden])"));
     cards.push(...section.querySelectorAll(":scope > .empty-state:not([hidden])"));
   });
   cards.push(...view.querySelectorAll(":scope > .empty-state:not([hidden])"));
-  const layout = libraryViewPreferences[view.dataset.view]?.layout;
-  const itemLimit = layout === "compact" ? 20 : 8;
-  staggerTvSlices(headings, layout);
-  staggerTvSlices(cards, layout, itemLimit);
+  staggerTvSlices(headings);
+  staggerTvSlices(cards, 20);
   hydrateOtherPrimaryViews("tv");
 }
 
@@ -2518,7 +2376,6 @@ async function previewCatalogMovie(card, historyMode = "push") {
   }
   card.classList.add("is-loading");
   card.setAttribute("aria-busy", "true");
-  card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = true; });
   prepareDetailLoad("Movie details");
   try {
     const response = await fetch(`/api/movies/tmdb/${card.dataset.tmdbId}/preview`, {
@@ -2536,7 +2393,6 @@ async function previewCatalogMovie(card, historyMode = "push") {
   } finally {
     card.classList.remove("is-loading");
     card.removeAttribute("aria-busy");
-    card.querySelectorAll(".catalog-action").forEach((button) => { button.disabled = false; });
   }
 }
 
@@ -2550,7 +2406,7 @@ async function trackDetailMovie(movieElement, trigger, { queued = false, state =
     if (!response.ok) throw new Error(data.error || "Could not add movie");
     moviePreviewCache.delete(String(movieElement.dataset.tmdbId));
     document.querySelectorAll(`.popular-card[data-tmdb-id="${movieElement.dataset.tmdbId}"]`)
-      .forEach((card) => markCatalogTracked(card, "new", String(data.movie_id)));
+      .forEach((card) => markCatalogTracked(card, String(data.movie_id)));
     refreshScheduleForMediaChange();
     openMovie(data.movie_id, "movies", "replace");
   } catch (error) {
@@ -3506,7 +3362,6 @@ function toggleTvDropdown(button) {
   if (!menu) return;
   const willOpen = menu.hidden;
   globalSearchInput?.blur();
-  closeShowMenus();
   closeWatchMenus();
   closeTvDropdowns(menu, { preserveHistory: true });
   if (willOpen) menuScrollLockPosition = scrollPosition;
@@ -3520,16 +3375,6 @@ function toggleTvDropdown(button) {
   button.setAttribute("aria-expanded", String(willOpen));
   syncMenuScrim();
   preserveMenuScrollPosition(scrollPosition);
-}
-
-function closeShowMenus(exceptMenu = null) {
-  document.querySelectorAll("[data-show-menu], [data-movie-menu]").forEach((menu) => {
-    if (menu === exceptMenu) return;
-    hideFloatingMenu(menu);
-    menu.parentElement.querySelector("[data-show-menu-button], [data-movie-menu-button]")
-      ?.setAttribute("aria-expanded", "false");
-  });
-  syncMenuScrim();
 }
 
 function clearMenuIsolation() {
@@ -3587,24 +3432,6 @@ window.addEventListener("scroll", () => {
   });
 }, { passive: true });
 
-function toggleShowMenu(button) {
-  const scrollPosition = { x: window.scrollX, y: window.scrollY };
-  const menu = button.parentElement.querySelector("[data-show-menu]")
-    || button.closest("[data-show-id]")?.querySelector("[data-show-menu]");
-  if (!menu) return;
-  const willOpen = menu.hidden;
-  clearTvFirstReveal(views.get("tv"));
-  clearDetailSliceReveals(views.get("detail"));
-  closeWatchMenus();
-  closeShowMenus(menu);
-  if (willOpen) menuScrollLockPosition = scrollPosition;
-  if (willOpen) showFloatingMenu(menu, button);
-  else hideFloatingMenu(menu);
-  button.setAttribute("aria-expanded", String(willOpen));
-  syncMenuScrim();
-  preserveMenuScrollPosition(scrollPosition);
-}
-
 function syncDiaryDateIcon(item) {
   const dateRow = item?.querySelector(".activity-date-row");
   if (!dateRow) return;
@@ -3625,24 +3452,6 @@ function syncDiaryDateIcon(item) {
   dateRow.append(icon);
 }
 
-function toggleMovieMenu(button) {
-  const scrollPosition = { x: window.scrollX, y: window.scrollY };
-  const menu = button.parentElement.querySelector("[data-movie-menu]")
-    || button.closest("[data-movie-id]")?.querySelector("[data-movie-menu]");
-  if (!menu) return;
-  const willOpen = menu.hidden;
-  clearDetailSliceReveals(views.get("detail"));
-  closeWatchMenus();
-  closeShowMenus(menu);
-  if (willOpen) {
-    menuScrollLockPosition = scrollPosition;
-    showFloatingMenu(menu, button);
-  } else hideFloatingMenu(menu);
-  button.setAttribute("aria-expanded", String(willOpen));
-  syncMenuScrim();
-  preserveMenuScrollPosition(scrollPosition);
-}
-
 function closeWatchMenus(exceptMenu = null) {
   document.querySelectorAll("[data-watch-menu]").forEach((menu) => {
     if (menu !== exceptMenu) hideFloatingMenu(menu);
@@ -3656,7 +3465,6 @@ function toggleWatchMenu(control) {
   if (!menu) return;
   const willOpen = menu.hidden;
   clearDetailSliceReveals(views.get("detail"));
-  closeShowMenus();
   closeWatchMenus(menu);
   if (willOpen) menuScrollLockPosition = scrollPosition;
   if (willOpen) showFloatingMenu(menu, control);
@@ -3925,7 +3733,6 @@ function closeNavigationDrawer({ preserveHistory = false } = {}) {
 
 function openNavigationDrawer() {
   if (!navigationDrawer || (!navigationDrawer.hidden && !navigationDrawer.classList.contains("is-closing"))) return;
-  closeShowMenus();
   closeWatchMenus();
   closeTvDropdowns();
   window.clearTimeout(navigationDrawerCloseTimer);
@@ -4055,7 +3862,6 @@ async function confirmShowRemoval() {
     );
     if (tmdbId) {
       document.querySelectorAll(`.popular-card[data-tmdb-id="${tmdbId}"]`).forEach((card) => {
-        card.classList.add("is-cached");
         card.dataset.showId = showId;
       });
     }
@@ -4134,14 +3940,10 @@ function applyShowProgress(data) {
     showCard.dataset.completedWatchCount = data.completed_watch_count;
     showCard.dataset.progress = data.percent;
     showCard.dataset.lastWatched = data.last_watched_at || "";
-    showCard.querySelector("[data-card-progress-copy]").textContent =
-      `${data.watched_count} of ${data.episode_count}`;
     const cardProgress = showCard.querySelector("[data-card-progress]");
     cardProgress.setAttribute("aria-valuenow", data.percent);
     cardProgress.querySelector("span").style.width = `${data.percent}%`;
-    showCard.querySelector(".progress-copy strong").textContent = `${data.percent}%`;
     syncProgressState(showCard);
-    syncOverwatchTag(showCard, data);
   }
 
   const detailShow = document.querySelector(`[data-detail-show][data-show-id="${data.show_id}"]`);
@@ -4171,8 +3973,7 @@ document.addEventListener("toggle", (event) => {
 document.addEventListener("click", (event) => {
   if (event.target.closest("[data-menu-scrim]")) {
     closeNavigationDrawer();
-    closeShowMenus();
-    closeWatchMenus();
+      closeWatchMenus();
     closeWatchLogMenus();
     closeTvDropdowns();
     return;
@@ -4227,20 +4028,6 @@ document.addEventListener("click", (event) => {
       ? currentView
       : "backlog";
     openEpisode(scheduleEpisodeOpen.closest("[data-episode-id]").dataset.episodeId);
-    return;
-  }
-
-  const importButton = event.target.closest("[data-import-state]");
-  if (importButton) {
-    if (importButton.dataset.importState === "watched") {
-      openMovieImportDatePicker(importButton.closest("[data-tmdb-id]").dataset.tmdbId);
-      return;
-    }
-    importCatalogShow(
-      importButton.closest("[data-tmdb-id]"),
-      importButton.dataset.importState,
-      importButton,
-    );
     return;
   }
 
@@ -4462,12 +4249,6 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  if (event.target.closest("[data-tv-view-toggle]")) {
-    if (tvViewToggle?.disabled) return;
-    toggleTvLayout();
-    return;
-  }
-
   const sortOption = event.target.closest("[data-tv-sort-option]");
   if (sortOption) {
     if (currentView === "upcoming") return;
@@ -4535,8 +4316,7 @@ document.addEventListener("click", (event) => {
       globalSearchInput?.focus();
       return;
     }
-    closeShowMenus();
-    closeWatchMenus();
+      closeWatchMenus();
     if (detailRequest) detailRequest.abort();
     showView(navButton.dataset.navView, "push");
     return;
@@ -4578,12 +4358,6 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const movieMenuButton = event.target.closest("[data-movie-menu-button]");
-  if (movieMenuButton) {
-    toggleMovieMenu(movieMenuButton);
-    return;
-  }
-
   if (event.target.closest("[data-movie-search-retry]")) {
     const query = searchQueries.movies.trim();
     if (query) searchMovieCatalog(query);
@@ -4606,8 +4380,7 @@ document.addEventListener("click", (event) => {
   const movieAction = event.target.closest("[data-movie-action]");
   if (movieAction) {
     const movieElement = movieAction.closest("[data-movie-id]");
-    closeShowMenus();
-    if (movieAction.dataset.movieAction === "refresh") {
+      if (movieAction.dataset.movieAction === "refresh") {
       refreshMovieMetadata(movieElement.dataset.movieId, movieAction);
     } else if (movieAction.dataset.movieAction === "move") {
       moveMovie(movieElement, movieAction);
@@ -4617,17 +4390,10 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const menuButton = event.target.closest("[data-show-menu-button]");
-  if (menuButton) {
-    toggleShowMenu(menuButton);
-    return;
-  }
-
   const showAction = event.target.closest("[data-show-action]");
   if (showAction) {
     const showElement = showAction.closest("[data-show-id]");
-    closeShowMenus();
-    if (showAction.dataset.showAction === "move") {
+      if (showAction.dataset.showAction === "move") {
       moveShow(showElement, showAction.dataset.targetState, showAction);
     } else if (showAction.dataset.showAction === "refresh") {
       refreshShowMetadata(showElement.dataset.showId, { force: true, trigger: showAction });
@@ -4715,8 +4481,7 @@ document.addEventListener("click", (event) => {
 
   const detailBackButton = event.target.closest("[data-detail-back]");
   if (detailBackButton) {
-    closeShowMenus();
-    closeWatchMenus();
+      closeWatchMenus();
     if (detailRequest) detailRequest.abort();
     if (window.history.state?.trackApp && window.history.state.view === "detail") {
       window.history.back();
@@ -4780,7 +4545,6 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  closeShowMenus();
   closeWatchMenus();
   closeTvDropdowns();
 });
@@ -4792,8 +4556,7 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape" && menuScrim && !menuScrim.hidden) {
     closeNavigationDrawer();
-    closeShowMenus();
-    closeWatchMenus();
+      closeWatchMenus();
     closeTvDropdowns();
     return;
   }
@@ -4830,7 +4593,6 @@ function performCatalogSearch() {
   if (query.length < 3) return;
   searchQueries[currentView] = searchValue;
   globalSearchInput?.blur();
-  syncTvLayout();
   if (currentView === "tv") searchTvCatalog(query);
   else searchMovieCatalog(query);
 }
@@ -5092,23 +4854,23 @@ function createVirtualLibrarySpacer(position) {
 function initializeVirtualLibrary(view) {
   if (!view) return null;
   const viewName = view.dataset.view;
-  const list = view.querySelector("[data-library-results-list]");
-  if (!list || !["tv", "movies"].includes(viewName)) return null;
+  const grid = view.querySelector("[data-library-results-grid]");
+  if (!grid || !["tv", "movies"].includes(viewName)) return null;
   let state = virtualLibraries.get(viewName);
-  if (state?.view === view && state.list === list) {
+  if (state?.view === view && state.grid === grid) {
     const knownCards = new Set(state.allCards);
-    const addedCards = [...list.querySelectorAll(":scope > .show-card")]
+    const addedCards = [...grid.querySelectorAll(":scope > .show-card")]
       .filter((card) => !knownCards.has(card));
     if (addedCards.length) state.allCards.push(...addedCards);
     return state;
   }
 
-  const cards = [...list.querySelectorAll(":scope > .show-card")];
+  const cards = [...grid.querySelectorAll(":scope > .show-card")];
   cards.forEach((card) => { card.hidden = false; });
   state = {
     viewName,
     view,
-    list,
+    grid,
     allCards: cards,
     filteredCards: cards,
     topSpacer: createVirtualLibrarySpacer("top"),
@@ -5119,18 +4881,16 @@ function initializeVirtualLibrary(view) {
     frame: 0,
   };
   virtualLibraries.set(viewName, state);
-  list.replaceChildren(state.topSpacer, state.bottomSpacer);
+  grid.replaceChildren(state.topSpacer, state.bottomSpacer);
   return state;
 }
 
 function virtualLibraryMetrics(state) {
-  const compact = libraryViewPreferences[state.viewName].layout === "compact";
-  if (!compact) return { columns: 1, cardHeight: 152, gap: 12, pitch: 164 };
-  const styles = window.getComputedStyle(state.list);
+  const styles = window.getComputedStyle(state.grid);
   const renderedColumns = styles.gridTemplateColumns
     .split(" ")
     .filter((track) => track && track !== "none").length;
-  const columns = renderedColumns || Math.max(1, Math.floor((state.list.clientWidth + 12) / 100));
+  const columns = renderedColumns || Math.max(1, Math.floor((state.grid.clientWidth + 12) / 100));
   return { columns, cardHeight: 184, gap: 16, pitch: 200 };
 }
 
@@ -5145,8 +4905,8 @@ function renderVirtualLibrary(state, force = false) {
   if (!state || state.view.hidden) return;
   const metrics = virtualLibraryMetrics(state);
   const rowCount = Math.ceil(state.filteredCards.length / metrics.columns);
-  const listTop = window.scrollY + state.list.getBoundingClientRect().top;
-  const viewportTop = Math.max(0, window.scrollY - listTop);
+  const gridTop = window.scrollY + state.grid.getBoundingClientRect().top;
+  const viewportTop = Math.max(0, window.scrollY - gridTop);
   const firstVisibleRow = Math.floor(viewportTop / metrics.pitch);
   const lastVisibleRow = Math.ceil((viewportTop + window.innerHeight) / metrics.pitch);
   const startRow = Math.max(0, Math.min(rowCount, firstVisibleRow - VIRTUAL_LIBRARY_OVERSCAN_ROWS));
@@ -5175,14 +4935,14 @@ function renderVirtualLibrary(state, force = false) {
   const desiredSet = new Set(desiredNodes);
   // Keep matching cards mounted while search filters change. Reattaching an
   // image before its first load completes makes its thumbnail flash.
-  [...state.list.children].forEach((node) => {
+  [...state.grid.children].forEach((node) => {
     if (!desiredSet.has(node)) node.remove();
   });
   desiredNodes.forEach((node, index) => {
-    const current = state.list.children[index] || null;
-    if (current !== node) state.list.insertBefore(node, current);
+    const current = state.grid.children[index] || null;
+    if (current !== node) state.grid.insertBefore(node, current);
   });
-  inspectMediaImages(state.list);
+  inspectMediaImages(state.grid);
 }
 
 function scheduleVirtualLibraryRender(state) {
@@ -5297,7 +5057,6 @@ function clearSearchFromHistory({ refocus = false } = {}) {
 globalSearchInput?.addEventListener("input", () => {
   if (currentView === "detail") return;
   syncSearchChrome();
-  syncTvLayout();
   syncSearchTextPosition();
   const query = globalSearchInput.value;
   const previousQuery = searchQueries[currentView];
@@ -5340,9 +5099,7 @@ globalSearchInput?.addEventListener("input", () => {
 });
 
 globalSearchInput?.addEventListener("focus", () => {
-  syncTvLayout();
 });
-globalSearchInput?.addEventListener("blur", syncTvLayout);
 
 searchClearButton?.addEventListener("click", () => {
   searchDismissShouldFocus = true;
@@ -5505,7 +5262,6 @@ function restoreHistoryState(state) {
     navigationDrawerHistoryActive = false;
     closeNavigationDrawer({ preserveHistory: true });
   }
-  closeShowMenus();
   closeWatchMenus();
   if (detailRequest) detailRequest.abort();
 

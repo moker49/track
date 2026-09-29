@@ -1,7 +1,7 @@
 {% from "_show_card.html" import show_card %}
 
 <section class="page-section tv-library-section" data-library-results-section aria-label="TV library">
-  <div class="show-list" data-library-results-list>
+  <div class="show-grid" data-library-results-grid>
     {% for show in active_shows + archived_shows %}{{ show_card(show) }}{% endfor %}
   </div>
   <div class="empty-state state-empty" data-library-empty {% if active_shows or archived_shows %}hidden{% endif %}>

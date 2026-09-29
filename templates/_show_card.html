@@ -21,21 +21,9 @@
         class="poster-label">{{ show.name }}</span>{% endif %}
     </div>
     <div class="show-card-body">
-      <div class="show-card-heading">
-        <div class="show-card-meta" data-show-progress-tags>
-          <span class="state-label progress-tag" data-progress-tag>{{ progress.label }}</span>
-          {% if show.total_watch_count > show.episode_count and show.completed_watch_count %}
-          <span class="state-label overwatch-tag" data-overwatch-tag>×{{ show.completed_watch_count }}</span>
-          {% endif %}
-        </div>
-        <h3>{{ show.name }}</h3>
-        <span class="show-card-year">{{ show.first_air_date[:4] }}</span>
-      </div>
+      <h3>{{ show.name }}</h3>
+      <span class="show-card-year">{{ show.first_air_date[:4] }}</span>
       <div class="progress-block">
-        <div class="progress-copy">
-          <span data-card-progress-copy>{{ show.watched_count }} of {{ show.episode_count }}</span>
-          <strong>{{ percent }}%</strong>
-        </div>
         <div class="progress-track" data-card-progress role="progressbar" aria-valuemin="0" aria-valuemax="100"
           aria-valuenow="{{ percent }}">
           <span style="width: {{ percent }}%"></span>
@@ -43,19 +31,5 @@
       </div>
     </div>
   </button>
-  <button class="icon-button card-menu-button" type="button" data-show-menu-button
-    aria-label="More options for {{ show.name }}" aria-expanded="false">
-    <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
-  </button>
-  <div class="show-menu card-show-menu" data-show-menu popover="manual" hidden>
-    <button type="button" data-show-action="move" data-target-state="{{ move.target_state }}">
-      <span class="material-symbols-rounded" aria-hidden="true">{{ move.icon }}</span>
-      <span data-move-label>{{ move.label }}</span>
-    </button>
-    <button class="danger-action" type="button" data-show-action="remove">
-      <span class="material-symbols-rounded" aria-hidden="true">delete</span>
-      <span>Remove</span>
-    </button>
-  </div>
 </article>
 {% endmacro %}
