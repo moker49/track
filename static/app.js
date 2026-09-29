@@ -581,6 +581,9 @@ function showView(viewName, historyMode = null) {
   syncTvControlVisibility();
   if (["tv", "movies"].includes(viewName)) {
     filterShowView(views.get(viewName));
+    // Restoring before the detail toolbar and bottom navigation settle can
+    // shift the virtual grid by the navigation's height.
+    window.scrollTo({ top: targetScrollY, behavior: "auto" });
     if (!views.get(viewName).children.length) {
       const refresh = viewName === "tv" ? refreshTvContent() : refreshMoviesContent();
       refresh.catch(() => undefined);
