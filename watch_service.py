@@ -103,6 +103,27 @@ def set_log_diary_date(
         """,
         (record_id,),
     ).fetchone()
+    if watch_kind == "episode":
+        context = db.execute(
+            """SELECT h.episode_id, sn.show_id
+               FROM episode_watch_history h
+               JOIN episodes e ON e.id = h.episode_id
+               JOIN seasons sn ON sn.id = e.season_id
+               WHERE h.id = ?""",
+            (record_id,),
+        ).fetchone()
+        episode_ids = [context["episode_id"]]
+    else:
+        context = db.execute(
+            """SELECT h.season_id, sn.show_id
+               FROM season_watch_history h
+               JOIN seasons sn ON sn.id = h.season_id
+               WHERE h.id = ?""",
+            (record_id,),
+        ).fetchone()
+        episode_ids = [episode["id"] for episode in db.execute(
+            "SELECT id FROM episodes WHERE season_id = ?", (context["season_id"],)
+        )] if history["batch_id"] else []
     db.commit()
     return {
         "watch_kind": watch_kind,
@@ -110,6 +131,9 @@ def set_log_diary_date(
         "added_at": row["added_at"],
         "diary_date": row["diary_date"],
         "display_date": row["display_date"],
+        "show_id": context["show_id"],
+        "episode_id": context["episode_id"] if watch_kind == "episode" else None,
+        "episode_ids": episode_ids,
     }
 
 

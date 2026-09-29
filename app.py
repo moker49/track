@@ -1315,15 +1315,28 @@ def create_app(test_config: dict | None = None) -> Flask:
                 return jsonify(error="diary_date must be an ISO date or null"), 400
         if watch_kind == "skip":
             db = get_db()
-            row = db.execute("SELECT skipped_at FROM episode_skips WHERE id = ?", (record_id,)).fetchone()
+            row = db.execute(
+                """SELECT sk.skipped_at, sk.episode_id, sn.show_id
+                   FROM episode_skips sk
+                   JOIN episodes e ON e.id = sk.episode_id
+                   JOIN seasons sn ON sn.id = e.season_id
+                   WHERE sk.id = ?""",
+                (record_id,),
+            ).fetchone()
             if row is None:
                 return jsonify(error="Skip entry not found"), 404
             db.execute("UPDATE episode_skips SET diary_date = ? WHERE id = ?", (diary_date, record_id))
             db.commit()
-            return jsonify(watch_kind="skip", watch_record_id=record_id, added_at=row["skipped_at"], diary_date=diary_date, display_date=diary_date or row["skipped_at"][:10])
+            return jsonify(watch_kind="skip", watch_record_id=record_id, added_at=row["skipped_at"], diary_date=diary_date, display_date=diary_date or row["skipped_at"][:10], show_id=row["show_id"], episode_id=row["episode_id"], episode_ids=[row["episode_id"]])
         if watch_kind == "season-skip":
             db = get_db()
-            row = db.execute("SELECT added_at, batch_id FROM season_skip_history WHERE id = ?", (record_id,)).fetchone()
+            row = db.execute(
+                """SELECT h.added_at, h.batch_id, h.season_id, sn.show_id
+                   FROM season_skip_history h
+                   JOIN seasons sn ON sn.id = h.season_id
+                   WHERE h.id = ?""",
+                (record_id,),
+            ).fetchone()
             if row is None:
                 return jsonify(error="Skip entry not found"), 404
             db.execute("UPDATE season_skip_history SET diary_date = ? WHERE id = ?", (diary_date, record_id))
@@ -1332,8 +1345,11 @@ def create_app(test_config: dict | None = None) -> Flask:
                     "UPDATE episode_skips SET diary_date = ? WHERE batch_id = ?",
                     (diary_date, row["batch_id"]),
                 )
+            episode_ids = [episode["id"] for episode in db.execute(
+                "SELECT id FROM episodes WHERE season_id = ?", (row["season_id"],)
+            )] if row["batch_id"] else []
             db.commit()
-            return jsonify(watch_kind="season-skip", watch_record_id=record_id, added_at=row["added_at"], diary_date=diary_date, display_date=diary_date or row["added_at"][:10])
+            return jsonify(watch_kind="season-skip", watch_record_id=record_id, added_at=row["added_at"], diary_date=diary_date, display_date=diary_date or row["added_at"][:10], show_id=row["show_id"], episode_ids=episode_ids)
         if watch_kind == "movie":
             db = get_db()
             row = db.execute(
@@ -1347,6 +1363,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             return jsonify(
                 watch_kind="movie", watch_record_id=record_id, added_at=row["added_at"],
                 diary_date=diary_date, display_date=diary_date or row["added_at"][:10],
+                movie_id=row["movie_id"],
             )
         try:
             return jsonify(

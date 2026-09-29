@@ -3060,14 +3060,15 @@ async function saveDiaryDate() {
     syncActivityCount(datePickerTarget.closest("[data-activity-log]"));
     sortActivityItems(datePickerTarget.closest("[data-activity-log]"));
     const detailShow = datePickerTarget.closest("[data-detail-show]");
+    const detailEpisode = datePickerTarget.closest("[data-detail-episode]");
     const detailMovie = datePickerTarget.closest("[data-detail-movie]");
-    if (["episode", "season"].includes(data.watch_kind)) {
+    if (["episode", "season", "skip", "season-skip"].includes(data.watch_kind)) {
       refreshLogRelatedCaches({
-        showId: detailShow?.dataset.showId || data.show_id || null,
-        episodeIds: data.episode_id ? [data.episode_id] : [],
+        showId: data.show_id || detailShow?.dataset.showId || detailEpisode?.dataset.showId || null,
+        episodeIds: data.episode_ids || (data.episode_id ? [data.episode_id] : []),
       });
     } else if (data.watch_kind === "movie") {
-      refreshLogRelatedCaches({ movieId: detailMovie?.dataset.movieId || data.movie_id || null });
+      refreshLogRelatedCaches({ movieId: data.movie_id || detailMovie?.dataset.movieId || null });
     }
     datePicker.close();
   } catch (_error) {

@@ -1171,6 +1171,42 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-show-next-episode="6"', self.client.get("/api/shows/1").data)
         self.assertNotIn(b'data-schedule-search-text="active test show episode 6"', self.client.get("/").data)
 
+    def test_watch_date_updates_identify_episode_and_movie_for_detail_refresh(self):
+        connection = sqlite3.connect(self.database)
+        episode_log_id = connection.execute(
+            "SELECT id FROM episode_watch_history WHERE episode_id = 1"
+        ).fetchone()[0]
+        movie_id = connection.execute(
+            """INSERT INTO movies (tmdb_id, title, is_tracked, state, added_at)
+               VALUES (990001, 'Date Test Movie', 1, 'ACTIVE', '2026-05-01T00:00:00+00:00')"""
+        ).lastrowid
+        movie_log_id = connection.execute(
+            """INSERT INTO movie_watch_history (movie_id, added_at, diary_date)
+               VALUES (?, '2026-05-02T00:00:00+00:00', '2026-05-02')""",
+            (movie_id,),
+        ).lastrowid
+        connection.commit()
+        connection.close()
+
+        episode = self.client.patch(
+            f"/api/logs/episode/{episode_log_id}", json={"diary_date": "2026-06-21"}
+        )
+        self.assertEqual(episode.status_code, 200)
+        self.assertEqual(episode.get_json()["show_id"], 1)
+        self.assertEqual(episode.get_json()["episode_ids"], [1])
+        self.assertIn(b'2026-06-21', self.client.get("/api/episodes/1").data)
+
+        movie = self.client.patch(
+            f"/api/logs/movie/{movie_log_id}", json={"diary_date": "2026-06-22"}
+        )
+        self.assertEqual(movie.status_code, 200)
+        self.assertEqual(movie.get_json()["movie_id"], movie_id)
+        self.assertIn(b'2026-06-22', self.client.get(f"/api/movies/{movie_id}").data)
+
+        javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('episodeIds: data.episode_ids || (data.episode_id ? [data.episode_id] : [])', javascript)
+        self.assertIn('movieId: data.movie_id || detailMovie?.dataset.movieId || null', javascript)
+
     def test_untracked_show_queue_adds_and_forces_queue(self):
         connection = sqlite3.connect(self.database)
         connection.execute("UPDATE shows SET is_tracked = 0 WHERE id = 1")
