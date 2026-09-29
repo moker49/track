@@ -3108,7 +3108,16 @@ function selectionSummary(values, defaults, available, defaultLabel) {
   return null;
 }
 
-function mediaTypeLabel(mediaTypes, defaultMediaTypes) {
+function mediaTypeLabel(mediaTypes, defaultMediaTypes, viewName) {
+  if (viewName === "upcoming") {
+    const summary = selectionSummary(mediaTypes, defaultMediaTypes, ["tv", "movies", "archive"], "Library");
+    if (summary) return summary;
+    return [
+      mediaTypes.includes("tv") ? "TV" : null,
+      mediaTypes.includes("movies") ? "Movies" : null,
+      mediaTypes.includes("archive") ? "Archive" : null,
+    ].filter(Boolean).join(" + ");
+  }
   const summary = selectionSummary(
     mediaTypes, defaultMediaTypes, ["tv", "movies", "tv-archive", "movies-archive"], "Library",
   );
@@ -3153,7 +3162,7 @@ function syncTvControlBar(view = views.get(currentView)) {
   const sortIcon = tvControlBar.querySelector("[data-tv-sort-icon]");
   const mediaIsDefault = hasSameSelections(preferences.mediaTypes, defaults.mediaTypes);
   if (mediaLabel) {
-    const label = mediaTypeLabel(preferences.mediaTypes, defaults.mediaTypes);
+    const label = mediaTypeLabel(preferences.mediaTypes, defaults.mediaTypes, viewName);
     const hasPlus = label.endsWith("+");
     mediaLabel.replaceChildren(document.createTextNode(hasPlus ? label.slice(0, -1) : label));
     if (hasPlus) {
@@ -3188,11 +3197,12 @@ function syncTvControlBar(view = views.get(currentView)) {
     const type = button.dataset.tvMediaOption;
     const excluded = (viewName === "tv" && ["movies", "movies-archive"].includes(type))
       || (viewName === "movies" && ["tv", "tv-archive"].includes(type))
-      || (viewName === "backlog" && type.endsWith("-archive"));
+      || (["backlog", "upcoming"].includes(viewName) && type.endsWith("-archive"))
+      || (type === "archive" && viewName !== "upcoming");
     button.hidden = excluded;
     const label = button.querySelector("[data-tv-media-option-label]");
     if (label) {
-      label.textContent = ({ tv: "TV", movies: "Movies", "tv-archive": "Archive", "movies-archive": "Archive" }[type]);
+      label.textContent = ({ tv: "TV", movies: "Movies", archive: "Archive", "tv-archive": "Archive", "movies-archive": "Archive" }[type]);
     }
     const selected = preferences.mediaTypes.includes(type);
     button.classList.toggle("is-unselected-default", defaults.mediaTypes.includes(type) && !selected);
@@ -4828,7 +4838,9 @@ function applyVirtualTimelineFilters(state) {
       ? preferences.mediaTypes.includes(mediaType)
       : card.dataset.trackingState === TRACKING_STATE.ACTIVE
         ? preferences.mediaTypes.includes(mediaType)
-        : preferences.mediaTypes.includes(`${mediaType}-archive`));
+        : viewName === "upcoming"
+          ? preferences.mediaTypes.includes("archive")
+          : preferences.mediaTypes.includes(`${mediaType}-archive`));
     const matchesProgress = searching || preferences.progress.includes(card.dataset.progressState)
       || (card.dataset.progressState === PROGRESS_STATE.FINISHED
         && preferences.progress.includes(PROGRESS_STATE.CAUGHT_UP));

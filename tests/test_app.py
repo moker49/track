@@ -1309,9 +1309,12 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn('[data-forced-queue="true"]', css)
         self.assertNotIn('dataset.forcedQueue', javascript)
 
-    def test_queue_filters_use_media_type_and_progress_without_archive_options(self):
+    def test_upcoming_uses_one_archive_media_option_for_tv_and_movies(self):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(encoding="utf-8")
-        self.assertIn('viewName === "backlog" && type.endsWith("-archive")', javascript)
+        self.assertIn('["backlog", "upcoming"].includes(viewName) && type.endsWith("-archive")', javascript)
+        self.assertIn('type === "archive" && viewName !== "upcoming"', javascript)
+        self.assertIn('viewName === "upcoming"' + chr(10) + '          ? preferences.mediaTypes.includes("archive")', javascript)
+        self.assertIn('mediaTypes.includes("archive") ? "Archive" : null', javascript)
         self.assertIn('viewName === "backlog"' + chr(10) + '      ? preferences.mediaTypes.includes(mediaType)', javascript)
         self.assertNotIn('card.dataset.queued === "true"', javascript)
         self.assertIn('progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP]', javascript)
@@ -1517,7 +1520,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'data-tv-dropdown-menu="media"', home.data)
         self.assertIn(b'data-tv-dropdown-menu="filter"', home.data)
         self.assertIn(b'data-tv-dropdown-menu="sort"', home.data)
-        self.assertEqual(home.data.count(b"data-tv-media-option="), 4)
+        self.assertEqual(home.data.count(b"data-tv-media-option="), 5)
+        self.assertIn(b'data-tv-media-option="archive"', home.data)
         self.assertIn(b'data-tv-media-option="tv-archive"', home.data)
         self.assertIn(b'data-tv-media-option="movies-archive"', home.data)
         self.assertIn(b"data-tv-progress-label>Progress</span>", home.data)
