@@ -1151,6 +1151,26 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(self.client.get("/api/lists/liked").status_code, 404)
         self.assertEqual(self.client.get("/api/lists/watch-again").status_code, 404)
 
+    def test_tracking_untracked_show_does_not_queue_it(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute("UPDATE shows SET is_tracked = 0 WHERE id = 1")
+        connection.commit()
+        connection.close()
+
+        response = self.client.post("/api/shows/1/state", json={"state": "ACTIVE"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["newly_tracked"])
+        connection = sqlite3.connect(self.database)
+        self.assertEqual(
+            connection.execute(
+                "SELECT state, is_tracked, watch_again, watch_again_baseline FROM shows WHERE id = 1"
+            ).fetchone(),
+            ("ACTIVE", 1, 0, None),
+        )
+        connection.close()
+        self.assertIn(b'data-show-next-episode="6"', self.client.get("/api/shows/1").data)
+        self.assertNotIn(b'data-schedule-search-text="active test show episode 6"', self.client.get("/").data)
+
     def test_untracked_show_queue_adds_and_forces_queue(self):
         connection = sqlite3.connect(self.database)
         connection.execute("UPDATE shows SET is_tracked = 0 WHERE id = 1")
@@ -2182,6 +2202,8 @@ class TrackAppTest(unittest.TestCase):
         imported_show = connection.execute(
             "SELECT * FROM shows WHERE tmdb_id = 900"
         ).fetchone()
+        self.assertEqual(imported_show["watch_again"], 0)
+        self.assertIsNone(imported_show["watch_again_baseline"])
         season_flags = connection.execute(
             "SELECT season_number, is_progress_counted FROM seasons WHERE show_id = ? ORDER BY season_number",
             (imported_show["id"],),
@@ -2696,6 +2718,7 @@ class TrackAppTest(unittest.TestCase):
 
         tracked_detail = self.client.get(f"/api/shows/{preview_data['show_id']}")
         self.assertIn(b"data-progress-summary", tracked_detail.data)
+        self.assertIn(b'data-queued="false"', tracked_detail.data)
         self.assertIn(b'class="detail-docked-button" data-toolbar-slot="1" type="button" data-reaction-toggle="queue"', tracked_detail.data)
         self.assertIn(b'data-show-next-episode="', tracked_detail.data)
         self.assertNotIn(b"data-track-show-state", tracked_detail.data)
@@ -2704,7 +2727,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'data-reaction-toggle="queue"', tracked_episode)
         self.assertNotIn(b'data-add-episode-show', tracked_episode)
         archived_home = self.client.get("/")
-        self.assertIn(b"Preview Show", archived_home.data)
+        self.assertNotIn(b"Preview Show", archived_home.data)
+        self.assertIn(b"Preview Show", self.client.get("/api/tv").data)
 
     def test_tv_add_cards_keep_new_and_previously_removed_styles(self):
         css = (Path(__file__).parents[1] / "static" / "app.css").read_text(

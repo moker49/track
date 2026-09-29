@@ -1218,10 +1218,13 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
             db.commit()
 
-        if queued or (newly_tracked and any(
-            not item["is_forced_queue"]
-            for item in get_catch_up_episodes(db, show_id=show_id, local_date=request_local_date())
-        )):
+        if newly_tracked and not queued:
+            db.execute(
+                "UPDATE shows SET watch_again = 0, watch_again_baseline = NULL WHERE id = ?",
+                (show_id,),
+            )
+            db.commit()
+        if queued:
             baseline = get_show_progress(db, show_id, request_local_date())["completed_watch_count"]
             db.execute(
                 "UPDATE shows SET watch_again = 1, watch_again_baseline = ?, updated_at = ? WHERE id = ?",

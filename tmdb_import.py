@@ -157,7 +157,7 @@ def import_or_refresh_show(
                     SET is_tracked = 1, state = ?, added_at = ?,
                         active_at = CASE WHEN ? = 'ACTIVE' THEN ? ELSE active_at END,
                         archived_at = CASE WHEN ? = 'ARCHIVED' THEN ? ELSE archived_at END,
-                        updated_at = ?
+                        updated_at = ?, watch_again = 0, watch_again_baseline = NULL
                     WHERE id = ?
                     """,
                     (
@@ -249,16 +249,6 @@ def import_or_refresh_show(
                         episode.get("still_path"),
                         json.dumps(episode, separators=(",", ":")),
                     ),
-                )
-        if newly_tracked:
-            from queries import get_catch_up_episodes, get_show_progress
-
-            candidates = get_catch_up_episodes(db, show_id=show_id)
-            if any(not candidate["is_forced_queue"] for candidate in candidates):
-                baseline = get_show_progress(db, show_id)["completed_watch_count"]
-                db.execute(
-                    "UPDATE shows SET watch_again = 1, watch_again_baseline = ? WHERE id = ?",
-                    (baseline, show_id),
                 )
         if manage_transaction:
             db.commit()
