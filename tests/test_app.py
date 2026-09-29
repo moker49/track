@@ -799,16 +799,12 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('activeHistoryState.detailType === "show"', javascript)
         self.assertIn('previousWasShow,', javascript)
         self.assertIn("openSeasonIds,", javascript)
-        self.assertIn("returnEpisodeId: String(episodeId)", javascript)
         self.assertIn("detailScrollY: window.scrollY", javascript)
         self.assertIn("function restoreShowDetailContext(showId, context)", javascript)
-        self.assertIn('classList.add("is-returned-to")', javascript)
         self.assertIn("openShow(state.showId, detailParentView, true, null, state)", javascript)
         self.assertIn('episodeTemplate.content.querySelector("[data-episode-show-open]")?.remove()', javascript)
         self.assertIn('replaceChildren(episodeTemplate.content)', javascript)
 
-        self.assertIn(".episode.is-returned-to", css)
-        self.assertIn("@keyframes episode-return-highlight", css)
 
 
     def test_diary_uses_full_collection_virtualization(self):

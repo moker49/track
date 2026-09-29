@@ -2160,18 +2160,10 @@ async function restoreShowDetailContext(showId, context) {
   });
   await Promise.all(seasonsToRestore.filter(Boolean).map(loadSeasonEpisodes));
 
-  const returnedEpisode = context.returnEpisodeId
-    ? detailShow.querySelector(`[data-episode-id="${context.returnEpisodeId}"]`)
-    : null;
   window.requestAnimationFrame(() => {
     if (Number.isFinite(Number(context.detailScrollY))) {
       window.scrollTo({ top: Number(context.detailScrollY), behavior: "auto" });
     }
-    if (!returnedEpisode) return;
-    returnedEpisode.classList.add("is-returned-to");
-    returnedEpisode.addEventListener("animationend", () => {
-      returnedEpisode.classList.remove("is-returned-to");
-    }, { once: true });
   });
 }
 
@@ -2586,7 +2578,6 @@ async function openEpisode(episodeId, historyMode = "push") {
       ...activeHistoryState,
       openSeasonIds,
       seasonsExpanded: Boolean(currentShow.querySelector("[data-seasons-disclosure]")?.open),
-      returnEpisodeId: String(episodeId),
       detailScrollY: window.scrollY,
     }, "");
   }
