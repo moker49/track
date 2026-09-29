@@ -132,9 +132,9 @@ const libraryViewPreferences = {
   },
   tv: {
     state: TRACKING_STATE.ACTIVE,
-    progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP],
-    sortField: "name",
-    sortDirection: "asc",
+    progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP],
+    sortField: "lastWatched",
+    sortDirection: "desc",
     mediaTypes: ["tv"],
   },
   movies: {
@@ -3097,7 +3097,7 @@ const sortFieldLabels = {
 const libraryViewDefaults = {
   backlog: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv", "movies"] },
   upcoming: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "movies"] },
-  tv: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP], sortField: "name", sortDirection: "asc", mediaTypes: ["tv"] },
+  tv: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv"] },
   movies: { progress: [PROGRESS_STATE.NEW], sortField: "dateAdded", sortDirection: "desc", mediaTypes: ["movies"] },
 };
 

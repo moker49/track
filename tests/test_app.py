@@ -1553,7 +1553,14 @@ class TrackAppTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("state: TRACKING_STATE.ACTIVE", javascript)
-        self.assertIn('progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.CAUGHT_UP]', javascript)
+        self.assertIn(
+            'tv: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv"] }',
+            javascript,
+        )
+        self.assertIn(
+            'tv: {\n    state: TRACKING_STATE.ACTIVE,\n    progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP],\n    sortField: "lastWatched",\n    sortDirection: "desc",',
+            javascript,
+        )
         self.assertIn("globalSearchInput?.blur();", javascript)
         self.assertIn("function syncTvControlBar", javascript)
         self.assertIn('preferences.progress.includes(PROGRESS_STATE.CAUGHT_UP)', javascript)
