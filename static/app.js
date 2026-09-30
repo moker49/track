@@ -196,6 +196,7 @@ let scheduleRefreshRequest = null;
 let tvRefreshRequest = null;
 let moviesRefreshRequest = null;
 let detailRequest = null;
+let detailNavigationSequence = 0;
 let pendingRemoveShowId = null;
 let pendingRemoveMovieId = null;
 let pendingFinishedArchiveShowId = null;
@@ -541,6 +542,11 @@ function syncDetailBottomChrome() {
 }
 
 function showView(viewName, historyMode = null) {
+  if (viewName !== "detail") {
+    detailNavigationSequence += 1;
+    if (detailRequest) detailRequest.abort();
+    detailRequest = null;
+  }
   if (!views.has(viewName) || viewName === currentView) return;
 
   if (currentView === "backlog" && viewName !== "backlog") {
@@ -916,6 +922,7 @@ function refreshScheduleForMediaChange() {
 }
 
 async function previewCatalogShow(card, historyMode = "push") {
+  const navigationSequence = ++detailNavigationSequence;
   if (card.classList.contains("is-loading")) return;
   const cachedShowId = card.dataset.showId;
   const hasCachedDetails = Boolean(cachedShowId);
@@ -939,11 +946,6 @@ async function previewCatalogShow(card, historyMode = "push") {
     card.removeAttribute("aria-busy");
     return;
   }
-  if (currentView !== "detail") {
-    card.classList.remove("is-loading");
-    card.removeAttribute("aria-busy");
-    return;
-  }
   try {
     const response = await fetch(`/api/tv/shows/${card.dataset.tmdbId}/import`, {
       method: "POST",
@@ -953,6 +955,7 @@ async function previewCatalogShow(card, historyMode = "push") {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not open show");
+    if (navigationSequence !== detailNavigationSequence) return;
     card.dataset.showId = data.show_id;
     if (data.is_tracked) card.remove();
     invalidateShowCache(data.show_id, true);
@@ -2192,12 +2195,11 @@ function prepareDetailLoad(title) {
   const detailView = views.get("detail");
   if (currentView === "detail" && detailView.querySelector("[data-detail-show], [data-detail-movie], [data-detail-episode]")) {
     detailView.setAttribute("aria-busy", "true");
-  } else {
+  } else if (currentView === "detail") {
     renderDetailLoading(title);
   }
   scrollPositions.detail = 0;
   if (currentView === "detail") window.scrollTo({ top: 0, behavior: "auto" });
-  else showView("detail");
 }
 
 async function openShow(
@@ -2207,6 +2209,7 @@ async function openShow(
   historyMode = "push",
   returnContext = null,
 ) {
+  const navigationSequence = ++detailNavigationSequence;
   const cacheKey = String(showId);
   detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics"].includes(parentView)
     ? parentView
@@ -2227,12 +2230,14 @@ async function openShow(
       // A failed background refresh leaves the last known cache available.
     }
   }
+  if (navigationSequence !== detailNavigationSequence) return;
   const cachedShow = showDetailCache.get(cacheKey);
   const cachedSeasons = showSeasonsCache.get(cacheKey);
   if (cachedShow && cachedSeasons) {
     if (detailRequest) detailRequest.abort();
     detailRequest = null;
-    if (currentView !== "detail") showView("detail");
+    await preloadDetailBackdrop(cachedShow);
+    if (navigationSequence !== detailNavigationSequence) return;
     renderShowDetail(cachedShow, cachedSeasons, false, returnContext);
     refreshShowIfDue(showId);
     return;
@@ -2242,7 +2247,6 @@ async function openShow(
   else {
     if (detailRequest) detailRequest.abort();
     detailRequest = new AbortController();
-    if (currentView !== "detail") showView("detail");
   }
 
   try {
@@ -2266,11 +2270,11 @@ async function openShow(
     showSeasonsCache.set(cacheKey, seasonsHtml);
     const request = detailRequest;
     await preloadDetailBackdrop(showHtml);
-    if (request?.signal.aborted || detailRequest !== request) return;
+    if (request?.signal.aborted || detailRequest !== request || navigationSequence !== detailNavigationSequence) return;
     renderShowDetail(showHtml, seasonsHtml, true, returnContext);
     refreshShowIfDue(showId);
   } catch (error) {
-    if (error.name === "AbortError") return;
+    if (error.name === "AbortError" || navigationSequence !== detailNavigationSequence) return;
     views.get("detail").removeAttribute("aria-busy");
     views.get("detail").innerHTML = `
       <header class="detail-app-bar">
@@ -2285,6 +2289,7 @@ async function openShow(
         <p>Check the connection and try again.</p>
         <button class="filled-button" type="button" data-retry-show="${showId}">Try again</button>
       </div>`;
+    if (currentView !== "detail") showView("detail");
     discardRetainedDetailToolbar();
     syncDetailBottomChrome();
   }
@@ -2311,6 +2316,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
     staggerDetailSlices([hero, ...detailContent.children]);
   }
   views.get("detail").replaceChildren(showTemplate.content);
+  if (currentView !== "detail") showView("detail");
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   enableWatchControls(views.get("detail"));
   finishDetailLoad();
@@ -2320,6 +2326,7 @@ function renderShowDetail(showHtml, seasonsHtml, animate, returnContext = null) 
 }
 
 async function openMovie(movieId, parentView = "movies", historyMode = "push") {
+  const navigationSequence = ++detailNavigationSequence;
   detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics"].includes(parentView)
     ? parentView : "movies";
   if (historyMode) {
@@ -2334,11 +2341,13 @@ async function openMovie(movieId, parentView = "movies", historyMode = "push") {
       // A failed background refresh leaves the last known cache available.
     }
   }
+  if (navigationSequence !== detailNavigationSequence) return;
   const cached = movieDetailCache.get(cacheKey);
   if (cached) {
     if (detailRequest) detailRequest.abort();
     detailRequest = null;
-    if (currentView !== "detail") showView("detail");
+    await preloadDetailBackdrop(cached);
+    if (navigationSequence !== detailNavigationSequence) return;
     renderMovieDetail(cached, false);
     return;
   }
@@ -2352,12 +2361,13 @@ async function openMovie(movieId, parentView = "movies", historyMode = "push") {
     movieDetailCache.set(cacheKey, movieHtml);
     const request = detailRequest;
     await preloadDetailBackdrop(movieHtml);
-    if (request?.signal.aborted || detailRequest !== request) return;
+    if (request?.signal.aborted || detailRequest !== request || navigationSequence !== detailNavigationSequence) return;
     renderMovieDetail(movieHtml, true);
   } catch (error) {
-    if (error.name === "AbortError") return;
+    if (error.name === "AbortError" || navigationSequence !== detailNavigationSequence) return;
     views.get("detail").removeAttribute("aria-busy");
     views.get("detail").innerHTML = `<header class="detail-app-bar"><button class="icon-button" type="button" data-detail-back aria-label="Back"><span class="material-symbols-rounded" aria-hidden="true">arrow_back</span></button><span>Movie details</span></header><div class="empty-state detail-error"><span class="empty-icon material-symbols-rounded" aria-hidden="true">cloud_off</span><h2>Couldn't load this movie</h2><p>Check the connection and try again.</p><button class="filled-button" type="button" data-retry-movie="${movieId}">Try again</button></div>`;
+    if (currentView !== "detail") showView("detail");
     discardRetainedDetailToolbar();
     syncDetailBottomChrome();
   }
@@ -2372,11 +2382,13 @@ function renderMovieDetail(movieHtml, animate, { resetScroll = true } = {}) {
   preserveDetailDisclosure(detailMovie, "[data-activity-log]");
   if (animate) staggerDetailSlices([detailMovie.querySelector(".hero"), ...detailMovie.querySelectorAll(".detail-content > *")]);
   views.get("detail").replaceChildren(template.content);
+  if (currentView !== "detail") showView("detail");
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   finishDetailLoad({ resetScroll });
 }
 
 async function previewCatalogMovie(card, historyMode = "push") {
+  const navigationSequence = ++detailNavigationSequence;
   if (card.classList.contains("is-loading")) return;
   const movieId = card.dataset.movieId;
   if (movieId) {
@@ -2392,7 +2404,8 @@ async function previewCatalogMovie(card, historyMode = "push") {
   if (cachedPreview) {
     if (detailRequest) detailRequest.abort();
     detailRequest = null;
-    if (currentView !== "detail") showView("detail");
+    await preloadDetailBackdrop(cachedPreview);
+    if (navigationSequence !== detailNavigationSequence) return;
     renderMovieDetail(cachedPreview, false);
     return;
   }
@@ -2408,11 +2421,12 @@ async function previewCatalogMovie(card, historyMode = "push") {
     const movieHtml = await response.text();
     const request = detailRequest;
     await preloadDetailBackdrop(movieHtml);
-    if (request?.signal.aborted || detailRequest !== request) return;
+    if (request?.signal.aborted || detailRequest !== request || navigationSequence !== detailNavigationSequence) return;
     renderMovieDetail(movieHtml, !revealedViewAnimations.has(previewRevealKey));
     moviePreviewCache.set(cacheKey, movieHtml);
     revealedViewAnimations.add(previewRevealKey);
   } catch (error) {
+    if (navigationSequence !== detailNavigationSequence) return;
     if (error.name !== "AbortError") showSnackbar(error.message);
     if (currentView === "detail") showView("movies", "replace");
   } finally {
@@ -2441,6 +2455,7 @@ async function trackDetailMovie(movieElement, trigger, { queued = false, state =
 }
 
 async function openEpisode(episodeId, historyMode = "push") {
+  const navigationSequence = ++detailNavigationSequence;
   const cacheKey = String(episodeId);
   const activeHistoryState = window.history.state;
   const previousWasShow = historyMode
@@ -2481,13 +2496,15 @@ async function openEpisode(episodeId, historyMode = "push") {
       // A failed background refresh leaves the last known cache available.
     }
   }
+  if (navigationSequence !== detailNavigationSequence) return;
   if (detailRequest) detailRequest.abort();
   const cachedEpisode = episodeDetailCache.get(cacheKey);
   if (cachedEpisode) {
     detailRequest = null;
     scrollPositions.detail = 0;
     if (currentView === "detail") window.scrollTo({ top: 0, behavior: "auto" });
-    else showView("detail");
+    await preloadDetailBackdrop(cachedEpisode);
+    if (navigationSequence !== detailNavigationSequence) return;
     renderEpisodeDetail(cachedEpisode, previousWasShow, false);
     return;
   }
@@ -2504,10 +2521,10 @@ async function openEpisode(episodeId, historyMode = "push") {
     episodeDetailCache.set(cacheKey, episodeHtml);
     const request = detailRequest;
     await preloadDetailBackdrop(episodeHtml);
-    if (request?.signal.aborted || detailRequest !== request) return;
+    if (request?.signal.aborted || detailRequest !== request || navigationSequence !== detailNavigationSequence) return;
     renderEpisodeDetail(episodeHtml, previousWasShow, true);
   } catch (error) {
-    if (error.name === "AbortError") return;
+    if (error.name === "AbortError" || navigationSequence !== detailNavigationSequence) return;
     views.get("detail").removeAttribute("aria-busy");
     views.get("detail").innerHTML = `
       <header class="detail-app-bar">
@@ -2522,6 +2539,7 @@ async function openEpisode(episodeId, historyMode = "push") {
         <p>Check the connection and try again.</p>
         <button class="filled-button" type="button" data-retry-episode="${episodeId}">Try again</button>
       </div>`;
+    if (currentView !== "detail") showView("detail");
     discardRetainedDetailToolbar();
     syncDetailBottomChrome();
   }
@@ -2696,6 +2714,7 @@ function renderEpisodeDetail(episodeHtml, previousWasShow, animate, entryDirecti
     staggerDetailSlices([episodeHero, ...episodeContent.children]);
   }
   views.get("detail").replaceChildren(episodeTemplate.content);
+  if (currentView !== "detail") showView("detail");
   syncDisplayHiddenLogItemsSetting(views.get("detail"));
   fitEpisodeDetailTitle(views.get("detail"));
   const mountedEpisode = views.get("detail").querySelector("[data-detail-episode]");
