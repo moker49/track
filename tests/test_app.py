@@ -120,16 +120,16 @@ class TrackAppTest(unittest.TestCase):
         connection.commit()
         connection.close()
 
-        for url, backdrop, poster in (
-            ("/api/shows/1", b"/media/backdrop/w780/show-backdrop.jpg", b"/media/poster/w342/show-poster.jpg"),
-            (f"/api/movies/{movie_id}", b"/media/backdrop/w780/movie-backdrop.jpg", b"/media/poster/w342/movie-poster.jpg"),
-            ("/api/episodes/1", b"/media/still/w780/episode-still.jpg", b"/media/poster/w342/show-poster.jpg"),
+        for url, backdrop, poster, title in (
+            ("/api/shows/1", b"/media/backdrop/w780/show-backdrop.jpg", b"/media/poster/w342/show-poster.jpg", b"Active Test Show"),
+            (f"/api/movies/{movie_id}", b"/media/backdrop/w780/movie-backdrop.jpg", b"/media/poster/w342/movie-poster.jpg", b"Backdrop Movie"),
+            ("/api/episodes/1", b"/media/still/w780/episode-still.jpg", b"/media/poster/w342/show-poster.jpg", b"Opening Episode"),
         ):
             html = self.client.get(url).data
             self.assertLess(html.index(b'class="detail-backdrop'), html.index(b'class="detail-app-bar"'))
             self.assertLess(html.index(backdrop), html.index(poster))
             self.assertIn(b'data-detail-back', html)
-            self.assertNotIn(b'detail-app-bar-title', html)
+            self.assertIn(b'<span class="detail-app-bar-title">' + title + b'</span>', html)
 
     def test_single_page_shell_contains_primary_views(self):
         home = self.client.get("/")

@@ -1754,7 +1754,10 @@ html.app-booting .schedule-empty-reveal {
 
 .detail-app-bar-title {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
+  font-size: 1.25rem;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1857,6 +1860,7 @@ html.app-booting .schedule-empty-reveal {
   padding: var(--app-bar-padding);
   display: flex;
   align-items: center;
+  gap: 4px;
   background: var(--surface);
 }
 
@@ -1883,6 +1887,12 @@ html.app-booting .schedule-empty-reveal {
 
 .detail-app-bar>* {
   position: relative;
+}
+
+[data-detail-show]>.detail-app-bar .detail-app-bar-title,
+[data-detail-movie]>.detail-app-bar .detail-app-bar-title,
+[data-detail-episode]>.detail-app-bar .detail-app-bar-title {
+  opacity: var(--detail-app-bar-opacity, 0);
 }
 
 .detail-app-bar .icon-button {
