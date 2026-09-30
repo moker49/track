@@ -16,6 +16,8 @@
 
 :root {
   --app-shell-vertical-inset: 0px;
+  --app-bar-height: calc(68px + env(safe-area-inset-top));
+  --app-bar-padding: max(10px, env(safe-area-inset-top)) 4px 10px;
   --primary: hsl(263 70% 80%);
   --primary-dark: hsl(263 55% 72%);
   --primary-light: hsl(262 32% 28%);
@@ -41,6 +43,7 @@
   --shadow: hsl(0 0% 0% / 0.4);
   --scrim: hsl(0 0% 100% / 0.08);
   --chrome-surface-opacity: 0.9;
+  --nav-surface-solid: hsl(260 12% 11%);
   --nav-surface: hsl(260 12% 11% / var(--chrome-surface-opacity));
   --chrome-control-surface: hsl(260 10% 18% / var(--chrome-surface-opacity));
   --chrome-control-surface-low: hsl(260 10% 13% / var(--chrome-surface-opacity));
@@ -164,10 +167,10 @@ dialog:not(.image-viewer)::backdrop {
 
 .top-bar {
   width: 100%;
-  height: calc(68px + env(safe-area-inset-top));
-  min-height: calc(68px + env(safe-area-inset-top));
+  height: var(--app-bar-height);
+  min-height: var(--app-bar-height);
   box-sizing: border-box;
-  padding: max(10px, env(safe-area-inset-top)) 4px 10px;
+  padding: var(--app-bar-padding);
   display: grid;
   align-items: center;
 }
@@ -1814,7 +1817,7 @@ html.app-booting .schedule-empty-reveal {
 [data-detail-episode] {
   position: relative;
   --detail-backdrop-height: clamp(230px, 62vw, 330px);
-  --detail-app-bar-height: calc(72px + env(safe-area-inset-top));
+  --detail-app-bar-height: var(--app-bar-height);
 }
 
 .detail-backdrop {
@@ -1849,39 +1852,41 @@ html.app-booting .schedule-empty-reveal {
   z-index: 10;
   top: 0;
   width: 100%;
-  min-height: calc(72px + env(safe-area-inset-top));
-  padding: max(12px, env(safe-area-inset-top)) 8px 12px;
+  min-height: var(--app-bar-height);
+  box-sizing: border-box;
+  padding: var(--app-bar-padding);
   display: flex;
   align-items: center;
   background: var(--surface);
 }
 
-[data-detail-show] > .detail-app-bar,
-[data-detail-movie] > .detail-app-bar,
-[data-detail-episode] > .detail-app-bar {
+[data-detail-show]>.detail-app-bar,
+[data-detail-movie]>.detail-app-bar,
+[data-detail-episode]>.detail-app-bar {
   height: var(--detail-app-bar-height);
   margin-top: calc(-1 * var(--detail-backdrop-height));
   margin-bottom: calc(var(--detail-backdrop-height) - var(--detail-app-bar-height));
   background: transparent;
 }
 
-[data-detail-show] > .detail-app-bar::before,
-[data-detail-movie] > .detail-app-bar::before,
-[data-detail-episode] > .detail-app-bar::before {
+[data-detail-show]>.detail-app-bar::before,
+[data-detail-movie]>.detail-app-bar::before,
+[data-detail-episode]>.detail-app-bar::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: var(--surface);
+  background: var(--nav-surface-solid);
+  border-bottom: 1px solid var(--outline-soft);
   opacity: var(--detail-app-bar-opacity, 0);
   pointer-events: none;
 }
 
-.detail-app-bar > * {
+.detail-app-bar>* {
   position: relative;
 }
 
 .detail-app-bar .icon-button {
-  color: white;
+  color: var(--on-surface);
   text-shadow: 0 1px 5px rgb(0 0 0 / 0.8);
 }
 
@@ -1938,7 +1943,7 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .hero-image-button,
-.hero > .hero-poster {
+.hero>.hero-poster {
   grid-column: 2;
   grid-row: 1;
   margin-top: -42px;

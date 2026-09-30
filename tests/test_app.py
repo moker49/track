@@ -228,7 +228,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("font-size: 0.78rem", css)
         self.assertIn("grid-template-columns: repeat(4, 1fr)", css)
         self.assertIn("grid-template-columns: 48px minmax(0, 1fr) 48px", css)
-        self.assertIn("padding: max(12px, env(safe-area-inset-top)) 8px 12px", css)
+        self.assertIn("--app-bar-padding: max(10px, env(safe-area-inset-top)) 4px 10px;", css)
+        self.assertIn("--detail-app-bar-height: var(--app-bar-height);", css)
         self.assertIn("text-align: center", css)
         self.assertIn(".app-bar-search:has(input:focus)", css)
         self.assertIn(".app-bar-search input.search-text-positioned:focus", css)
@@ -249,7 +250,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn('.detail-docked-toolbar[data-toolbar-slots="5"]', css)
         self.assertIn('.detail-docked-toolbar [data-toolbar-slot]', css)
         self.assertIn('.detail-docked-toolbar .detail-overflow-anchor {\n  width: 48px;\n  margin: 0;', css)
-        self.assertIn("min-height: calc(72px + env(safe-area-inset-top));", css)
+        self.assertIn("--app-bar-height: calc(68px + env(safe-area-inset-top));", css)
         self.assertIn("background: var(--surface-card);", css)
         self.assertIn('.material-symbols-rounded.is-filled {', css)
 
