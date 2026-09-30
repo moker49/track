@@ -2213,7 +2213,6 @@ function prepareDetailLoad(title) {
     renderDetailLoading(title);
   }
   scrollPositions.detail = 0;
-  if (currentView === "detail") window.scrollTo({ top: 0, behavior: "auto" });
 }
 
 async function openShow(
@@ -2516,7 +2515,6 @@ async function openEpisode(episodeId, historyMode = "push") {
   if (cachedEpisode) {
     detailRequest = null;
     scrollPositions.detail = 0;
-    if (currentView === "detail") window.scrollTo({ top: 0, behavior: "auto" });
     await preloadDetailBackdrop(cachedEpisode);
     if (navigationSequence !== detailNavigationSequence) return;
     renderEpisodeDetail(cachedEpisode, previousWasShow, false);
