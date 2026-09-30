@@ -1663,6 +1663,19 @@ async function processScheduleMovie(card) {
   }
 }
 
+function syncDetailAppBarOpacity() {
+  if (currentView !== "detail") return;
+  const detailView = views.get("detail");
+  const backdrop = detailView?.querySelector(".detail-backdrop");
+  const appBar = detailView?.querySelector(".detail-app-bar");
+  if (!backdrop || !appBar) return;
+  const backdropHeight = backdrop.offsetHeight;
+  if (!backdropHeight) return;
+  const scrolledPastBackdropTop = Math.max(0, -backdrop.getBoundingClientRect().top);
+  const opacity = Math.min(1, Math.max(0, (scrolledPastBackdropTop / backdropHeight - 0.5) * 2));
+  appBar.style.setProperty("--detail-app-bar-opacity", opacity.toFixed(3));
+}
+
 function finishDetailLoad({ resetScroll = true } = {}) {
   const detailView = views.get("detail");
   detailView.removeAttribute("aria-busy");
@@ -1670,6 +1683,7 @@ function finishDetailLoad({ resetScroll = true } = {}) {
   formatDisplayDates(detailView);
   document.title = APP_TITLE;
   if (resetScroll) window.scrollTo({ top: 0, behavior: "auto" });
+  syncDetailAppBarOpacity();
 }
 
 function matchingCurrentDetail(nextDetail) {
@@ -5282,6 +5296,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("scroll", () => {
+  syncDetailAppBarOpacity();
   settleActiveVirtualReveals();
   if (["backlog", "upcoming"].includes(currentView)) {
     const pendingRestore = pendingTimelineScrollRestores.get(currentView);
@@ -5380,6 +5395,7 @@ imageViewer?.addEventListener("close", () => {
 
 window.addEventListener("resize", () => {
   if (imageViewer?.open) sizeImageViewerLayers();
+  syncDetailAppBarOpacity();
 });
 
 function restoreHistoryState(state) {

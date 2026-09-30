@@ -1813,11 +1813,13 @@ html.app-booting .schedule-empty-reveal {
 [data-detail-movie],
 [data-detail-episode] {
   position: relative;
+  --detail-backdrop-height: clamp(230px, 62vw, 330px);
+  --detail-app-bar-height: calc(72px + env(safe-area-inset-top));
 }
 
 .detail-backdrop {
   position: relative;
-  height: clamp(230px, 62vw, 330px);
+  height: var(--detail-backdrop-height);
   overflow: hidden;
   background: linear-gradient(145deg, var(--surface-high), var(--surface));
 }
@@ -1843,16 +1845,39 @@ html.app-booting .schedule-empty-reveal {
 }
 
 .detail-app-bar {
-  position: absolute;
+  position: sticky;
   z-index: 10;
   top: 0;
-  left: 0;
   width: 100%;
   min-height: calc(72px + env(safe-area-inset-top));
   padding: max(12px, env(safe-area-inset-top)) 8px 12px;
   display: flex;
   align-items: center;
+  background: var(--surface);
+}
+
+[data-detail-show] > .detail-app-bar,
+[data-detail-movie] > .detail-app-bar,
+[data-detail-episode] > .detail-app-bar {
+  height: var(--detail-app-bar-height);
+  margin-top: calc(-1 * var(--detail-backdrop-height));
+  margin-bottom: calc(var(--detail-backdrop-height) - var(--detail-app-bar-height));
   background: transparent;
+}
+
+[data-detail-show] > .detail-app-bar::before,
+[data-detail-movie] > .detail-app-bar::before,
+[data-detail-episode] > .detail-app-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--surface);
+  opacity: var(--detail-app-bar-opacity, 0);
+  pointer-events: none;
+}
+
+.detail-app-bar > * {
+  position: relative;
 }
 
 .detail-app-bar .icon-button {
@@ -3727,7 +3752,7 @@ html.app-booting .tv-slice-reveal {
   .app-shell {
     min-height: calc(100dvh - 48px);
     border-radius: 28px;
-    overflow: hidden;
+    overflow: clip;
   }
 
   .bottom-chrome {
