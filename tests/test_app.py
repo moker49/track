@@ -1335,6 +1335,36 @@ class TrackAppTest(unittest.TestCase):
                 self.assertEqual(db.execute("SELECT state FROM movies WHERE tmdb_id = 3").fetchone()[0], "ACTIVE")
                 db.close()
 
+    def test_ongoing_show_queue_requires_unresolved_episode(self):
+        connection = sqlite3.connect(self.database)
+        connection.row_factory = sqlite3.Row
+        connection.execute("UPDATE shows SET status = 'Returning Series' WHERE id IN (1, 2)")
+        connection.execute("UPDATE shows SET watch_again = 1 WHERE id = 2")
+        connection.execute(
+            "INSERT INTO episode_watch_history (episode_id, added_at) "
+            "VALUES (14, '2026-09-01T00:00:00+00:00')"
+        )
+        connection.commit()
+
+        queue_items = get_catch_up_episodes(connection)
+        self.assertEqual([item["show_id"] for item in queue_items], [1])
+        self.assertFalse(queue_items[0]["is_rewatch"])
+        self.assertEqual(get_catch_up_episodes(connection, show_id=2), [])
+        self.assertEqual(
+            self.client.get("/api/schedule/shows/2/catch-up").status_code, 204
+        )
+        self.assertNotIn(b'Archived Test Show', self.client.get("/api/schedule").data)
+
+        connection.execute("UPDATE shows SET status = 'Ended' WHERE id = 2")
+        connection.commit()
+        queue_items = get_catch_up_episodes(connection)
+        ended_show = next(item for item in queue_items if item["show_id"] == 2)
+        self.assertTrue(ended_show["is_rewatch"])
+        self.assertEqual(
+            self.client.get("/api/schedule/shows/2/catch-up").status_code, 200
+        )
+        connection.close()
+
     def test_queue_has_no_special_forced_marker_or_sort_priority(self):
         response = self.client.post(
             "/api/shows/2/reactions/queue", json={"selected": True}

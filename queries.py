@@ -282,6 +282,10 @@ def get_catch_up_episodes(
         JOIN show_progress ON show_progress.show_id = unresolved.show_id
         WHERE (? IS NULL OR unresolved.show_id = ?)
           AND (? = 1 OR unresolved.watch_again = 1)
+          AND (
+              LOWER(TRIM(COALESCE(unresolved.show_status, ''))) IN ('ended', 'canceled', 'cancelled')
+              OR show_progress.watched_count < show_progress.episode_count
+          )
         ORDER BY show_progress.last_watched_at DESC,
                  unresolved.show_name COLLATE NOCASE
         """,
