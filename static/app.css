@@ -1083,8 +1083,8 @@ html.app-booting .schedule-empty-reveal {
   z-index: 5;
   top: 0;
   right: 0;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   clip-path: polygon(0 0, 100% 0, 100% 100%);
   color: white;
   pointer-events: none;
@@ -1094,8 +1094,8 @@ html.app-booting .schedule-empty-reveal {
 .media-type-flag-movie { background: #007e80; }
 .media-type-flag .material-symbols-rounded {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 7px;
+  right: 7px;
   font-size: 15px;
   line-height: 1;
 }
@@ -1486,10 +1486,6 @@ html.app-booting .schedule-empty-reveal {
 
 :is([data-view="tv"], [data-view="movies"], [data-view="media"]) .show-card {
   height: calc(var(--grid-poster-height) + 32px);
-}
-
-[data-view="media"] :is(.show-card-year, .popular-card-copy > p) {
-  top: 1px;
 }
 
 .virtual-timeline>.schedule-timeline-item.is-virtual-group-first .schedule-timeline-rail::before {
