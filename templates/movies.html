@@ -1,6 +1,22 @@
 {% from "_movie_card.html" import movie_card %}
-<section class="page-section tv-library-section" data-library-results-section><div class="show-grid" data-library-results-grid>{% for movie in movies %}{{ movie_card(movie) }}{% endfor %}</div><div class="empty-state state-empty" data-library-empty {% if movies %}hidden{% endif %}><span class="empty-icon material-symbols-rounded" aria-hidden="true">movie_off</span><h3>Nothing in your library</h3></div></section>
-<section class="page-section tv-add-section" data-movie-add-section hidden><div class="popular-grid" data-movie-add-results></div></section>
+<section class="page-section tv-library-section" data-library-results-section>
+  <div class="show-grid" data-library-results-grid>{% for movie in movies %}{{ movie_card(movie) }}{% endfor %}</div>
+  <div class="empty-state state-empty" data-library-empty {% if movies %}hidden{% endif %}><span
+      class="empty-icon material-symbols-rounded" aria-hidden="true">movie_off</span>
+    <h3>Nothing in your library</h3>
+  </div>
+</section>
+<section class="page-section tv-add-section" data-movie-add-section hidden>
+  <div class="popular-grid" data-movie-add-results></div>
+</section>
+<div class="catalog-search-prompt" data-catalog-search-prompt hidden>
+  <button class="catalog-search-button" type="button" data-search-more>
+    <span class="material-symbols-rounded" aria-hidden="true">travel_explore</span>
+    <span>Search new movies</span>
+    <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+  </button>
+  <p data-search-more-hint hidden>Keep typing to search more.</p>
+</div>
 <div class="empty-state tv-search-empty" data-movie-search-empty hidden>
   <span class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>
   <h3>No results found</h3>

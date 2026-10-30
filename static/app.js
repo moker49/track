@@ -758,6 +758,7 @@ function syncTvSearchPresentation() {
   const view = views.get("tv");
   if (!view) return;
   const query = searchQueries.tv.trim();
+  syncCatalogSearchPrompt(view, query, tvSearchPending, tvSearchComplete);
   const addSection = view.querySelector("[data-tv-add-section]");
   const addResults = view.querySelector("[data-tv-add-results]");
   const credit = view.querySelector("[data-tv-search-credit]");
@@ -852,6 +853,7 @@ function syncMovieSearchPresentation() {
   const empty = view.querySelector("[data-movie-search-empty]");
   const error = view.querySelector("[data-movie-search-error]");
   const query = searchQueries.movies.trim();
+  syncCatalogSearchPrompt(view, query, movieSearchPending, movieSearchComplete);
   const addCount = results?.querySelectorAll(".popular-card").length || 0;
   const localCount = virtualLibraries.get("movies")?.filteredCards.length
     ?? [...view.querySelectorAll(".show-card")].filter((card) => !card.hidden).length;
@@ -4727,6 +4729,14 @@ new MutationObserver((mutations) => {
   mutations.forEach((mutation) => mutation.addedNodes.forEach(inspectMediaImages));
 }).observe(document.documentElement, { childList: true, subtree: true });
 
+function syncCatalogSearchPrompt(view, query, pending, complete) {
+  const prompt = view.querySelector("[data-catalog-search-prompt]");
+  if (!prompt) return;
+  prompt.hidden = !query || pending || complete;
+  prompt.querySelector("[data-search-more]").disabled = query.length < 3;
+  prompt.querySelector("[data-search-more-hint]").hidden = query.length >= 3;
+}
+
 function performCatalogSearch() {
   if (!["tv", "movies"].includes(currentView)) return;
   const searchValue = globalSearchInput?.value || searchQueries[currentView];
@@ -4737,6 +4747,10 @@ function performCatalogSearch() {
   if (currentView === "tv") searchTvCatalog(query);
   else searchMovieCatalog(query);
 }
+
+document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-search-more]")) performCatalogSearch();
+});
 
 document.addEventListener("submit", (event) => {
   if (!event.target.matches("[data-view-search]")) return;

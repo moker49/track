@@ -3398,6 +3398,32 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
   margin-top: 20px;
 }
 
+.catalog-search-prompt:not([hidden]) {
+  padding: 16px;
+}
+
+.catalog-search-button {
+  width: 100%;
+  min-height: 64px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--outline-soft);
+  border-radius: var(--radius-md);
+  color: var(--primary);
+  background: var(--surface-card);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.catalog-search-button span:nth-child(2) { flex: 1; }
+.catalog-search-button:disabled { opacity: 0.55; cursor: default; }
+.catalog-search-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.catalog-search-prompt p { color: var(--on-surface-muted); font-size: 0.75rem; margin: 8px 0 0; }
+
 .tmdb-credit {
   margin: 24px 12px 0;
   color: var(--on-surface-muted);
