@@ -643,6 +643,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "title": payload.get("title") or "Untitled movie",
             "overview": payload.get("overview"),
             "poster_path": payload.get("poster_path"),
+            "backdrop_path": payload.get("backdrop_path"),
             "release_date": payload.get("release_date"),
             "is_upcoming": bool(
                 payload.get("release_date")

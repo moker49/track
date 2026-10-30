@@ -520,7 +520,7 @@ class TrackAppTest(unittest.TestCase):
     def test_catalog_movie_preview_renders_cast_in_initial_fragment(self):
         class PreviewClient:
             def movie(self, tmdb_id):
-                return {"id": tmdb_id, "title": "Preview Movie", "genres": []}
+                return {"id": tmdb_id, "title": "Preview Movie", "backdrop_path": "/preview-backdrop.jpg", "genres": []}
 
             def movie_credits(self, _tmdb_id):
                 return {"cast": [{"name": "Preview Actor", "character": "Full Role Name"}]}
@@ -528,6 +528,7 @@ class TrackAppTest(unittest.TestCase):
         self.app.config["TMDB_CLIENT_FACTORY"] = lambda _token: PreviewClient()
         detail = self.client.get("/api/movies/tmdb/123456/preview")
         self.assertEqual(detail.status_code, 200)
+        self.assertIn(b'/media/backdrop/w780/preview-backdrop.jpg', detail.data)
         self.assertIn(b'detail-cast-rail', detail.data)
         self.assertIn(b'<details class="detail-section-disclosure" data-cast-disclosure open>', detail.data)
         self.assertIn(b'data-activity-log', detail.data)
