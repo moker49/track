@@ -4734,7 +4734,6 @@ function syncCatalogSearchPrompt(view, query, pending, complete) {
   if (!prompt) return;
   prompt.hidden = !query || pending || complete;
   prompt.querySelector("[data-search-more]").disabled = query.length < 3;
-  prompt.querySelector("[data-search-more-hint]").hidden = query.length >= 3;
 }
 
 function performCatalogSearch() {

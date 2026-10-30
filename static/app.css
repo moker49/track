@@ -1267,7 +1267,7 @@ html.app-booting .schedule-empty-reveal {
   flex: none;
 }
 
-.detail-section-disclosure[open] > summary .cast-avatar-stack {
+.detail-section-disclosure[open]>summary .cast-avatar-stack {
   display: none;
 }
 
@@ -3419,10 +3419,19 @@ html:not(.search-text-position-animation-ready) .app-bar-search input.search-tex
   cursor: pointer;
 }
 
-.catalog-search-button span:nth-child(2) { flex: 1; }
-.catalog-search-button:disabled { opacity: 0.55; cursor: default; }
-.catalog-search-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.catalog-search-prompt p { color: var(--on-surface-muted); font-size: 0.75rem; margin: 8px 0 0; }
+.catalog-search-button span:nth-child(2) {
+  flex: 1;
+}
+
+.catalog-search-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.catalog-search-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
 
 .tmdb-credit {
   margin: 24px 12px 0;
