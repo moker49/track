@@ -1,4 +1,4 @@
-{% macro show_card(show) %}
+{% macro show_card(show, show_media_type=false) %}
 {% set percent = ((show.watched_count / show.episode_count * 100)|round|int) if show.episode_count else 0 %}
 {% set progress = progress_for(show.state, show.watched_count, show.episode_count, show.status) %}
 {% set move = move_for(show.state) %}
@@ -11,7 +11,7 @@
   data-watched-count="{{ show.watched_count }}" data-episode-count="{{ show.episode_count }}"
   data-total-watch-count="{{ show.total_watch_count }}" data-completed-watch-count="{{ show.completed_watch_count }}"
   data-progress-state="{{ progress.css_state }}">
-  <button class="show-card-open" type="button" data-show-open aria-label="Open {{ show.name }}">
+  <button class="show-card-open" type="button" data-show-open aria-label="Open {{ show.name }}{% if show_media_type %} (TV show){% endif %}">
     <div class="poster poster-purple{% if show.poster_path %} has-media-image{% endif %}" aria-hidden="true">
       {% if show.poster_path %}<img class="poster-image"
         src="{{ url_for('cached_tmdb_image', image_type='poster', size='w342', tmdb_path=show.poster_path[1:]) }}"
@@ -19,6 +19,7 @@
           class="poster-mark">{{ show.name[:2]|upper }}</span><span class="poster-label">{{ show.name
           }}</span></template>{% else %}<span class="poster-mark">{{ show.name[:2]|upper }}</span><span
         class="poster-label">{{ show.name }}</span>{% endif %}
+      {% if show_media_type %}<span class="media-type-flag media-type-flag-tv"><span class="material-symbols-rounded">tv</span></span>{% endif %}
     </div>
     <div class="show-card-body">
       <h3>{{ show.name }}</h3>

@@ -2,8 +2,8 @@
 {% from "_movie_card.html" import movie_card %}
 <section class="page-section tv-library-section" data-library-results-section aria-label="Media library">
   <div class="show-grid" data-library-results-grid>
-    {% for show in shows %}{{ show_card(show) }}{% endfor %}
-    {% for movie in movies %}{{ movie_card(movie) }}{% endfor %}
+    {% for show in shows %}{{ show_card(show, true) }}{% endfor %}
+    {% for movie in movies %}{{ movie_card(movie, true) }}{% endfor %}
   </div>
 </section>
 <section class="page-section tv-add-section" data-media-add-section hidden>

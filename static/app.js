@@ -665,7 +665,7 @@ function catalogCard(show, catalogType = currentView) {
   if (show.show_id) article.dataset.showId = show.show_id;
   article.tabIndex = 0;
   article.setAttribute("role", "link");
-  article.setAttribute("aria-label", `Open details for ${show.name}`);
+  article.setAttribute("aria-label", `Open details for ${show.name}${currentView === "media" ? (catalogType === "movies" ? " (movie)" : " (TV show)") : ""}`);
 
   const poster = document.createElement("div");
   poster.className = "mini-poster";
@@ -688,6 +688,16 @@ function catalogCard(show, catalogType = currentView) {
     image.decoding = "async";
     image.dataset.mediaImage = "";
     poster.append(image);
+  }
+  if (currentView === "media") {
+    const flag = document.createElement("div");
+    flag.className = `media-type-flag media-type-flag-${catalogType === "movies" ? "movie" : "tv"}`;
+    flag.setAttribute("aria-hidden", "true");
+    const icon = document.createElement("span");
+    icon.className = "material-symbols-rounded";
+    icon.textContent = catalogType === "movies" ? "movie" : "tv";
+    flag.append(icon);
+    poster.append(flag);
   }
 
   const copy = document.createElement("div");

@@ -1078,6 +1078,28 @@ html.app-booting .schedule-empty-reveal {
   object-fit: cover;
 }
 
+.media-type-flag {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  right: 0;
+  width: 34px;
+  height: 34px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  color: white;
+  pointer-events: none;
+}
+
+.media-type-flag-tv { background: #7048c5; }
+.media-type-flag-movie { background: #007e80; }
+.media-type-flag .material-symbols-rounded {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 15px;
+  line-height: 1;
+}
+
 .has-media-image:not(.is-image-loaded) {
   background: var(--surface-high);
   animation: skeleton-pulse 1.2s ease-in-out infinite alternate;
