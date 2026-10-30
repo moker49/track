@@ -1473,7 +1473,8 @@ html.app-booting .schedule-empty-reveal {
 }
 
 [data-view="tv"] .poster,
-[data-view="movies"] .poster {
+[data-view="movies"] .poster,
+[data-view="media"] .poster {
   width: 88px;
   height: var(--grid-poster-height);
   min-height: 0;
@@ -1535,7 +1536,8 @@ html.app-booting .schedule-empty-reveal {
   padding-bottom: 76px;
 }
 
-[data-view="movies"] {
+[data-view="movies"],
+[data-view="media"] {
   padding-bottom: 76px;
 }
 

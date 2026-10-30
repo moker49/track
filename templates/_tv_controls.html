@@ -22,7 +22,7 @@
         aria-hidden="true">expand_more</span>
     </button>
     <div class="tv-dropdown-menu" data-tv-dropdown-menu="filter" role="menu" popover="manual" hidden>
-      {% for value, label in [('not-started', 'New'), ('started', 'Started'), ('caught-up', 'Caught-up')]
+      {% for value, label in [('not-started', 'New'), ('started', 'Started'), ('caught-up', 'Caught-up'), ('finished', 'Watched')]
       %}
       <button type="button" data-tv-progress-option="{{ value }}" role="menuitemcheckbox"
         aria-checked="false"><span

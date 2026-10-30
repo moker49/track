@@ -1,0 +1,27 @@
+{% from "_show_card.html" import show_card %}
+{% from "_movie_card.html" import movie_card %}
+<section class="page-section tv-library-section" data-library-results-section aria-label="Media library">
+  <div class="show-grid" data-library-results-grid>
+    {% for show in shows %}{{ show_card(show) }}{% endfor %}
+    {% for movie in movies %}{{ movie_card(movie) }}{% endfor %}
+  </div>
+</section>
+<section class="page-section tv-add-section" data-media-add-section hidden>
+  <div class="popular-grid" data-media-add-results></div>
+  <p class="tmdb-credit">Data and images by <a href="https://www.themoviedb.org" target="_blank"
+      rel="noreferrer">TMDB</a>. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+</section>
+<div class="catalog-search-prompt" data-catalog-search-prompt hidden>
+  <button class="catalog-search-button" type="button" data-search-more><span class="material-symbols-rounded"
+      aria-hidden="true">travel_explore</span><span>Search more</span><span class="material-symbols-rounded"
+      aria-hidden="true">arrow_forward</span></button>
+</div>
+<div class="empty-state tv-search-empty" data-media-search-empty hidden><span
+    class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>
+  <h3>No results found</h3>
+</div>
+<div class="empty-state tv-search-error" data-media-search-error hidden><span
+    class="empty-icon material-symbols-rounded" aria-hidden="true">cloud_off</span>
+  <h3>Couldn’t search TMDB</h3>
+  <p data-media-search-error-copy></p><button class="filled-button" type="button" data-search-more>Try again</button>
+</div>

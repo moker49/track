@@ -1394,7 +1394,7 @@ class TrackAppTest(unittest.TestCase):
     def test_upcoming_uses_one_archive_media_option_for_tv_and_movies(self):
         javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(encoding="utf-8")
         self.assertIn('["backlog", "upcoming"].includes(viewName) && type.endsWith("-archive")', javascript)
-        self.assertIn('type === "archive" && viewName !== "upcoming"', javascript)
+        self.assertIn('type === "archive" && !["upcoming", "media"].includes(viewName)', javascript)
         self.assertIn('viewName === "upcoming"' + chr(10) + '          ? preferences.mediaTypes.includes("archive")', javascript)
         self.assertIn('mediaTypes.includes("archive") ? "Archive" : null', javascript)
         self.assertIn('viewName === "backlog"' + chr(10) + '      ? preferences.mediaTypes.includes(mediaType)', javascript)
@@ -1610,7 +1610,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"data-tv-sort-label>Sort</span>", home.data)
         self.assertNotIn(b"data-tv-combined-divider", home.data)
         self.assertEqual(home.data.count(b'class="tv-dropdown-menu-section"'), 0)
-        self.assertEqual(home.data.count(b"data-tv-progress-option="), 3)
+        self.assertEqual(home.data.count(b"data-tv-progress-option="), 4)
         self.assertEqual(home.data.count(b"data-tv-sort-option="), 5)
         self.assertNotIn(b'data-tv-progress-option=""', home.data)
         self.assertIn(b'data-tv-sort-option="name"', home.data)
@@ -1792,6 +1792,19 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"<!doctype html>", fragment.data.lower())
         self.assertNotIn(b"bottom-nav", fragment.data)
         self.assertNotIn(b"data-tv-control-bar", fragment.data)
+
+    def test_media_library_combines_active_and_archived_movies_and_shows(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute("INSERT INTO movies (tmdb_id, title, state, is_tracked, added_at) VALUES (?, ?, ?, 1, ?)",
+                           (12345, "Archived Movie", "ARCHIVED", "2026-01-01"))
+        connection.commit()
+        connection.close()
+        fragment = self.client.get("/api/media")
+        self.assertEqual(fragment.status_code, 200)
+        self.assertIn(b"Active Test Show", fragment.data)
+        self.assertIn(b"Archived Test Show", fragment.data)
+        self.assertIn(b"Archived Movie", fragment.data)
+        self.assertIn(b"Search more media", fragment.data)
 
     def test_show_detail_progress_counts_rewatches_only_after_completion(self):
         connection = sqlite3.connect(self.database)
@@ -2960,10 +2973,10 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn("function markCatalogTracked", javascript)
         self.assertIn('markCatalogTracked(card, String(data.show_id))', javascript)
         self.assertIn('markCatalogTracked(card, String(data.movie_id))', javascript)
-        self.assertIn('openShow(data.show_id, "tv", false, "replace")', javascript)
+        self.assertIn('openShow(data.show_id, parentView, false, "replace")', javascript)
         self.assertIn("const cachedShowId = card.dataset.showId", javascript)
         self.assertIn(
-            'await openShow(cachedShowId, "tv", true, historyMode)',
+            'await openShow(cachedShowId, parentView, true, historyMode)',
             javascript,
         )
         self.assertIn("if (hasCachedDetails) {", javascript)

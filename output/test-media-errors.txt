@@ -1,0 +1,40 @@
+[2026-10-30 13:43:50,500] ERROR in app: Cast hydration failed for show 3
+Traceback (most recent call last):
+  File "C:\Dev\Track\app.py", line 180, in hydrate_cast
+    client.show_credits(tmdb_id)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FakeClient' object has no attribute 'show_credits'
+[2026-10-30 13:43:50,550] ERROR in app: Cast hydration failed for show 3
+Traceback (most recent call last):
+  File "C:\Dev\Track\app.py", line 180, in hydrate_cast
+    client.show_credits(tmdb_id)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FakeClient' object has no attribute 'show_credits'
+[2026-10-30 13:43:50,655] ERROR in app: Cast hydration failed for show 3
+Traceback (most recent call last):
+  File "C:\Dev\Track\app.py", line 180, in hydrate_cast
+    client.show_credits(tmdb_id)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FakeClient' object has no attribute 'show_credits'
+[2026-10-30 13:44:02,919] ERROR in app: Cast hydration failed for show 1
+Traceback (most recent call last):
+  File "C:\Dev\Track\app.py", line 180, in hydrate_cast
+    client.show_credits(tmdb_id)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FakeClient' object has no attribute 'show_credits'
+[2026-10-30 13:44:02,949] ERROR in app: Cast hydration failed for show 1
+Traceback (most recent call last):
+  File "C:\Dev\Track\app.py", line 180, in hydrate_cast
+    client.show_credits(tmdb_id)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FakeClient' object has no attribute 'show_credits'
+[2026-10-30 13:44:09,119] ERROR in app: Cast hydration failed for show 3
+Traceback (most recent call last):
+  File "C:\Dev\Track\app.py", line 180, in hydrate_cast
+    client.show_credits(tmdb_id)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FakeClient' object has no attribute 'show_credits'
+----------------------------------------------------------------------
+Ran 69 tests in 33.460s
+
+OK

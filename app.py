@@ -423,6 +423,12 @@ def create_app(test_config: dict | None = None) -> Flask:
     def movies_fragment():
         return render_template("movies.html", movies=get_movie_library(get_db(), request_local_date()))
 
+    @app.get("/api/media")
+    def media_fragment():
+        active_shows, archived_shows = get_tv_library_shows(get_db(), request_local_date())
+        return render_template("_media_content.html", shows=active_shows + archived_shows,
+                               movies=get_movie_library(get_db(), request_local_date()))
+
     @app.get("/api/schedule")
     def schedule_fragment():
         db = get_db()

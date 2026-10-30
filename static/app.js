@@ -144,8 +144,14 @@ const libraryViewPreferences = {
     sortDirection: "desc",
     mediaTypes: ["movies"],
   },
+  media: { state: TRACKING_STATE.ACTIVE, progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP, PROGRESS_STATE.FINISHED], sortField: "name", sortDirection: "asc", mediaTypes: ["tv", "movies", "archive"] },
 };
-const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "" };
+const searchQueries = { backlog: "", upcoming: "", tv: "", movies: "", media: "" };
+let mediaSearchRequest = null;
+let mediaSearchPending = false;
+let mediaSearchComplete = false;
+let mediaSearchError = "";
+let mediaLoadRequest = null;
 const librarySearchUpdates = { tv: false, movies: false };
 const virtualLibraries = new Map();
 // Keep enough cards mounted around the viewport that normal scrolling does not
@@ -392,8 +398,9 @@ function syncGlobalSearch() {
   if (hasDedicatedAppBar) return;
 
   const searchConfig = {
-    backlog: { placeholder: "Search queue", label: "Search queue episodes" },
-    upcoming: { placeholder: "Search upcoming", label: "Search upcoming episodes" },
+    backlog: { placeholder: "Search media", label: "Search media" },
+    upcoming: { placeholder: "Search media", label: "Search media" },
+    media: { placeholder: "Search media", label: "Search media" },
     tv: { placeholder: "Search TV", label: "Search TV shows" },
     movies: { placeholder: "Search movies", label: "Search movies" },
   }[currentView];
@@ -571,6 +578,7 @@ function showView(viewName, historyMode = null) {
       views.get(viewName).classList.add("schedule-first-reveal-pending");
     }
   }
+  const previousView = currentView;
   scrollPositions[currentView] = window.scrollY;
   views.forEach((view, name) => {
     const active = name === viewName;
@@ -585,6 +593,7 @@ function showView(viewName, historyMode = null) {
   syncDetailBottomChrome();
   syncGlobalSearch();
   syncTvControlVisibility();
+  if (viewName === "media") loadMediaLibrary(previousView === "detail");
   if (["tv", "movies"].includes(viewName)) {
     filterShowView(views.get(viewName));
     // Restoring before the detail toolbar and bottom navigation settle can
@@ -648,11 +657,11 @@ function showView(viewName, historyMode = null) {
   }
 }
 
-function catalogCard(show) {
+function catalogCard(show, catalogType = currentView) {
   const article = document.createElement("article");
   article.className = "popular-card";
   article.dataset.tmdbId = show.tmdb_id;
-  article.dataset.catalogType = currentView;
+  article.dataset.catalogType = catalogType;
   if (show.show_id) article.dataset.showId = show.show_id;
   article.tabIndex = 0;
   article.setAttribute("role", "link");
@@ -904,6 +913,74 @@ async function searchMovieCatalog(query) {
   syncMovieSearchPresentation();
 }
 
+async function loadMediaLibrary(refresh = false) {
+  if (!refresh && views.get("media").querySelector("[data-library-results-grid]")) {
+    filterShowView(views.get("media"));
+    return;
+  }
+  if (mediaLoadRequest) return mediaLoadRequest;
+  mediaLoadRequest = (async () => {
+    const response = await fetch("/api/media", { headers: localDateHeaders({ "X-Requested-With": "Track" }) });
+    if (!response.ok) throw new Error("Could not load media");
+    const view = views.get("media");
+    const html = await response.text();
+    const existingGrid = view.querySelector("[data-library-results-grid]");
+    if (existingGrid) {
+      const fragment = document.createElement("template");
+      fragment.innerHTML = html;
+      existingGrid.replaceWith(fragment.content.querySelector("[data-library-results-grid]"));
+    } else {
+      view.innerHTML = html;
+    }
+    virtualLibraries.delete("media");
+    filterShowView(view);
+  })().catch(() => showSnackbar("Could not load media"));
+  try { await mediaLoadRequest; } finally { mediaLoadRequest = null; }
+}
+
+function syncMediaSearchPresentation() {
+  const view = views.get("media");
+  const section = view.querySelector("[data-media-add-section]");
+  if (!section) return;
+  const query = searchQueries.media.trim();
+  const results = view.querySelector("[data-media-add-results]");
+  const count = results.querySelectorAll(".popular-card").length;
+  const localCount = virtualLibraries.get("media")?.filteredCards.length || 0;
+  syncCatalogSearchPrompt(view, query, mediaSearchPending, mediaSearchComplete);
+  section.hidden = !query || !count;
+  const error = view.querySelector("[data-media-search-error]");
+  error.hidden = !query || !mediaSearchError;
+  error.querySelector("[data-media-search-error-copy]").textContent = mediaSearchError;
+  view.querySelector("[data-media-search-empty]").hidden = !query || mediaSearchPending || !mediaSearchComplete || Boolean(mediaSearchError) || localCount + count > 0;
+}
+
+async function searchMediaCatalog(query) {
+  if (!views.get("media").querySelector("[data-media-add-results]")) await loadMediaLibrary();
+  if (searchQueries.media.trim() !== query || !views.get("media").querySelector("[data-media-add-results]")) return;
+  mediaSearchRequest?.abort();
+  const request = new AbortController();
+  mediaSearchRequest = request;
+  mediaSearchPending = true;
+  mediaSearchComplete = false;
+  mediaSearchError = "";
+  const results = views.get("media").querySelector("[data-media-add-results]");
+  results?.replaceChildren();
+  syncMediaSearchPresentation();
+  try {
+    const responses = await Promise.all(["tv", "movies"].map(type => fetch(`/api/${type}/search?q=${encodeURIComponent(query)}`, { signal: request.signal })));
+    const payloads = await Promise.all(responses.map(response => response.json()));
+    if (responses.some(response => !response.ok)) throw new Error(payloads.find((_, index) => !responses[index].ok)?.error || "Could not search TMDB");
+    if (request !== mediaSearchRequest || searchQueries.media.trim() !== query) return;
+    results?.replaceChildren(...payloads.flatMap((payload, index) => payload.results.map(item => catalogCard(item, index ? "movies" : "tv"))));
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    mediaSearchError = error.message;
+  }
+  mediaSearchPending = false;
+  mediaSearchComplete = true;
+  syncMediaSearchPresentation();
+}
+
 async function refreshMoviesContent() {
   if (moviesRefreshRequest) return moviesRefreshRequest;
   moviesRefreshRequest = (async () => {
@@ -924,21 +1001,22 @@ function refreshScheduleForMediaChange() {
 }
 
 async function previewCatalogShow(card, historyMode = "push") {
+  const parentView = card.closest('[data-view="media"]') ? "media" : "tv";
   const navigationSequence = ++detailNavigationSequence;
   if (card.classList.contains("is-loading")) return;
   const cachedShowId = card.dataset.showId;
   const hasCachedDetails = Boolean(cachedShowId);
   card.classList.add("is-loading");
   card.setAttribute("aria-busy", "true");
-  if (hasCachedDetails) await openShow(cachedShowId, "tv", true, historyMode);
+  if (hasCachedDetails) await openShow(cachedShowId, parentView, true, historyMode);
   else {
-    detailParentView = "tv";
+    detailParentView = parentView;
     if (historyMode) {
       writeHistory({
         view: "detail",
         detailType: "catalog",
         tmdbId: card.dataset.tmdbId,
-        parentView: "tv",
+        parentView,
       }, historyMode);
     }
     prepareDetailLoad("Show details");
@@ -961,11 +1039,11 @@ async function previewCatalogShow(card, historyMode = "push") {
     card.dataset.showId = data.show_id;
     if (data.is_tracked) card.remove();
     invalidateShowCache(data.show_id, true);
-    openShow(data.show_id, "tv", false, "replace");
+    openShow(data.show_id, parentView, false, "replace");
   } catch (error) {
     if (error.name === "AbortError") return;
     if (!hasCachedDetails) {
-      showView("tv", "replace");
+      showView(parentView, "replace");
       views.get("detail").replaceChildren();
     }
     showSnackbar(error.message);
@@ -990,7 +1068,7 @@ async function trackDetailShow(showElement, state, trigger, queued = false) {
       .forEach((card) => markCatalogTracked(card, String(data.show_id)));
     refreshScheduleForMediaChange();
     syncTvSearchPresentation();
-    openShow(data.show_id, "tv", true, "replace");
+    openShow(data.show_id, detailParentView === "media" ? "media" : "tv", true, "replace");
   } catch (error) {
     trigger.disabled = false;
     showSnackbar(error.message);
@@ -2403,17 +2481,18 @@ function renderMovieDetail(movieHtml, animate, { resetScroll = true } = {}) {
 }
 
 async function previewCatalogMovie(card, historyMode = "push") {
+  const parentView = card.closest('[data-view="media"]') ? "media" : "movies";
   const navigationSequence = ++detailNavigationSequence;
   if (card.classList.contains("is-loading")) return;
   const movieId = card.dataset.movieId;
   if (movieId) {
-    openMovie(movieId, "movies", historyMode);
+    openMovie(movieId, parentView, historyMode);
     return;
   }
   const cacheKey = String(card.dataset.tmdbId);
-  detailParentView = "movies";
+  detailParentView = parentView;
   if (historyMode) {
-    writeHistory({ view: "detail", detailType: "movieCatalog", tmdbId: card.dataset.tmdbId, parentView: "movies" }, historyMode);
+    writeHistory({ view: "detail", detailType: "movieCatalog", tmdbId: card.dataset.tmdbId, parentView }, historyMode);
   }
   const cachedPreview = moviePreviewCache.get(cacheKey);
   if (cachedPreview) {
@@ -2443,7 +2522,7 @@ async function previewCatalogMovie(card, historyMode = "push") {
   } catch (error) {
     if (navigationSequence !== detailNavigationSequence) return;
     if (error.name !== "AbortError") showSnackbar(error.message);
-    if (currentView === "detail") showView("movies", "replace");
+    if (currentView === "detail") showView(parentView, "replace");
   } finally {
     card.classList.remove("is-loading");
     card.removeAttribute("aria-busy");
@@ -2462,7 +2541,7 @@ async function trackDetailMovie(movieElement, trigger, { queued = false, state =
     document.querySelectorAll(`.popular-card[data-tmdb-id="${movieElement.dataset.tmdbId}"]`)
       .forEach((card) => markCatalogTracked(card, String(data.movie_id)));
     refreshScheduleForMediaChange();
-    openMovie(data.movie_id, "movies", "replace");
+    openMovie(data.movie_id, detailParentView === "media" ? "media" : "movies", "replace");
   } catch (error) {
     trigger.disabled = false;
     showSnackbar(error.message);
@@ -3213,6 +3292,7 @@ const libraryViewDefaults = {
   upcoming: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "releaseDate", sortDirection: "asc", mediaTypes: ["tv", "movies"] },
   tv: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP], sortField: "lastWatched", sortDirection: "desc", mediaTypes: ["tv"] },
   movies: { progress: [PROGRESS_STATE.NEW], sortField: "dateAdded", sortDirection: "desc", mediaTypes: ["movies"] },
+  media: { progress: [PROGRESS_STATE.NEW, PROGRESS_STATE.STARTED, PROGRESS_STATE.CAUGHT_UP, PROGRESS_STATE.FINISHED], sortField: "name", sortDirection: "asc", mediaTypes: ["tv", "movies", "archive"] },
 };
 
 function selectionSummary(values, defaults, available, defaultLabel) {
@@ -3312,7 +3392,8 @@ function syncTvControlBar(view = views.get(currentView)) {
     const excluded = (viewName === "tv" && ["movies", "movies-archive"].includes(type))
       || (viewName === "movies" && ["tv", "tv-archive"].includes(type))
       || (["backlog", "upcoming"].includes(viewName) && type.endsWith("-archive"))
-      || (type === "archive" && viewName !== "upcoming");
+      || (type === "archive" && !["upcoming", "media"].includes(viewName))
+      || (viewName === "media" && type.endsWith("-archive"));
     button.hidden = excluded;
     const label = button.querySelector("[data-tv-media-option-label]");
     if (label) {
@@ -3321,26 +3402,28 @@ function syncTvControlBar(view = views.get(currentView)) {
     const selected = preferences.mediaTypes.includes(type);
     button.classList.toggle("is-unselected-default", defaults.mediaTypes.includes(type) && !selected);
     button.setAttribute("aria-checked", String(selected));
+    button.setAttribute("aria-disabled", String(viewName === "media"));
     button.querySelector(".tv-dropdown-selection").classList.toggle("is-hidden", !selected);
   });
 
   tvControlBar.querySelectorAll("[data-tv-progress-option]").forEach((button) => {
     const value = button.dataset.tvProgressOption;
-    button.hidden = viewName === "movies" && value === PROGRESS_STATE.STARTED;
+    button.hidden = (viewName === "movies" && value === PROGRESS_STATE.STARTED)
+      || (viewName !== "media" && value === PROGRESS_STATE.FINISHED);
     if (value === PROGRESS_STATE.CAUGHT_UP) {
       button.querySelector("span:last-child").textContent = viewName === "movies" ? "Watched" : "Caught-up";
     }
     const selected = preferences.progress.includes(value);
     button.classList.toggle("is-unselected-default", defaults.progress.includes(value) && !selected);
-    const progressLocked = false;
-    button.disabled = progressLocked;
+    const progressLocked = viewName === "media";
+    button.disabled = false;
     button.setAttribute("aria-disabled", String(progressLocked));
     button.setAttribute("aria-checked", String(selected));
     button.querySelector(".tv-dropdown-selection").classList.toggle("is-hidden", !selected);
   });
   tvControlBar.querySelectorAll("[data-tv-sort-option]").forEach((button) => {
     const option = button.dataset.tvSortOption;
-    button.hidden = viewName === "movies" && option === "progress";
+    button.hidden = ["movies", "media"].includes(viewName) && option === "progress";
     const selected = button.dataset.tvSortOption === preferences.sortField;
     button.classList.toggle("is-unselected-default", button.dataset.tvSortOption === defaults.sortField && !selected);
     const sortLocked = viewName === "upcoming";
@@ -3357,8 +3440,8 @@ function syncTvControlBar(view = views.get(currentView)) {
 
 function syncTvControlVisibility() {
   if (!tvControlBar) return;
-  const visible = ["backlog", "upcoming", "tv", "movies"].includes(currentView)
-    && !searchQueries[currentView].trim();
+  const visible = currentView === "media" || (["backlog", "upcoming", "tv", "movies"].includes(currentView)
+    && !searchQueries[currentView].trim());
   const target = tvControlBarSlot;
   if (target && tvControlBar.parentElement !== target) target.append(tvControlBar);
   tvControlBar.hidden = !visible;
@@ -4361,6 +4444,7 @@ document.addEventListener("click", (event) => {
 
   const progressOption = event.target.closest("[data-tv-progress-option]");
   if (progressOption) {
+    if (currentView === "media") return;
     const preferences = libraryViewPreferences[currentView];
     if (!preferences) return;
     const value = progressOption.dataset.tvProgressOption;
@@ -4375,6 +4459,7 @@ document.addEventListener("click", (event) => {
 
   const mediaOption = event.target.closest("[data-tv-media-option]");
   if (mediaOption) {
+    if (currentView === "media") return;
     const preferences = libraryViewPreferences[currentView];
     if (!preferences) return;
     const type = mediaOption.dataset.tvMediaOption;
@@ -4401,6 +4486,7 @@ document.addEventListener("click", (event) => {
     }
     if (currentView === "backlog") filterSchedule(currentView);
     else if (["tv", "movies"].includes(currentView)) filterShowView(views.get(currentView));
+    else if (currentView === "media") filterShowView(views.get("media"));
     syncTvControlBar(views.get(currentView));
     return;
   }
@@ -4677,14 +4763,14 @@ document.addEventListener("click", (event) => {
   const showOpenButton = event.target.closest("[data-show-open]");
   if (showOpenButton) {
     const showCard = showOpenButton.closest("[data-show-id]");
-    openShow(showCard.dataset.showId, "tv");
+    openShow(showCard.dataset.showId, currentView === "media" ? "media" : "tv");
     return;
   }
 
   const movieOpenButton = event.target.closest("[data-movie-open]");
   if (movieOpenButton) {
     const movieCard = movieOpenButton.closest("[data-movie-id]");
-    openMovie(movieCard.dataset.movieId, "movies");
+    openMovie(movieCard.dataset.movieId, currentView === "media" ? "media" : "movies");
     return;
   }
 
@@ -4737,13 +4823,14 @@ function syncCatalogSearchPrompt(view, query, pending, complete) {
 }
 
 function performCatalogSearch() {
-  if (!["tv", "movies"].includes(currentView)) return;
+  if (!["tv", "movies", "media"].includes(currentView)) return;
   const searchValue = globalSearchInput?.value || searchQueries[currentView];
   const query = searchValue.trim();
   if (query.length < 3) return;
   searchQueries[currentView] = searchValue;
   globalSearchInput?.blur();
-  if (currentView === "tv") searchTvCatalog(query);
+  if (currentView === "media") searchMediaCatalog(query);
+  else if (currentView === "tv") searchTvCatalog(query);
   else searchMovieCatalog(query);
 }
 
@@ -5016,7 +5103,7 @@ function initializeVirtualLibrary(view) {
   if (!view) return null;
   const viewName = view.dataset.view;
   const grid = view.querySelector("[data-library-results-grid]");
-  if (!grid || !["tv", "movies"].includes(viewName)) return null;
+  if (!grid || !["tv", "movies", "media"].includes(viewName)) return null;
   let state = virtualLibraries.get(viewName);
   if (state?.view === view && state.grid === grid) {
     const knownCards = new Set(state.allCards);
@@ -5147,10 +5234,10 @@ function filterShowView(view) {
   const searching = Boolean(query);
   const mediaType = viewName === "movies" ? "movies" : "tv";
   const filteredCards = state.allCards.filter((card) => {
-    const stateSelected = searching || (card.dataset.showState === TRACKING_STATE.ARCHIVED
+    const stateSelected = viewName === "media" || searching || (card.dataset.showState === TRACKING_STATE.ARCHIVED
       ? preferences.mediaTypes.includes(`${mediaType}-archive`)
       : preferences.mediaTypes.includes(mediaType));
-    const matchesProgress = searching || preferences.progress.includes(card.dataset.progressState)
+    const matchesProgress = viewName === "media" || searching || preferences.progress.includes(card.dataset.progressState)
       || (card.dataset.progressState === PROGRESS_STATE.FINISHED
         && preferences.progress.includes(PROGRESS_STATE.CAUGHT_UP));
     return stateSelected
@@ -5180,6 +5267,7 @@ function filterShowView(view) {
   hydratedLibraryViews.add(view.dataset.view);
   if (viewName === "tv") syncTvSearchPresentation();
   if (viewName === "movies") syncMovieSearchPresentation();
+  if (viewName === "media") syncMediaSearchPresentation();
 }
 
 function filterAllShowViews() {
@@ -5233,6 +5321,12 @@ globalSearchInput?.addEventListener("input", () => {
   clearTimeout(searchDismissTimer);
   searchDismissTimer = null;
   if (currentView === "detail") return;
+  if (["backlog", "upcoming"].includes(currentView) && globalSearchInput.value) {
+    const value = globalSearchInput.value;
+    searchQueries.media = "";
+    showView("media", "push");
+    globalSearchInput.value = value;
+  }
   syncSearchChrome();
   syncSearchTextPosition();
   const query = globalSearchInput.value;
@@ -5265,6 +5359,13 @@ globalSearchInput?.addEventListener("input", () => {
     views.get("movies")?.querySelector("[data-movie-add-results]")?.replaceChildren();
     syncMovieSearchPresentation();
     if (previousQuery.trim() && !query.trim()) flushSearchLibraryUpdates("movies");
+  } else if (currentView === "media") {
+    mediaSearchRequest?.abort();
+    mediaSearchPending = false;
+    mediaSearchComplete = false;
+    mediaSearchError = "";
+    views.get("media")?.querySelector("[data-media-add-results]")?.replaceChildren();
+    filterShowView(views.get("media"));
   }
   if (previousQuery && !query && searchHistoryActive && !searchHistoryClosing) {
     searchDismissTimer = window.setTimeout(dismissSearchIfEmpty, 200);
@@ -5340,7 +5441,7 @@ window.addEventListener("scroll", () => {
     }
     scrollPositions[currentView] = window.scrollY;
   }
-  if (["tv", "movies"].includes(currentView)) {
+  if (["tv", "movies", "media"].includes(currentView)) {
     scheduleVirtualLibraryRender(virtualLibraries.get(currentView));
   }
   if (["backlog", "upcoming"].includes(currentView)) {
@@ -5452,7 +5553,7 @@ function restoreHistoryState(state) {
   }
 
   const restoredParent = legacyViews[state.parentView] || state.parentView;
-  detailParentView = ["backlog", "upcoming", "tv", "movies", "diary", "statistics"].includes(restoredParent)
+  detailParentView = ["backlog", "upcoming", "tv", "movies", "media", "diary", "statistics"].includes(restoredParent)
     ? restoredParent
     : "backlog";
   if (state.detailType === "show" && state.showId) {
