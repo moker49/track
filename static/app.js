@@ -5148,8 +5148,12 @@ function virtualLibraryMetrics(state) {
   const renderedColumns = styles.gridTemplateColumns
     .split(" ")
     .filter((track) => track && track !== "none").length;
-  const columns = renderedColumns || Math.max(1, Math.floor((state.grid.clientWidth + 12) / 100));
-  return { columns, cardHeight: 184, gap: 16, pitch: 200 };
+  const columns = renderedColumns || 3;
+  const gap = Number.parseFloat(styles.rowGap) || 0;
+  const columnGap = Number.parseFloat(styles.columnGap) || 0;
+  const cardWidth = (state.grid.clientWidth - columnGap * (columns - 1)) / columns;
+  const cardHeight = cardWidth * 152 / 88 + 32;
+  return { columns, cardHeight, gap, pitch: cardHeight + gap };
 }
 
 function setVirtualSpacerHeight(spacer, rows, metrics) {

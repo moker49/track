@@ -1471,6 +1471,27 @@ html.app-booting .schedule-empty-reveal {
   gap: 16px 12px;
 }
 
+:is([data-view="tv"], [data-view="movies"], [data-view="media"]) .page-section {
+  container-type: inline-size;
+}
+
+:is([data-view="tv"], [data-view="movies"], [data-view="media"]) :is(.show-grid, .popular-grid) {
+  --grid-poster-height: calc((100cqw - 24px) * 0.5757576);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+:is([data-view="tv"], [data-view="movies"], [data-view="media"]) :is(.show-card, .popular-card, .poster, .mini-poster) {
+  width: 100%;
+}
+
+:is([data-view="tv"], [data-view="movies"], [data-view="media"]) .show-card {
+  height: calc(var(--grid-poster-height) + 32px);
+}
+
+[data-view="media"] :is(.show-card-year, .popular-card-copy > p) {
+  top: 1px;
+}
+
 .virtual-timeline>.schedule-timeline-item.is-virtual-group-first .schedule-timeline-rail::before {
   background: linear-gradient(to bottom, transparent, var(--outline-soft) 32px);
 }
@@ -1497,7 +1518,7 @@ html.app-booting .schedule-empty-reveal {
 [data-view="tv"] .poster,
 [data-view="movies"] .poster,
 [data-view="media"] .poster {
-  width: 88px;
+  width: 100%;
   height: var(--grid-poster-height);
   min-height: 0;
   padding: 0;

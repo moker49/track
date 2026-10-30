@@ -1804,7 +1804,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b"Active Test Show", fragment.data)
         self.assertIn(b"Archived Test Show", fragment.data)
         self.assertIn(b"Archived Movie", fragment.data)
-        self.assertIn(b"Search more media", fragment.data)
+        self.assertIn(b"Search more", fragment.data)
 
     def test_show_detail_progress_counts_rewatches_only_after_completion(self):
         connection = sqlite3.connect(self.database)

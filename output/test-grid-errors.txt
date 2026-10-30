@@ -1,0 +1,49 @@
+[2026-10-30 14:23:36,687] ERROR in app: Cast hydration failed for show 3
+Traceback (most recent call last):
+  File "C:\Dev\Track\app.py", line 180, in hydrate_cast
+    client.show_credits(tmdb_id)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FakeClient' object has no attribute 'show_credits'
+[2026-10-30 14:23:36,727] ERROR in app: Cast hydration failed for show 3
+Traceback (most recent call last):
+  File "C:\Dev\Track\app.py", line 180, in hydrate_cast
+    client.show_credits(tmdb_id)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FakeClient' object has no attribute 'show_credits'
+[2026-10-30 14:23:36,832] ERROR in app: Cast hydration failed for show 3
+Traceback (most recent call last):
+  File "C:\Dev\Track\app.py", line 180, in hydrate_cast
+    client.show_credits(tmdb_id)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FakeClient' object has no attribute 'show_credits'
+[2026-10-30 14:23:49,237] ERROR in app: Cast hydration failed for show 1
+Traceback (most recent call last):
+  File "C:\Dev\Track\app.py", line 180, in hydrate_cast
+    client.show_credits(tmdb_id)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FakeClient' object has no attribute 'show_credits'
+[2026-10-30 14:23:49,275] ERROR in app: Cast hydration failed for show 1
+Traceback (most recent call last):
+  File "C:\Dev\Track\app.py", line 180, in hydrate_cast
+    client.show_credits(tmdb_id)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FakeClient' object has no attribute 'show_credits'
+[2026-10-30 14:23:55,323] ERROR in app: Cast hydration failed for show 3
+Traceback (most recent call last):
+  File "C:\Dev\Track\app.py", line 180, in hydrate_cast
+    client.show_credits(tmdb_id)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'FakeClient' object has no attribute 'show_credits'
+======================================================================
+FAIL: test_media_library_combines_active_and_archived_movies_and_shows (test_app.TrackAppTest.test_media_library_combines_active_and_archived_movies_and_shows)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Dev\Track\tests\test_app.py", line 1807, in test_media_library_combines_active_and_archived_movies_and_shows
+    self.assertIn(b"Search more media", fragment.data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'Search more media' not found in b'\n\n<section class="page-section tv-library-section" data-library-results-section aria-label="Media library">\n  <div class="show-grid" data-library-results-grid>\n    \n\n\n\n\n<article class="show-card" data-show-id="1" data-tmdb-id="900001"\n  data-show-name="active test show" data-name="active test show" data-date-added="2026-05-02T19:15:00+00:00"\n  data-release-date="2008-01-20" data-last-watched="2026-05-08"\n  data-progress="38" data-show-state="ACTIVE"\n  data-show-status="Ended"\n  data-watched-count="5" data-episode-count="13"\n  data-total-watch-count="5" data-completed-watch-count="0"\n  data-progress-state="started">\n  <button class="show-card-open" type="button" data-show-open aria-label="Open Active Test Show (TV show)">\n    <div class="poster poster-purple" aria-hidden="true">\n      <span class="poster-mark">AC</span><span\n        class="poster-label">Active Test Show</span>\n      <span class="media-type-flag media-type-flag-tv"><span class="material-symbols-rounded">tv</span></span>\n    </div>\n    <div class="show-card-body">\n      <h3>Active Test Show</h3>\n      <span class="show-card-year">2008</span>\n      <div class="progress-block">\n        <div class="progress-track" data-card-progress role="progressbar" aria-valuemin="0" aria-valuemax="100"\n          aria-valuenow="38">\n          <span style="width: 38%"></span>\n        </div>\n      </div>\n    </div>\n  </button>\n</article>\n\n\n\n\n\n<article class="show-card" data-show-id="2" data-tmdb-id="900002"\n  data-show-name="archived test show" data-name="archived test show" data-date-added="2026-06-10T18:30:00+00:00"\n  data-release-date="2011-04-17" data-last-watched="2026-05-20"\n  data-progress="100" data-show-state="ARCHIVED"\n  data-show-status="Ended"\n  data-watched-count="12" data-episode-count="12"\n  data-total-watch-count="12" data-completed-watch-count="1"\n  data-progress-state="finished">\n  <button class="show-card-open" type="button" data-show-open aria-label="Open Archived Test Show (TV show)">\n    <div class="poster poster-purple" aria-hidden="true">\n      <span class="poster-mark">AR</span><span\n        class="poster-label">Archived Test Show</span>\n      <span class="media-type-flag media-type-flag-tv"><span class="material-symbols-rounded">tv</span></span>\n    </div>\n    <div class="show-card-body">\n      <h3>Archived Test Show</h3>\n      <span class="show-card-year">2011</span>\n      <div class="progress-block">\n        <div class="progress-track" data-card-progress role="progressbar" aria-valuemin="0" aria-valuemax="100"\n          aria-valuenow="100">\n          <span style="width: 100%"></span>\n        </div>\n      </div>\n    </div>\n  </button>\n</article>\n\n    \n\n\n<article class="show-card movie-card" data-movie-id="1" data-tmdb-id="12345"\n  data-show-name="archived movie" data-name="archived movie" data-date-added="2026-01-01"\n  data-release-date="" data-last-watched=""\n  data-progress="0" data-progress-state="not-started"\n  data-movie-upcoming="false" data-show-state="ARCHIVED">\n  <button class="show-card-open" type="button" data-movie-open aria-label="Open Archived Movie (movie)">\n    <div class="poster poster-purple" aria-hidden="true">\n      <span class="poster-mark">AR</span>\n      <span class="media-type-flag media-type-flag-movie"><span class="material-symbols-rounded">movie</span></span>\n    </div>\n    <div class="show-card-body">\n      <h3>Archived Movie</h3>\n      <span class="show-card-year"></span>\n      <div class="progress-block">\n        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100"\n          aria-valuenow="0"><span style="width: 0%"></span></div>\n      </div>\n    </div>\n  </button>\n</article>\n\n  </div>\n</section>\n<section class="page-section tv-add-section" data-media-add-section hidden>\n  <div class="popular-grid" data-media-add-results></div>\n  <p class="tmdb-credit">Data and images by <a href="https://www.themoviedb.org" target="_blank"\n      rel="noreferrer">TMDB</a>. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>\n</section>\n<div class="catalog-search-prompt" data-catalog-search-prompt hidden>\n  <button class="catalog-search-button" type="button" data-search-more><span class="material-symbols-rounded"\n      aria-hidden="true">travel_explore</span><span>Search more</span><span class="material-symbols-rounded"\n      aria-hidden="true">arrow_forward</span></button>\n</div>\n<div class="empty-state tv-search-empty" data-media-search-empty hidden><span\n    class="empty-icon material-symbols-rounded" aria-hidden="true">search_off</span>\n  <h3>No results found</h3>\n</div>\n<div class="empty-state tv-search-error" data-media-search-error hidden><span\n    class="empty-icon material-symbols-rounded" aria-hidden="true">cloud_off</span>\n  <h3>Couldn\xe2\x80\x99t search TMDB</h3>\n  <p data-media-search-error-copy></p><button class="filled-button" type="button" data-search-more>Try again</button>\n</div>'
+
+----------------------------------------------------------------------
+Ran 69 tests in 33.239s
+
+FAILED (failures=1)
