@@ -1164,7 +1164,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b'data-total-watch-count="18"', detail.data)
         self.assertIn(b">18/13</span>", detail.data)
-        self.assertIn(b'aria-valuenow="138"', detail.data)
+        self.assertIn(b'aria-valuenow="100" aria-valuetext="138%"', detail.data)
         self.assertIn(b'data-overwatch-tag>\xc3\x971</span>', detail.data)
 
         home = self.client.get("/api/tv")
@@ -1793,6 +1793,27 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b"bottom-nav", fragment.data)
         self.assertNotIn(b"data-tv-control-bar", fragment.data)
 
+    def test_show_detail_progress_counts_rewatches_only_after_completion(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute(
+            "INSERT INTO episode_watch_history (episode_id, added_at, diary_date) VALUES (1, ?, ?)",
+            ("2026-06-01T00:00:00+00:00", "2026-06-01"),
+        )
+        connection.commit()
+        detail = self.client.get("/api/shows/1").data
+        self.assertIn(b'data-progress-copy>38%</span>', detail)
+        self.assertIn(b'data-seasons-progress>5/13</span>', detail)
+        connection.executemany(
+            "INSERT INTO episode_watch_history (episode_id, added_at, diary_date) VALUES (?, ?, ?)",
+            [(episode_id, "2026-06-02T00:00:00+00:00", "2026-06-02") for episode_id in range(6, 14)],
+        )
+        connection.commit()
+        connection.close()
+        detail = self.client.get("/api/shows/1").data
+        self.assertIn(b'data-progress-copy>108%</span>', detail)
+        self.assertIn(b'data-seasons-progress>14/13</span>', detail)
+        self.assertIn(b'aria-valuenow="100" aria-valuetext="108%"', detail)
+
     def test_show_details_are_a_fragment(self):
         detail = self.client.get("/api/shows/1")
         self.assertEqual(detail.status_code, 200)
@@ -1818,7 +1839,8 @@ class TrackAppTest(unittest.TestCase):
         self.assertIn(b'<details class="detail-section-disclosure" data-activity-log>', detail.data)
         self.assertIn(b"Added", detail.data)
         self.assertIn(b'<span class="state-label progress-tag" data-progress-tag>Watching</span>', detail.data)
-        self.assertIn(b'<span data-progress-copy>5/13</span>', detail.data)
+        self.assertIn(b'<span data-progress-copy>38%</span>', detail.data)
+        self.assertIn(b'data-seasons-progress>5/13</span>', detail.data)
         self.assertIn(b'data-toolbar-slots="5"', detail.data)
         self.assertIn(b'class="detail-docked-button" data-toolbar-slot="1" type="button" data-reaction-toggle="queue"', detail.data)
         self.assertIn(b'data-show-next-episode="6"', detail.data)

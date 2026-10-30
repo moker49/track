@@ -1252,6 +1252,15 @@ html.app-booting .schedule-empty-reveal {
   font-weight: 400;
 }
 
+.seasons-header-progress {
+  color: var(--on-surface-muted);
+  font-size: 0.75rem;
+}
+
+[data-seasons-disclosure][open] .seasons-header-progress {
+  display: none;
+}
+
 .cast-avatar-stack {
   padding-left: 7px;
   display: flex;

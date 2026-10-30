@@ -4071,6 +4071,8 @@ function applyShowProgress(data) {
 
   const detailShow = document.querySelector(`[data-detail-show][data-show-id="${data.show_id}"]`);
   if (detailShow) {
+    const seasonsProgress = detailShow.querySelector("[data-seasons-progress]");
+    if (seasonsProgress) seasonsProgress.textContent = `${displayedShowWatchCount(data)}/${data.episode_count}`;
     detailShow.dataset.watchedCount = data.watched_count;
     detailShow.dataset.episodeCount = data.episode_count;
     detailShow.dataset.totalWatchCount = data.total_watch_count;
@@ -4742,16 +4744,23 @@ document.addEventListener("submit", (event) => {
   performCatalogSearch();
 });
 
+function displayedShowWatchCount(data) {
+  return data.episode_count > 0 && data.watched_count >= data.episode_count
+    ? (data.total_watch_count ?? data.watched_count)
+    : data.watched_count;
+}
+
 function updateProgress(progress, data) {
   if (!progress) return;
-  const totalWatchCount = data.total_watch_count ?? data.watched_count;
+  const totalWatchCount = displayedShowWatchCount(data);
   const percent = data.episode_count
     ? Math.round((totalWatchCount / data.episode_count) * 100)
     : 0;
   progress.querySelector("[data-progress-copy]").textContent =
-    `${totalWatchCount}/${data.episode_count}`;
+    `${percent}%`;
   const bar = progress.querySelector(".progress-track");
-  bar.setAttribute("aria-valuenow", percent);
+  bar.setAttribute("aria-valuenow", Math.min(percent, 100));
+  bar.setAttribute("aria-valuetext", `${percent}%`);
   bar.querySelector("span").style.width = `${Math.min(percent, 100)}%`;
 }
 
