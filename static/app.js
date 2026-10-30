@@ -2750,6 +2750,20 @@ function syncActivityCount(log) {
     : visibleCount;
   const countElement = log.querySelector("[data-activity-count]");
   if (countElement) countElement.textContent = count;
+  syncActivityPreview(log);
+}
+
+function syncActivityPreview(log) {
+  const preview = log?.querySelector("[data-activity-preview]");
+  if (!preview) return;
+  const item = log.querySelector(".activity-item.is-visible-activity-item");
+  preview.hidden = !item;
+  preview.replaceChildren();
+  if (!item) return;
+  const icon = item.querySelector(".activity-icon");
+  const date = item.querySelector(".activity-date-row [data-display-date], .activity-date-row .activity-undated-label");
+  if (icon) preview.append(icon.cloneNode(true));
+  if (date) preview.append(date.cloneNode(true));
 }
 
 function sortActivityItems(log) {
@@ -2762,6 +2776,7 @@ function sortActivityItems(log) {
       return (b.dataset.addedAt || "").localeCompare(a.dataset.addedAt || "");
     })
     .forEach((item) => list.append(item));
+  syncActivityPreview(log);
 }
 
 function activitySortDate(displayDate, diaryDate) {

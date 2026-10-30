@@ -1,6 +1,20 @@
+{% macro activity_icon(event_type) -%}
+  {%- if event_type == 'added' -%}add_circle
+  {%- elif event_type in ['added_archive', 'archived'] -%}archive
+  {%- elif event_type == 'activated' -%}resume
+  {%- elif event_type == 'season_watched' -%}done_all
+  {%- elif event_type in ['skipped', 'season_skipped'] -%}skip_next
+  {%- else -%}visibility
+  {%- endif -%}
+{%- endmacro %}
 <details class="detail-section-disclosure" data-activity-log{% if activity_mode == 'episode' %} open{% endif %}>
   <summary>
     <span class="detail-section-label">Activity <span>· <span data-activity-count>{{ activity_items|length }}</span></span></span>
+    <span class="activity-header-preview" data-activity-preview{% if not activity_items %} hidden{% endif %}>
+      {% if activity_items %}{% set latest = activity_items[0] %}{% set latest_time = latest.occurred_at if activity_mode in ['show', 'movie'] else latest.display_date %}
+      <span class="material-symbols-rounded is-filled activity-icon" aria-hidden="true">{{ activity_icon(latest.event_type) }}</span>
+      {% if latest.watch_record_id and not latest.diary_date %}<span class="activity-undated-label">No date</span>{% else %}<time datetime="{{ latest_time }}" data-display-date>{{ latest_time[:10] }}</time>{% endif %}{% endif %}
+    </span>
     <span class="material-symbols-rounded detail-section-chevron" aria-hidden="true">expand_more</span>
   </summary>
   <ol class="activity-list" data-activity-list>
@@ -20,14 +34,7 @@
       {% if record_id %}<button class="activity-item-button" type="button" data-watch-log-menu-button
         aria-label="Edit {{ event_title }}">{% endif %}
       <span class="material-symbols-rounded is-filled activity-icon" aria-hidden="true">
-        {%- if event_type == 'added' -%}add_circle
-        {%- elif event_type == 'added_archive' -%}archive
-        {%- elif event_type == 'archived' -%}archive
-        {%- elif event_type == 'activated' -%}resume
-        {%- elif event_type == 'season_watched' -%}done_all
-        {%- elif event_type in ['skipped', 'season_skipped'] -%}skip_next
-        {%- else -%}visibility
-        {%- endif -%}
+        {{- activity_icon(event_type) -}}
       </span>
       <span class="activity-copy">
         <strong>{{ event_title }}</strong>

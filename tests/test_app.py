@@ -416,6 +416,7 @@ class TrackAppTest(unittest.TestCase):
         self.assertNotIn(b'episode-watch-summary', detail.data)
         self.assertLess(detail.data.index(b'data-cast-disclosure'), detail.data.index(b'data-activity-log'))
         self.assertIn(b'<details class="detail-section-disclosure" data-activity-log>', detail.data)
+        self.assertIn(b'data-activity-preview', detail.data)
         self.assertIn(b"Actor One", detail.data)
         self.assertEqual(detail.data.count(b'class="detail-region-divider"'), 1)
         self.assertEqual(client.credits_calls, 1)

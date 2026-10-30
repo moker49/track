@@ -2559,6 +2559,18 @@ html.navigation-drawer-closing .menu-scrim {
   color: var(--on-surface-muted);
 }
 
+.activity-header-preview:not([hidden]) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--on-surface-muted);
+  font-size: 0.75rem;
+}
+
+[data-activity-log][open] .activity-header-preview {
+  display: none;
+}
+
 .activity-diary-hidden-icon {
   color: currentColor;
   font-size: 0.9rem;
